@@ -108,4 +108,52 @@ describe("office http server", () => {
     expect(page?.level).toBe(30);
     expect(page).toMatchObject({ method: "GET", status: 503 });
   });
+
+  describe("request logs never contain invite tokens or query strings (#90)", () => {
+    const TOKEN = "inv_TopS3cretT0ken";
+    const lineCount = () => lines.length;
+    const newLines = (from: number) => lines.slice(from);
+
+    beforeAll(() => {
+      server.router.get("/api/invites/:token", () => new Response("ok"));
+      server.router.post("/api/join/:token", () => new Response("ok"));
+      server.router.post("/api/explode/join/:token", () => {
+        throw new Error("kaboom");
+      });
+    });
+
+    test.each([
+      ["GET", `/join/${TOKEN}`, `/join/[redacted]`],
+      ["GET", `/api/invites/${TOKEN}`, "/api/invites/:token"],
+      ["POST", `/api/join/${TOKEN}`, "/api/join/:token"],
+      ["DELETE", `/api/join/${TOKEN}`, `/api/join/[redacted]`],
+    ])("%s %s logs %s", async (method, path, logged) => {
+      const from = lineCount();
+      await get(path, { method });
+      const fresh = newLines(from);
+      const entry = fresh.find((l) => l.msg === "request");
+      expect(entry).toMatchObject({ method, path: logged });
+      expect(JSON.stringify(fresh)).not.toContain(TOKEN);
+    });
+
+    test("the unhandled-error log uses the route pattern too", async () => {
+      const from = lineCount();
+      expect((await get(`/api/explode/join/${TOKEN}`, { method: "POST" })).status).toBe(500);
+      const fresh = newLines(from);
+      const error = fresh.find((l) => l.msg === "unhandled request error");
+      expect(error?.path).toBe("/api/explode/join/:token");
+      expect(JSON.stringify(fresh)).not.toContain(TOKEN);
+    });
+
+    test("query strings are never logged", async () => {
+      const from = lineCount();
+      await get("/api/auth/callback/github?code=oauthcode123&state=st4te");
+      await get("/healthz?code=oauthcode123");
+      const text = JSON.stringify(newLines(from));
+      expect(text).not.toContain("oauthcode123");
+      expect(text).not.toContain("st4te");
+      expect(text).toContain('"path":"/api/auth/callback/github"');
+      expect(text).toContain('"path":"/healthz"');
+    });
+  });
 });

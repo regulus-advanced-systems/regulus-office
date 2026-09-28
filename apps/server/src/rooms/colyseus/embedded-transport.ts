@@ -11,6 +11,7 @@ import { BunWebSockets, type TransportOptions } from "@colyseus/bun-websockets";
 import { type AuthContext, createAuthContext, matchMaker, type Router } from "@colyseus/core";
 import type { Server, ServerWebSocket, WebSocketHandler } from "bun";
 import { checkOrigin, type OriginPolicy } from "../../auth/origin.ts";
+import { redactPath } from "../../http/log-path.ts";
 import type { Logger } from "../../logging.ts";
 import { type HttpAttachment, UPGRADED } from "../transport.ts";
 
@@ -88,7 +89,10 @@ export class EmbeddedBunWebSockets extends BunWebSockets {
 
     const origin = request.headers.get("origin");
     if (!checkOrigin(request, this.#originPolicy.publicUrl, this.#originPolicy).ok) {
-      this.#logger.warn({ origin, path: url.pathname }, "rejected cross-origin room request");
+      this.#logger.warn(
+        { origin, path: redactPath(url.pathname) },
+        "rejected cross-origin room request",
+      );
       return new Response(null, { status: 403 });
     }
 

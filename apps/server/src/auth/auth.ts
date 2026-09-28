@@ -17,6 +17,7 @@ import type { OfficeConfig } from "../config.ts";
 import type { Db } from "../db/index.ts";
 import * as schema from "../db/schema/index.ts";
 import { users } from "../db/schema/index.ts";
+import { redactUrlsInText } from "../http/log-path.ts";
 import type { Logger } from "../logging.ts";
 import { ensureProfile } from "./roles.ts";
 
@@ -141,7 +142,14 @@ export function createAuth(deps: AuthDeps): OfficeAuth {
       level: "warn",
       log(level, message, ...args) {
         const fn = level === "error" ? logger.error : level === "warn" ? logger.warn : logger.debug;
-        fn.call(logger, { betterAuth: true, detail: args.length ? args : undefined }, message);
+        // Better Auth puts rejected redirect/callback URLs in its messages; strip
+        // their query strings (OAuth code/state) and invite tokens (#90).
+        const detail = args.map((a) => (typeof a === "string" ? redactUrlsInText(a) : a));
+        fn.call(
+          logger,
+          { betterAuth: true, detail: detail.length ? detail : undefined },
+          redactUrlsInText(message),
+        );
       },
     },
   });

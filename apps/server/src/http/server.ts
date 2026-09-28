@@ -6,6 +6,7 @@ import type { OfficeConfig } from "../config.ts";
 import type { Logger } from "../logging.ts";
 import { type HttpAttachment, UPGRADED } from "../rooms/transport.ts";
 import { Health } from "./health.ts";
+import { safeLogPath } from "./log-path.ts";
 import { MetricsRegistry, PROMETHEUS_CONTENT_TYPE } from "./metrics.ts";
 import { json, Router } from "./router.ts";
 import { createStaticHandler } from "./static.ts";
@@ -94,8 +95,9 @@ export function createOfficeServer(options: OfficeServerOptions): OfficeServer {
       try {
         [response, route] = await dispatch(request, url, bun);
       } catch (err) {
+        const pattern = router.match(request.method, url.pathname)?.pattern;
         logger.error(
-          { err, method: request.method, path: url.pathname },
+          { err, method: request.method, path: safeLogPath(url, pattern) },
           "unhandled request error",
         );
         response = json({ error: "internal_error" }, { status: 500 });
@@ -110,7 +112,8 @@ export function createOfficeServer(options: OfficeServerOptions): OfficeServer {
       requestDuration.observe(seconds, labels);
       const entry = {
         method: request.method,
-        path: url.pathname,
+        // Never the raw URL: invite tokens live in paths, OAuth codes in queries (#90).
+        path: safeLogPath(url, route),
         status,
         ms: Math.round(seconds * 1000),
       };
