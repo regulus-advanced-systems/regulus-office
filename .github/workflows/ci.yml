@@ -115,3 +115,37 @@ jobs:
       - name: Tear down
         if: always()
         run: docker compose down -v --remove-orphans
+
+  # Docker runner backend (#23) against the real daemon: builds a tiny fixture image, then drives
+  # a runner through a socket proxy started with the deploy/ allowlist (#95), as the office does
+  # in Compose. Bind mounts are allowed from /tmp here (test workdirs) instead of /srv/office.
+  docker-runner:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - name: Socket proxy with the deploy/ allowlist
+        run: |
+          compose=deploy/docker-compose.yml
+          img=$(sed -n 's/^    image: \(wollomatic\/socket-proxy.*\)$/\1/p' "$compose")
+          mapfile -t allow < <(sed -n 's/^      - -\(allow[A-Z]*=.*\)$/-\1/p' "$compose")
+          test -n "$img" && test "${#allow[@]}" -gt 5
+          docker run -d --name regulus-ci-proxy --user 0:0 --cap-drop ALL --network host \
+            -v /var/run/docker.sock:/var/run/docker.sock:ro "$img" \
+            -proxyport=2375 -allowbindmountfrom=/tmp "${allow[@]}"
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:2375/_ping && break; sleep 1; done
+          test "$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:2375/build)" = 403
+      - run: bun test apps/server/src/runners/docker
+        env:
+          REGULUS_DOCKER_TESTS: "1"
+          REGULUS_DOCKER_RUNNER_HOST: tcp://127.0.0.1:2375
+      - name: Proxy log
+        if: failure()
+        run: docker logs regulus-ci-proxy
+      - name: Tear down
+        if: always()
+        run: docker rm -f regulus-ci-proxy || true
