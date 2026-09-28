@@ -4,7 +4,9 @@
  *
  * Boot wiring:
  *   const terminals = createTerminals({ db, auth, logger, dataDir, originPolicy, runners });
- *   new WsRouter().use(terminals.bridge).use(rooms.transport.attachment)
+ *   new WsRouter().use(terminals.bridge).use(terminals.screens).use(rooms.transport.attachment)
+ *
+ * `screens` is the laptop screen feed (`/ws/screens/<floorId>`, #25).
  */
 import { join } from "node:path";
 import type { OriginPolicy } from "../auth/origin.ts";
@@ -12,6 +14,7 @@ import type { Db } from "../db/index.ts";
 import type { Logger } from "../logging.ts";
 import { dbFloorVisibility } from "./acl.ts";
 import { TerminalBridge, type TerminalSessionLookup } from "./bridge.ts";
+import { ScreenFeed } from "./screens.ts";
 import { ScrollbackRecorder } from "./scrollback.ts";
 import { DbTerminalTargets, RunnerRegistry } from "./targets.ts";
 
@@ -30,10 +33,13 @@ export {
   type TerminalSessionLookup,
 } from "./bridge.ts";
 export { hasBunPty, openPipe, PtyUnavailableError, type TerminalPipe } from "./pipe.ts";
+export { ScreenPoller, type ScreenSubscriber } from "./screen-poller.ts";
+export { SCREENS_ROUTE, ScreenFeed, type ScreenFeedOptions } from "./screens.ts";
 export { capTail, ScrollbackRecorder, type ScrollbackRecorderOptions } from "./scrollback.ts";
 export {
   AGENT_ID_PATTERN,
   DbTerminalTargets,
+  type FloorTerminalTargets,
   type RunnerLookup,
   RunnerRegistry,
   type TerminalTarget,
@@ -53,6 +59,7 @@ export interface TerminalsOptions {
 
 export interface Terminals {
   bridge: TerminalBridge;
+  screens: ScreenFeed;
   runners: RunnerRegistry;
   scrollback: ScrollbackRecorder;
   shutdown(): Promise<void>;
@@ -65,20 +72,31 @@ export function createTerminals(options: TerminalsOptions): Terminals {
     dir: join(options.dataDir, "terminals", "scrollback"),
     logger,
   });
+  const targets = new DbTerminalTargets(options.db, runners);
+  const canViewFloor = dbFloorVisibility(options.db);
   const bridge = new TerminalBridge({
-    targets: new DbTerminalTargets(options.db, runners),
+    targets,
     sessions: options.sessions,
-    canViewFloor: dbFloorVisibility(options.db),
+    canViewFloor,
     originPolicy: options.originPolicy,
     logger,
     scrollback,
   });
+  const screens = new ScreenFeed({
+    sources: targets,
+    sessions: options.sessions,
+    canViewFloor,
+    originPolicy: options.originPolicy,
+    logger,
+  });
   return {
     bridge,
+    screens,
     runners,
     scrollback,
     async shutdown() {
       bridge.shutdown();
+      screens.shutdown();
       await scrollback.stop();
     },
   };

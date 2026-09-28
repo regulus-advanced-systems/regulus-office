@@ -157,7 +157,14 @@ describe.skipIf(!hasTmux() || !hasBunPty())("terminal bridge (tmux + Bun PTY)", 
   test("hello, then scrollback, then live bytes", async () => {
     const client = await connect("a1", "watch", member);
     await client.waitFor((c) => c.output.includes("before-anyone-watched"), "scrollback");
-    expect(client.hello).toEqual({ type: "hello", mode: "watch", cols: 160, rows: 45, viewers: 1 });
+    expect(client.hello).toEqual({
+      type: "hello",
+      mode: "watch",
+      cols: 160,
+      rows: 45,
+      viewers: 1,
+      peers: [{ userId: member.id, name: "Mo", mode: "watch" }],
+    });
     const second = client.frames[1];
     expect(second && "bytes" in second).toBe(true);
     const scrollback = new TextDecoder().decode((second as { bytes: Uint8Array }).bytes);

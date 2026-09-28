@@ -122,7 +122,10 @@ async function main(): Promise<void> {
     config,
     logger,
     version,
-    attach: new WsRouter().use(terminals.bridge).use(rooms.transport.attachment),
+    attach: new WsRouter()
+      .use(terminals.bridge)
+      .use(terminals.screens)
+      .use(rooms.transport.attachment),
   });
   mountAuthRoutes(server.router, auth);
 

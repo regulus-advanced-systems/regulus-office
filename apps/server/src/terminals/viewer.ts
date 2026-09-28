@@ -28,6 +28,8 @@ export interface ViewerOptions {
   /** Close a viewer whose unsent output exceeds this many bytes. */
   maxBufferedBytes: number;
   logger: Logger;
+  /** Called whenever control-mode keystrokes are accepted (drives "X is typing"). */
+  onInput?: () => void;
 }
 
 /** Input queued while the attach is still starting (control mode only). */
@@ -118,6 +120,7 @@ export class TerminalViewer {
       return;
     }
     const bytes = new Uint8Array(message);
+    this.#opts.onInput?.();
     if (this.#pipe) {
       this.#pipe.write(bytes);
     } else if (this.#pendingBytes + bytes.byteLength <= MAX_PENDING_BYTES) {

@@ -63,6 +63,19 @@ export type TerminalClientMessage = z.infer<typeof TerminalClientMessage>;
 
 // ---- server → client (text frames) ------------------------------------------
 
+/** Largest peer list the server sends; beyond it only the count is exact. */
+export const TERMINAL_MAX_PEERS = 32;
+
+/** One person looking at the terminal (for the viewer faces in the modal). */
+export const TerminalPeer = z.object({
+  userId: z.string().min(1).max(128),
+  name: z.string().max(64),
+  mode: z.enum(TERMINAL_MODES),
+});
+export type TerminalPeer = z.infer<typeof TerminalPeer>;
+
+const Peers = z.array(TerminalPeer).max(TERMINAL_MAX_PEERS);
+
 /** First frame on every connection: the granted mode and the attach size. */
 export const TerminalHello = z.object({
   type: z.literal("hello"),
@@ -71,6 +84,8 @@ export const TerminalHello = z.object({
   rows: Rows,
   /** Viewers of this agent's terminal, this one included. */
   viewers: z.number().int().min(1),
+  /** Who is connected, this viewer included (optional: older servers send only the count). */
+  peers: Peers.optional(),
 });
 export type TerminalHello = z.infer<typeof TerminalHello>;
 
@@ -78,10 +93,30 @@ export type TerminalHello = z.infer<typeof TerminalHello>;
 export const TerminalViewers = z.object({
   type: z.literal("viewers"),
   viewers: z.number().int().min(0),
+  peers: Peers.optional(),
 });
 export type TerminalViewers = z.infer<typeof TerminalViewers>;
 
-export const TerminalServerMessage = z.discriminatedUnion("type", [TerminalHello, TerminalViewers]);
+/**
+ * A control viewer sent keystrokes ("X is typing"). Sent to the other viewers
+ * at most once per {@link TERMINAL_TYPING_THROTTLE_MS} per typist; never carries
+ * the keystrokes themselves.
+ */
+export const TerminalTyping = z.object({
+  type: z.literal("typing"),
+  userId: z.string().min(1).max(128),
+  name: z.string().max(64),
+});
+export type TerminalTyping = z.infer<typeof TerminalTyping>;
+
+/** Minimum gap between two `typing` notices for the same typist. */
+export const TERMINAL_TYPING_THROTTLE_MS = 1000;
+
+export const TerminalServerMessage = z.discriminatedUnion("type", [
+  TerminalHello,
+  TerminalViewers,
+  TerminalTyping,
+]);
 export type TerminalServerMessage = z.infer<typeof TerminalServerMessage>;
 
 function parseJson<T>(schema: z.ZodType<T>, text: string): T | null {

@@ -24,11 +24,13 @@ import { createRooms } from "../rooms/index.ts";
 import type { Runner } from "../runners/types.ts";
 import { dbFloorVisibility } from "./acl.ts";
 import { TerminalBridge, type TerminalBridgeOptions } from "./bridge.ts";
+import { ScreenFeed, type ScreenFeedOptions } from "./screens.ts";
 import { DbTerminalTargets, RunnerRegistry } from "./targets.ts";
 
 export interface TerminalOfficeOptions {
   runner: Runner;
   bridge?: Partial<TerminalBridgeOptions>;
+  screens?: Partial<ScreenFeedOptions>;
 }
 
 export async function startTerminalOffice(options: TerminalOfficeOptions) {
@@ -66,8 +68,9 @@ export async function startTerminalOffice(options: TerminalOfficeOptions) {
     },
   });
   mountAuthRoutes(server.router, auth);
+  const targets = new DbTerminalTargets(db, new RunnerRegistry().setDefault(options.runner));
   const bridge = new TerminalBridge({
-    targets: new DbTerminalTargets(db, new RunnerRegistry().setDefault(options.runner)),
+    targets,
     sessions,
     canViewFloor: dbFloorVisibility(db),
     // Production policy: only the office's own origin, no localhost wildcard.
@@ -75,7 +78,15 @@ export async function startTerminalOffice(options: TerminalOfficeOptions) {
     logger,
     ...options.bridge,
   });
-  router.use(bridge).use(rooms.transport.attachment);
+  const screens = new ScreenFeed({
+    sources: targets,
+    sessions,
+    canViewFloor: dbFloorVisibility(db),
+    originPolicy: { publicUrl: String(server.url) },
+    logger,
+    ...options.screens,
+  });
+  router.use(bridge).use(screens).use(rooms.transport.attachment);
   await rooms.transport.listen();
 
   let seq = 0;
@@ -155,6 +166,7 @@ export async function startTerminalOffice(options: TerminalOfficeOptions) {
     server,
     origin,
     bridge,
+    screens,
     rooms,
     signUp,
     addFloor,
@@ -163,6 +175,7 @@ export async function startTerminalOffice(options: TerminalOfficeOptions) {
     connect,
     async stop() {
       bridge.shutdown();
+      screens.shutdown();
       await rooms.transport.shutdown();
       await server.stop(true);
       db.$client.close();
