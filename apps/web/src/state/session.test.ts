@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test } from "bun:test";
-import { parseSessionUser, SESSION_ENDPOINT, useSessionStore } from "./session.ts";
+import { canManageOffice, parseSessionUser, SESSION_ENDPOINT, useSessionStore } from "./session.ts";
 
 const respond = (status: number, body?: unknown): typeof fetch =>
   (async () =>
@@ -8,27 +8,23 @@ const respond = (status: number, body?: unknown): typeof fetch =>
       headers: { "content-type": "application/json" },
     })) as unknown as typeof fetch;
 
-describe("session store", () => {
-  beforeEach(() => useSessionStore.setState({ status: "unknown", user: null, error: null }));
+const ME = { id: "u1", displayName: "Ante", role: "owner" };
+const reset = () => useSessionStore.setState({ status: "unknown", user: null, error: null });
 
-  test("404 (auth not implemented yet) and 401 mean anonymous, not error", async () => {
-    await useSessionStore.getState().fetchSession(respond(404));
-    expect(useSessionStore.getState().status).toBe("anonymous");
-    await useSessionStore.getState().fetchSession(respond(401));
-    expect(useSessionStore.getState().status).toBe("anonymous");
+describe("session store (/api/me)", () => {
+  beforeEach(reset);
+
+  test("401 means anonymous, not error", async () => {
+    await useSessionStore.getState().fetchSession(respond(401, { error: "unauthorized" }));
+    expect(useSessionStore.getState()).toMatchObject({ status: "anonymous", user: null });
   });
 
-  test("authenticated user is picked out of the response", async () => {
-    await useSessionStore
-      .getState()
-      .fetchSession(respond(200, { user: { id: "u1", displayName: "Ante", role: "owner" } }));
-    expect(useSessionStore.getState()).toMatchObject({
-      status: "authenticated",
-      user: { id: "u1", displayName: "Ante", role: "owner" },
-    });
+  test("the /api/me body becomes the session user", async () => {
+    await useSessionStore.getState().fetchSession(respond(200, ME));
+    expect(useSessionStore.getState()).toMatchObject({ status: "authenticated", user: ME });
   });
 
-  test("network failure and 5xx are reported as error with a message", async () => {
+  test("network failure and 5xx are errors when nobody is known yet", async () => {
     await useSessionStore.getState().fetchSession(respond(500));
     expect(useSessionStore.getState().status).toBe("error");
     const boom = (async () => {
@@ -38,24 +34,75 @@ describe("session store", () => {
     expect(useSessionStore.getState()).toMatchObject({ status: "error", error: "offline" });
   });
 
-  test("parseSessionUser tolerates unknown roles and missing names", () => {
-    expect(parseSessionUser({ user: { id: "u2", name: "N", role: "root" } })).toEqual({
+  test("a refresh keeps the user through transient failures but drops them on 401", async () => {
+    await useSessionStore.getState().fetchSession(respond(200, ME));
+    const seen: string[] = [];
+    const unsub = useSessionStore.subscribe((s) => seen.push(s.status));
+    await useSessionStore.getState().fetchSession(respond(503));
+    expect(useSessionStore.getState()).toMatchObject({ status: "authenticated", user: ME });
+    expect(seen).not.toContain("loading");
+    await useSessionStore.getState().fetchSession(respond(401));
+    expect(useSessionStore.getState()).toMatchObject({ status: "anonymous", user: null });
+    unsub();
+  });
+
+  test("concurrent checks share one request", async () => {
+    let calls = 0;
+    const counting = (async () => {
+      calls += 1;
+      return new Response(JSON.stringify(ME), { status: 200 });
+    }) as unknown as typeof fetch;
+    await Promise.all([
+      useSessionStore.getState().fetchSession(counting),
+      useSessionStore.getState().fetchSession(counting),
+    ]);
+    expect(calls).toBe(1);
+  });
+
+  test("clear forgets the user", async () => {
+    await useSessionStore.getState().fetchSession(respond(200, ME));
+    useSessionStore.getState().clear();
+    expect(useSessionStore.getState()).toMatchObject({ status: "anonymous", user: null });
+  });
+
+  test("parseSessionUser tolerates unknown roles and missing names, rejects junk", () => {
+    expect(parseSessionUser({ id: "u2", displayName: "N", role: "root" })).toEqual({
       id: "u2",
       displayName: "N",
       role: "viewer",
     });
-    expect(parseSessionUser({ user: { id: "u3" } })?.displayName).toBe("u3");
+    expect(parseSessionUser({ id: "u3" })?.displayName).toBe("u3");
     expect(parseSessionUser({})).toBeNull();
     expect(parseSessionUser(null)).toBeNull();
   });
 
-  test("hits the documented endpoint with same-origin credentials", async () => {
+  test("hits /api/me with same-origin credentials and stores nothing in localStorage", async () => {
     let seen: { url: string; init?: RequestInit } | null = null;
     const spy = (async (url: string, init?: RequestInit) => {
       seen = { url, init };
-      return new Response(null, { status: 404 });
+      return new Response(JSON.stringify(ME), { status: 200 });
     }) as unknown as typeof fetch;
-    await useSessionStore.getState().fetchSession(spy);
-    expect(seen).toMatchObject({ url: SESSION_ENDPOINT, init: { credentials: "same-origin" } });
+    const store = new Map<string, string>();
+    const original = globalThis.localStorage;
+    Object.defineProperty(globalThis, "localStorage", {
+      configurable: true,
+      value: { setItem: (k: string, v: string) => store.set(k, v), getItem: () => null },
+    });
+    try {
+      await useSessionStore.getState().fetchSession(spy);
+    } finally {
+      Object.defineProperty(globalThis, "localStorage", { configurable: true, value: original });
+    }
+    expect(SESSION_ENDPOINT).toBe("/api/me");
+    expect(seen).toMatchObject({ url: "/api/me", init: { credentials: "same-origin" } });
+    expect(store.size).toBe(0);
+  });
+
+  test("only owners and admins manage the office", () => {
+    expect(canManageOffice("owner")).toBe(true);
+    expect(canManageOffice("admin")).toBe(true);
+    expect(canManageOffice("member")).toBe(false);
+    expect(canManageOffice("viewer")).toBe(false);
+    expect(canManageOffice(undefined)).toBe(false);
   });
 });

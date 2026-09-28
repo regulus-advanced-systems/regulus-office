@@ -6,15 +6,27 @@ import { defineConfig } from "vite";
  * Vite config for the web client. `build` writes to apps/web/dist, which
  * office-server serves as static files (SPEC §4.1). During development point
  * the client at a running server with VITE_OFFICE_URL (see .env.example).
+ *
+ * The auth pages call /api/* on their own origin so the httpOnly session
+ * cookie stays first-party; in dev those calls are proxied to office-server
+ * (OFFICE_DEV_SERVER, default http://localhost:4600). Start the server with
+ * OFFICE_PUBLIC_URL=http://localhost:5173 so its Origin checks and invite
+ * links match the page.
  */
+const devServer = process.env.OFFICE_DEV_SERVER ?? "http://localhost:4600";
 export default defineConfig({
   plugins: [react()],
   resolve: {
-    alias: {
-      "@regulus/protocol": fileURLToPath(
-        new URL("../../packages/protocol/src/index.ts", import.meta.url),
-      ),
-    },
+    alias: [
+      {
+        // Exact match only, so light subpaths such as `@regulus/protocol/src/enums.ts`
+        // resolve on their own and keep zod and the schemas out of the login chunk.
+        find: /^@regulus\/protocol$/,
+        replacement: fileURLToPath(
+          new URL("../../packages/protocol/src/index.ts", import.meta.url),
+        ),
+      },
+    ],
   },
   build: {
     outDir: "dist",
@@ -26,5 +38,6 @@ export default defineConfig({
   server: {
     port: 5173,
     strictPort: false,
+    proxy: { "/api": { target: devServer, changeOrigin: true } },
   },
 });
