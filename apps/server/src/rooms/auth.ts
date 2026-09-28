@@ -1,0 +1,85 @@
+/**
+ * Authentication seam for room joins (SPEC §6: joining requires a user;
+ * SPEC §11: every state change is authorised server-side by role).
+ *
+ * The transport calls `RoomAuth.authenticate` with the matchmaking request,
+ * so cookies and headers are available exactly as on any HTTP request.
+ *
+ * TODO(#11): at merge time wrap Better Auth's `getSessionFromRequest(request)`
+ * from apps/server/src/auth in a `RoomAuth` and pass it from index.ts instead
+ * of (or ahead of) the development header auth below.
+ */
+import { type AvatarLook, USER_ROLES, type UserRole } from "@regulus/protocol";
+import { z } from "zod";
+
+export interface RoomAuthUser {
+  userId: string;
+  displayName: string;
+  role: UserRole;
+  avatar: AvatarLook;
+}
+
+export interface RoomAuth {
+  /** Resolves the user behind `request`, or `null` when it carries no valid session. */
+  authenticate(request: Request): Promise<RoomAuthUser | null>;
+}
+
+/** Header carrying a JSON `RoomAuthUser` in development and tests only. */
+export const DEV_USER_HEADER = "x-office-dev-user";
+
+export const DevUserHeader = z.object({
+  userId: z.string().min(1).max(128),
+  displayName: z.string().min(1).max(64),
+  role: z.enum(USER_ROLES).default("member"),
+  avatar: z
+    .object({
+      colorSet: z.string().max(32).default("default"),
+      accessory: z.string().max(32).default("none"),
+    })
+    .default({ colorSet: "default", accessory: "none" }),
+});
+
+export const isProduction = (env: NodeJS.ProcessEnv = process.env): boolean =>
+  env.NODE_ENV === "production";
+
+/** Rejects every join. The safe default until a real session lookup is wired in. */
+export const denyAllAuth: RoomAuth = {
+  authenticate: () => Promise.resolve(null),
+};
+
+/**
+ * Accepts a `x-office-dev-user` header describing the user. Refuses to be
+ * constructed in production so it can never be enabled there by accident.
+ */
+export function createDevHeaderAuth(env: NodeJS.ProcessEnv = process.env): RoomAuth {
+  if (isProduction(env)) {
+    throw new Error(`${DEV_USER_HEADER} auth must not be enabled in production`);
+  }
+  return {
+    async authenticate(request) {
+      const raw = request.headers.get(DEV_USER_HEADER);
+      if (!raw) return null;
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        return null;
+      }
+      const result = DevUserHeader.safeParse(parsed);
+      return result.success ? result.data : null;
+    },
+  };
+}
+
+/** Tries each auth in order; the first user wins. */
+export function composeRoomAuth(auths: readonly RoomAuth[]): RoomAuth {
+  return {
+    async authenticate(request) {
+      for (const auth of auths) {
+        const user = await auth.authenticate(request);
+        if (user) return user;
+      }
+      return null;
+    },
+  };
+}

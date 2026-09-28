@@ -1,7 +1,7 @@
 /**
  * office-server entry point (docs/SPEC.md §4). Boots config, logging, the
- * HTTP server and graceful shutdown; later milestones attach rooms, agents
- * and the rest to the same process.
+ * HTTP server, the multiplayer rooms and graceful shutdown; later milestones
+ * attach agents and the rest to the same process.
  */
 import { mkdir } from "node:fs/promises";
 import { sql } from "drizzle-orm";
@@ -10,6 +10,7 @@ import { closeDatabase, databasePathFor, openDatabase, runMigrations } from "./d
 import { createOfficeServer } from "./http/server.ts";
 import { createShutdownController, installSignalHandlers } from "./lifecycle.ts";
 import { createLogger } from "./logging.ts";
+import { createDevHeaderAuth, createRooms, denyAllAuth, type RoomAuth } from "./rooms/index.ts";
 
 async function readVersion(): Promise<string> {
   try {
@@ -20,6 +21,21 @@ async function readVersion(): Promise<string> {
   } catch {
     return "0.0.0";
   }
+}
+
+/**
+ * Room join authentication. TODO(#11): replace with Better Auth's session
+ * lookup (`getSessionFromRequest`) once apps/server/src/auth lands; until
+ * then production rejects every join and development accepts the
+ * `x-office-dev-user` header.
+ */
+function selectRoomAuth(production: boolean, logger: ReturnType<typeof createLogger>): RoomAuth {
+  if (production) {
+    logger.warn("room joins are disabled until session auth (#11) is wired in");
+    return denyAllAuth;
+  }
+  logger.warn("development room auth enabled: x-office-dev-user header is trusted");
+  return createDevHeaderAuth();
 }
 
 async function main(): Promise<void> {
@@ -51,9 +67,23 @@ async function main(): Promise<void> {
   logger.info({ path: dbPath }, "database ready");
 
   const shutdown = createShutdownController({ logger, timeoutMs: config.shutdownTimeoutMs });
-  // Hooks run last-registered-first: the database closes after HTTP has drained.
+  // Hooks run last-registered-first: rooms disconnect, HTTP drains, then the database closes.
   shutdown.register("db", () => closeDatabase(db));
-  const server = createOfficeServer({ config, logger, version });
+
+  const production = process.env.NODE_ENV === "production";
+  const rooms = createRooms({
+    db,
+    logger,
+    auth: selectRoomAuth(production, logger),
+    publicUrl: config.publicUrl,
+    production,
+  });
+  const server = createOfficeServer({
+    config,
+    logger,
+    version,
+    attach: rooms.transport.attachment,
+  });
   server.health.register("db", () => {
     db.run(sql`select 1`);
     return true;
@@ -61,6 +91,8 @@ async function main(): Promise<void> {
   shutdown.register("http", async () => {
     await server.stop(false);
   });
+  await rooms.transport.listen();
+  shutdown.register("rooms", () => rooms.transport.shutdown());
   installSignalHandlers(shutdown, (code) => {
     logger.flush();
     process.exit(code);
