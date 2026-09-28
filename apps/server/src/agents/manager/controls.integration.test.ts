@@ -18,11 +18,12 @@ import { FAKE_AGENT, makeManager, officeFixture, spawnInput } from "./test-helpe
 
 type Office = Awaited<ReturnType<typeof officeFixture>>;
 
-const fakeAdapter = () =>
+const fakeAdapter = (permissionResolution = false) =>
   new FakeAdapter({
     command: ["sh", FAKE_AGENT],
     providerSessionId: "sess-1",
     script: [{ kind: "status", ts: 1, status: "idle" }],
+    permissionResolution,
   });
 
 const permissionRequest = (requestId: string) => ({
@@ -58,8 +59,11 @@ describe.skipIf(!hasTmux())("robot controls (tmux)", () => {
     await rm(office.workdir, { recursive: true, force: true });
   });
 
-  async function setup(extra: Partial<AgentManagerOptions> = {}) {
-    const adapter = fakeAdapter();
+  async function setup(
+    extra: Partial<AgentManagerOptions> = {},
+    opts: { permissionResolution?: boolean } = {},
+  ) {
+    const adapter = fakeAdapter(opts.permissionResolution);
     const workspaces = new RecordingWorkspaces();
     const { manager, robots } = makeManager(office.db, runner, [adapter], {
       workspaces,
@@ -190,6 +194,47 @@ describe.skipIf(!hasTmux())("robot controls (tmux)", () => {
     fake.emit({ kind: "status", ts: Date.now(), status: "working" });
     await robots.waitFor(agentId, (r) => r.status === "working");
     expect(robots.permissions.get(agentId)).toEqual([]);
+    await manager.close();
+  }, 20_000);
+
+  test("parallel requests (Codex-style): answering one keeps the other visible", async () => {
+    const { manager, robots, agentId, control, adapter } = await setup(
+      {},
+      { permissionResolution: true },
+    );
+    const fake = adapter.lastControl;
+    if (!fake) throw new Error("no control");
+    fake.emit(permissionRequest("p1"));
+    fake.emit(permissionRequest("p2"));
+    await robots.waitFor(agentId, (r) => r.handRaised);
+    const deadline = Date.now() + 2000;
+    while ((robots.permissions.get(agentId)?.length ?? 0) < 2 && Date.now() < deadline) {
+      await Bun.sleep(10);
+    }
+    expect(robots.permissions.get(agentId)?.map((r) => r.requestId)).toEqual(["p1", "p2"]);
+
+    ok(
+      await control(office.member, {
+        type: "agent.approve",
+        agentId,
+        requestId: "p1",
+        decision: "allow_once",
+      }),
+    );
+    // The fake, like Codex, reports `working` after an answer: p2 must survive it.
+    await robots.waitFor(agentId, (r) => r.status === "working");
+    await Bun.sleep(50);
+    expect(robots.permissions.get(agentId)?.map((r) => r.requestId)).toEqual(["p2"]);
+    expect(robots.permissionHistory.at(-1)).toEqual({
+      agentId,
+      ownerUserId: office.member.id,
+      count: 1,
+    });
+
+    // The provider clears the other one itself (turn ended): gone for controllers too.
+    fake.cancelPermission("p2");
+    expect(robots.permissions.get(agentId)).toEqual([]);
+    expect(fake.permissionResponses).toEqual([{ id: "p1", decision: "allow_once" }]);
     await manager.close();
   }, 20_000);
 

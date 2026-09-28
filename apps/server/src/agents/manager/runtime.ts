@@ -85,6 +85,9 @@ interface LiveAgent {
   ctx?: RunnerContext;
   profile: LaunchProfile;
   untrack?: () => void;
+  /** The control reports each permission request's resolution (onPermissionResolved). */
+  perRequestPermissions?: boolean;
+  offResolved?: () => void;
 }
 
 export class AgentRuntime implements AgentEventSink {
@@ -133,6 +136,12 @@ export class AgentRuntime implements AgentEventSink {
   /** Pump a control's events and watch its tmux session (also used by adopt.ts). */
   attach(live: LiveAgent, control: AgentControl, heuristics: boolean): void {
     live.control = control;
+    live.offResolved?.();
+    const agentId = live.view.agentId;
+    live.offResolved = control.onPermissionResolved?.((requestId) =>
+      this.permissions.remove(agentId, requestId),
+    );
+    live.perRequestPermissions = live.offResolved !== undefined;
     void this.pump(live, control);
     if (live.profile.mode === "exec") {
       const session = { userId: live.view.ownerUserId, name: tmuxSessionName(live.view.agentId) };
@@ -175,8 +184,15 @@ export class AgentRuntime implements AgentEventSink {
     if (event.kind === "permission_request" && live.view.status === "waiting_permission") {
       this.permissions.add(agentId, event, this.permissionTtl(live.view.provider));
     }
-    if (result.statusChanged && live.view.status !== "waiting_permission") {
-      // Answered (here or in the terminal), interrupted, or gone: nothing left to approve.
+    if (
+      result.statusChanged &&
+      live.view.status !== "waiting_permission" &&
+      !live.perRequestPermissions
+    ) {
+      // Fallback for adapters without a per-request signal: once the agent
+      // stops waiting, nothing it asked for can be answered here any more.
+      // Adapters with one (Codex, Claude) resolve requests individually, so
+      // parallel approvals stay visible until each is resolved.
       this.permissions.clear(agentId);
     }
     if (result.statusChanged) {
@@ -209,6 +225,9 @@ export class AgentRuntime implements AgentEventSink {
   }
 
   protected processGone(live: LiveAgent): void {
+    live.offResolved?.();
+    live.offResolved = undefined;
+    live.perRequestPermissions = false;
     this.permissions.clear(live.view.agentId);
     this.watcher.unwatch(live.view.agentId);
     live.untrack?.();

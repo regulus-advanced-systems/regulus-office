@@ -18,7 +18,13 @@
  */
 import type { AgentEvent, PermissionDecision } from "@regulus/protocol";
 import { AsyncQueue } from "../async-queue.ts";
-import type { AgentControl, PromptAttachment, RunnerContext, SpawnPlan } from "../types.ts";
+import type {
+  AgentControl,
+  PermissionResolvedListener,
+  PromptAttachment,
+  RunnerContext,
+  SpawnPlan,
+} from "../types.ts";
 import type { PermissionBroker } from "./permissions.ts";
 
 const ESCAPE = "\u001b";
@@ -77,6 +83,11 @@ export class ClaudeControl implements AgentControl {
 
   providerSessionId(): string | undefined {
     return this.observedSessionId() ?? this.plan.providerSessionId;
+  }
+
+  /** Held hooks resolve one by one (answer, hold expiry, Claude giving up, turn end). */
+  onPermissionResolved(listener: PermissionResolvedListener): () => void {
+    return this.broker.onResolved(this.plan.agentId, listener);
   }
 
   #assertOpen(): void {

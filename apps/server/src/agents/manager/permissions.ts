@@ -1,8 +1,11 @@
 /**
  * Pending permission requests per agent (SPEC §7 `permission_request`, §8
  * rule 4). The manager records each request when its event arrives and drops
- * it when it is answered, when the agent stops waiting for permission (it
- * moved on, exited, was sent home) or when it expires. Every change is
+ * it when it is answered through the office, when the adapter reports it
+ * resolved (`AgentControl.onPermissionResolved`: Codex `serverRequest/resolved`,
+ * Claude's held hook released), when it expires, or when the agent exits or
+ * is sent home. Only for adapters without that per-request signal does the
+ * agent leaving `waiting_permission` clear everything. Every change is
  * handed to `onChange` with the agent's full list so the FloorRoom can
  * deliver it to the robot's controllers only. The public world only ever
  * sees `RobotState.handRaised`.
