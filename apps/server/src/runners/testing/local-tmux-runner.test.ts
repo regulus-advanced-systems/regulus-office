@@ -105,7 +105,9 @@ describe.skipIf(!hasTmux())("LocalTmuxRunner (tmux)", () => {
     expect(procs.some((proc) => proc.command === "sh")).toBe(true);
     expect(await runner.listPorts({ userId: "u1", agentId: "a1" })).toEqual([]);
 
-    expect(runner.attach(session, "watch").argv).toContain("-r");
+    const watch = runner.attach(session, "watch");
+    expect(watch.kind).toBe("argv");
+    expect(watch.argv).toContain("-r");
     expect(runner.attach(session, "control").argv).not.toContain("-r");
 
     await runner.kill({ userId: "u1", agentId: "a1" });
