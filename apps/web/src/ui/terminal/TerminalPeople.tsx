@@ -5,11 +5,14 @@ import { uniquePeers } from "./terminalState.ts";
 
 const MAX_FACES = 6;
 
+/** Colour sets dark enough for white initials. */
+const FACE_SETS = COLOR_SET_IDS.filter((id) => id !== "cream");
+
 /** Stable colour per user id, from the robot colour sets (SPEC §9.3). */
 export function faceColor(userId: string): string {
   let h = 0;
   for (let i = 0; i < userId.length; i++) h = (h * 31 + userId.charCodeAt(i)) >>> 0;
-  return colorSetFor(COLOR_SET_IDS[h % COLOR_SET_IDS.length]).primary;
+  return colorSetFor(FACE_SETS[h % FACE_SETS.length]).primary;
 }
 
 export function initials(name: string): string {

@@ -4,12 +4,7 @@
  * rate, idle back-off, the size cap, and no polling without subscribers.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import {
-  parseScreenFeedMessage,
-  SCREEN_TEXT_LIMITS,
-  type ScreenFeedMessage,
-  screensWsPath,
-} from "@regulus/protocol";
+import { SCREEN_TEXT_LIMITS, screensWsPath } from "@regulus/protocol";
 import { eq } from "drizzle-orm";
 import { agents } from "../db/schema/index.ts";
 import type { Runner, TmuxSessionRef } from "../runners/types.ts";
@@ -28,52 +23,13 @@ const fakeRunner = {
   },
 } as unknown as Runner;
 
-class FeedClient {
-  readonly messages: ScreenFeedMessage[] = [];
-  readonly closed: Promise<number>;
-  private constructor(readonly ws: WebSocket) {
-    ws.onmessage = (event) => {
-      const message = parseScreenFeedMessage(String(event.data));
-      if (message) this.messages.push(message);
-    };
-    this.closed = new Promise((resolve) => ws.addEventListener("close", (e) => resolve(e.code)));
-  }
-  static open(url: string, headers: Record<string, string>): Promise<FeedClient> {
-    const ws = new WebSocket(url, { headers } as unknown as string[]);
-    const client = new FeedClient(ws);
-    return new Promise((resolve, reject) => {
-      ws.onopen = () => resolve(client);
-      ws.onerror = () => reject(new Error("websocket failed"));
-    });
-  }
-  screens(agentId: string): string[] {
-    return this.messages.flatMap((m) =>
-      m.type === "screen" && m.agentId === agentId ? [m.text] : [],
-    );
-  }
-  async waitFor(check: (c: FeedClient) => boolean, what: string, ms = 3000): Promise<void> {
-    const deadline = Date.now() + ms;
-    while (!check(this)) {
-      if (Date.now() > deadline) throw new Error(`timed out waiting for ${what}`);
-      await Bun.sleep(5);
-    }
-  }
-  close(): Promise<number> {
-    this.ws.close();
-    return this.closed;
-  }
-}
-
 const INTERVAL = 50;
 let office: TerminalOffice;
 let owner: { id: string; cookie: string };
 let member: { id: string; cookie: string };
 let outsider: { id: string; cookie: string };
 
-const feedUrl = (floorId: string) =>
-  `${String(office.server.url).replace(/^http/, "ws").replace(/\/$/, "")}${screensWsPath(floorId)}`;
-const subscribe = (floorId: string, cookie: string) =>
-  FeedClient.open(feedUrl(floorId), { cookie, origin: office.origin });
+const subscribe = (floorId: string, cookie: string) => office.subscribeScreens(floorId, cookie);
 const probe = (floorId: string, headers: Record<string, string>) =>
   fetch(new URL(screensWsPath(floorId), office.server.url), {
     headers: {

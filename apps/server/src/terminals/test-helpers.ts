@@ -4,7 +4,10 @@
  * floors and robots, and a small WebSocket client that records frames.
  */
 import {
+  parseScreenFeedMessage,
   parseTerminalServerMessage,
+  type ScreenFeedMessage,
+  screensWsPath,
   type TerminalMode,
   type TerminalServerMessage,
   terminalWsPath,
@@ -158,6 +161,12 @@ export async function startTerminalOffice(options: TerminalOfficeOptions) {
       },
     });
 
+  const subscribeScreens = (floorId: string, cookie: string) =>
+    FeedClient.open(
+      `${String(server.url).replace(/^http/, "ws").replace(/\/$/, "")}${screensWsPath(floorId)}`,
+      { cookie, origin },
+    );
+
   const connect = (agentId: string, mode: TerminalMode, cookie: string, extra = {}) =>
     TermClient.open(wsUrl(agentId, mode), { cookie, origin, ...extra });
 
@@ -173,6 +182,7 @@ export async function startTerminalOffice(options: TerminalOfficeOptions) {
     addAgent,
     probe,
     connect,
+    subscribeScreens,
     async stop() {
       bridge.shutdown();
       screens.shutdown();
@@ -250,6 +260,43 @@ export class TermClient {
     }
   }
 
+  close(): Promise<number> {
+    this.ws.close();
+    return this.closed;
+  }
+}
+
+/** Records laptop screen feed messages (`/ws/screens/<floorId>`). */
+export class FeedClient {
+  readonly messages: ScreenFeedMessage[] = [];
+  readonly closed: Promise<number>;
+  private constructor(readonly ws: WebSocket) {
+    ws.onmessage = (event) => {
+      const message = parseScreenFeedMessage(String(event.data));
+      if (message) this.messages.push(message);
+    };
+    this.closed = new Promise((resolve) => ws.addEventListener("close", (e) => resolve(e.code)));
+  }
+  static open(url: string, headers: Record<string, string>): Promise<FeedClient> {
+    const ws = new WebSocket(url, { headers } as unknown as string[]);
+    const client = new FeedClient(ws);
+    return new Promise((resolve, reject) => {
+      ws.onopen = () => resolve(client);
+      ws.onerror = () => reject(new Error("websocket failed"));
+    });
+  }
+  screens(agentId: string): string[] {
+    return this.messages.flatMap((m) =>
+      m.type === "screen" && m.agentId === agentId ? [m.text] : [],
+    );
+  }
+  async waitFor(check: (c: FeedClient) => boolean, what: string, ms = 3000): Promise<void> {
+    const deadline = Date.now() + ms;
+    while (!check(this)) {
+      if (Date.now() > deadline) throw new Error(`timed out waiting for ${what}`);
+      await Bun.sleep(5);
+    }
+  }
   close(): Promise<number> {
     this.ws.close();
     return this.closed;

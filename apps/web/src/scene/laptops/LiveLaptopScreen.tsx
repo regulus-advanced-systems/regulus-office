@@ -58,6 +58,9 @@ export function LiveLaptopScreen({
       distanceFactor={LIVE_DISTANCE_FACTOR}
       pointerEvents="none"
       zIndexRange={[20, 0]}
+      // drei sizes the blending hole from the DOM only for perspective cameras; the iso view
+      // is orthographic, so give it the screen's own size.
+      geometry={<planeGeometry args={[LAPTOP_DIMENSIONS.screenW, LAPTOP_DIMENSIONS.screenH]} />}
     >
       <LiveTerminal agentId={agentId} deps={deps} />
     </Html>
