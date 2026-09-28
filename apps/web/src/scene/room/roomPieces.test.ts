@@ -14,6 +14,38 @@ import {
 
 const pieces = roomPieces(lobbyTemplate);
 
+describe("roomPieces(lobby, { frontWalls: 'full' })", () => {
+  const fpv = roomPieces(lobbyTemplate, { frontWalls: "full" });
+
+  test("every wall is full height and no caps are drawn", () => {
+    expect(fpv.walls.every((w) => w.height === "full")).toBe(true);
+    expect(fpv.caps).toEqual([]);
+    const south = fpv.walls.find((w) => w.id === "south");
+    expect(south?.center).toEqual([7, 1.5, 11]);
+    expect(south?.size).toEqual([14 + WALL_THICKNESS, 3, WALL_THICKNESS]);
+    const east = fpv.walls.find((w) => w.id === "east");
+    expect(east?.size).toEqual([WALL_THICKNESS, 3, 11 + WALL_THICKNESS]);
+  });
+
+  test("the back walls, windows and floor are unchanged", () => {
+    expect(fpv.floor).toEqual(pieces.floor);
+    expect(fpv.windows).toEqual(pieces.windows);
+    expect(fpv.walls.find((w) => w.id === "north")).toEqual(
+      pieces.walls.find((w) => w.id === "north") as never,
+    );
+  });
+
+  test("the name plate grows with the promoted wall", () => {
+    expect(fpv.name?.height).toBe(3);
+    expect(fpv.name?.center[1]).toBe(1.5);
+    expect(pieces.name?.height).toBe(0.4);
+  });
+
+  test("the default is the dollhouse stub mode", () => {
+    expect(roomPieces(lobbyTemplate, { frontWalls: "stub" })).toEqual(pieces);
+  });
+});
+
 describe("roomPieces(lobby)", () => {
   test("floor covers the template footprint, centred", () => {
     expect(pieces.floor).toEqual({ center: [7, 0, 5.5], width: 14, depth: 11 });
