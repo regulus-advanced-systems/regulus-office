@@ -7,11 +7,18 @@ import { mkdir } from "node:fs/promises";
 import { ClaudeCodeAdapter } from "@regulus/agent-adapters";
 import { sql } from "drizzle-orm";
 import { denyAllAgentTokens, mountClaudeHookRoutes } from "./agents/hooks/index.ts";
-import { AuthConfigError, createAuth, mountAuthRoutes, type OfficeAuth } from "./auth/index.ts";
+import {
+  AuthConfigError,
+  createAuth,
+  mountAuthRoutes,
+  type OfficeAuth,
+  originPolicyFor,
+} from "./auth/index.ts";
 import { ConfigError, loadConfig, redactConfig } from "./config.ts";
 import { closeDatabase, databasePathFor, openDatabase, runMigrations } from "./db/index.ts";
 import { createFloors, mountFloorRoutes } from "./floors/index.ts";
 import { createOfficeServer } from "./http/server.ts";
+import { WsRouter } from "./http/ws-router.ts";
 import { createShutdownController, installSignalHandlers } from "./lifecycle.ts";
 import { createLogger } from "./logging.ts";
 import {
@@ -22,6 +29,7 @@ import {
   type RoomAuth,
 } from "./rooms/index.ts";
 import { loadMasterKeyring, type MasterKeyring } from "./secrets/index.ts";
+import { createTerminals } from "./terminals/index.ts";
 
 async function readVersion(): Promise<string> {
   try {
@@ -101,11 +109,20 @@ async function main(): Promise<void> {
     publicUrl: config.publicUrl,
     production,
   });
+  // Terminal bridge (#24). Runners are registered by the AgentManager (#26);
+  // until then every terminal lookup misses and connections get 404.
+  const terminals = createTerminals({
+    db,
+    sessions: auth,
+    logger,
+    dataDir: config.dataDir,
+    originPolicy: originPolicyFor(config.publicUrl, production),
+  });
   const server = createOfficeServer({
     config,
     logger,
     version,
-    attach: rooms.transport.attachment,
+    attach: new WsRouter().use(terminals.bridge).use(rooms.transport.attachment),
   });
   mountAuthRoutes(server.router, auth);
   // Claude Code hooks + statusline (#27). Until the AgentManager (#26) issues
@@ -147,6 +164,7 @@ async function main(): Promise<void> {
   await rooms.transport.listen();
   floors.cloner.resumePending().catch((err) => logger.error({ err }, "resuming clones failed"));
   shutdown.register("rooms", () => rooms.transport.shutdown());
+  shutdown.register("terminals", () => terminals.shutdown());
   installSignalHandlers(shutdown, (code) => {
     logger.flush();
     process.exit(code);
