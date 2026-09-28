@@ -110,23 +110,29 @@ export function mountClaudeHookRoutes(
       { channel: "hook", agentId, payload: body.value },
       contextFor(agentId),
     );
-    await publishAll(agentId, events);
-
     const request = events.find((e) => e.kind === "permission_request");
-    if (eventName !== "PermissionRequest" || !request) return new Response(null, { status: 204 });
+    if (eventName !== "PermissionRequest" || !request) {
+      await publishAll(agentId, events);
+      return new Response(null, { status: 204 });
+    }
 
-    // Hold the hook open for an office decision (see permissions.ts).
+    // Hold the hook open for an office decision (see permissions.ts). The
+    // wait is registered before the request is published, so an answer can
+    // never arrive for a request the broker does not know yet.
     const holdSeconds = adapter.permissionHoldSeconds;
     ctx.server?.timeout(ctx.request, holdSeconds + 10);
-    const decision = await adapter.permissions.wait(
+    const suggestions = permissionSuggestions(body.value);
+    const waiting = adapter.permissions.wait(
       agentId,
       request.requestId,
-      permissionSuggestions(body.value),
+      suggestions,
       holdSeconds * 1000,
       ctx.request.signal,
     );
+    await publishAll(agentId, events);
+    const decision = await waiting;
     if (!decision) return new Response(null, { status: 204 });
-    return json(permissionHookResponse(decision, permissionSuggestions(body.value)));
+    return json(permissionHookResponse(decision, suggestions));
   });
 
   router.post(CLAUDE_STATUSLINE_ROUTE, async (ctx) => {
