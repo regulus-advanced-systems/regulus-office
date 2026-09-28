@@ -1,6 +1,6 @@
 # Regulus Office: Specification (draft v0.1, 2026-09-28)
 
-Status: DRAFT. Items tagged `OPEN-n` are decisions still owned by the project owner; see §14. Everything else is decided and agents building from this document should treat it as authoritative. Research backing these decisions lives in `docs/research/`.
+Status: v0.2, decisions resolved with the owner on 2026-09-28 (see §14). Agents building from this document should treat it as authoritative. Research backing these decisions lives in `docs/research/`.
 
 ## 1. Vision
 
@@ -122,10 +122,11 @@ Core tables (fields abbreviated; every table has `id`, `createdAt`, `updatedAt`)
 
 - `users` (Better Auth) + `user_profiles`: `displayName`, `role`, `avatar` (robot colour set, accessory), `runnerId`, `linuxUid`.
 - `invites`: `token`, `role`, `expiresAt`, `usedBy`.
-- `floors`: `name`, `slug`, `index` (elevator order), `repoOwner`, `repoName`, `repoUrl`, `defaultBranch`, `paletteId`, `layoutTemplateId`, `workdir`, `archivedAt`.
+- `floors` (= projects): `name`, `slug`, `index` (elevator order), `paletteId`, `layoutTemplateId`, `archivedAt`.
+- `floor_repos`: `floorId`, `owner`, `name`, `url`, `defaultBranch`, `workdir`, `isPrimary`. A floor has 1..n repos; desks, worktrees and boards bind to one repo. Boards show all repos of the floor with a repo chip on each card.
 - `floor_members`: `floorId`, `userId`, `access` (`manage|spawn|view`).
 - `desks`: `floorId`, `seatId` (from layout), `agentId?` (occupied by).
-- `agents`: `floorId`, `deskSeatId`, `ownerUserId`, `provider`, `model`, `effort?`, `profileId`, `status`, `providerSessionId`, `tmuxSession`, `workdir`, `worktreeBranch?`, `taskTitle`, `taskSummary`, `issueNumber?`, `prNumber?`, `lastActivityAt`, `exitedAt`, `spawnArgsJson`.
+- `agents`: `floorId`, `repoId`, `deskSeatId`, `ownerUserId`, `provider`, `model`, `effort?`, `profileId` (user profile or `office:<provider>`), `status`, `providerSessionId`, `tmuxSession`, `workdir`, `worktreeBranch?`, `taskTitle`, `taskSummary`, `issueNumber?`, `prNumber?`, `lastActivityAt`, `exitedAt`, `spawnArgsJson`.
 - `agent_events`: `agentId`, `ts`, `kind` (`status|tool_call|permission_request|message|usage|exit`), `payloadJson`. Rolling retention.
 - `credential_profiles`: `userId`, `provider`, `label`, `authKind` (`cli_login|api_key|base_url_key`), `encryptedSecret?` (envelope, only for API keys/plan keys), `baseUrl?`, `modelOverridesJson?`, `verifiedAt`. Subscription OAuth logins are never stored here; they live in the user's HOME written by the unmodified CLI.
 - `usage_samples`: `userId`, `agentId?`, `provider`, `ts`, `inputTokens`, `outputTokens`, `cacheReadTokens`, `cacheWriteTokens`, `costUsdEstimate`, `source` (`inband|transcript|statusline`).
@@ -201,8 +202,8 @@ Decided: **one runner identity per human**. Two backends, selectable per office:
 Credential rules (hard requirements):
 1. Subscription OAuth (Claude, ChatGPT) is only ever performed by the unmodified CLI inside the human's own runner. The office renders the login prompt (device code URL/code for Codex; the paste-code terminal for Claude) but never reads, stores or forwards tokens.
 2. API keys and plan keys (DeepSeek, Z.AI, Kimi, Gemini, OpenAI/Anthropic keys) are stored encrypted (AES-256-GCM, envelope with `OFFICE_MASTER_KEY`), decrypted only at spawn time, injected as env into that human's agent, never logged, never shown after entry.
-3. No office-wide shared provider credentials. An admin may pre-fill a base URL, never a key. (`OPEN-3` asks whether a shared "office API key" for API-metered providers should exist as an opt-in.)
-4. Agents run as the spawning human's runner. Viewers cannot attach in control mode. Terminal control on another human's robot requires `admin` or floor `manage`.
+3. No office-wide shared *subscription* credentials, ever. An admin MAY add office-wide API keys for metered providers (DeepSeek, Anthropic API, OpenAI API, Gemini API) as an opt-in per provider; members choose per spawn whether to use their own profile or the office key; usage from office keys is attributed to `office` in the tracker.
+4. Agents run as the spawning human's runner. Terminal ACL: all `member`s may watch any robot's terminal; control (typing, approving) requires being the robot's owner or an `admin`/`owner`; `viewer`s may only watch. Injected keys are therefore only readable by people who could already type into that robot.
 
 ## 9. World, floors, navigation
 
@@ -247,21 +248,26 @@ Add a floor from a GitHub repo (clone into workdir). Runner backends (`linux-use
 ### M2 Floors and boards
 Elevator + quick menu; floor templates and palettes; issue and PR boards with GitHub App/PAT sync and webhooks/polling; carry-a-card; task queue with concurrency; changes panel (diff/commit/push); services discovery and proxy; usage tracker (Claude statusline forwarder, Codex rate limits, transcript scan); notifications (desktop + tab badge, Slack/Discord webhook).
 
+Also in M2: merge gong + confetti with robots dancing on PR merge; search across chat and all persisted terminal scrollback with jump-to-desk; changes window per robot (live diff vs merge-base, per-file diff, commit, discard, push + PR).
+
 ### M3 Collaboration
-Whiteboard (Excalidraw + Yjs); wall pictures; jukebox; LiveKit screen share to lounge TV; voice (`OPEN-6`); text chat; whereabouts / walk-to-teammate; emotes; sitting.
+Whiteboard (Excalidraw + Yjs); wall pictures; jukebox; LiveKit screen share to lounge TV and proximity voice chat (both under the Compose `media` profile); text chat; whereabouts / walk-to-teammate; emotes; sitting. Meeting room: 2-5 robots collaborate on one task in a pattern (debate, lead + team, map-reduce, red/blue, review panel) with a shared worktree, round and token budgets, output committed on a branch or posted as a PR review.
 
 ### M4 More providers
-OpenCode (serve + attach), Gemini CLI and Kimi Code via ACP, base-URL profiles for DeepSeek / Z.AI / Kimi plan applied to Claude/Codex/OpenCode; custom executable.
+OpenCode (serve + attach), Gemini CLI and Kimi Code via ACP, base-URL profiles for DeepSeek / Z.AI / Kimi plan applied to Claude/Codex/OpenCode; custom executable. Board kiosk agents: small restricted robots standing at the issue, PR and queue boards that brief the visitor and can enqueue tasks (implemented as PM-robot sub-tasks where the PM is configured, otherwise as standalone restricted agents).
 
 ### M5 PM robot
-Hermes or OpenClaw (`OPEN-4`) with an office-scoped toolset (read agents/tasks/boards/usage via the office REST API with a scoped service token; optionally enqueue tasks and comment on issues if granted). Daily brief on cron delivered at reception and optionally to Slack/Telegram. Walks a patrol route, visits waiting robots, can be asked questions at reception. Privilege presets: `observer`, `coordinator` (queue + comments), `manager` (can spawn agents within budget).
+Engine: Hermes Agent first, behind a `PmEngine` interface so OpenClaw can be added later. Config accepts either `managed` (the office runs a dedicated Hermes profile inside the VM with office-scoped tools and cron) or `external` (gateway URL + token of an existing Hermes instance). Office-scoped toolset exposed to the PM via a REST API with a scoped service token. Privilege presets: `observer` (read + briefs), `coordinator` (default: read everything, enqueue tasks, comment on issues/PRs, deliver briefs; cannot spawn or stop robots), `manager` (coordinator plus spawn/stop within a per-day cap). Daily brief on cron delivered at reception when the owner arrives and optionally to Slack/Telegram. Patrol route, visits waiting robots, answers questions at reception.
 
-### M6 Polish and "tycoon" layer (`OPEN-8`)
-Weather/day-night, coffee buff, office dog, arcade, achievements/trophy shelf, merge gong + confetti, floor upgrades as projects grow, budget caps per floor with auto-pause.
+### M6 Polish and "tycoon" layer
+Weather and day-night cycle, coffee machine buff, office dog per floor, holiday themes, achievements and trophy shelf, rooftop bar (DJ stage, synth music, drinks), arcade cabinet with spectator screen and high scores, floor upgrades as projects grow (template tier changes), optional tycoon build mode for furniture placement. Dropped by owner decision: building exterior/tower, garage with cars, ladders and fire poles, balcony smoke break.
+
+### Ops (across milestones)
+Desktop notifications + tab badge for waiting robots (M2). Slack / Discord / Telegram webhook notifications on needs-input, done, PR merged (M2). Self-upgrade from the admin UI: check GitHub releases, pull image, restart; robots survive in tmux (M5). One-command VPS deploy script targeting Hetzner / generic Ubuntu via cloud-init: installs Docker, runs Compose with Caddy and a domain (M2).
 
 ## 11. Non-functional requirements
 - Performance: 60 fps on a 2020 laptop iGPU at 1080p with 20 robots on screen; ≤ 2 live DOM panels; 1x pixel ratio default; hidden tab pauses rendering.
-- Security: all state changes authorised server-side by role and floor access; terminal control gated; Origin checked on WS; uploads validated by magic bytes; image proxy disabled by default (uploads only); rate limits on auth; audit log for spawn/stop/approve/credential changes; secrets encrypted at rest; agents never receive another human's env.
+- Security: all state changes authorised server-side by role and floor access; terminal control gated per D12; Origin checked on WS; uploads validated by magic bytes; image proxy disabled by default (uploads only); rate limits on auth; audit log for spawn/stop/approve/credential changes; secrets encrypted at rest; agents never receive another human's env.
 - Reliability: tmux keeps agents alive across office-server restarts; agents re-adopted on boot; resume by provider session id after VM reboot; SQLite WAL + nightly backup script.
 - Accessibility: all panels keyboard-navigable; reduced-motion setting disables bubbles/confetti.
 - Observability: structured logs (pino), `/healthz`, Prometheus metrics (`/metrics`), per-agent event log viewer.
@@ -276,21 +282,29 @@ Weather/day-night, coffee buff, office dog, arcade, achievements/trophy shelf, m
 - Attribution manifest in `packages/assets/ATTRIBUTION.md` for any CC-BY asset.
 
 ## 13. Open-source project setup
-- License: `OPEN-1`.
+- License: MIT.
 - `README.md` with 5-minute Compose quickstart; `CONTRIBUTING.md`; `CODE_OF_CONDUCT.md`; ADRs in `docs/adr/`; issue templates; CI on PRs; release per tag with Compose image publish to GHCR.
 - Attribution to AgentSystemLabs/agent-office (MIT) for any copied code (protocol shapes, PTY host ideas) in `NOTICE`.
 
-## 14. Open decisions for the owner
+## 14. Decision record (owner, 2026-09-28)
 
-- **OPEN-1 License.** MIT (max adoption), Apache-2.0 (patent grant, corporate-friendly), or AGPL-3.0 (copyleft, blocks closed SaaS forks). Recommendation: Apache-2.0.
-- **OPEN-2 Credential model.** Spec decides per-user credentials with no shared office credentials (required by Anthropic/OpenAI/Kimi/Z.AI terms). Confirm.
-- **OPEN-3 Shared office API key for metered providers.** Allow an admin-set office-wide API key (e.g. DeepSeek, Anthropic API) usable by members as an opt-in? Adds convenience, blurs cost attribution. Recommendation: yes, opt-in per provider, tracked as "office" in usage.
-- **OPEN-4 PM robot engine.** Hermes Agent (Python, MIT, mature cron + profiles + skills, ACP) vs OpenClaw (TS, MIT, WS gateway, cron, larger ecosystem, worse security history). Recommendation: Hermes first, OpenClaw as a second engine behind the same `PmEngine` interface.
-- **OPEN-5 Runner default.** Docker runner per human (isolation, Compose-native) vs Linux user per human (no Docker, simpler for a solo VM). Recommendation: support both; Compose defaults to Docker, bare install defaults to Linux user.
-- **OPEN-6 Voice chat.** Include proximity voice with the LiveKit profile (free once screen share exists) or ship screen share only in M3?
-- **OPEN-7 Floor sizing.** Fixed template per floor with size tiers (small/medium/large) vs free furniture placement (tycoon build mode). Recommendation: tiers first; build mode in M6.
-- **OPEN-8 Game-y extras from agent-office.** Which of: office dog, coffee buff, rooftop bar, arcade, weather/day-night, holiday themes, meeting-room multi-agent patterns, achievements. Recommendation: merge gong + confetti and meeting room in M2/M3; dog, weather, coffee, achievements in M6; skip rooftop bar and arcade initially.
-- **OPEN-9 Floors per repo vs per project.** One floor = one GitHub repo, or one floor = one project with several repos (monorepo split, frontend+backend)? Recommendation: floor = project; a project has 1..n repos; desks/worktrees bind to a repo.
-- **OPEN-10 Public visibility of the repo now.** It is public already. Keep public from day one (open development) or flip to private until M1?
-- **OPEN-11 Branding.** Keep "Regulus Office" as the product name? Note: adapters must not present themselves as "Claude Code"; the product name is fine.
-- **OPEN-12 Hosting target.** Which VM/cloud will the first real office run on (Hetzner, AWS, local Proxmox)? Affects the Compose networking and TLS defaults.
+| # | Decision | Choice |
+|---|---|---|
+| D1 | License | MIT |
+| D2 | Credential model | Per-user credentials in isolated runners; no shared subscription credentials; admin may add opt-in office-wide API keys for metered providers, attributed to `office` |
+| D3 | PM robot engine | Hermes Agent first behind a `PmEngine` interface; config supports `managed` profile in the VM or `external` gateway URL + token; OpenClaw later |
+| D4 | PM default privileges | `coordinator` |
+| D5 | Voice | Proximity voice chat ships with screen share in M3 (LiveKit, optional profile) |
+| D6 | Runner backend | Both: Docker runner per human (Compose default) and Linux user per human (bare-install default) behind one interface |
+| D7 | Floor model | Floor = project with 1..n repos; desks/worktrees/boards bind to a repo |
+| D8 | Floor layout | Fixed templates in size tiers (small/medium/large); build mode in M6 |
+| D9 | Game-y extras | All kept: merge gong + confetti (M2), meeting room patterns (M3), dog/coffee/weather/holidays/achievements/rooftop bar/arcade (M6). Building exterior, garage, ladders/poles, smoke break dropped |
+| D10 | More features | Board kiosk agents, search across chat + scrollback, changes window all kept |
+| D11 | Hosting target | Hetzner / generic Linux VPS; Compose + Caddy + Let's Encrypt on a public domain |
+| D12 | Terminal ACL | Members watch all robots; control = owner of the robot or admin/owner; viewers watch only |
+| D13 | Budgets | Show usage only; no enforced caps (revisit later) |
+| D14 | GitHub auth | GitHub App via manifest flow with webhooks; fine-grained PAT fallback with polling |
+| D15 | Ops extras | Desktop notifications + tab badge; Slack/Discord/Telegram webhooks; self-upgrade from admin UI; one-command VPS deploy script |
+| D16 | Repo | Public from day one at github.com/regulus-advanced-systems/regulus-office |
+
+Still open (non-blocking, defaults applied): product name stays "Regulus Office"; UI language English only for now.
