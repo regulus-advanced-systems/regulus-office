@@ -61,7 +61,8 @@ export async function legacyWorktreeDirs(worktreesDir: string): Promise<string[]
   for (const floor of await subdirs(worktreesDir)) {
     for (const name of await subdirs(join(worktreesDir, floor))) {
       const path = join(worktreesDir, floor, name);
-      if (!RUNNER_ID.test(name) || (await exists(join(path, ".git")))) found.push(path);
+      // Agent ids are UUIDs; a runner id is a human's own area (the helper refuses those too).
+      if (!RUNNER_ID.test(name)) found.push(path);
     }
   }
   return found;

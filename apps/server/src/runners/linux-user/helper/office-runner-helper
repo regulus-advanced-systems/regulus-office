@@ -119,6 +119,8 @@ check_reclaim_dir() {
   [[ $p == "$WORKTREES_ROOT"/* ]] || bad "dir (not under $PROJECTS_ROOT or $WORKTREES_ROOT)"
   rest=${p#"$WORKTREES_ROOT"/}
   [[ $rest == */* && ${rest#*/} != */* ]] || bad "dir (not <worktrees>/<floor>/<agent>)"
+  # Agent ids are UUIDs; a runner id there is a human's own area, never reclaimed.
+  [[ ! ${rest#*/} =~ $RID_RE ]] || bad "dir (a runner's own area)"
 }
 check_argv() {
   [[ ${1-} == "--" ]] || usage
