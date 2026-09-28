@@ -123,7 +123,7 @@ jobs:
       # volumes, runs the fake agent in tmux, reaches the office over the runners network and
       # cannot reach docker-proxy or Caddy; then removes everything it created.
       - name: Runner end to end through the office
-        run: docker compose exec -T office bun run - < runner-e2e.ts
+        run: timeout 300 docker compose exec -T office bun run - < runner-e2e.ts
       - run: bun install --frozen-lockfile
         working-directory: .
       - name: Seed owner and invite over HTTPS

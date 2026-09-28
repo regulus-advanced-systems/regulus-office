@@ -221,3 +221,5 @@ if (failures.length > 0) {
   process.exit(1);
 }
 console.log("runner e2e: all checks passed");
+// Exit explicitly: pooled Engine API sockets can otherwise keep the event loop alive.
+process.exit(0);
