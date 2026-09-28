@@ -28,6 +28,8 @@ export function requestFromContext(context: AuthContext): Request {
 }
 
 const AUTH_FAILED = 401;
+const FORBIDDEN = 403;
+const BAD_OPTIONS = 400;
 
 export function createColyseusRoomClass<S extends object, J>(
   name: string,
@@ -35,11 +37,23 @@ export function createColyseusRoomClass<S extends object, J>(
   deps: RoomAdapterDeps,
 ): typeof Room {
   const { auth, logger } = deps;
+  const parseOptions = (options: unknown): J => {
+    if (!definition.parseJoinOptions) return options as J;
+    try {
+      return definition.parseJoinOptions(options);
+    } catch {
+      throw new ServerError(BAD_OPTIONS, "invalid join options");
+    }
+  };
 
   class AdaptedRoom extends Room<{ state: S; client: AuthedClient }> {
-    static override async onAuth(_token: string, _options: unknown, context: AuthContext) {
+    static override async onAuth(_token: string, options: unknown, context: AuthContext) {
       const user = await auth.authenticate(requestFromContext(context));
       if (!user) throw new ServerError(AUTH_FAILED, "authentication required");
+      if (definition.authorize) {
+        const allowed = await definition.authorize(user, parseOptions(options));
+        if (!allowed) throw new ServerError(FORBIDDEN, "access denied");
+      }
       return user;
     }
 
@@ -71,7 +85,7 @@ export function createColyseusRoomClass<S extends object, J>(
       };
     }
 
-    override async onCreate(): Promise<void> {
+    override async onCreate(options: unknown): Promise<void> {
       this.setState(definition.createState());
       if (definition.patchRateMs !== undefined) this.setPatchRate(definition.patchRateMs);
       if (definition.maxClients !== undefined) this.maxClients = definition.maxClients;
@@ -84,16 +98,14 @@ export function createColyseusRoomClass<S extends object, J>(
           logger.error({ err, room: name, type }, "room message handler failed");
         }
       });
-      await definition.onCreate?.(this.#handle);
+      await definition.onCreate?.(this.#handle, parseOptions(options));
       deps.onRoomCreated?.(this.#handle);
     }
 
     override async onJoin(client: AuthedClient, options: unknown): Promise<void> {
       const user = client.auth;
       if (!user) throw new ServerError(AUTH_FAILED, "authentication required");
-      const joinOptions = definition.parseJoinOptions
-        ? definition.parseJoinOptions(options)
-        : (options as J);
+      const joinOptions = parseOptions(options);
       const wrapped: RoomClient = {
         sessionId: client.sessionId,
         user,

@@ -43,7 +43,19 @@ export interface RoomDefinition<S extends object, J = unknown> {
   maxClients?: number;
   /** Validates join options; a thrown error rejects the join before `onJoin`. */
   parseJoinOptions?(options: unknown): J;
-  onCreate?(room: RoomHandle<S>): void | Promise<void>;
+  /**
+   * Join options that select a room instance: a join goes to the live
+   * instance created with the same values, or creates one (e.g. one FloorRoom
+   * per `floorId`). Without it every join shares one instance.
+   */
+  filterBy?: readonly (keyof J & string)[];
+  /**
+   * Authorises an authenticated user for these (parsed) options before a seat
+   * is reserved; `false` rejects the join with 403.
+   */
+  authorize?(user: RoomAuthUser, options: J): boolean | Promise<boolean>;
+  /** `options` are the parsed join options of the join that created the instance. */
+  onCreate?(room: RoomHandle<S>, options: J): void | Promise<void>;
   onJoin?(room: RoomHandle<S>, client: RoomClient, options: J): void | Promise<void>;
   onLeave?(room: RoomHandle<S>, client: RoomClient, code: number): void | Promise<void>;
   /** Called for every client message; `payload` is untrusted and must be validated. */

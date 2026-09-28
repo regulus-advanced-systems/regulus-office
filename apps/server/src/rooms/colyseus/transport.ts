@@ -51,7 +51,7 @@ export class ColyseusRoomTransport implements RoomTransport {
   defineRoom<S extends object, J>(name: string, definition: RoomDefinition<S, J>): void {
     if (this.#rooms.has(name)) throw new Error(`room already defined: ${name}`);
     this.#rooms.add(name);
-    this.#server.define(
+    const handler = this.#server.define(
       name,
       createColyseusRoomClass(name, definition, {
         auth: this.#auth,
@@ -60,6 +60,7 @@ export class ColyseusRoomTransport implements RoomTransport {
         onRoomDisposed: (handle) => this.#live.delete(handle),
       }),
     );
+    if (definition.filterBy?.length) handler.filterBy([...definition.filterBy]);
   }
 
   listen(): Promise<void> {

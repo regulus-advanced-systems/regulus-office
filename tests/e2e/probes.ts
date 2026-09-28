@@ -51,4 +51,20 @@ export async function waitForScene(page: Page): Promise<void> {
     .toContain("local-human");
 }
 
+/** Width x depth of the floor being walked (the walk plane follows the template). */
+export function floorSize(page: Page): Promise<string | null> {
+  return page.evaluate(() => {
+    type Obj = { name: string; geometry?: { parameters?: { width: number; height: number } } };
+    const r3f = (
+      window as unknown as { __regulusR3F?: { scene: { traverse(f: (o: Obj) => void): void } } }
+    ).__regulusR3F;
+    let size: string | null = null;
+    r3f?.scene.traverse((o) => {
+      const p = o.geometry?.parameters;
+      if (o.name === "walk-plane" && p) size = `${p.width}x${p.height}`;
+    });
+    return size;
+  });
+}
+
 export const distance = (a: Pos, b: Pos) => Math.hypot(a.x - b.x, a.z - b.z);

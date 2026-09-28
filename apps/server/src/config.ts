@@ -6,11 +6,14 @@
  * they cannot leak through JSON.stringify, template strings or inspect;
  * {@link redactConfig} produces a dump that is safe to log.
  */
-import { resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { inspect } from "node:util";
 import { z } from "zod";
 
 export const DEFAULT_PORT = 4600;
+/** Production clone root for floor repos (SPEC §8). */
+export const DEFAULT_PROJECTS_DIR = "/srv/office/projects";
+export const DEFAULT_GITHUB_REMOTE_BASE = "https://github.com";
 export const LOG_LEVELS = ["fatal", "error", "warn", "info", "debug", "trace", "silent"] as const;
 export type LogLevel = (typeof LOG_LEVELS)[number];
 
@@ -126,6 +129,8 @@ export const envSchema = z.object({
   ),
   OFFICE_HOST: z.preprocess(emptyToUndefined, str().default("0.0.0.0")),
   OFFICE_DATA_DIR: z.preprocess(emptyToUndefined, str().default("./data")),
+  OFFICE_PROJECTS_DIR: z.preprocess(emptyToUndefined, str().optional()),
+  OFFICE_GITHUB_REMOTE_BASE: z.preprocess(emptyToUndefined, z.url().optional()),
   OFFICE_MASTER_KEY: z.preprocess(emptyToUndefined, masterKeySchema.optional()),
   OFFICE_PUBLIC_URL: z.preprocess(emptyToUndefined, z.url().optional()),
   OFFICE_LOG_LEVEL: z.preprocess(emptyToUndefined, z.enum(LOG_LEVELS).default("info")),
@@ -192,6 +197,16 @@ export interface OfficeConfig {
   host: string;
   /** Absolute path to the SQLite database, blobs and other persistent state. */
   dataDir: string;
+  /**
+   * Where floor repos are cloned: `<projectsDir>/<floor-slug>/<repo>` (SPEC §8).
+   * Default `/srv/office/projects` in production, `<dataDir>/projects` otherwise.
+   */
+  projectsDir: string;
+  /**
+   * Base URL floor repos are cloned from, `<base>/<owner>/<name>.git`.
+   * Default `https://github.com`; tests point it at local bare repos.
+   */
+  githubRemoteBase: string;
   /** Envelope-encryption root key (SPEC §8 rule 2). Absent means secrets cannot be stored. */
   masterKey: SecretValue<Uint8Array> | undefined;
   /** Externally reachable origin, used for links and OAuth callbacks. */
@@ -264,10 +279,19 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
       "Invalid environment:\n  GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET: set both to enable GitHub login, or neither",
     );
   }
+  const dataDir = resolve(e.OFFICE_DATA_DIR);
+  const production = env.NODE_ENV === "production";
   return {
     port: e.OFFICE_PORT,
     host: e.OFFICE_HOST,
-    dataDir: resolve(e.OFFICE_DATA_DIR),
+    dataDir,
+    projectsDir: resolve(
+      e.OFFICE_PROJECTS_DIR ?? (production ? DEFAULT_PROJECTS_DIR : join(dataDir, "projects")),
+    ),
+    githubRemoteBase: (e.OFFICE_GITHUB_REMOTE_BASE ?? DEFAULT_GITHUB_REMOTE_BASE).replace(
+      /\/+$/,
+      "",
+    ),
     masterKey: e.OFFICE_MASTER_KEY,
     publicUrl: e.OFFICE_PUBLIC_URL ?? `http://localhost:${e.OFFICE_PORT}`,
     logLevel: e.OFFICE_LOG_LEVEL,

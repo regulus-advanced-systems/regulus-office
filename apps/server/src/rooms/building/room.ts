@@ -19,6 +19,7 @@ import {
   LOBBY_FLOOR_ID,
 } from "@regulus/protocol";
 import type { Logger } from "../../logging.ts";
+import type { RoomAuthUser } from "../auth.ts";
 import { CHAT_REPLAY, type ChatStore } from "../chat/store.ts";
 import type { RoomClient, RoomDefinition, RoomHandle } from "../transport.ts";
 import { checkCommand, wrapHeading } from "./commands.ts";
@@ -44,6 +45,8 @@ export interface BuildingRoomDeps {
   floors: FloorSource;
   logger: Logger;
   now?: () => number;
+  /** May this user go to this floor (lobby excluded)? Default: yes. */
+  canVisit?(user: RoomAuthUser, floorId: string): boolean;
 }
 
 export interface BuildingRoom extends RoomDefinition<BuildingState, BuildingJoinOptions> {
@@ -184,6 +187,14 @@ export function createBuildingRoom(deps: BuildingRoomDeps): BuildingRoom {
       case "floor.go": {
         if (!isKnownFloor(command.floorId, known)) {
           reject(client, command.type, `unknown floor ${command.floorId}`);
+          return;
+        }
+        if (
+          command.floorId !== LOBBY_FLOOR_ID &&
+          deps.canVisit &&
+          !deps.canVisit(client.user, command.floorId)
+        ) {
+          reject(client, command.type, `no access to floor ${command.floorId}`);
           return;
         }
         if (human.floorId !== command.floorId) {

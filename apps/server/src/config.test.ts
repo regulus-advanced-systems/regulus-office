@@ -21,6 +21,24 @@ describe("loadConfig", () => {
     expect(c.openSignup).toBe(false);
   });
 
+  test("projects dir: /srv/office/projects in production, under the data dir otherwise", () => {
+    expect(loadConfig({ NODE_ENV: "production" }).projectsDir).toBe("/srv/office/projects");
+    expect(loadConfig({ OFFICE_DATA_DIR: "/tmp/od" }).projectsDir).toBe("/tmp/od/projects");
+    expect(loadConfig({ OFFICE_PROJECTS_DIR: "/var/p", NODE_ENV: "production" }).projectsDir).toBe(
+      "/var/p",
+    );
+  });
+
+  test("GitHub remote base defaults to github.com and accepts local bare repos", () => {
+    expect(loadConfig({}).githubRemoteBase).toBe("https://github.com");
+    expect(loadConfig({ OFFICE_GITHUB_REMOTE_BASE: "file:///tmp/remotes/" }).githubRemoteBase).toBe(
+      "file:///tmp/remotes",
+    );
+    expect(() => loadConfig({ OFFICE_GITHUB_REMOTE_BASE: "not a url" })).toThrow(
+      /OFFICE_GITHUB_REMOTE_BASE/,
+    );
+  });
+
   test("parses OFFICE_OPEN_SIGNUP as a boolean", () => {
     expect(loadConfig({ OFFICE_OPEN_SIGNUP: "true" }).openSignup).toBe(true);
     expect(loadConfig({ OFFICE_OPEN_SIGNUP: "1" }).openSignup).toBe(true);

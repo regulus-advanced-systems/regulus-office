@@ -75,6 +75,9 @@ export default defineConfig({
           OFFICE_PORT: String(port),
           OFFICE_PUBLIC_URL: baseURL,
           OFFICE_DATA_DIR: process.env.E2E_DATA_DIR ?? "",
+          // Floors clone from local bare repos the spec creates (no network in tests).
+          OFFICE_PROJECTS_DIR: join(process.env.E2E_DATA_DIR ?? "", "projects"),
+          OFFICE_GITHUB_REMOTE_BASE: `file://${join(process.env.E2E_DATA_DIR ?? "", "remotes")}`,
           OFFICE_LOG_LEVEL: process.env.OFFICE_LOG_LEVEL ?? "warn",
           BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET ?? secret(),
           OFFICE_MASTER_KEY: process.env.OFFICE_MASTER_KEY ?? secret(),

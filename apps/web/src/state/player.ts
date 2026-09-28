@@ -35,12 +35,14 @@ export interface PlayerStore extends Pose {
   path: Vec2[] | null;
   /** True once `spawnAt` placed the avatar on a floor. */
   spawned: boolean;
+  /** Which floor the avatar was spawned on (see MovementController `floorKey`). */
+  spawnKey: string | null;
   /** Metres walked since spawn; the footstep hook watches it. */
   distanceWalked: number;
   navigation: PlayerNavigation | null;
 
   setNavigation: (navigation: PlayerNavigation | null) => void;
-  spawnAt: (pose: Pose) => void;
+  spawnAt: (pose: Pose, key?: string) => void;
   setPose: (x: number, z: number, heading: number) => void;
   setAnimation: (animation: AvatarAnimation) => void;
   /** Walk to a point; returns false (and clears any target) when unreachable. */
@@ -63,6 +65,7 @@ const INITIAL = {
   target: null,
   path: null,
   spawned: false,
+  spawnKey: null,
   distanceWalked: 0,
   navigation: null,
 };
@@ -71,12 +74,13 @@ export function createPlayerStore() {
   return create<PlayerStore>()((set, get) => ({
     ...INITIAL,
     setNavigation: (navigation) => set({ navigation }),
-    spawnAt: (pose) =>
+    spawnAt: (pose, key) =>
       set({
         x: pose.x,
         z: pose.z,
         heading: pose.heading,
         spawned: true,
+        spawnKey: key ?? null,
         target: null,
         path: null,
         animation: "idle",

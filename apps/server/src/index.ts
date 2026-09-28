@@ -10,6 +10,7 @@ import { denyAllAgentTokens, mountClaudeHookRoutes } from "./agents/hooks/index.
 import { AuthConfigError, createAuth, mountAuthRoutes, type OfficeAuth } from "./auth/index.ts";
 import { ConfigError, loadConfig, redactConfig } from "./config.ts";
 import { closeDatabase, databasePathFor, openDatabase, runMigrations } from "./db/index.ts";
+import { createFloors, mountFloorRoutes } from "./floors/index.ts";
 import { createOfficeServer } from "./http/server.ts";
 import { createShutdownController, installSignalHandlers } from "./lifecycle.ts";
 import { createLogger } from "./logging.ts";
@@ -20,6 +21,7 @@ import {
   createSessionRoomAuth,
   type RoomAuth,
 } from "./rooms/index.ts";
+import { loadMasterKeyring, type MasterKeyring } from "./secrets/index.ts";
 
 async function readVersion(): Promise<string> {
   try {
@@ -114,6 +116,27 @@ async function main(): Promise<void> {
     adapter: new ClaudeCodeAdapter(),
     logger,
   });
+
+  let keyring: MasterKeyring | undefined;
+  if (config.masterKey) {
+    try {
+      keyring = loadMasterKeyring(process.env);
+    } catch (err) {
+      console.error(`Invalid master key configuration: ${(err as Error).message}`);
+      process.exit(2);
+    }
+  }
+  const floors = createFloors({
+    db,
+    logger,
+    config,
+    keyring,
+    onChange: (floorId) => {
+      rooms.floorChanged(floorId).catch((err) => logger.error({ err }, "floor refresh failed"));
+    },
+  });
+  mountFloorRoutes(server.router, { auth, floors: floors.service });
+  logger.info({ projectsDir: config.projectsDir }, "floor repos clone here");
   server.health.register("db", () => {
     db.run(sql`select 1`);
     return true;
@@ -122,6 +145,7 @@ async function main(): Promise<void> {
     await server.stop(false);
   });
   await rooms.transport.listen();
+  floors.cloner.resumePending().catch((err) => logger.error({ err }, "resuming clones failed"));
   shutdown.register("rooms", () => rooms.transport.shutdown());
   installSignalHandlers(shutdown, (code) => {
     logger.flush();

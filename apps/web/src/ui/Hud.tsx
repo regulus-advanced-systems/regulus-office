@@ -9,6 +9,7 @@ import { ChatPanel } from "./chat/ChatPanel.tsx";
 import { Button } from "./components/Button.tsx";
 import { GearIcon, QuestionIcon } from "./components/icons.tsx";
 import { Modal } from "./components/Modal.tsx";
+import { AddFloorDialogHost } from "./floors/AddFloorDialog.tsx";
 import { HotkeyList } from "./hotkeys/HotkeyHelp.tsx";
 import { useGlobalHotkeys } from "./hotkeys/useHotkeys.ts";
 import { ElevatorPanel } from "./hud/ElevatorPanel.tsx";
@@ -43,6 +44,7 @@ export function HudDialogs() {
       >
         <HotkeyList />
       </Modal>
+      <AddFloorDialogHost />
     </>
   );
 }

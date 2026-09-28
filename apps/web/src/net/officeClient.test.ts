@@ -146,6 +146,8 @@ class FakeTransport implements RoomTransport {
   floorJoins: FloorJoinOptions[] = [];
   failBuildingJoins = 0;
   failFloorJoins = 0;
+  /** Reject floor joins like the server does without floor access. */
+  denyFloorJoins = false;
   /** Resolvers for joins that should stay pending until released. */
   holdFloorJoins = false;
   private pendingFloor: Array<() => void> = [];
@@ -162,6 +164,7 @@ class FakeTransport implements RoomTransport {
   async joinFloor(options: FloorJoinOptions) {
     this.floorJoins.push(options);
     if (this.holdFloorJoins) await new Promise<void>((r) => this.pendingFloor.push(r));
+    if (this.denyFloorJoins) throw Object.assign(new Error("access denied"), { code: 403 });
     if (this.failFloorJoins > 0) {
       this.failFloorJoins--;
       throw new Error("floor full");
@@ -265,6 +268,35 @@ describe("OfficeClient", () => {
 
     await client.goToFloor("f2"); // no-op
     expect(transport.floorRooms).toHaveLength(2);
+  });
+
+  test("rideTo tells the building and switches floor; the lobby has no floor room", async () => {
+    const { transport, client } = setup();
+    await client.connect();
+    await client.rideTo("f1");
+    expect(transport.building.sent).toEqual([
+      { type: "floor.go", payload: { floorId: "f1", mode: "ride" } },
+    ]);
+    expect(client.currentFloorId).toBe("f1");
+    const floorRoom = transport.floor;
+    await client.rideTo("lobby", "teleport");
+    expect(floorRoom.left).toEqual([true]);
+    expect(client.currentFloorId).toBeNull();
+    expect(useFloorStore.getState().floorId).toBeNull();
+    expect(transport.building.sent.at(-1)).toEqual({
+      type: "floor.go",
+      payload: { floorId: "lobby", mode: "teleport" },
+    });
+  });
+
+  test("a denied floor join is not retried", async () => {
+    const { transport, clock, client } = setup();
+    await client.connect();
+    transport.denyFloorJoins = true;
+    await client.goToFloor("f1");
+    expect(clock.pendingDelays).toEqual([]);
+    expect(useFloorStore.getState().floorId).toBeNull();
+    expect(useConnectionStore.getState().lastError).toBe("access denied");
   });
 
   test("routes commands to the owning room and refuses when it is not joined", async () => {

@@ -2,7 +2,7 @@
  * Floors (= projects), their repos and membership (SPEC §5, §9.1). Desks are
  * in desks.ts because they reference agents.
  */
-import { FLOOR_ACCESSES } from "@regulus/protocol";
+import { FLOOR_ACCESSES, REPO_CLONE_STATUSES } from "@regulus/protocol";
 import { check, index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 import { enumText, id, inEnum, timestampMs, timestamps } from "./_columns.ts";
 import { users } from "./users.ts";
@@ -38,9 +38,21 @@ export const floorRepos = sqliteTable(
     /** Clone location on the host, e.g. `/srv/office/projects/<floor>/<repo>` (SPEC §8). */
     workdir: text("workdir").notNull(),
     isPrimary: integer("is_primary", { mode: "boolean" }).notNull().default(false),
+    /** Clone progress on the host; `cloneError` holds a redacted reason when it failed. */
+    cloneStatus: enumText("clone_status", REPO_CLONE_STATUSES).notNull().default("cloning"),
+    cloneError: text("clone_error"),
+    /**
+     * Project credential (SPEC §8, D14 fallback): a fine-grained PAT scoped to
+     * this repo, envelope-encrypted by apps/server/src/secrets with the AAD
+     * bound to this row's id. Null for public repos. Never leaves the server.
+     */
+    encryptedCredential: text("encrypted_credential"),
     ...timestamps(),
   },
-  (t) => [uniqueIndex("floor_repos_floor_owner_name_unique").on(t.floorId, t.owner, t.name)],
+  (t) => [
+    uniqueIndex("floor_repos_floor_owner_name_unique").on(t.floorId, t.owner, t.name),
+    check("floor_repos_clone_status_check", inEnum("clone_status", REPO_CLONE_STATUSES)),
+  ],
 );
 
 export const floorMembers = sqliteTable(
