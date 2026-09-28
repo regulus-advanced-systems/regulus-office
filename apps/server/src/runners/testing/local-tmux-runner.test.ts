@@ -10,6 +10,7 @@ import { join } from "node:path";
 import { FakeAdapter, Secret, type SpawnPlan } from "@regulus/agent-adapters";
 import { bindRunnerOps, type RunnerHandle } from "../types.ts";
 import { hasTmux, LocalTmuxRunner, shellQuote } from "./local-tmux-runner.ts";
+import { attachWatcher } from "./watcher.ts";
 
 const FAKE_AGENT = join(import.meta.dir, "fake-agent.sh");
 const KEY = "sk-integration-DO-NOT-LEAK";
@@ -113,6 +114,51 @@ describe.skipIf(!hasTmux())("LocalTmuxRunner (tmux)", () => {
     await runner.kill({ userId: "u1", agentId: "a1" });
     expect(await runner.sessionExists(session)).toBe(false);
     await runner.kill({ userId: "u1", agentId: "a1" });
+  });
+
+  test("sendKeys works while a read-only watcher is attached (#107)", async () => {
+    const session = await runner.exec(user, plan("a1"));
+    await waitFor(
+      () => runner.capturePane(session, 50),
+      (s) => s.includes("FAKE AGENT READY"),
+    );
+    const watcher = await attachWatcher(runner, session, "FAKE AGENT READY");
+    const tmux = (...args: string[]) =>
+      Bun.$`tmux -S ${runner.socket} ${args}`.env({ PATH: process.env.PATH ?? "/usr/bin:/bin" });
+    try {
+      // The regression needs a read-only client on the session.
+      expect(await tmux("list-clients", "-F", "#{client_flags}").text()).toContain("read-only");
+      expect(
+        (await tmux("send-keys", "-t", "=agent-a1:", "x").nothrow().quiet()).exitCode,
+      ).not.toBe(0);
+
+      await runner.sendKeys(session, "first line\nsecond line", { enter: true });
+      const echoed = await waitFor(
+        () => runner.capturePane(session, 50),
+        (s) => s.includes("you said: second line"),
+      );
+      expect(echoed).toContain("you said: first line");
+
+      // Ctrl-C reaches the agent as SIGINT (dash runs the trap once `read` returns).
+      await runner.sendKeys(session, "\u0003");
+      await runner.sendKeys(session, "still here", { enter: true });
+      expect(
+        await waitFor(
+          () => runner.capturePane(session, 50),
+          (s) => s.includes("you said: still here"),
+        ),
+      ).toContain("FAKE AGENT INTERRUPTED");
+      await waitFor(
+        async () => watcher.output(),
+        (s) => s.includes("you said: still here"),
+      );
+      expect(watcher.output()).toContain("you said: still here");
+
+      // Every paste buffer was deleted after use.
+      expect((await tmux("list-buffers", "-F", "#{buffer_name}").text()).trim()).toBe("");
+    } finally {
+      await watcher.close();
+    }
   });
 
   test("session lookups are exact, not prefix matches", async () => {
