@@ -8,5 +8,9 @@
   "main": "src/index.ts",
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@colyseus/schema": "5.0.34",
+    "zod": "4.6.5"
   }
 }
