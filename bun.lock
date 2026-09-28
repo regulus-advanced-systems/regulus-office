@@ -47,6 +47,10 @@
     "packages/floor-layout": {
       "name": "@regulus/floor-layout",
       "version": "0.0.0",
+      "dependencies": {
+        "@regulus/protocol": "workspace:*",
+        "zod": "4.6.5",
+      },
     },
     "packages/protocol": {
       "name": "@regulus/protocol",
