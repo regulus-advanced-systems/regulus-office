@@ -175,6 +175,11 @@ jobs:
           sudo visudo -cf "$RUNNER_TEMP/office-runner"
           sudo install -m 0440 -o root -g root "$RUNNER_TEMP/office-runner" /etc/sudoers.d/office-runner
           sudo install -d -m 0750 -o "$USER" -g "$USER" /srv/office/projects /srv/office/worktrees
+      - name: Diag provision timing
+        run: |
+          sudo env PS4='+ $(date +%s.%N) ' bash -x /usr/local/lib/office/office-runner-helper provision diag 2>&1 | tail -80
+          time sudo -n /usr/local/lib/office/office-runner-helper provision diag
+          sudo -n /usr/local/lib/office/office-runner-helper deprovision diag
       - name: Integration test
         env:
           OFFICE_TEST_LINUX_USER: "1"
