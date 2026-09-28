@@ -90,6 +90,9 @@ const secretStr = (min = 1) =>
     .min(min)
     .transform((v) => new SecretValue(v));
 
+export const RUNNER_BACKENDS = ["docker", "linux-user", "local"] as const;
+export type RunnerBackendChoice = (typeof RUNNER_BACKENDS)[number];
+
 export const DEFAULT_RUNNER_IMAGE = "ghcr.io/regulus-advanced-systems/regulus-office-runner:latest";
 
 const absPath = () => str().regex(/^\//, "must be an absolute path");
@@ -148,6 +151,9 @@ export const envSchema = z.object({
   GITHUB_CLIENT_ID: z.preprocess(emptyToUndefined, str().optional()),
   GITHUB_CLIENT_SECRET: z.preprocess(emptyToUndefined, secretStr().optional()),
   OFFICE_OPEN_SIGNUP: bool(false),
+  // Runner backend (SPEC §8, D6): docker (Compose default), linux-user (bare
+  // install), or local (dev/test only: agents run as the office user).
+  OFFICE_RUNNER_BACKEND: z.preprocess(emptyToUndefined, z.enum(RUNNER_BACKENDS).optional()),
   // Docker runner backend (SPEC §8); see DockerBackendConfig.
   DOCKER_HOST: z.preprocess(emptyToUndefined, str().default("unix:///var/run/docker.sock")),
   OFFICE_RUNNER_IMAGE: z.preprocess(emptyToUndefined, str().default(DEFAULT_RUNNER_IMAGE)),
@@ -237,6 +243,12 @@ export interface OfficeConfig {
    * Default false: after the first user, sign-up needs an invite link.
    */
   openSignup: boolean;
+  /**
+   * Where agents run (SPEC §8). Default `docker` in production and `local`
+   * otherwise; `local` (tmux as the office user, no isolation) is refused in
+   * production.
+   */
+  runnerBackend: RunnerBackendChoice;
   /** Docker runner backend settings; only used when that backend is selected. */
   docker: DockerBackendConfig;
 }
@@ -293,6 +305,11 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
   }
   const dataDir = resolve(e.OFFICE_DATA_DIR);
   const production = env.NODE_ENV === "production";
+  if (production && e.OFFICE_RUNNER_BACKEND === "local") {
+    throw new ConfigError(
+      "Invalid environment:\n  OFFICE_RUNNER_BACKEND: local is for development only; use docker or linux-user",
+    );
+  }
   return {
     port: e.OFFICE_PORT,
     host: e.OFFICE_HOST,
@@ -319,6 +336,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
         ? { clientId: e.GITHUB_CLIENT_ID, clientSecret: e.GITHUB_CLIENT_SECRET }
         : undefined,
     openSignup: e.OFFICE_OPEN_SIGNUP,
+    runnerBackend: e.OFFICE_RUNNER_BACKEND ?? (production ? "docker" : "local"),
     docker: {
       dockerHost: e.DOCKER_HOST,
       image: e.OFFICE_RUNNER_IMAGE,

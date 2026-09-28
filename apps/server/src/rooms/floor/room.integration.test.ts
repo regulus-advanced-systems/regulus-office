@@ -190,6 +190,31 @@ describe("FloorRoom over the wire", () => {
     expect((await rejected).type).toBe("decor.remove");
   });
 
+  test("agent.spawn is validated, scoped to the room's floor and forwarded", async () => {
+    const calls: { actor: string; floorId: string; prompt: string }[] = [];
+    rooms.floors.setAgentCommands({
+      async spawn(actor, command) {
+        calls.push({ actor: actor.id, floorId: command.floorId, prompt: command.prompt });
+        return { ok: false, reason: "no free desk on this floor" };
+      },
+    });
+    const room = await joinFloor(users.member, floorId);
+    const reasons: CommandRejected[] = [];
+    room.onMessage(COMMAND_REJECTED_MESSAGE, (m: CommandRejected) => reasons.push(m));
+    const base = { repoId: "r1", provider: "custom", model: "m", prompt: "go" };
+    room.send("agent.spawn", { ...base, floorId: otherFloorId });
+    room.send("agent.spawn", { ...base, floorId, provider: "nope" });
+    room.send("agent.spawn", { ...base, floorId });
+    await waitFor(() => reasons.length === 3, "three rejections");
+    expect(reasons.map((r) => r.reason)).toEqual([
+      "wrong floor",
+      expect.stringContaining("invalid agent.spawn"),
+      "no free desk on this floor",
+    ]);
+    expect(calls).toEqual([{ actor: users.member.userId, floorId, prompt: "go" }]);
+    rooms.floors.setAgentCommands(undefined);
+  });
+
   test("floor.go in the building needs floor access", async () => {
     await rooms.refreshFloors();
     const stranger = await client(users.stranger).joinOrCreate<BuildingState>(

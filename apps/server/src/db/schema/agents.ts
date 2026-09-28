@@ -50,6 +50,12 @@ export const agents = sqliteTable(
     exitedAt: timestampMs("exited_at"),
     /** The spawn request as submitted, minus any credential material. */
     spawnArgsJson: jsonText("spawn_args_json").notNull().default("{}"),
+    /**
+     * SHA-256 (hex) of the agent's hook token (SPEC §8: agent tokens are stored
+     * hashed). The plaintext only exists in the agent's runner files. Null once
+     * revoked (stop, send home).
+     */
+    hookTokenHash: text("hook_token_hash"),
     ...timestamps(),
   },
   (t) => [

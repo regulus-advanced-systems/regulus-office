@@ -4,6 +4,8 @@
  * and at least `view` access to the live floor. State is the protocol
  * `FloorState`: floor metadata, repos, desks from the layout template,
  * robots published through {@link FloorRooms}, decor (empty until M2).
+ * `agent.spawn` is validated with the protocol schema and forwarded to the
+ * AgentManager (`setAgentCommands`); failures come back as `command.rejected`.
  *
  * The returned {@link FloorRooms} is also the registry the AgentManager
  * (#26) uses: `publishRobot(floorId, robot)` / `removeRobot(floorId, id)`.
@@ -11,15 +13,17 @@
  * room when it is (re)created.
  */
 import {
+  type ClientCommand,
   COMMAND_REJECTED_MESSAGE,
   type CommandRejected,
   FloorJoinOptions,
   FloorStateSchema,
   parseClientCommand,
   RobotState,
+  type UserRole,
 } from "@regulus/protocol";
 import type { Logger } from "../../logging.ts";
-import type { RoomDefinition, RoomHandle } from "../transport.ts";
+import type { RoomClient, RoomDefinition, RoomHandle } from "../transport.ts";
 import type { FloorRoomSource } from "./source.ts";
 import { type FloorRoomState, syncRobots, writeSnapshot } from "./state.ts";
 
@@ -27,6 +31,16 @@ import { type FloorRoomState, syncRobots, writeSnapshot } from "./state.ts";
 export const FLOOR_CLOSED_CODE = 4000;
 /** Patch rate: robots change a few times a second at most. */
 export const FLOOR_PATCH_RATE_MS = 100;
+
+export type SpawnCommand = Extract<ClientCommand, { type: "agent.spawn" }>;
+
+/** Agent commands the FloorRoom forwards (implemented by the AgentManager, #26). */
+export interface FloorAgentCommands {
+  spawn(
+    actor: { id: string; role: UserRole },
+    command: SpawnCommand,
+  ): Promise<{ ok: true } | { ok: false; reason: string }>;
+}
 
 export interface FloorRooms {
   /** Room definition to register under `ROOM_NAMES.floor`. */
@@ -40,6 +54,8 @@ export interface FloorRooms {
   refreshFloor(floorId: string): void;
   /** Floor ids with a live room instance. */
   liveFloorIds(): string[];
+  /** Route `agent.spawn` (and later agent commands) to the AgentManager. */
+  setAgentCommands(commands: FloorAgentCommands | undefined): void;
 }
 
 export interface FloorRoomsDeps {
@@ -66,7 +82,32 @@ export function createFloorRooms(deps: FloorRoomsDeps): FloorRooms {
     if (room) syncRobots(room.state, robots.get(floorId) ?? new Map());
   };
 
-  const reject = (type: string, reason: string): CommandRejected => ({ type, reason });
+  const reject = (type: string, reason: string): CommandRejected => ({
+    type,
+    reason: reason.slice(0, 500),
+  });
+  let agentCommands: FloorAgentCommands | undefined;
+
+  const spawn = (floorId: string, client: RoomClient, command: SpawnCommand) => {
+    if (command.floorId !== floorId) {
+      client.send(COMMAND_REJECTED_MESSAGE, reject(command.type, "wrong floor"));
+      return;
+    }
+    if (!agentCommands) {
+      client.send(COMMAND_REJECTED_MESSAGE, reject(command.type, "agents are not available"));
+      return;
+    }
+    const actor = { id: client.user.userId, role: client.user.role };
+    agentCommands
+      .spawn(actor, command)
+      .then((result) => {
+        if (!result.ok) client.send(COMMAND_REJECTED_MESSAGE, reject(command.type, result.reason));
+      })
+      .catch((err) => {
+        logger.error({ err }, "agent.spawn failed");
+        client.send(COMMAND_REJECTED_MESSAGE, reject(command.type, "internal error"));
+      });
+  };
 
   const definition: RoomDefinition<FloorRoomState, FloorJoinOptions> = {
     createState: () => new FloorStateSchema(),
@@ -91,8 +132,12 @@ export function createFloorRooms(deps: FloorRoomsDeps): FloorRooms {
       );
     },
 
-    onMessage(_room, client, type, payload) {
+    onMessage(room, client, type, payload) {
       const parsed = parseClientCommand(type, payload);
+      if (parsed.success && parsed.data.type === "agent.spawn") {
+        spawn(room.state.floorId, client, parsed.data);
+        return;
+      }
       const reason = parsed.success
         ? "not handled by the floor room yet"
         : `invalid ${type}: ${parsed.error.issues[0]?.message ?? "malformed"}`;
@@ -139,5 +184,9 @@ export function createFloorRooms(deps: FloorRoomsDeps): FloorRooms {
     },
 
     liveFloorIds: () => [...live.keys()],
+
+    setAgentCommands(commands) {
+      agentCommands = commands;
+    },
   };
 }

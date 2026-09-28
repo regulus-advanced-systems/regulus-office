@@ -21,6 +21,11 @@ export const AUDIT_ACTIONS = {
   floorRepoClone: "floor_repo.clone",
   agentPullRequest: "agent.pull_request",
   worktreesPrune: "worktrees.prune",
+  agentSpawn: "agent.spawn",
+  agentStop: "agent.stop",
+  agentApprove: "agent.approve",
+  agentResume: "agent.resume",
+  agentSendHome: "agent.send_home",
 } as const;
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];
 

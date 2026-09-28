@@ -1,0 +1,1 @@
+ALTER TABLE `agents` ADD `hook_token_hash` text;

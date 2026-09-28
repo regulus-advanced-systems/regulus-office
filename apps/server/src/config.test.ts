@@ -29,6 +29,16 @@ describe("loadConfig", () => {
     );
   });
 
+  test("runner backend: docker in production, local otherwise; local refused in production", () => {
+    expect(loadConfig({ NODE_ENV: "production" }).runnerBackend).toBe("docker");
+    expect(loadConfig({}).runnerBackend).toBe("local");
+    expect(loadConfig({ OFFICE_RUNNER_BACKEND: "linux-user" }).runnerBackend).toBe("linux-user");
+    expect(() => loadConfig({ NODE_ENV: "production", OFFICE_RUNNER_BACKEND: "local" })).toThrow(
+      ConfigError,
+    );
+    expect(() => loadConfig({ OFFICE_RUNNER_BACKEND: "k8s" })).toThrow(/OFFICE_RUNNER_BACKEND/);
+  });
+
   test("GitHub remote base defaults to github.com and accepts local bare repos", () => {
     expect(loadConfig({}).githubRemoteBase).toBe("https://github.com");
     expect(loadConfig({ OFFICE_GITHUB_REMOTE_BASE: "file:///tmp/remotes/" }).githubRemoteBase).toBe(
