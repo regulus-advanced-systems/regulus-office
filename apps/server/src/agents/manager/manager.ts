@@ -21,7 +21,7 @@ import { eq } from "drizzle-orm";
 import { AUDIT_ACTIONS } from "../../auth/audit.ts";
 import { floorRepos } from "../../db/schema/index.ts";
 import type { FloorActor } from "../../floors/access.ts";
-import type { Workspaces } from "../../worktrees/types.ts";
+import { LEGACY_WORKSPACE_MESSAGE, type Workspaces } from "../../worktrees/types.ts";
 import { adoptAll } from "./adopt.ts";
 import { AgentManagerError } from "./errors.ts";
 import { closeQuietly } from "./launch.ts";
@@ -37,6 +37,7 @@ import {
 import { admitSpawn, type SpawnInput } from "./spawn.ts";
 import { startAgent } from "./start.ts";
 import { isLive, RESUMABLE_STATUSES } from "./state-machine.ts";
+import type { AgentRow } from "./store.ts";
 import { RepoWorkspaces, taskSlug } from "./workspaces.ts";
 
 export type {
@@ -75,17 +76,23 @@ export class AgentManager extends AgentRuntime {
     this.publishLive(live);
     this.countersChanged();
     try {
-      const workspaces = input.autoWorktree ? this.#workspaces() : this.#repoWorkspaces;
-      const workspace = await workspaces.prepare({
+      const prepare = {
         agentId,
         floorId: input.floorId,
         repoId: input.repoId,
         slug: taskSlug({ taskTitle: admitted.taskTitle, issueNumber: input.issueNumber }),
         ownerUserId: actor.id,
-      });
+      };
+      // Without a worktree the agent works in its owner's own clone (#114).
+      const clones = this.opts.clones;
+      const workspace = input.autoWorktree
+        ? await this.#workspaces().prepare(prepare)
+        : clones
+          ? await clones.prepareClone(prepare)
+          : await this.#repoWorkspaces.prepare(prepare);
       this.store.update(agentId, { workdir: workspace.workdir, worktreeBranch: workspace.branch });
       live.view.worktreeBranch = workspace.branch;
-      await this.#launch(live, { prompt: input.prompt, repoWorkdir: admitted.repoWorkdir });
+      await this.#launch(live, { prompt: input.prompt });
     } catch (err) {
       this.failed(live, err);
       throw asManagerError(err, "the agent could not be started");
@@ -95,10 +102,13 @@ export class AgentManager extends AgentRuntime {
 
   async #launch(
     live: LiveAgent,
-    opts: { prompt?: string; resumeSessionId?: string; repoWorkdir: string },
+    opts: { prompt?: string; resumeSessionId?: string },
   ): Promise<void> {
     const row = this.row(live.view.agentId);
-    const started = await startAgent(this, row, live.profile, opts);
+    const started = await startAgent(this, row, live.profile, {
+      ...opts,
+      clonePath: this.#clonePath(row),
+    });
     live.ctx = started.ctx;
     this.store.update(row.id, {
       workdir: started.workdir,
@@ -224,17 +234,11 @@ export class AgentManager extends AgentRuntime {
       this.publishLive(live);
       this.countersChanged();
     }
-    const repo = this.opts.db
-      .select({ workdir: floorRepos.workdir })
-      .from(floorRepos)
-      .where(eq(floorRepos.id, row.repoId))
-      .get();
     try {
       await this.#launch(live, {
         resumeSessionId: adapter.capabilities.resume
           ? (row.providerSessionId ?? undefined)
           : undefined,
-        repoWorkdir: repo?.workdir ?? row.workdir,
       });
     } catch (err) {
       this.failed(live, err);
@@ -295,6 +299,37 @@ export class AgentManager extends AgentRuntime {
     } catch (err) {
       this.logger.warn({ agentId, err: errorSummary(err) }, `agent ${what} failed`);
       throw new AgentManagerError("failed", `the agent did not accept the ${what}`);
+    }
+  }
+
+  /**
+   * The clone the agent's git uses: its owner's own clone (#114). A workspace
+   * from before #114 lives in the floor's shared mirror, which runners can no
+   * longer reach, so it is refused. Without `clones` (tests), the floor repo.
+   */
+  #clonePath(row: AgentRow): string {
+    const clones = this.opts.clones;
+    if (!clones) {
+      const repo = this.opts.db
+        .select({ workdir: floorRepos.workdir })
+        .from(floorRepos)
+        .where(eq(floorRepos.id, row.repoId))
+        .get();
+      return repo?.workdir ?? row.workdir;
+    }
+    const { clone, legacy } = clones.cloneFor(row);
+    if (legacy) throw new AgentManagerError("conflict", LEGACY_WORKSPACE_MESSAGE);
+    return clone;
+  }
+
+  /** A robot whose workspace predates per-human clones (#114): never started in a runner. */
+  isLegacyWorkspace(row: AgentRow): boolean {
+    const clones = this.opts.clones;
+    if (!clones) return false;
+    try {
+      return clones.cloneFor(row).legacy;
+    } catch {
+      return false;
     }
   }
 

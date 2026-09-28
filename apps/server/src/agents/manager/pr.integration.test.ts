@@ -50,6 +50,7 @@ async function agentOnFloor(respond: (req: RecordedRequest) => Response) {
   });
   const { manager, robots } = makeManager(f.db, runner, [adapter], {
     workspaces: f.worktrees.workspaces,
+    clones: f.worktrees.workspaces,
     worktreeTools: {
       status: (id) => f.worktrees.workspaces.status(id),
       openPullRequest: (id, opts) => f.worktrees.openPullRequest(id, opts),
@@ -166,7 +167,7 @@ describe.skipIf(!hasTmux())("agent.pr / agent.worktree / agent.sendHome", () => 
     ).toEqual({ ok: true, result: { type: "agent.sendHome", agentId: first.agentId } });
     expect(first.robots.removed).toEqual([first.agentId]);
     expect(await git(["branch", "--list", first.branch], bare)).toBe("");
-    expect(await git(["branch", "--list", first.branch], first.f.repo.workdir)).toBe("");
+    expect(await git(["branch", "--list", first.branch], first.f.cloneOf())).toBe("");
     await first.manager.close();
     await runner.dispose();
 
@@ -175,7 +176,7 @@ describe.skipIf(!hasTmux())("agent.pr / agent.worktree / agent.sendHome", () => 
     expect(
       await second.control({ type: "agent.sendHome", agentId: second.agentId, keepBranch: true }),
     ).toMatchObject({ ok: true });
-    expect(await git(["branch", "--list", second.branch], second.f.repo.workdir)).toContain(
+    expect(await git(["branch", "--list", second.branch], second.f.cloneOf())).toContain(
       second.branch,
     );
     await second.manager.close();

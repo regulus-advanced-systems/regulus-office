@@ -31,7 +31,7 @@ import {
 } from "./rooms/index.ts";
 import { loadMasterKeyring, type MasterKeyring } from "./secrets/index.ts";
 import { createTerminals } from "./terminals/index.ts";
-import { createWorktrees, mountWorktreeRoutes } from "./worktrees/index.ts";
+import { createWorktrees, migrateLegacyLayout, mountWorktreeRoutes } from "./worktrees/index.ts";
 
 async function readVersion(): Promise<string> {
   try {
@@ -169,6 +169,7 @@ async function main(): Promise<void> {
     keyring,
     runner,
     workspaces: worktrees.workspaces,
+    clones: worktrees.workspaces,
     worktreeTools: {
       status: (agentId) => worktrees.workspaces.status(agentId),
       openPullRequest: (agentId, options) => worktrees.openPullRequest(agentId, options),
@@ -193,7 +194,20 @@ async function main(): Promise<void> {
     await server.stop(false);
   });
   await rooms.transport.listen();
-  agents.adopt().catch((err) => logger.error({ err }, "re-adopting agents failed"));
+  // Re-adopt first: it stops agents still in the shared-clone layout, then the
+  // layout migration (#114) takes runner access to that layout away.
+  agents
+    .adopt()
+    .catch((err) => logger.error({ err }, "re-adopting agents failed"))
+    .then(() =>
+      migrateLegacyLayout({
+        projectsDir: config.projectsDir,
+        worktreesDir: config.worktreesDir,
+        runner,
+        logger,
+      }),
+    )
+    .catch((err) => logger.error({ err }, "per-human clone migration failed"));
   floors.cloner.resumePending().catch((err) => logger.error({ err }, "resuming clones failed"));
   shutdown.register("rooms", () => rooms.transport.shutdown());
   shutdown.register("terminals", () => terminals.shutdown());

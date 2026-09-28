@@ -22,12 +22,18 @@ async function helper(args: string[]): Promise<{ code: number; stderr: string }>
 }
 
 const P = "/srv/office/projects";
+const W = "/srv/office/worktrees";
 const accepted: string[][] = [
   ["provision", "u1"],
   ["provision", "0123456789abcdef0123456"],
   ["deprovision", "u1"],
-  ["mount-project", "u1", `${P}/floor1/repo-1`],
-  ["mount-project", "u1", "/srv/office/worktrees/floor1/a1"],
+  ["mount-project", "u1", `${W}/floor1/u1`],
+  ["mount-project", "u1", `${W}/floor1/u1/a1`],
+  ["mount-project", "u1", `${W}/floor1/u1/_clones/repo-1`],
+  ["reclaim", P],
+  ["reclaim", `${P}/floor1`],
+  ["reclaim", `${P}/floor1/repo-1`],
+  ["reclaim", `${W}/floor1/0f8c2d9e-agent`],
   ["exec", "u1", "a1", "/srv/x y", "--", "sh", "-c", "echo $HOME; rm -rf /"],
   ["spawn-piped", "u1", "a_1-B", "/", "--", "codex", "app-server"],
   ["kill", "u1", "a1"],
@@ -64,6 +70,26 @@ const rejected: string[][] = [
   ["mount-project", "u1", `${P}/f/`],
   ["mount-project", "u1", `${P}/f r`],
   ["mount-project", "u1", `${P}evil/f`],
+  // #114: only the human's own area, never a mirror, a floor dir or another human's area.
+  ["mount-project", "u1", `${P}/floor1/repo-1`],
+  ["mount-project", "u1", `${P}/floor1/u1`],
+  ["mount-project", "u1", W],
+  ["mount-project", "u1", `${W}/floor1`],
+  ["mount-project", "u1", `${W}/floor1/u2`],
+  ["mount-project", "u1", `${W}/floor1/u2/a1`],
+  ["mount-project", "u1", `${W}/floor1/u10/a1`],
+  ["mount-project", "u1", `${W}/floor1/a1/u1`],
+  ["mount-project", "u1", `${W}/floor1/.u1`],
+  ["reclaim"],
+  ["reclaim", "/etc"],
+  ["reclaim", W],
+  ["reclaim", `${W}/floor1`],
+  ["reclaim", `${W}/floor1/u1/a1`],
+  ["reclaim", `${W}/floor1/u1`],
+  ["reclaim", `${P}/../etc`],
+  ["reclaim", `${P}/f/.git`],
+  ["reclaim", `${P}evil`],
+  ["reclaim", `${P}/f`, "extra"],
   ["exec", "u1", "a1", "/w", "sh"],
   ["exec", "u1", "a1", "/w", "--"],
   ["exec", "u1", "a1", "/w", "--", ""],
@@ -116,7 +142,7 @@ describe("sudoers rules", () => {
     const verbs = rules
       .map((r) => r.match(/office-runner-helper ([a-z-]+) \*$/)?.[1])
       .filter((v): v is string => v !== undefined);
-    expect(verbs.length).toBe(16);
+    expect(verbs.length).toBe(17);
     for (const verb of verbs) expect(script).toContain(`  ${verb}`);
   });
 });

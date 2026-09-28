@@ -25,6 +25,7 @@ import {
 import { GitWorktreeWorkspaces } from "./workspaces.ts";
 
 export { agentGitEnv, BRANCH_PREFIX, branchSlug } from "./git-ops.ts";
+export { type LegacyLayoutDeps, migrateLegacyLayout } from "./migrate.ts";
 export type { PruneResult } from "./prune.ts";
 export {
   draftBody,

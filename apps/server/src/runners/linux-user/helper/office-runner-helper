@@ -62,7 +62,8 @@ usage() {
 usage: office-runner-helper <verb> <args>
   provision <rid>                         create office-u-<rid>, HOME 0700, tmux server
   deprovision <rid>                       kill everything of office-u-<rid>, delete it
-  mount-project <rid> <workdir>           ACL a project/worktree dir for office-u-<rid>
+  mount-project <rid> <workdir>           ACL a dir inside <worktrees>/<floor>/<rid> for office-u-<rid>
+  reclaim <dir>                           give a pre-#114 shared dir back to the office only
   exec <rid> <agentId> <cwd> -- <argv..>  tmux session agent-<agentId> in scope agent-<agentId>
                                           (stdin: env script, NUL-terminated)
   spawn-piped <rid> <agentId> <cwd> -- <argv..>
@@ -94,14 +95,32 @@ check_session() { [[ $1 =~ $SESSION_RE ]] || bad "session name"; }
 check_user_path() {
   [[ $1 == /* && ${#1} -le 4096 && ! $1 =~ [[:cntrl:]] ]] || bad "path"
 }
-# A project or worktree dir that root puts ACLs on: canonical, under a configured root.
+# Canonical path syntax for dirs root acts on: no symlink tricks, no dot segments.
+check_canonical() {
+  [[ $1 =~ ^(/[A-Za-z0-9_][A-Za-z0-9._-]*)+$ && ${#1} -le 1024 ]] || bad "$2"
+}
+# A dir root puts ACLs on for office-u-$1: inside that human's own area on a floor,
+# <worktrees>/<floor>/<rid> (#114). Mirrors, floor dirs and other humans' areas never qualify.
 check_workdir() {
-  local p=$1 r
-  [[ $p =~ ^(/[A-Za-z0-9_][A-Za-z0-9._-]*)+$ && ${#p} -le 1024 ]] || bad "workdir"
-  for r in "$PROJECTS_ROOT" "$WORKTREES_ROOT"; do
-    [[ $p == "$r"/* ]] && return 0
-  done
-  bad "workdir (not under $PROJECTS_ROOT or $WORKTREES_ROOT)"
+  local rid=$1 p=$2 rest
+  check_canonical "$p" "workdir"
+  [[ $p == "$WORKTREES_ROOT"/* ]] || bad "workdir (not under $WORKTREES_ROOT)"
+  rest=${p#"$WORKTREES_ROOT"/}
+  [[ $rest == */* ]] || bad "workdir (not a runner's own dir)"
+  rest=${rest#*/}
+  [[ ${rest%%/*} == "$rid" ]] || bad "workdir (not inside office-u-$rid's own dir)"
+}
+# A dir shared with runners before #114: the projects root or anything in it (mirrors),
+# or a per-agent worktree directly in a floor dir, <worktrees>/<floor>/<agent>.
+check_reclaim_dir() {
+  local p=$1 rest
+  check_canonical "$p" "dir"
+  [[ $p == "$PROJECTS_ROOT" || $p == "$PROJECTS_ROOT"/* ]] && return 0
+  [[ $p == "$WORKTREES_ROOT"/* ]] || bad "dir (not under $PROJECTS_ROOT or $WORKTREES_ROOT)"
+  rest=${p#"$WORKTREES_ROOT"/}
+  [[ $rest == */* && ${rest#*/} != */* ]] || bad "dir (not <worktrees>/<floor>/<agent>)"
+  # Agent ids are UUIDs; a runner id there is a human's own area, never reclaimed.
+  [[ ! ${rest#*/} =~ $RID_RE ]] || bad "dir (a runner's own area)"
 }
 check_argv() {
   [[ ${1-} == "--" ]] || usage
@@ -264,11 +283,15 @@ cmd_deprovision() {
 
 cmd_mount_project() {
   load_user
-  local w=$WORKDIR root p rest seg
+  local w=$WORKDIR root=$WORKTREES_ROOT area p rest seg
+  rest=${w#"$root"/}
+  area="$root/${rest%%/*}/$RID"
   [[ -d $w && ! -L $w ]] || die "workdir $w is not a directory" 3
   [[ $(realpath -e -- "$w") == "$w" ]] || die "workdir must be canonical, without symlinks"
-  root=$PROJECTS_ROOT
-  [[ $w == "$WORKTREES_ROOT"/* ]] && root=$WORKTREES_ROOT
+  [[ -d $area && ! -L $area ]] || die "$area is not a directory"
+  # Other humans get traverse on the floor dir, so the area itself must not
+  # be open to "other": only the office (owner) and this human's ACL get in.
+  chmod o-rwx -- "$area"
   # Traverse-only on the root and every ancestor below it.
   p=$root
   rest=${w#"$root"/}
@@ -284,6 +307,21 @@ cmd_mount_project() {
   # -P: never follow symlinks inside the checkout.
   setfacl -R -P -m "g:$U:rwX,d:g:$U:rwX,u:$SERVER_USER:rwX,d:u:$SERVER_USER:rwX" -- "$w"
   printf 'workdir=%s\n' "$w"
+}
+
+# Before #114 floor mirrors and per-agent worktrees carried runner ACLs and
+# files owned by runner accounts. Hand them back to the office alone: owner
+# and group become the server user's, every extended ACL entry goes, and
+# "other" loses access to the top dir. -P/-h: never follow symlinks.
+cmd_reclaim() {
+  local d=$RDIR
+  [[ -d $d && ! -L $d ]] || die "$d is not a directory" 3
+  [[ $(realpath -e -- "$d") == "$d" ]] || die "dir must be canonical, without symlinks"
+  getent passwd "$SERVER_USER" >/dev/null || die "no server user $SERVER_USER"
+  chown -R -P -h -- "$SERVER_USER": "$d"
+  setfacl -R -P -b -- "$d"
+  chmod o-rwx -- "$d"
+  printf 'reclaimed=%s\n' "$d"
 }
 
 cmd_exec() {
@@ -421,8 +459,13 @@ main() {
     mount-project)
       [[ $# -eq 2 ]] || usage
       check_rid "$1"
-      check_workdir "$2"
+      check_workdir "$1" "$2"
       WORKDIR=$2
+      ;;
+    reclaim)
+      [[ $# -eq 1 ]] || usage
+      check_reclaim_dir "$1"
+      RDIR=$1
       ;;
     exec | spawn-piped)
       [[ $# -ge 5 ]] || usage
@@ -489,6 +532,7 @@ main() {
     provision) cmd_provision ;;
     deprovision) cmd_deprovision ;;
     mount-project) cmd_mount_project ;;
+    reclaim) cmd_reclaim ;;
     exec) cmd_exec ;;
     spawn-piped) cmd_spawn_piped ;;
     kill) cmd_kill ;;

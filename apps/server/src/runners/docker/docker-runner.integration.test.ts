@@ -1,8 +1,10 @@
 /**
  * Integration: DockerRunner against a real Docker daemon. Builds a tiny image
  * from fixtures/Dockerfile (debian-slim + tmux + the fake agent, not the full
- * runner image), provisions a runner, mounts a floor, runs the fake agent in
- * tmux and drives, inspects and kills it.
+ * runner image), provisions a runner, mounts the human's area on a floor, runs
+ * the fake agent in tmux and drives, inspects and kills it. Then checks that a
+ * second human's runner has no mount of, and cannot see, the first human's
+ * clone and worktrees (#114).
  *
  * Opt-in: runs when REGULUS_DOCKER_TESTS=1 (and then requires the daemon) (CI job
  * `docker-runner`, which also routes the runner through the socket proxy);
@@ -90,11 +92,10 @@ describe.skipIf(!enabled)("DockerRunner (real Docker)", () => {
   beforeAll(async () => {
     await buildImage();
     root = await mkdtemp(join(tmpdir(), "rgo-docker-"));
-    workdir = join(root, "projects", "f1", "repo");
+    // u1's own clone in its area (runner id "u1", ../layout.ts).
+    workdir = join(root, "worktrees", "f1", "u1", "_clones", "repo");
     await mkdir(workdir, { recursive: true });
-    for (const d of [root, join(root, "projects"), join(root, "projects", "f1"), workdir]) {
-      await chmod(d, 0o755);
-    }
+    for (let d = workdir; d.startsWith(root); d = join(d, "..")) await chmod(d, 0o755);
     runner = new DockerRunner({
       engine: runnerEngine,
       image: IMAGE,
@@ -104,7 +105,7 @@ describe.skipIf(!enabled)("DockerRunner (real Docker)", () => {
       labels: TEST_LABEL,
       pull: false,
       pidsLimit: 256,
-      floorRoots: [join(root, "projects"), join(root, "worktrees")],
+      floorRoots: [join(root, "worktrees")],
     });
     handle = await runner.provision(user);
   }, 600_000);
@@ -135,7 +136,7 @@ describe.skipIf(!enabled)("DockerRunner (real Docker)", () => {
     );
   }
 
-  test("mounts the floor, runs the fake agent, drives, inspects and kills it", async () => {
+  test("mounts the human's area, runs the fake agent, drives, inspects and kills it", async () => {
     expect(await runner.mountProject(user, { floorId: "f1", repoId: "r1", workdir })).toEqual({
       workdir,
     });
@@ -250,4 +251,58 @@ describe.skipIf(!enabled)("DockerRunner (real Docker)", () => {
     const current = await runner.provision(user);
     expect(handles.map((h) => h.containerId)).toEqual([current.containerId]);
   }, 30_000);
+
+  test("another human's runner has no mount of, and cannot see, u1's clone and worktrees", async () => {
+    const floor = join(root, "worktrees", "f1");
+    const mirror = join(root, "projects", "f1", "repo");
+    const secret = join(workdir, "secret.txt");
+    const worktreeA = join(floor, "u1", "agent-a");
+    const areaB = join(floor, "u2");
+    await mkdir(worktreeA, { recursive: true });
+    await mkdir(mirror, { recursive: true });
+    await mkdir(join(areaB, "agent-b"), { recursive: true });
+    await Bun.write(secret, "u1 only\n");
+    await Bun.write(join(worktreeA, "work.txt"), "u1 work\n");
+    await chmod(areaB, 0o777);
+    await chmod(join(areaB, "agent-b"), 0o777);
+
+    const b = { userId: "u2" };
+    await runner.mountProject(b, { floorId: "f1", repoId: "r1", workdir: join(areaB, "agent-b") });
+    const { containerId } = await runner.provision(b);
+    const info = await engine.json<{
+      HostConfig: { Mounts: { Source?: string; Target: string }[] };
+    }>("GET", `/containers/${containerId}/json`);
+    const targets = info.HostConfig.Mounts.map((m) => m.Target);
+    expect(targets).toEqual(["/home/runner", areaB]);
+    for (const m of info.HostConfig.Mounts) {
+      expect(`${m.Source ?? ""} ${m.Target}`).not.toContain(join(floor, "u1"));
+      expect(`${m.Source ?? ""} ${m.Target}`).not.toContain(join(root, "projects"));
+    }
+    const sh = (script: string) =>
+      runnerEngine.exec(containerId as string, { cmd: ["sh", "-c", script], user: "1001:1001" });
+    for (const path of [secret, workdir, worktreeA, join(worktreeA, "work.txt"), mirror]) {
+      expect((await sh(`test -e '${path}'`)).code).not.toBe(0);
+    }
+    // The floor dir inside the runner holds only B's own area.
+    expect((await sh(`ls -A '${floor}'`)).stdout.trim()).toBe("u2");
+    expect(
+      (await sh(`echo ok > '${areaB}/agent-b/b.txt' && cat '${areaB}/agent-b/b.txt'`)).stdout,
+    ).toBe("ok\n");
+  }, 60_000);
+
+  test("whole-floor mounts from before #114 are dropped from an idle runner", async () => {
+    const c = { userId: "u3" };
+    const floor = join(root, "worktrees", "f1");
+    await runner.provision(c);
+    await runner.containers.recreate(c.userId, [{ Type: "bind", Source: floor, Target: floor }]);
+    expect(await runner.reconcileMounts(c)).toBe(true);
+    const { containerId } = await runner.provision(c);
+    const info = await engine.json<{ HostConfig: { Mounts: { Target: string }[] } }>(
+      "GET",
+      `/containers/${containerId}/json`,
+    );
+    expect(info.HostConfig.Mounts.map((m) => m.Target)).toEqual(["/home/runner"]);
+    const res = await runnerEngine.exec(containerId as string, { cmd: ["test", "-e", workdir] });
+    expect(res.code).not.toBe(0);
+  }, 60_000);
 });

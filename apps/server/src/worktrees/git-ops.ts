@@ -1,9 +1,10 @@
 /**
- * Git plumbing for office-run commands on floor clones and agent worktrees.
+ * Git plumbing for office-run commands on humans' clones, agent worktrees and
+ * floor mirrors.
  *
- * The clone's `.git` is shared with every agent worktree on the floor, and
- * runners can write to it (SPEC §8: project workdirs are group-writable for
- * runners). So before the office runs git there with the project credential,
+ * A human's clone (#114) is shared with that human's agent worktrees, and
+ * their runner can write to its `.git`. So before the office runs git there
+ * with the project credential,
  * it (1) never runs repo hooks or fsmonitor, (2) refuses a config that could
  * execute commands or redirect the remote (`url.*.insteadOf`, `filter.*`,
  * `include*`, `credential.*`, ...), (3) checks that `origin` is still the
@@ -14,6 +15,7 @@
 import { readdir, readFile, realpath } from "node:fs/promises";
 import { join } from "node:path";
 import type { GitResult, GitRunner } from "../github/git.ts";
+import { CLONES_DIR } from "../runners/layout.ts";
 import { WorkspaceError } from "./types.ts";
 
 /** Branch prefix for agent work. Only these branches are ever deleted by the office. */
@@ -64,9 +66,11 @@ export function branchSlug(input: string): string {
 
 const AGENT_ID = /^[A-Za-z0-9_-]{1,64}$/;
 
-/** Agent ids name worktree directories; refuse anything that could leave the floor dir. */
+/** Agent ids name worktree directories; refuse anything that could leave the human's area. */
 export function checkAgentDirName(agentId: string): string {
-  if (!AGENT_ID.test(agentId)) throw new WorkspaceError("agent_not_found", "invalid agent id");
+  if (!AGENT_ID.test(agentId) || agentId === CLONES_DIR) {
+    throw new WorkspaceError("agent_not_found", "invalid agent id");
+  }
   return agentId;
 }
 
@@ -136,7 +140,7 @@ export async function assertSafeClone(
   if (bad.size > 0) {
     throw new WorkspaceError(
       "worktree_failed",
-      `refusing to run git: the floor clone's config has unsafe entries (${[...bad].sort().join(", ")}); an admin must review ${clone}/.git/config`,
+      `refusing to run git: the clone's config has unsafe entries (${[...bad].sort().join(", ")}); an admin must review ${clone}/.git/config`,
     );
   }
 }
@@ -188,7 +192,7 @@ export function agentGitEnv(worktree: string, clone: string): Record<string, str
   };
 }
 
-/** Serialises git work per clone (worktree add/remove and pushes share its `.git`). */
+/** Serialises git work per key (a clone path: worktree add/remove and pushes share its `.git`). */
 export class KeyedMutex {
   readonly #tails = new Map<string, Promise<unknown>>();
 

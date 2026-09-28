@@ -9,6 +9,7 @@ import { SecretEnv, type SpawnPlan } from "@regulus/agent-adapters";
 import { LABEL_USER } from "./containers.ts";
 import { DockerRunner, envFileContents, RunnerBusyError } from "./docker-runner.ts";
 import { EngineClient } from "./engine.ts";
+import { MountRefusedError } from "./mounts.ts";
 import { type ExecHandler, FakeEngine } from "./testing/fake-engine.ts";
 
 const IMAGE = "runner:test";
@@ -312,41 +313,54 @@ describe("attach", () => {
 });
 
 describe("mountProject", () => {
-  const repo = { floorId: "f1", repoId: "r1", workdir: "/srv/office/projects/f1/repo" };
-
-  test("recreates an idle runner with the floor's dirs, keeping HOME", async () => {
-    runner = new DockerRunner({
+  // u1's runner id is "u1" (short ids are used as they are, runners/layout.ts).
+  const area = "/srv/office/worktrees/f1/u1";
+  const repo = { floorId: "f1", repoId: "r1", workdir: `${area}/_clones/repo` };
+  const volumes = () =>
+    new DockerRunner({
       engine: new EngineClient(fake.dockerHost),
       image: IMAGE,
       prefix: "office",
       user: "1001:1001",
       home: "/home/runner",
-      floorRoots: ["/srv/office/projects", "/srv/office/worktrees"],
-      volumeMap: [{ path: "/srv/office/projects", volume: "regulus_projects" }],
+      volumeMap: [{ path: "/srv/office/worktrees", volume: "regulus_worktrees" }],
     });
+  const createdMounts = () =>
+    JSON.parse(fake.calls("POST", "/containers/create").at(-1)?.body ?? "{}").HostConfig.Mounts;
+
+  test("recreates an idle runner with the human's own area on the floor, keeping HOME", async () => {
+    runner = volumes();
     const before = await runner.provision(user);
     expect(await runner.mountProject(user, repo)).toEqual({ workdir: repo.workdir });
     const after = await runner.provision(user);
     expect(after.containerId).not.toBe(before.containerId);
-    const body = JSON.parse(fake.calls("POST", "/containers/create").at(-1)?.body ?? "{}");
-    expect(body.HostConfig.Mounts).toEqual([
+    expect(createdMounts()).toEqual([
       { Type: "volume", Source: "office-home-u1", Target: "/home/runner" },
       {
         Type: "volume",
-        Source: "regulus_projects",
-        Target: "/srv/office/projects/f1",
-        VolumeOptions: { Subpath: "f1" },
+        Source: "regulus_worktrees",
+        Target: area,
+        VolumeOptions: { Subpath: "f1/u1" },
       },
-      { Type: "bind", Source: "/srv/office/worktrees/f1", Target: "/srv/office/worktrees/f1" },
     ]);
 
-    // A second repo on the same floor is already covered: no recreate.
-    await runner.mountProject(user, {
-      ...repo,
-      repoId: "r2",
-      workdir: "/srv/office/projects/f1/b",
-    });
+    // Another repo's clone and an agent worktree in the same area: no recreate.
+    await runner.mountProject(user, { ...repo, repoId: "r2", workdir: `${area}/_clones/b` });
+    await runner.mountProject(user, { ...repo, workdir: `${area}/agent-1` });
     expect(fake.calls("POST", "/containers/create")).toHaveLength(2);
+  });
+
+  test("never mounts a mirror, a floor dir or another human's area", async () => {
+    for (const workdir of [
+      "/srv/office/projects/f1/repo",
+      "/srv/office/worktrees/f1",
+      "/srv/office/worktrees/f1/agent-1",
+      "/srv/office/worktrees/f1/u2/_clones/repo",
+    ]) {
+      const err = await runner.mountProject(user, { ...repo, workdir }).catch((e) => e);
+      expect(err).toBeInstanceOf(MountRefusedError);
+    }
+    expect(fake.calls("POST", "/containers/create")).toHaveLength(0);
   });
 
   test("refuses to recreate a runner with live sessions", async () => {
@@ -355,6 +369,47 @@ describe("mountProject", () => {
     expect(err).toBeInstanceOf(RunnerBusyError);
     expect(err.sessions).toEqual(["agent-a1"]);
     expect(fake.calls("POST", "/containers/create")).toHaveLength(1);
+  });
+
+  describe("whole-floor mounts from before per-human clones (#114)", () => {
+    const legacy = [
+      { Type: "bind", Source: "/srv/office/projects/f1", Target: "/srv/office/projects/f1" },
+      { Type: "bind", Source: "/srv/office/worktrees/f1", Target: "/srv/office/worktrees/f1" },
+    ] as const;
+    const legacyRunner = async () => {
+      runner = volumes();
+      await runner.provision(user);
+      await runner.containers.recreate(user.userId, [...legacy]);
+    };
+
+    test("reconcileMounts drops them from an idle runner", async () => {
+      await legacyRunner();
+      expect(await runner.reconcileMounts(user)).toBe(true);
+      expect(createdMounts()).toEqual([
+        { Type: "volume", Source: "office-home-u1", Target: "/home/runner" },
+      ]);
+      expect(await runner.reconcileMounts(user)).toBe(true);
+      expect(fake.calls("POST", "/containers/create")).toHaveLength(3);
+    });
+
+    test("a busy runner keeps them, and gets no new mounts or agents while it does", async () => {
+      await legacyRunner();
+      await runner.exec(user, plan("a1"));
+      expect(await runner.reconcileMounts(user)).toBe(false);
+      // Already covered by the floor mount, but the stale mount alone refuses it.
+      const err = await runner.mountProject(user, repo).catch((e) => e);
+      expect(err).toBeInstanceOf(RunnerBusyError);
+      expect(err.missing).toContain("-/srv/office/projects/f1");
+    });
+
+    test("mountProject replaces them with the human's area when idle", async () => {
+      await legacyRunner();
+      await runner.mountProject(user, repo);
+      expect(createdMounts().map((m: { Target: string }) => m.Target)).toEqual([
+        "/home/runner",
+        area,
+      ]);
+    });
   });
 });
 

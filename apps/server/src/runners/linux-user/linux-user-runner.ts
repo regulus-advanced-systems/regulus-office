@@ -96,6 +96,15 @@ export class LinuxUserRunner implements Runner {
     return { workdir: repo.workdir };
   }
 
+  /**
+   * Not part of `Runner`: hand a directory shared with runners before #114
+   * (the projects root, or a per-agent worktree directly in a floor dir) back
+   * to the office alone: owner, no runner ACLs, no "other" access.
+   */
+  async reclaim(dir: string): Promise<void> {
+    await this.helper.call("reclaim", [checkRunnerPath(dir)]);
+  }
+
   async exec(user: RunnerUser, plan: SpawnPlan): Promise<TmuxSessionRef> {
     const agentId = checkAgentId(plan.agentId);
     if (plan.tmuxSession !== tmuxSessionName(agentId)) {

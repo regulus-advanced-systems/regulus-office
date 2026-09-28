@@ -12,7 +12,7 @@ import type { Db } from "../../db/index.ts";
 import type { Logger } from "../../logging.ts";
 import type { Runner } from "../../runners/types.ts";
 import type { TerminalTarget } from "../../terminals/targets.ts";
-import type { Workspaces } from "../../worktrees/types.ts";
+import type { HumanClones, Workspaces } from "../../worktrees/types.ts";
 import { WorkspaceError } from "../../worktrees/types.ts";
 import type { AgentEventSink } from "../events.ts";
 import { CredentialResolver } from "./credentials.ts";
@@ -62,6 +62,8 @@ export interface AgentManagerOptions {
   /** Re-read BuildingRoom floor counters (`rooms.refreshFloors`). */
   refreshFloors?: () => Promise<void>;
   workspaces?: Workspaces;
+  /** Each human's own clone of a floor repo (#114); worktrees.workspaces implements it. */
+  clones?: HumanClones;
   /** Worktree status and PRs for `agent.worktree` / `agent.pr`. */
   worktreeTools?: AgentWorktreeTools;
   /** How long an unanswered permission request stays answerable when the adapter does not say. */

@@ -192,9 +192,9 @@ export const envSchema = z.object({
     emptyToUndefined,
     z
       .string()
-      .default("/srv/office/projects,/srv/office/worktrees")
       .transform((v) => splitList(v))
-      .pipe(z.array(absPath()).min(1)),
+      .pipe(z.array(absPath()).min(1))
+      .optional(),
   ),
   OFFICE_DOCKER_VOLUME_MAP: z.preprocess(emptyToUndefined, volumeMap.default([])),
 });
@@ -288,7 +288,7 @@ export interface DockerBackendConfig {
   /** CPU limit in cores (Docker NanoCpus / 1e9). */
   cpus: number | undefined;
   pidsLimit: number;
-  /** Floor directories are mounted per `<root>/<floor>` for each root. */
+  /** Roots under which a human's own `<root>/<floor>/<runner id>` dir is mounted (#114). */
   floorRoots: string[];
   /** Office paths that live in named volumes (Compose); mounted with a volume subpath. */
   volumeMap: { path: string; volume: string }[];
@@ -324,6 +324,9 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
       "Invalid environment:\n  OFFICE_RUNNER_BACKEND: local is for development only; use docker or linux-user",
     );
   }
+  const worktreesDir = resolve(
+    e.OFFICE_WORKTREES_DIR ?? (production ? DEFAULT_WORKTREES_DIR : join(dataDir, "worktrees")),
+  );
   return {
     port: e.OFFICE_PORT,
     host: e.OFFICE_HOST,
@@ -335,9 +338,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
       /\/+$/,
       "",
     ),
-    worktreesDir: resolve(
-      e.OFFICE_WORKTREES_DIR ?? (production ? DEFAULT_WORKTREES_DIR : join(dataDir, "worktrees")),
-    ),
+    worktreesDir,
     githubApiBase: (e.OFFICE_GITHUB_API_BASE ?? DEFAULT_GITHUB_API_BASE).replace(/\/+$/, ""),
     masterKey: e.OFFICE_MASTER_KEY,
     publicUrl: e.OFFICE_PUBLIC_URL ?? `http://localhost:${e.OFFICE_PORT}`,
@@ -365,7 +366,8 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
       memoryBytes: e.OFFICE_DOCKER_RUNNER_MEMORY,
       cpus: e.OFFICE_DOCKER_RUNNER_CPUS,
       pidsLimit: e.OFFICE_DOCKER_RUNNER_PIDS,
-      floorRoots: e.OFFICE_DOCKER_FLOOR_ROOTS,
+      // Default: the worktrees dir, which holds every human's own area (#114).
+      floorRoots: e.OFFICE_DOCKER_FLOOR_ROOTS ?? [worktreesDir],
       volumeMap: e.OFFICE_DOCKER_VOLUME_MAP,
     },
   };

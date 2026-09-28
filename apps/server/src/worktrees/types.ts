@@ -2,8 +2,10 @@
  * Per-agent git worktrees (SPEC §8, §10 M1; research 02 weakness #7).
  *
  * The AgentManager (#26) calls {@link Workspaces}: `prepare` before a spawn
- * (fetch, then a fresh `office/<slug>` branch cut from `origin/<default>` in
- * `<worktreesDir>/<floor-slug>/<agentId>`), `release` on send-home.
+ * (the owner's own clone of the floor repo, fetch, then a fresh
+ * `office/<slug>` branch cut from `origin/<default>` in
+ * `<worktreesDir>/<floor-slug>/<runner id>/<agentId>`), `release` on
+ * send-home. Layout: ../runners/layout.ts (#114).
  */
 
 export interface PrepareWorkspaceInput {
@@ -33,6 +35,26 @@ export interface Workspaces {
   release(input: ReleaseWorkspaceInput): Promise<void>;
 }
 
+/** Where an agent's git lives. */
+export interface AgentClone {
+  /** The owner's own clone, or the shared floor mirror for a `legacy` workspace. */
+  clone: string;
+  /** A workspace from before #114, inside the shared mirror: office-side git only, no runner. */
+  legacy: boolean;
+}
+
+/** Each human's own clone of a floor repo (#114). */
+export interface HumanClones {
+  /** `autoWorktree: false`: the owner's own clone (made on first use) on the default branch. */
+  prepareClone(input: PrepareWorkspaceInput): Promise<PreparedWorkspace>;
+  cloneFor(agent: { ownerUserId: string; repoId: string; workdir: string }): AgentClone;
+}
+
+/** Why a pre-#114 agent is offline and cannot be resumed (shown to humans). */
+export const LEGACY_WORKSPACE_MESSAGE =
+  "this robot's workspace is in the floor's shared clone, which runners can no longer use " +
+  "(each human now has their own clone): open its PR or send it home, then spawn a new robot";
+
 export type WorkspaceErrorCode =
   | "agent_not_found"
   | "repo_not_found"
@@ -40,6 +62,7 @@ export type WorkspaceErrorCode =
   | "no_worktree"
   | "fetch_failed"
   | "worktree_failed"
+  | "legacy_workspace"
   | "uncommitted_changes"
   | "no_commits"
   | "no_repo_credential"
@@ -53,6 +76,7 @@ const STATUS: Record<WorkspaceErrorCode, number> = {
   no_worktree: 409,
   fetch_failed: 502,
   worktree_failed: 500,
+  legacy_workspace: 409,
   uncommitted_changes: 409,
   no_commits: 409,
   no_repo_credential: 409,

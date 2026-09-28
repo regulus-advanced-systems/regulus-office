@@ -104,8 +104,10 @@ describe("openPullRequest", () => {
       branch: "office/login-fix",
     });
 
-    // Pushed to the remote.
-    const local = await git(["-C", f.repo.workdir, "rev-parse", "refs/heads/office/login-fix"]);
+    // Pushed to the remote from the owner's own clone (#114); the mirror never had the branch.
+    const local = await git(["-C", f.cloneOf(), "rev-parse", "refs/heads/office/login-fix"]);
+    const inMirror = git(["-C", f.repo.workdir, "rev-parse", "refs/heads/office/login-fix"]);
+    await expect(inMirror).rejects.toThrow();
     expect(await git(["-C", f.bare, "rev-parse", "office/login-fix"])).toBe(local);
 
     // Request shape and auth: token only in the Authorization header.
@@ -136,6 +138,7 @@ describe("openPullRequest", () => {
     // No trace of the token in argv or on disk.
     expect(f.gitCalls.flat().join(" ")).not.toContain(FAKE_PAT);
     expect(await filesContaining(join(f.repo.workdir, ".git"), FAKE_PAT)).toEqual([]);
+    expect(await filesContaining(join(f.cloneOf(), ".git"), FAKE_PAT)).toEqual([]);
   });
 
   test("an existing PR for the branch is returned instead of failing", async () => {

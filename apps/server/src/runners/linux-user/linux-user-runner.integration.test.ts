@@ -2,7 +2,9 @@
  * Real linux-user backend: provisions an `office-u-<rid>` account, runs the
  * fake agent through tmux + a systemd scope as that account, reads and drives
  * it, lists its processes via the cgroup, finds a listening port, kills it and
- * deprovisions. Needs root via the installed helper, so it only runs with
+ * deprovisions. Then (#114) a second human's account can neither read nor
+ * write the first human's clone and worktrees nor write the floor mirror, and
+ * `reclaim` takes a pre-#114 shared dir back from runner accounts. Needs root via the installed helper, so it only runs with
  * OFFICE_TEST_LINUX_USER=1 and passwordless sudo (the CI `linux-user` job;
  * see docs/deploy/linux-user-runner.md for the setup it expects).
  */
@@ -29,8 +31,11 @@ test.skipIf(!requested)("OFFICE_TEST_LINUX_USER=1 has passwordless sudo and the 
 const FAKE_AGENT = join(import.meta.dir, "../testing/fake-agent.sh");
 const KEY = "sk-linux-user-DO-NOT-LEAK";
 const PROJECTS = process.env.OFFICE_TEST_PROJECTS_ROOT ?? "/srv/office/projects";
+const WORKTREES = process.env.OFFICE_TEST_WORKTREES_ROOT ?? "/srv/office/worktrees";
 const rid = `ci${Math.floor(Math.random() * 0xffffff).toString(16)}`;
+const ridB = `${rid}b`;
 const user = { userId: rid };
+const userB = { userId: ridB };
 
 async function waitFor<T>(probe: () => Promise<T>, ok: (v: T) => boolean, ms = 10_000): Promise<T> {
   const deadline = Date.now() + ms;
@@ -43,8 +48,11 @@ async function waitFor<T>(probe: () => Promise<T>, ok: (v: T) => boolean, ms = 1
 
 describe.skipIf(!enabled)("LinuxUserRunner (real accounts, systemd, tmux)", () => {
   const runner = new LinuxUserRunner();
-  const floorDir = join(PROJECTS, `floor-${rid}`);
-  const workdir = join(floorDir, "repo");
+  const floor = `floor-${rid}`;
+  const floorDir = join(WORKTREES, floor);
+  const mirrorDir = join(PROJECTS, floor);
+  // The human's own clone in their area, <worktrees>/<floor>/<rid>/_clones/<repo> (#114).
+  const workdir = join(floorDir, rid, "_clones", "repo");
   let handle: RunnerHandle;
 
   beforeAll(async () => {
@@ -54,9 +62,12 @@ describe.skipIf(!enabled)("LinuxUserRunner (real accounts, systemd, tmux)", () =
 
   afterAll(async () => {
     await runner.deprovision(user);
+    await runner.deprovision(userB);
     expect(Bun.spawnSync(["getent", "passwd", `office-u-${rid}`]).exitCode).not.toBe(0);
-    await Bun.$`sudo -n rm -rf ${floorDir}`.nothrow();
-    await rm(floorDir, { recursive: true, force: true });
+    for (const dir of [floorDir, mirrorDir]) {
+      await Bun.$`sudo -n rm -rf ${dir}`.nothrow();
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 
   function plan(agentId: string, argv: string[]): SpawnPlan {
@@ -99,6 +110,14 @@ describe.skipIf(!enabled)("LinuxUserRunner (real accounts, systemd, tmux)", () =
     const acl = await Bun.$`getfacl -p ${workdir}`.text();
     expect(acl).toContain(`group:office-u-${rid}:rwx`);
     expect(acl).toContain(`default:group:office-u-${rid}:rwx`);
+    // The area is closed to "other"; the helper refuses anything outside it.
+    expect((await stat(join(floorDir, rid))).mode & 0o007).toBe(0);
+    await mkdir(join(mirrorDir, "repo"), { recursive: true });
+    for (const dir of [join(mirrorDir, "repo"), floorDir, join(floorDir, ridB)]) {
+      await expect(
+        runner.mountProject(user, { floorId: "f", repoId: "r", workdir: dir }),
+      ).rejects.toThrow();
+    }
   });
 
   test("exec runs the fake agent in its own scope, as the human, without leaking env", async () => {
@@ -198,4 +217,57 @@ describe.skipIf(!enabled)("LinuxUserRunner (real accounts, systemd, tmux)", () =
     expect(await readFile(file, "utf8")).toBe("got ping\n");
     expect((await stat(file)).uid).toBe(handle.uid ?? -1);
   }, 30_000);
+
+  test("another human's account can neither read nor write this human's clone and worktrees", async () => {
+    const worktreeA = join(floorDir, rid, "agent-a");
+    const secret = join(workdir, "secret.txt");
+    await mkdir(worktreeA, { recursive: true });
+    await Bun.write(secret, "only for A\n");
+    await Bun.write(join(worktreeA, "work.txt"), "A's work\n");
+    await runner.mountProject(user, { floorId: "f", repoId: "r", workdir: worktreeA });
+    const cloneB = join(floorDir, ridB, "_clones", "repo");
+    await mkdir(cloneB, { recursive: true });
+    await runner.provision(userB);
+    await runner.mountProject(userB, { floorId: "f", repoId: "r", workdir: cloneB });
+
+    // A itself can (the control).
+    expect(await runner.readTextFile(user, secret)).toBe("only for A\n");
+    const writeAs = (who: string, path: string) =>
+      runner.helper.call("write-file", [who, path, "644"], { stdin: "planted\n" });
+    await writeAs(rid, join(worktreeA, "by-a.txt"));
+    // B cannot read or write anything of A's, nor write the mirror.
+    for (const path of [secret, join(worktreeA, "work.txt")]) {
+      expect(await runner.readTextFile(userB, path).catch(() => null)).toBeNull();
+    }
+    expect(await runner.listDir(userB, join(floorDir, rid)).catch(() => [])).toEqual([]);
+    for (const path of [
+      join(workdir, ".git-planted"),
+      join(worktreeA, "by-b.txt"),
+      join(floorDir, rid, "by-b.txt"),
+      join(mirrorDir, "repo", "by-b.txt"),
+    ]) {
+      await expect(writeAs(ridB, path)).rejects.toThrow();
+      expect(await Bun.file(path).exists()).toBe(false);
+    }
+    // B works in its own clone.
+    await writeAs(ridB, join(cloneB, "by-b.txt"));
+    expect(await readFile(join(cloneB, "by-b.txt"), "utf8")).toBe("planted\n");
+    expect(await runner.readTextFile(user, join(cloneB, "by-b.txt")).catch(() => null)).toBeNull();
+  }, 120_000);
+
+  test("reclaim takes a pre-#114 shared dir back from runner accounts", async () => {
+    // A mirror as runners left it: B's ACLs on it, and a hook owned by A's account.
+    const repo = join(mirrorDir, "repo");
+    const hook = join(repo, "post-checkout");
+    await Bun.write(hook, "#!/bin/sh\n");
+    await Bun.$`sudo -n setfacl -R -m g:office-u-${ridB}:rwX,d:g:office-u-${ridB}:rwX ${mirrorDir}`;
+    await Bun.$`sudo -n chown office-u-${rid} ${hook}`;
+    await runner.reclaim(mirrorDir);
+    const acl = await Bun.$`getfacl -R -p ${mirrorDir}`.text();
+    expect(acl).not.toContain("office-u-");
+    expect((await stat(hook)).uid).toBe(process.getuid?.() ?? -1);
+    expect((await stat(mirrorDir)).mode & 0o007).toBe(0);
+    // Only the projects root or an old per-agent worktree qualify.
+    await expect(runner.reclaim(join(floorDir, rid))).rejects.toThrow();
+  }, 60_000);
 });

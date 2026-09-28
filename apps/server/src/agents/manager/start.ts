@@ -1,6 +1,7 @@
 /**
  * Starting an agent process (spawn, resume, boot relaunch): provision the
- * owner's runner, mount the floor repo, issue a hook token, resolve (decrypt)
+ * owner's runner, mount the owner's own clone and the agent's workdir (#114:
+ * never the floor mirror or anything of another human), issue a hook token, resolve (decrypt)
  * the credential, build the SpawnPlan, then `Runner.exec` and/or `connect`
  * per the provider's launch profile (launch.ts).
  *
@@ -43,17 +44,18 @@ export async function startAgent(
   deps: StartDeps,
   row: AgentRow,
   profile: LaunchProfile,
-  opts: { prompt?: string; resumeSessionId?: string; repoWorkdir: string },
+  /** `clonePath`: the owner's own clone, which the agent's worktree (if any) belongs to. */
+  opts: { prompt?: string; resumeSessionId?: string; clonePath: string },
 ): Promise<Started> {
   const adapter = deps.adapters.get(row.provider);
   const user: RunnerUser = { userId: row.ownerUserId };
   const handle = await deps.runner.provision(user);
-  const mounted = await deps.runner.mountProject(user, {
-    floorId: row.floorId,
-    repoId: row.repoId,
-    workdir: opts.repoWorkdir,
-  });
-  const workdir = row.workdir === opts.repoWorkdir ? mounted.workdir : row.workdir;
+  const repo = { floorId: row.floorId, repoId: row.repoId };
+  const mounted = await deps.runner.mountProject(user, { ...repo, workdir: opts.clonePath });
+  const workdir =
+    row.workdir === opts.clonePath
+      ? mounted.workdir
+      : (await deps.runner.mountProject(user, { ...repo, workdir: row.workdir })).workdir;
   const ctx: RunnerContext = {
     backend: deps.runner.backend,
     userId: row.ownerUserId,

@@ -24,8 +24,6 @@ export interface AdmittedSpawn {
   agentId: string;
   seatId: string;
   taskTitle: string;
-  /** The floor repo checkout (the workspace may be a worktree of it). */
-  repoWorkdir: string;
 }
 
 export function admitSpawn(
@@ -94,5 +92,5 @@ export function admitSpawn(
     model: input.model,
     profileId,
   });
-  return { agentId, seatId, taskTitle, repoWorkdir: repo.workdir };
+  return { agentId, seatId, taskTitle };
 }

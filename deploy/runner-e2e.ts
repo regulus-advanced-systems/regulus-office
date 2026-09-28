@@ -5,17 +5,20 @@
 //   docker compose exec -T office bun run - < runner-e2e.ts
 //
 // Through the real docker runner backend (apps/server/src/runners/docker, SPEC §8) it provisions
-// a runner for a throwaway human, mounts a floor from the shared projects/worktrees volumes, runs
-// the fake agent in tmux with a fake API key and a hook file, and checks:
+// a runner for a throwaway human, mounts that human's own area on a floor from the shared
+// worktrees volume (#114: never the floor mirror), runs the fake agent in tmux with a fake API
+// key and a hook file, and checks:
 //   - the pane shows the agent and the key reached it without appearing anywhere else
 //   - the hook URL is OFFICE_RUNNER_OFFICE_URL and the runner reaches the office there
 //   - the runner cannot reach docker-proxy (by name or IP) or Caddy
-//   - uid 1001 can commit in an office-created worktree (group 1001, setgid dirs)
+//   - uid 1001 can commit in an office-created worktree of the human's own clone (group 1001,
+//     setgid dirs) and cannot see the floor mirror
 // then removes the runner, its HOME volume and the floor dirs.
 import { lookup } from "node:dns/promises";
-import { mkdir, readFile, rm, stat } from "node:fs/promises";
+import { chmod, mkdir, readFile, rm, stat } from "node:fs/promises";
 import { loadConfig } from "/app/apps/server/src/config.ts";
 import { DockerRunner } from "/app/apps/server/src/runners/docker/docker-runner.ts";
+import { runnerId } from "/app/apps/server/src/runners/layout.ts";
 import { FakeAdapter, type RunnerContext, Secret } from "/app/packages/agent-adapters/src/index.ts";
 
 process.umask(0o002); // as the office's CMD does (deploy/office.Dockerfile)
@@ -25,8 +28,11 @@ const suffix = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 
 const user = { userId: `e2e-${suffix}` };
 const agentId = `e2e-${suffix}`;
 const floor = `e2e-${suffix}`;
-const repo = `/srv/office/projects/${floor}/repo`;
-const worktree = `/srv/office/worktrees/${floor}/${agentId}`;
+const mirror = `/srv/office/projects/${floor}/repo`;
+// The human's own area on the floor, their clone of the repo and the agent's worktree (#114).
+const area = `/srv/office/worktrees/${floor}/${runnerId(user.userId)}`;
+const repo = `${area}/_clones/repo`;
+const worktree = `${area}/${agentId}`;
 const fakeKey = `sk-e2e-${crypto.randomUUID()}`;
 const failures: string[] = [];
 
@@ -70,15 +76,18 @@ async function inRunner(cmd: string[], workdir?: string) {
 }
 
 try {
-  // The office clones a floor repo and adds the agent's worktree, as #30/#31 will.
+  // The office clones the floor mirror, gives the human their own clone of it and adds the
+  // agent's worktree, as #30/#31/#114 do.
   await mkdir(`/srv/office/projects/${floor}`, { recursive: true });
-  git("init", "-q", "--shared=group", "-b", "main", repo);
-  await Bun.write(`${repo}/README.md`, "e2e\n");
-  git("-C", repo, "add", "README.md");
-  git("-C", repo, "commit", "-qm", "initial");
-  await mkdir(`/srv/office/worktrees/${floor}`, { recursive: true });
+  git("init", "-q", "-b", "main", mirror);
+  await Bun.write(`${mirror}/README.md`, "e2e\n");
+  git("-C", mirror, "add", "README.md");
+  git("-C", mirror, "commit", "-qm", "initial");
+  await mkdir(`${area}/_clones`, { recursive: true });
+  await chmod(area, (await stat(area)).mode & 0o7770);
+  git("clone", "-q", "--no-local", "--config", "core.sharedRepository=group", mirror, repo);
   git("-C", repo, "worktree", "add", "-q", "-b", agentId, worktree);
-  for (const dir of [`/srv/office/projects/${floor}`, `/srv/office/worktrees/${floor}`, repo]) {
+  for (const dir of [`/srv/office/worktrees/${floor}`, area, repo]) {
     const s = await stat(dir);
     const shared = s.gid === 1001 && (s.mode & 0o2070) === 0o2070;
     check(
@@ -86,6 +95,7 @@ try {
       `${dir} is group 1001, setgid, group-writable (${(s.mode & 0o7777).toString(8)})`,
     );
   }
+  check(((await stat(area)).mode & 0o007) === 0, `${area} is closed to other`);
 
   await runner.mountProject(user, { floorId: floor, repoId: "repo", workdir: worktree });
   const handle = await runner.provision(user);
@@ -99,12 +109,13 @@ try {
   check(info.Config.User === d.user, `runner runs as ${d.user}`);
   const mounts = info.HostConfig.Mounts.map((m) => `${m.Type}:${m.Source}->${m.Target}`);
   console.log(`     mounts: ${mounts.join(", ")}`);
+  const floorMounts = info.HostConfig.Mounts.filter((m) => m.Target !== d.home);
   check(
-    [`/srv/office/projects/${floor}`, `/srv/office/worktrees/${floor}`].every((t) =>
-      info.HostConfig.Mounts.some((m) => m.Type === "volume" && m.Target === t),
-    ),
-    "floor dirs mounted from the shared volumes",
+    floorMounts.length === 1 && floorMounts[0]?.Type === "volume" && floorMounts[0].Target === area,
+    "only the human's own area is mounted, from the shared worktrees volume",
   );
+  const mirrorSeen = await inRunner(["test", "-e", mirror]);
+  check(mirrorSeen.code !== 0, "the floor mirror is not visible in the runner");
   check(!mounts.some((m) => m.includes("docker.sock")), "no Docker socket in the runner");
 
   const id = await inRunner(["id"]);
@@ -181,15 +192,15 @@ try {
     check(res.code !== 0, `runner cannot reach ${target} (curl exit ${res.code})`);
   }
 
-  // Shared storage: uid 1001 commits in the office-created worktree (objects land in the repo's
-  // shared .git), and the office sees the commit.
+  // Shared storage: uid 1001 commits in the office-created worktree (objects land in the human's
+  // clone's shared .git), and the office sees the commit.
   const commit = await inRunner(
     [
       "sh",
       "-c",
       "echo from-runner > runner.txt && git add runner.txt && " +
         "git -c user.name=runner -c user.email=runner@example.invalid commit -qm from-runner && " +
-        `touch /srv/office/projects/${floor}/runner-was-here`,
+        `touch ${area}/_clones/runner-was-here`,
     ],
     worktree,
   );

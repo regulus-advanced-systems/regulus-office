@@ -13,10 +13,14 @@
  *   died with the office; when the adapter can resume and a provider session
  *   id is stored, they are relaunched on that session.
  * - everything else is marked `offline` (resumable with `agent.resume`).
+ * - a workspace from before per-human clones (#114) lives in the floor's
+ *   shared mirror: its process is stopped and the robot marked `offline` with
+ *   the reason; it cannot be resumed (the PR button and send-home still work).
  */
 import type { RunnerContext } from "@regulus/agent-adapters";
 import type { AgentStatus } from "@regulus/protocol";
 import { bindRunnerOps, type RunnerHandle } from "../../runners/types.ts";
+import { LEGACY_WORKSPACE_MESSAGE } from "../../worktrees/types.ts";
 import { adoptionPlan } from "./launch.ts";
 import type { AgentManager } from "./manager.ts";
 import type { AgentRow } from "./store.ts";
@@ -76,6 +80,21 @@ async function adoptOne(
   const live = mgr.track(row);
   const profile = mgr.profileFor(row);
   const adapter = mgr.adapters.find(row.provider);
+  if (mgr.isLegacyWorkspace(row)) {
+    if (row.status !== "exited") {
+      await mgr.runner.kill({ userId: row.ownerUserId, agentId: row.id }).catch(() => {});
+      mgr.publish(row.id, {
+        kind: "status",
+        ts: mgr.now(),
+        status: "offline",
+        reason: LEGACY_WORKSPACE_MESSAGE,
+      });
+      mgr.markOffline(live);
+      mgr.logger.warn({ agentId: row.id }, "agent workspace predates per-human clones; offline");
+    }
+    mgr.publishRobot(live);
+    return;
+  }
   if (row.status === "exited" || !adapter) {
     if (!adapter) mgr.markOffline(live);
     mgr.publishRobot(live);
