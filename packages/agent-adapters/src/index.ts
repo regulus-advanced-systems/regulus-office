@@ -1,2 +1,17 @@
-// @regulus/agent-adapters: placeholder. Scope defined in docs/SPEC.md. Implemented by the M0 issues.
-export {};
+/**
+ * @regulus/agent-adapters: one adapter per provider, pure TS (SPEC §7).
+ *
+ * - types.ts     AgentAdapter / AgentControl contract, SpawnPlan, RunnerContext, LoginFlowPlan
+ * - secret.ts    Secret / SecretEnv: redacting wrappers for decrypted keys (SPEC §8)
+ * - registry.ts  AdapterRegistry keyed by ProviderId
+ * - session.ts   tmux session naming (`agent-<agentId>`)
+ * - async-queue.ts  push queue backing `AgentControl.events`
+ * - testing/     FakeAdapter and an in-memory RunnerContext for tests
+ */
+export * from "./async-queue.ts";
+export * from "./registry.ts";
+export * from "./secret.ts";
+export * from "./session.ts";
+export * from "./testing/fake-adapter.ts";
+export * from "./testing/fake-runner-context.ts";
+export * from "./types.ts";
