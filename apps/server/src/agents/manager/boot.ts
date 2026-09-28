@@ -16,7 +16,7 @@ import type { Terminals } from "../../terminals/index.ts";
 import type { Workspaces } from "../../worktrees/types.ts";
 import { mountClaudeHookRoutes } from "../hooks/index.ts";
 import { floorAgentCommands } from "./commands.ts";
-import { AgentManager } from "./manager.ts";
+import { AgentManager, type AgentWorktreeTools } from "./manager.ts";
 
 export interface AgentsBootOptions {
   db: Db;
@@ -29,6 +29,8 @@ export interface AgentsBootOptions {
   runner: Runner;
   /** Per-agent git worktrees (#31). */
   workspaces: Workspaces;
+  /** Worktree status and the one-click PR (#31) for `agent.worktree` / `agent.pr`. */
+  worktreeTools?: AgentWorktreeTools;
 }
 
 export async function createAgents(opts: AgentsBootOptions): Promise<AgentManager> {
@@ -40,6 +42,7 @@ export async function createAgents(opts: AgentsBootOptions): Promise<AgentManage
     adapters: new AdapterRegistry([claude, new CodexAdapter()]),
     robots: opts.rooms.floors,
     workspaces: opts.workspaces,
+    worktreeTools: opts.worktreeTools,
     refreshFloors: () => opts.rooms.refreshFloors(),
     keyring: opts.keyring,
     // TODO(#104): use OFFICE_RUNNER_OFFICE_URL once it exists; publicUrl is

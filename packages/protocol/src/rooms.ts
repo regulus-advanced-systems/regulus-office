@@ -32,5 +32,9 @@ export const CommandRejected = z.object({
   /** The `type` of the command that was rejected. */
   type: z.string().max(64),
   reason: z.string().max(500),
+  /** The robot an `agent.*` command was about, so its panel can show the reason. */
+  agentId: Id.optional(),
+  /** Uncommitted files when `agent.pr` was refused over a dirty worktree. */
+  files: z.array(z.string().max(1024)).max(500).optional(),
 });
 export type CommandRejected = z.infer<typeof CommandRejected>;

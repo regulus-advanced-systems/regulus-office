@@ -7,7 +7,7 @@ import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { AdapterRegistry, type AgentAdapter } from "@regulus/agent-adapters";
-import type { RobotState } from "@regulus/protocol";
+import type { PendingPermission, RobotState } from "@regulus/protocol";
 import { desks, floorMembers, floorRepos, floors } from "../../db/schema/index.ts";
 import { testDb } from "../../floors/test-helpers.ts";
 import { createLogger } from "../../logging.ts";
@@ -20,6 +20,9 @@ export class RecordingRobots implements RobotPublisher {
   readonly robots = new Map<string, RobotState>();
   readonly history: RobotState[] = [];
   readonly removed: string[] = [];
+  /** Latest pending permission requests per robot, as the FloorRoom would get them. */
+  readonly permissions = new Map<string, PendingPermission[]>();
+  readonly permissionHistory: { agentId: string; ownerUserId: string; count: number }[] = [];
 
   publishRobot(_floorId: string, robot: RobotState): void {
     this.robots.set(robot.agentId, robot);
@@ -29,6 +32,16 @@ export class RecordingRobots implements RobotPublisher {
   removeRobot(_floorId: string, agentId: string): void {
     this.robots.delete(agentId);
     this.removed.push(agentId);
+  }
+
+  publishPermissions(
+    _floorId: string,
+    agentId: string,
+    ownerUserId: string,
+    requests: PendingPermission[],
+  ): void {
+    this.permissions.set(agentId, requests);
+    this.permissionHistory.push({ agentId, ownerUserId, count: requests.length });
   }
 
   async waitFor(agentId: string, ok: (r: RobotState) => boolean, ms = 5000): Promise<RobotState> {
@@ -50,6 +63,9 @@ export async function officeFixture() {
   const member = addUser("Mia", "member");
   const viewer = addUser("Vic", "member");
   const stranger = addUser("Sam", "member");
+  const admin = addUser("Ada", "admin");
+  /** Office role `viewer` (watch only, SPEC §8 rule 4), with view access to the floor. */
+  const roleViewer = addUser("Wes", "viewer");
   const workdir = await mkdtemp(join(tmpdir(), "rgo-agents-repo-"));
   const floorId = "floor-1";
   const repoId = "repo-1";
@@ -81,7 +97,8 @@ export async function officeFixture() {
   }
   db.insert(floorMembers).values({ floorId, userId: member.id, access: "spawn" }).run();
   db.insert(floorMembers).values({ floorId, userId: viewer.id, access: "view" }).run();
-  return { db, owner, member, viewer, stranger, floorId, repoId, workdir };
+  db.insert(floorMembers).values({ floorId, userId: roleViewer.id, access: "view" }).run();
+  return { db, owner, member, viewer, stranger, admin, roleViewer, floorId, repoId, workdir };
 }
 
 export function makeManager(

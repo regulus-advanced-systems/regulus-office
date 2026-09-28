@@ -4,8 +4,11 @@
  * and at least `view` access to the live floor. State is the protocol
  * `FloorState`: floor metadata, repos, desks from the layout template,
  * robots published through {@link FloorRooms}, decor (empty until M2).
- * `agent.spawn` is validated with the protocol schema and forwarded to the
- * AgentManager (`setAgentCommands`); failures come back as `command.rejected`.
+ * `agent.spawn` and the robot controls (agent-commands.ts) are validated with
+ * the protocol schema and forwarded to the AgentManager (`setAgentCommands`);
+ * failures come back as `command.rejected`, results as `agent.result`.
+ * Pending permission requests go only to the robot's controllers
+ * (permissions.ts, SPEC §8 rule 4).
  *
  * The returned {@link FloorRooms} is also the registry the AgentManager
  * (#26) uses: `publishRobot(floorId, robot)` / `removeRobot(floorId, id)`.
@@ -15,15 +18,23 @@
 import {
   type ClientCommand,
   COMMAND_REJECTED_MESSAGE,
-  type CommandRejected,
   FloorJoinOptions,
   FloorStateSchema,
+  type PendingPermission,
   parseClientCommand,
   RobotState,
-  type UserRole,
 } from "@regulus/protocol";
 import type { Logger } from "../../logging.ts";
 import type { RoomClient, RoomDefinition, RoomHandle } from "../transport.ts";
+import {
+  type AgentActor,
+  type AgentControlCommand,
+  type AgentControlOutcome,
+  handleAgentControl,
+  isAgentControl,
+  rejection as reject,
+} from "./agent-commands.ts";
+import { FloorPermissions } from "./permissions.ts";
 import type { FloorRoomSource } from "./source.ts";
 import { type FloorRoomState, syncRobots, writeSnapshot } from "./state.ts";
 
@@ -37,10 +48,18 @@ export type SpawnCommand = Extract<ClientCommand, { type: "agent.spawn" }>;
 /** Agent commands the FloorRoom forwards (implemented by the AgentManager, #26). */
 export interface FloorAgentCommands {
   spawn(
-    actor: { id: string; role: UserRole },
+    actor: AgentActor,
     command: SpawnCommand,
   ): Promise<{ ok: true } | { ok: false; reason: string }>;
+  /** prompt / approve / interrupt / stop / resume / sendHome / pr / worktree. */
+  control?(actor: AgentActor, command: AgentControlCommand): Promise<AgentControlOutcome>;
 }
+
+export type {
+  AgentControlCommand,
+  AgentControlOutcome,
+  AgentControlType,
+} from "./agent-commands.ts";
 
 export interface FloorRooms {
   /** Room definition to register under `ROOM_NAMES.floor`. */
@@ -48,6 +67,13 @@ export interface FloorRooms {
   /** Add or update a robot on a floor (validated against the protocol shape). */
   publishRobot(floorId: string, robot: RobotState): void;
   removeRobot(floorId: string, agentId: string): void;
+  /** A robot's pending permission requests, delivered to its controllers only. */
+  publishPermissions(
+    floorId: string,
+    agentId: string,
+    ownerUserId: string,
+    requests: PendingPermission[],
+  ): void;
   /** Robots currently published on a floor. */
   robotsOn(floorId: string): RobotState[];
   /** Re-read the floor (name, repos, desks); closes the room if it was archived. */
@@ -82,10 +108,8 @@ export function createFloorRooms(deps: FloorRoomsDeps): FloorRooms {
     if (room) syncRobots(room.state, robots.get(floorId) ?? new Map());
   };
 
-  const reject = (type: string, reason: string): CommandRejected => ({
-    type,
-    reason: reason.slice(0, 500),
-  });
+  const permissions = new FloorPermissions();
+  const clientsOn = (floorId: string) => live.get(floorId)?.clients ?? [];
   let agentCommands: FloorAgentCommands | undefined;
 
   const spawn = (floorId: string, client: RoomClient, command: SpawnCommand) => {
@@ -130,12 +154,28 @@ export function createFloorRooms(deps: FloorRoomsDeps): FloorRooms {
         { floorId: room.state.floorId, sessionId: client.sessionId, userId: client.user.userId },
         "human entered floor",
       );
+      permissions.sendOpen(room.state.floorId, client);
     },
 
     onMessage(room, client, type, payload) {
       const parsed = parseClientCommand(type, payload);
       if (parsed.success && parsed.data.type === "agent.spawn") {
         spawn(room.state.floorId, client, parsed.data);
+        return;
+      }
+      if (parsed.success && isAgentControl(parsed.data)) {
+        const floorId = room.state.floorId;
+        handleAgentControl(
+          {
+            floorId,
+            client,
+            robot: robots.get(floorId)?.get(parsed.data.agentId),
+            control: agentCommands?.control?.bind(agentCommands),
+            broadcast: (t, p) => room.broadcast(t, p),
+            logger,
+          },
+          parsed.data,
+        );
         return;
       }
       const reason = parsed.success
@@ -163,7 +203,12 @@ export function createFloorRooms(deps: FloorRoomsDeps): FloorRooms {
     },
 
     removeRobot(floorId, agentId) {
+      permissions.drop(floorId, agentId, clientsOn(floorId));
       if (robots.get(floorId)?.delete(agentId)) sync(floorId);
+    },
+
+    publishPermissions(floorId, agentId, ownerUserId, requests) {
+      permissions.set(floorId, agentId, ownerUserId, requests, clientsOn(floorId));
     },
 
     robotsOn(floorId) {

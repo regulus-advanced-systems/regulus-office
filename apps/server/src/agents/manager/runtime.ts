@@ -7,7 +7,7 @@
  */
 import type { AdapterRegistry, AgentControl, RunnerContext } from "@regulus/agent-adapters";
 import { tmuxSessionName } from "@regulus/agent-adapters";
-import type { AgentEvent, AgentStatus } from "@regulus/protocol";
+import type { AgentEvent, AgentStatus, PendingPermission, ProviderId } from "@regulus/protocol";
 import type { Db } from "../../db/index.ts";
 import type { Logger } from "../../logging.ts";
 import type { Runner } from "../../runners/types.ts";
@@ -19,6 +19,7 @@ import { CredentialResolver } from "./credentials.ts";
 import { AgentManagerError } from "./errors.ts";
 import { type HeuristicRung, SessionWatcher } from "./ladder.ts";
 import { closeQuietly, type LaunchProfile, launchProfile } from "./launch.ts";
+import { DEFAULT_PERMISSION_TTL_MS, PendingPermissions } from "./permissions.ts";
 import { type AgentView, applyEvent, robotState, setStatus, viewFromRow } from "./robot.ts";
 import { type AgentRow, AgentStore, type RetentionPolicy } from "./store.ts";
 import { DbAgentTokens } from "./tokens.ts";
@@ -27,6 +28,25 @@ import { DbAgentTokens } from "./tokens.ts";
 export interface RobotPublisher {
   publishRobot(floorId: string, robot: ReturnType<typeof robotState>): void;
   removeRobot(floorId: string, agentId: string): void;
+  /**
+   * The robot's pending permission requests changed (empty = none left).
+   * They carry what exactly would run, so they go to its controllers only.
+   */
+  publishPermissions?(
+    floorId: string,
+    agentId: string,
+    ownerUserId: string,
+    requests: PendingPermission[],
+  ): void;
+}
+
+/** Worktree status and the one-click PR (#31 `createWorktrees`). */
+export interface AgentWorktreeTools {
+  status(agentId: string): Promise<{ branch: string; uncommitted: string[] }>;
+  openPullRequest(
+    agentId: string,
+    options: { draft?: boolean; title?: string; body?: string; actorUserId?: string },
+  ): Promise<{ number: number; url: string; draft: boolean; created: boolean; branch: string }>;
 }
 
 /** Scrollback snapshots of running agents (terminals `ScrollbackRecorder`). */
@@ -42,6 +62,10 @@ export interface AgentManagerOptions {
   /** Re-read BuildingRoom floor counters (`rooms.refreshFloors`). */
   refreshFloors?: () => Promise<void>;
   workspaces?: Workspaces;
+  /** Worktree status and PRs for `agent.worktree` / `agent.pr`. */
+  worktreeTools?: AgentWorktreeTools;
+  /** How long an unanswered permission request stays answerable when the adapter does not say. */
+  permissionTtlMs?: number;
   keyring?: ConstructorParameters<typeof CredentialResolver>[1];
   /** Office base URL as reachable from inside runners (hooks, statusline). */
   officeUrl: string;
@@ -72,6 +96,7 @@ export class AgentRuntime implements AgentEventSink {
   readonly officeUrl: string;
   readonly credentials: CredentialResolver;
   readonly watcher: SessionWatcher;
+  readonly permissions: PendingPermissions;
   protected readonly opts: AgentManagerOptions;
   protected readonly agents = new Map<string, LiveAgent>();
   protected countersTimer: ReturnType<typeof setTimeout> | undefined;
@@ -85,6 +110,14 @@ export class AgentRuntime implements AgentEventSink {
     this.store = new AgentStore(opts.db, opts.retention, this.now);
     this.tokens = new DbAgentTokens(opts.db);
     this.credentials = new CredentialResolver(opts.db, opts.keyring);
+    this.permissions = new PendingPermissions({
+      now: this.now,
+      onChange: (agentId, requests) => {
+        const view = this.agents.get(agentId)?.view;
+        if (!view) return;
+        this.opts.robots.publishPermissions?.(view.floorId, agentId, view.ownerUserId, requests);
+      },
+    });
     this.watcher = new SessionWatcher({
       intervalMs: opts.pollIntervalMs,
       idleAfterMs: opts.idleAfterMs,
@@ -139,6 +172,13 @@ export class AgentRuntime implements AgentEventSink {
     if (result.refused) {
       this.logger.debug({ agentId, ...result.refused }, "status change refused");
     }
+    if (event.kind === "permission_request" && live.view.status === "waiting_permission") {
+      this.permissions.add(agentId, event, this.permissionTtl(live.view.provider));
+    }
+    if (result.statusChanged && live.view.status !== "waiting_permission") {
+      // Answered (here or in the terminal), interrupted, or gone: nothing left to approve.
+      this.permissions.clear(agentId);
+    }
     if (result.statusChanged) {
       this.store.setStatus(agentId, live.view.status, this.now());
       this.countersChanged();
@@ -160,7 +200,16 @@ export class AgentRuntime implements AgentEventSink {
     this.publish(agentId, { kind: "exit", ts: this.now(), reason: "tmux session ended" });
   }
 
+  /** Claude bounds how long a request is held; others use `permissionTtlMs`. */
+  protected permissionTtl(provider: ProviderId): number {
+    const adapter = this.adapters.find(provider) as { permissionHoldSeconds?: unknown } | undefined;
+    const hold = adapter?.permissionHoldSeconds;
+    if (typeof hold === "number" && hold > 0) return hold * 1000;
+    return this.opts.permissionTtlMs ?? DEFAULT_PERMISSION_TTL_MS;
+  }
+
   protected processGone(live: LiveAgent): void {
+    this.permissions.clear(live.view.agentId);
     this.watcher.unwatch(live.view.agentId);
     live.untrack?.();
     live.untrack = undefined;
@@ -194,6 +243,7 @@ export class AgentRuntime implements AgentEventSink {
   /** Detach from every agent without stopping any (office shutdown). */
   async close(): Promise<void> {
     this.watcher.stop();
+    this.permissions.dispose();
     if (this.countersTimer) clearTimeout(this.countersTimer);
     // Forget them first so whatever a closing control still emits is dropped
     // instead of being recorded as the agent exiting.
@@ -280,7 +330,10 @@ export class AgentRuntime implements AgentEventSink {
 /** Manager errors pass through; workspace errors carry client-safe messages. */
 export function asManagerError(err: unknown, fallback: string): AgentManagerError {
   if (err instanceof AgentManagerError) return err;
-  if (err instanceof WorkspaceError) return new AgentManagerError("failed", err.message);
+  if (err instanceof WorkspaceError) {
+    const code = err.status === 404 ? "not_found" : err.status === 409 ? "conflict" : "failed";
+    return new AgentManagerError(code, err.message, err.files);
+  }
   return new AgentManagerError("failed", fallback);
 }
 
