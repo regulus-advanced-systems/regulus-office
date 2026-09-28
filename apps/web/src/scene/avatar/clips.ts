@@ -1,0 +1,93 @@
+/**
+ * Animation clip names of packages/assets/models/robot/robot.glb and the
+ * mapping from the SPEC §9.3 avatar animation enum (`AVATAR_ANIMATIONS` in
+ * @regulus/protocol) to those clips, with fallbacks for clips the Quaternius
+ * model does not ship.
+ */
+import type { AvatarAnimation } from "@regulus/protocol";
+
+/** Clips that exist in robot.glb (Quaternius Animated LowPoly Robot). */
+export const ROBOT_CLIPS = {
+  dance: "RobotArmature|Robot_Dance",
+  death: "RobotArmature|Robot_Death",
+  idle: "RobotArmature|Robot_Idle",
+  jump: "RobotArmature|Robot_Jump",
+  no: "RobotArmature|Robot_No",
+  punch: "RobotArmature|Robot_Punch",
+  running: "RobotArmature|Robot_Running",
+  sitting: "RobotArmature|Robot_Sitting",
+  standing: "RobotArmature|Robot_Standing",
+  thumbsUp: "RobotArmature|Robot_ThumbsUp",
+  walking: "RobotArmature|Robot_Walking",
+  walkJump: "RobotArmature|Robot_WalkJump",
+  wave: "RobotArmature|Robot_Wave",
+  yes: "RobotArmature|Robot_Yes",
+} as const;
+
+export const ROBOT_CLIP_NAMES: readonly string[] = Object.values(ROBOT_CLIPS);
+
+/**
+ * Candidate clips per avatar animation, best first. Names that are not in the
+ * loaded GLB are skipped, so a future re-export with dedicated clips (for
+ * example `RobotArmature|Robot_SitType`) is picked up without code changes.
+ */
+export const CLIP_CANDIDATES: Record<AvatarAnimation, readonly string[]> = {
+  idle: [ROBOT_CLIPS.idle, ROBOT_CLIPS.standing],
+  walk: [ROBOT_CLIPS.walking, ROBOT_CLIPS.running],
+  sit_type: ["RobotArmature|Robot_SitType", ROBOT_CLIPS.sitting],
+  sit_idle: ["RobotArmature|Robot_SitIdle", ROBOT_CLIPS.sitting],
+  read: ["RobotArmature|Robot_Read", ROBOT_CLIPS.idle],
+  think: ["RobotArmature|Robot_Think", ROBOT_CLIPS.idle],
+  celebrate: ["RobotArmature|Robot_Celebrate", ROBOT_CLIPS.dance],
+  facepalm: ["RobotArmature|Robot_Facepalm", ROBOT_CLIPS.no],
+  wave: [ROBOT_CLIPS.wave],
+  point: ["RobotArmature|Robot_Point", ROBOT_CLIPS.thumbsUp],
+};
+
+/** Last resort when no candidate is available. */
+export const FALLBACK_CLIP = ROBOT_CLIPS.idle;
+
+/** Seconds for the crossfade between two clips. */
+export const CROSSFADE_SECONDS = 0.25;
+
+/**
+ * Animations whose chosen clip is a stand-in for something the model cannot
+ * show; the component layers a small procedural pose on top (SPEC §9.3:
+ * "think (head tilt)").
+ */
+export const PROCEDURAL_HEAD_TILT: ReadonlySet<AvatarAnimation> = new Set(["think"]);
+
+/**
+ * Animations that should play while seated, so a `sit_*` clip keeps the legs
+ * folded even when a one-shot emote is requested from a chair.
+ */
+export const SEATED_ANIMATIONS: ReadonlySet<AvatarAnimation> = new Set(["sit_type", "sit_idle"]);
+
+/** Resolve one animation to a clip that exists in `available`. */
+export function resolveClip(
+  animation: AvatarAnimation,
+  available: readonly string[] = ROBOT_CLIP_NAMES,
+): string {
+  const set = new Set(available);
+  for (const candidate of CLIP_CANDIDATES[animation]) {
+    if (set.has(candidate)) return candidate;
+  }
+  if (set.has(FALLBACK_CLIP)) return FALLBACK_CLIP;
+  return available[0] ?? FALLBACK_CLIP;
+}
+
+/** Full animation → clip table for one loaded model. */
+export function clipTable(
+  available: readonly string[] = ROBOT_CLIP_NAMES,
+): Record<AvatarAnimation, string> {
+  const table = {} as Record<AvatarAnimation, string>;
+  for (const animation of Object.keys(CLIP_CANDIDATES) as AvatarAnimation[]) {
+    table[animation] = resolveClip(animation, available);
+  }
+  return table;
+}
+
+/** True when the animation had to fall back to a stand-in clip. */
+export function isFallbackClip(animation: AvatarAnimation, clip: string): boolean {
+  return CLIP_CANDIDATES[animation][0] !== clip;
+}
