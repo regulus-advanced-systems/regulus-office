@@ -1,12 +1,12 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { act } from "react";
 import { click, mount, press, useDom } from "../a11y/dom.ts";
+import { useTerminalModal } from "../terminal/terminalStore.ts";
 import { AgentPanel } from "./AgentPanel.tsx";
 import { useAgentStore } from "./agentStore.ts";
 import { PermissionDialog } from "./PermissionDialog.tsx";
 import { PullRequestDialog } from "./PullRequestDialog.tsx";
 import { SendHomeDialog } from "./SendHomeDialog.tsx";
-import { registerTerminalOpener } from "./terminalLink.ts";
 import { bodyText, buttonByText, recorder, seed } from "./testHarness.tsx";
 
 useDom();
@@ -41,8 +41,6 @@ describe("AgentPanel", () => {
   test("the robot's owner sees status, task, model, owner and every control", async () => {
     seed({ robot: { status: "working" } });
     const { sent, wrap } = recorder();
-    const opened: string[] = [];
-    registerTerminalOpener((id) => opened.push(id));
     useAgentStore.getState().openAgentPanel("a1");
     const m = track(await mount(wrap(<AgentPanel />)));
     const text = bodyText();
@@ -50,7 +48,7 @@ describe("AgentPanel", () => {
       expect(text).toContain(s);
     }
     await click(buttonByText("Open terminal") as HTMLButtonElement);
-    expect(opened).toEqual(["a1"]);
+    expect(useTerminalModal.getState().agentId).toBe("a1");
 
     const box = document.querySelector("textarea") as HTMLTextAreaElement;
     await setInput(box, "  add tests  ");
@@ -70,7 +68,7 @@ describe("AgentPanel", () => {
     ]);
     await click(buttonByText("Send home") as HTMLButtonElement);
     expect(useAgentStore.getState().dialog).toBe("sendHome");
-    await act(async () => registerTerminalOpener(null));
+    await act(async () => useTerminalModal.getState().closeTerminal());
     await m.unmount();
   });
 
@@ -98,6 +96,7 @@ describe("AgentPanel", () => {
     expect(document.querySelector("textarea")).toBeNull();
     expect(buttonByText("Stop")).toBeUndefined();
     expect(buttonByText("Open PR")).toBeUndefined();
+    expect(buttonByText("Watch terminal")).toBeDefined();
     await m.unmount();
   });
 

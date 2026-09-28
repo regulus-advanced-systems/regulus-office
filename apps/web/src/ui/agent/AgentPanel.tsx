@@ -13,10 +13,10 @@ import { useSessionStore } from "../../state/session.ts";
 import { Button } from "../components/Button.tsx";
 import { CloseButton } from "../components/CloseButton.tsx";
 import { Panel } from "../Panel.tsx";
+import { useTerminalModal } from "../terminal/terminalStore.ts";
 import { useAgentSender } from "./agentCommands.ts";
 import { flightKey, useAgentStore } from "./agentStore.ts";
 import { isResumable, isRunning, PROVIDER_LABELS, STATUS_LABELS } from "./labels.ts";
-import { useTerminalLink } from "./terminalLink.ts";
 
 function Facts({ robot }: { robot: RobotState }) {
   const rows: [string, string][] = [
@@ -146,7 +146,7 @@ export function AgentPanel() {
   const refusal = useAgentStore((s) => (agentId ? s.refusal[agentId] : undefined));
   const robot = useFloorStore((s) => (agentId ? s.state?.robots[agentId] : undefined));
   const user = useSessionStore((s) => s.user);
-  const openTerminal = useTerminalLink((s) => s.open);
+  const openTerminal = useTerminalModal((s) => s.openTerminal);
   const titleId = useId();
 
   // The robot left (sent home, floor changed): close.
@@ -169,11 +169,9 @@ export function AgentPanel() {
         <CloseButton small label="Close robot panel" onClick={close} />
       </div>
       <Facts robot={robot} />
-      {openTerminal && (
-        <Button size="sm" block onClick={() => openTerminal(agentId)}>
-          {controller ? "Open terminal" : "Watch terminal"}
-        </Button>
-      )}
+      <Button size="sm" block aria-haspopup="dialog" onClick={() => openTerminal(agentId)}>
+        {controller ? "Open terminal" : "Watch terminal"}
+      </Button>
       {controller ? (
         <Controls robot={robot} />
       ) : (
