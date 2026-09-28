@@ -22,8 +22,12 @@ import {
   createPoseMemo,
   findBone,
   HEAD_TILT,
+  MODEL_YAW,
   ROBOT_MODEL_URL,
 } from "./avatarRig.ts";
+
+export { MODEL_YAW };
+
 import {
   CROSSFADE_SECONDS,
   PROCEDURAL_HEAD_TILT,
@@ -42,12 +46,6 @@ export const ROBOT_HEIGHT = 1.6;
 /** robot.glb is ~4.45 armature units tall (feet to head top); scale it to ROBOT_HEIGHT. */
 export const MODEL_SCALE = ROBOT_HEIGHT / 4.45;
 const PLATE_HEIGHT = ROBOT_HEIGHT + 0.45;
-/**
- * robot.glb faces +z, but a heading of 0 faces -z (floor-layout geometry.ts,
- * three.js `rotation.y`): the model is turned half way round inside the
- * avatar so every caller can set `rotation.y = heading` and see the face.
- */
-export const MODEL_YAW = Math.PI;
 /** Bone-local space is 1/100 of armature units (the armature node carries a x100 scale). */
 const BONE_SCALE = 0.01;
 
