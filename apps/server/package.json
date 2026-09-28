@@ -7,11 +7,15 @@
   "description": "Regulus Office server: HTTP, multiplayer rooms, PTY bridge, agents, GitHub, PM bridge",
   "main": "src/index.ts",
   "scripts": {
+    "dev": "bun --watch src/index.ts",
+    "start": "bun src/index.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@regulus/protocol": "workspace:*",
     "@regulus/agent-adapters": "workspace:*",
-    "@regulus/floor-layout": "workspace:*"
+    "@regulus/floor-layout": "workspace:*",
+    "@regulus/protocol": "workspace:*",
+    "pino": "^10.3.1",
+    "zod": "4.6.5"
   }
 }

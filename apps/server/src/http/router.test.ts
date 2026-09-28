@@ -1,0 +1,37 @@
+import { describe, expect, test } from "bun:test";
+import { json, Router } from "./router.ts";
+
+const ok = () => new Response("ok");
+
+describe("Router", () => {
+  test("matches literal paths per method and treats HEAD as GET", () => {
+    const r = new Router().get("/healthz", ok).post("/api/things", ok);
+    expect(r.match("GET", "/healthz")?.pattern).toBe("/healthz");
+    expect(r.match("HEAD", "/healthz")?.pattern).toBe("/healthz");
+    expect(r.match("POST", "/healthz")).toBeUndefined();
+    expect(r.match("GET", "/healthz/")?.pattern).toBe("/healthz");
+    expect(r.match("GET", "/nope")).toBeUndefined();
+    expect(r.hasPath("/healthz")).toBe(true);
+    expect(r.hasPath("/nope")).toBe(false);
+  });
+
+  test("captures and decodes params", () => {
+    const r = new Router().get("/api/floors/:floorId/agents/:agentId", ok);
+    const m = r.match("GET", "/api/floors/f%201/agents/a2");
+    expect(m?.params).toEqual({ floorId: "f 1", agentId: "a2" });
+    expect(r.match("GET", "/api/floors/f1")).toBeUndefined();
+  });
+
+  test("rejects patterns without a leading slash", () => {
+    expect(() => new Router().get("healthz", ok)).toThrow();
+  });
+});
+
+describe("json", () => {
+  test("sets content type and status", async () => {
+    const res = json({ a: 1 }, { status: 503 });
+    expect(res.status).toBe(503);
+    expect(res.headers.get("content-type")).toContain("application/json");
+    expect(await res.json()).toEqual({ a: 1 });
+  });
+});
