@@ -3,6 +3,7 @@
  * mints an invite in the UI, a second browser joins through the link, both
  * reach /office and see each other, one walks and the other sees it move,
  * chat crosses between them, the first-person view toggles on V and back,
+ * the owner's robot turns to follow the mouse and walks face-first to a click,
  * the owner adds a floor bound to a (local) repo and rides to it, and
  * clicking a free desk there opens the spawn dialog, whose agent.spawn gets
  * an answer from the server (no agent CLI runs in e2e).
@@ -13,13 +14,19 @@
 import { type BrowserContext, expect, type Page, test } from "@playwright/test";
 import { createRemoteRepo } from "./gitRemote.ts";
 import {
+  angleBetween,
   cameraType,
   distance,
   floorSize,
   freeDeskPoint,
+  groundUnder,
+  headingToward,
   humans,
+  localPose,
   OFFICE_PROBE_PATH,
   remoteHumans,
+  sampleLocalPoses,
+  screenPointOf,
   waitForScene,
 } from "./probes.ts";
 
@@ -173,6 +180,68 @@ test("V toggles the first-person view and back", async () => {
   await ownerPage.keyboard.press("v");
   await expect(toggle).toHaveAttribute("aria-pressed", "false");
   await expect.poll(() => cameraType(ownerPage)).toBe("OrthographicCamera");
+});
+
+test("the robot turns to follow the cursor and walks face-first to a click", async () => {
+  await ownerPage.bringToFront();
+  const start = await localPose(ownerPage);
+  const at = start && (await screenPointOf(ownerPage, start));
+  if (!start || !at) throw new Error("local robot missing");
+
+  /** Point the mouse at a viewport spot; the standing robot ends up facing the floor under it. */
+  const faceCursorAt = async (x: number, y: number) => {
+    await ownerPage.mouse.move(x, y, { steps: 4 });
+    const ground = await groundUnder(ownerPage, x, y);
+    const self = await localPose(ownerPage);
+    if (!ground || !self) throw new Error("cursor ground point or robot missing");
+    const want = headingToward(self, ground);
+    await expect
+      .poll(async () => angleBetween((await localPose(ownerPage))?.heading ?? Number.NaN, want))
+      .toBeLessThan(0.05);
+    return want;
+  };
+
+  // Sweep the cursor around the robot: the heading follows it.
+  const right = await faceCursorAt(at.x + 180, at.y + 60);
+  const left = await faceCursorAt(at.x - 180, at.y + 60);
+  expect(angleBetween(right, left)).toBeGreaterThan(0.5);
+
+  // Over a HUD panel the cursor is ignored: the heading holds.
+  const settled = (await localPose(ownerPage))?.heading ?? Number.NaN;
+  const settings = await ownerPage.getByRole("button", { name: "Settings" }).boundingBox();
+  if (!settings) throw new Error("Settings button missing");
+  await ownerPage.mouse.move(settings.x + settings.width / 2, settings.y + settings.height / 2);
+  await ownerPage.waitForTimeout(400);
+  expect((await localPose(ownerPage))?.heading).toBeCloseTo(settled, 5);
+
+  // Click the middle of the floor: the robot walks there, facing where it goes.
+  const size = (await floorSize(ownerPage))?.split("x").map(Number);
+  if (!size || size.length !== 2) throw new Error("floor size missing");
+  const target = { x: (size[0] ?? 0) / 2, z: (size[1] ?? 0) / 2 };
+  const click = await screenPointOf(ownerPage, target);
+  if (!click) throw new Error("target not on screen");
+  await ownerPage.mouse.click(click.x, click.y);
+  const samples = await sampleLocalPoses(ownerPage, 1500);
+  const steps = samples.slice(1).flatMap((p, i) => {
+    const prev = samples[i];
+    if (!prev || distance(p, prev) < 0.01) return [];
+    return [angleBetween(p.heading, headingToward(prev, p))];
+  });
+  expect(steps.length).toBeGreaterThan(5);
+  // Never walks more than 45 degrees off its travel (turns on the spot first) and mostly dead on.
+  expect(Math.max(...steps)).toBeLessThan(Math.PI / 4 + 0.15);
+  expect(steps.filter((d) => d < 0.2).length / steps.length).toBeGreaterThan(0.8);
+  await expect
+    .poll(async () => {
+      const self = await localPose(ownerPage);
+      return self ? distance(self, target) : Number.POSITIVE_INFINITY;
+    })
+    .toBeLessThan(0.75);
+
+  // Standing again, it turns back toward the cursor.
+  const there = await screenPointOf(ownerPage, target);
+  if (!there) throw new Error("robot not on screen");
+  await faceCursorAt(there.x, there.y - 160);
 });
 
 test("the owner adds a floor from a repo and rides the elevator to it and back", async () => {
