@@ -5,12 +5,19 @@
  */
 import { mkdir } from "node:fs/promises";
 import { sql } from "drizzle-orm";
+import { AuthConfigError, createAuth, mountAuthRoutes, type OfficeAuth } from "./auth/index.ts";
 import { ConfigError, loadConfig, redactConfig } from "./config.ts";
 import { closeDatabase, databasePathFor, openDatabase, runMigrations } from "./db/index.ts";
 import { createOfficeServer } from "./http/server.ts";
 import { createShutdownController, installSignalHandlers } from "./lifecycle.ts";
 import { createLogger } from "./logging.ts";
-import { createDevHeaderAuth, createRooms, denyAllAuth, type RoomAuth } from "./rooms/index.ts";
+import {
+  composeRoomAuth,
+  createDevHeaderAuth,
+  createRooms,
+  createSessionRoomAuth,
+  type RoomAuth,
+} from "./rooms/index.ts";
 
 async function readVersion(): Promise<string> {
   try {
@@ -24,18 +31,19 @@ async function readVersion(): Promise<string> {
 }
 
 /**
- * Room join authentication. TODO(#11): replace with Better Auth's session
- * lookup (`getSessionFromRequest`) once apps/server/src/auth lands; until
- * then production rejects every join and development accepts the
- * `x-office-dev-user` header.
+ * Room join authentication: the Better Auth session cookie, and outside
+ * production also the `x-office-dev-user` header as a fallback for local
+ * clients without a browser session.
  */
-function selectRoomAuth(production: boolean, logger: ReturnType<typeof createLogger>): RoomAuth {
-  if (production) {
-    logger.warn("room joins are disabled until session auth (#11) is wired in");
-    return denyAllAuth;
-  }
+function selectRoomAuth(
+  production: boolean,
+  logger: ReturnType<typeof createLogger>,
+  auth: OfficeAuth,
+): RoomAuth {
+  const sessionAuth = createSessionRoomAuth(auth);
+  if (production) return sessionAuth;
   logger.warn("development room auth enabled: x-office-dev-user header is trusted");
-  return createDevHeaderAuth();
+  return composeRoomAuth([sessionAuth, createDevHeaderAuth()]);
 }
 
 async function main(): Promise<void> {
@@ -70,11 +78,22 @@ async function main(): Promise<void> {
   // Hooks run last-registered-first: rooms disconnect, HTTP drains, then the database closes.
   shutdown.register("db", () => closeDatabase(db));
 
+  let auth: OfficeAuth;
+  try {
+    auth = createAuth({ db, logger, config });
+  } catch (err) {
+    if (err instanceof AuthConfigError) {
+      console.error(err.message);
+      process.exit(2);
+    }
+    throw err;
+  }
+
   const production = process.env.NODE_ENV === "production";
   const rooms = createRooms({
     db,
     logger,
-    auth: selectRoomAuth(production, logger),
+    auth: selectRoomAuth(production, logger, auth),
     publicUrl: config.publicUrl,
     production,
   });
@@ -84,6 +103,7 @@ async function main(): Promise<void> {
     version,
     attach: rooms.transport.attachment,
   });
+  mountAuthRoutes(server.router, auth);
   server.health.register("db", () => {
     db.run(sql`select 1`);
     return true;

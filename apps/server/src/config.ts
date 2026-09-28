@@ -63,6 +63,30 @@ const emptyToUndefined = (v: unknown) => (typeof v === "string" && v.trim() === 
 
 const str = () => z.string().trim().min(1);
 
+/** "true"/"1"/"yes"/"on" and "false"/"0"/"no"/"off", case-insensitive. */
+const bool = (fallback: boolean) =>
+  z.preprocess(
+    emptyToUndefined,
+    z
+      .string()
+      .trim()
+      .toLowerCase()
+      .pipe(z.enum(["true", "1", "yes", "on", "false", "0", "no", "off"]))
+      .transform((v) => ["true", "1", "yes", "on"].includes(v))
+      .default(fallback),
+  );
+
+/** A non-empty string wrapped in {@link SecretValue} at parse time. */
+const secretStr = (min = 1) =>
+  z
+    .string()
+    .trim()
+    .min(min)
+    .transform((v) => new SecretValue(v));
+
+/** Minimum length for BETTER_AUTH_SECRET; `openssl rand -base64 32` yields 44 characters. */
+export const MIN_AUTH_SECRET_LENGTH = 32;
+
 export const envSchema = z.object({
   OFFICE_PORT: z.preprocess(
     emptyToUndefined,
@@ -78,7 +102,17 @@ export const envSchema = z.object({
     emptyToUndefined,
     z.coerce.number().int().min(0).default(10_000),
   ),
+  BETTER_AUTH_SECRET: z.preprocess(emptyToUndefined, secretStr(MIN_AUTH_SECRET_LENGTH).optional()),
+  GITHUB_CLIENT_ID: z.preprocess(emptyToUndefined, str().optional()),
+  GITHUB_CLIENT_SECRET: z.preprocess(emptyToUndefined, secretStr().optional()),
+  OFFICE_OPEN_SIGNUP: bool(false),
 });
+
+/** GitHub OAuth app used for human sign-in (SPEC §4.2 Auth); unrelated to agent credentials. */
+export interface GithubOAuthConfig {
+  clientId: string;
+  clientSecret: SecretValue<string>;
+}
 
 export interface OfficeConfig {
   /** TCP port to listen on. 0 picks a free port (tests). */
@@ -96,6 +130,15 @@ export interface OfficeConfig {
   webDist: string;
   /** How long graceful shutdown waits for in-flight requests before forcing. */
   shutdownTimeoutMs: number;
+  /** Better Auth signing/encryption secret. Absent means auth cannot start. */
+  betterAuthSecret: SecretValue<string> | undefined;
+  /** GitHub social login for humans; undefined disables the provider. */
+  githubOAuth: GithubOAuthConfig | undefined;
+  /**
+   * Allow anyone to register as `member` once the office has an owner.
+   * Default false: after the first user, sign-up needs an invite link.
+   */
+  openSignup: boolean;
 }
 
 export class ConfigError extends Error {
@@ -116,6 +159,11 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     throw new ConfigError(`Invalid environment:\n${lines.join("\n")}`);
   }
   const e = parsed.data;
+  if (Boolean(e.GITHUB_CLIENT_ID) !== Boolean(e.GITHUB_CLIENT_SECRET)) {
+    throw new ConfigError(
+      "Invalid environment:\n  GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET: set both to enable GitHub login, or neither",
+    );
+  }
   return {
     port: e.OFFICE_PORT,
     host: e.OFFICE_HOST,
@@ -125,11 +173,22 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     logLevel: e.OFFICE_LOG_LEVEL,
     webDist: e.OFFICE_WEB_DIST ? resolve(e.OFFICE_WEB_DIST) : defaultWebDist(),
     shutdownTimeoutMs: e.OFFICE_SHUTDOWN_TIMEOUT_MS,
+    betterAuthSecret: e.BETTER_AUTH_SECRET,
+    githubOAuth:
+      e.GITHUB_CLIENT_ID && e.GITHUB_CLIENT_SECRET
+        ? { clientId: e.GITHUB_CLIENT_ID, clientSecret: e.GITHUB_CLIENT_SECRET }
+        : undefined,
+    openSignup: e.OFFICE_OPEN_SIGNUP,
   };
 }
 
 /** A copy of the config that is safe to log: secrets removed, presence reported as flags. */
 export function redactConfig(config: OfficeConfig): Record<string, unknown> {
-  const { masterKey, ...rest } = config;
-  return { ...rest, masterKeySet: Boolean(masterKey) };
+  const { masterKey, betterAuthSecret, githubOAuth, ...rest } = config;
+  return {
+    ...rest,
+    masterKeySet: Boolean(masterKey),
+    betterAuthSecretSet: Boolean(betterAuthSecret),
+    githubOAuth: githubOAuth ? { clientId: githubOAuth.clientId } : undefined,
+  };
 }

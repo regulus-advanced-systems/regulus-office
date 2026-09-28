@@ -1,7 +1,8 @@
 /**
- * Minimal method + path router for Bun.serve. Patterns are literal segments
- * or `:param` captures; the matched pattern doubles as the bounded-cardinality
- * `route` label for metrics.
+ * Minimal method + path router for Bun.serve. Patterns are literal segments,
+ * `:param` captures, or a trailing `*` that swallows one or more remaining
+ * segments (available as `params["*"]`); the matched pattern doubles as the
+ * bounded-cardinality `route` label for metrics.
  */
 
 export type HttpMethod = "GET" | "HEAD" | "POST" | "PUT" | "PATCH" | "DELETE" | "OPTIONS";
@@ -66,12 +67,16 @@ export class Router {
 }
 
 function matchSegments(pattern: string[], actual: string[]): Record<string, string> | undefined {
-  if (pattern.length !== actual.length) return undefined;
+  const wildcard = pattern.at(-1) === "*";
+  if (wildcard ? actual.length < pattern.length : pattern.length !== actual.length)
+    return undefined;
   const params: Record<string, string> = {};
   for (let i = 0; i < pattern.length; i++) {
     const p = pattern[i] as string;
     const a = actual[i] as string;
-    if (p.startsWith(":")) {
+    if (wildcard && i === pattern.length - 1) {
+      params["*"] = actual.slice(i).join("/");
+    } else if (p.startsWith(":")) {
       params[p.slice(1)] = decodeURIComponent(a);
     } else if (p !== a) {
       return undefined;

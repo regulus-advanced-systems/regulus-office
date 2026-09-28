@@ -4,6 +4,7 @@
  * FloorRoom (SPEC §6 channel 2) is defined here in M1/M2.
  */
 import { ROOM_NAMES } from "@regulus/protocol";
+import { originPolicyFor } from "../auth/origin.ts";
 import type { Db } from "../db/index.ts";
 import type { Logger } from "../logging.ts";
 import type { RoomAuth } from "./auth.ts";
@@ -11,11 +12,16 @@ import { DrizzleFloorSource } from "./building/floors.ts";
 import { type BuildingRoom, createBuildingRoom } from "./building/room.ts";
 import { DrizzleChatStore } from "./chat/store.ts";
 import { ColyseusRoomTransport } from "./colyseus/transport.ts";
-import { allowedOriginsFor } from "./origin.ts";
 import type { RoomTransport } from "./transport.ts";
 
 export type { RoomAuth, RoomAuthUser } from "./auth.ts";
-export { composeRoomAuth, createDevHeaderAuth, DEV_USER_HEADER, denyAllAuth } from "./auth.ts";
+export {
+  composeRoomAuth,
+  createDevHeaderAuth,
+  createSessionRoomAuth,
+  DEV_USER_HEADER,
+  denyAllAuth,
+} from "./auth.ts";
 export type {
   HttpAttachment,
   RoomClient,
@@ -45,7 +51,7 @@ export function createRooms(options: RoomsOptions): Rooms {
   const transport = new ColyseusRoomTransport({
     auth,
     logger,
-    allowedOrigins: allowedOriginsFor(publicUrl, production),
+    originPolicy: originPolicyFor(publicUrl, production),
   });
   const building = createBuildingRoom({
     chat: new DrizzleChatStore(db),

@@ -4,13 +4,12 @@
  *
  * The transport calls `RoomAuth.authenticate` with the matchmaking request,
  * so cookies and headers are available exactly as on any HTTP request.
- *
- * TODO(#11): at merge time wrap Better Auth's `getSessionFromRequest(request)`
- * from apps/server/src/auth in a `RoomAuth` and pass it from index.ts instead
- * of (or ahead of) the development header auth below.
+ * Production uses {@link createSessionRoomAuth} over Better Auth's session
+ * cookie; development composes the header auth behind it.
  */
 import { type AvatarLook, USER_ROLES, type UserRole } from "@regulus/protocol";
 import { z } from "zod";
+import type { SessionUser } from "../auth/auth.ts";
 
 export interface RoomAuthUser {
   userId: string;
@@ -42,10 +41,31 @@ export const DevUserHeader = z.object({
 export const isProduction = (env: NodeJS.ProcessEnv = process.env): boolean =>
   env.NODE_ENV === "production";
 
-/** Rejects every join. The safe default until a real session lookup is wired in. */
+/** Rejects every join. The safe default when no session lookup is available. */
 export const denyAllAuth: RoomAuth = {
   authenticate: () => Promise.resolve(null),
 };
+
+/** The part of the office auth layer a room needs: the session cookie to user lookup. */
+export interface SessionLookup {
+  getSessionFromRequest(request: Request): Promise<SessionUser | null>;
+}
+
+/** Authenticates joins with the Better Auth session cookie (apps/server/src/auth). */
+export function createSessionRoomAuth(sessions: SessionLookup): RoomAuth {
+  return {
+    async authenticate(request) {
+      const user = await sessions.getSessionFromRequest(request);
+      if (!user) return null;
+      return {
+        userId: user.id,
+        displayName: user.displayName,
+        role: user.role,
+        avatar: user.avatar,
+      };
+    },
+  };
+}
 
 /**
  * Accepts a `x-office-dev-user` header describing the user. Refuses to be

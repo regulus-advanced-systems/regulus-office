@@ -43,6 +43,9 @@ const SPEC_TABLES = [
 /** Tables outside SPEC §5 that the server adds for its own bookkeeping. */
 const EXTRA_TABLES = ["chat_messages"] as const;
 
+/** Better Auth's remaining core tables (`users` is in SPEC_TABLES); see schema/auth.ts. */
+const BETTER_AUTH_TABLES = ["sessions", "accounts", "verifications"] as const;
+
 const opened: Db[] = [];
 const tempDirs: string[] = [];
 
@@ -145,13 +148,16 @@ describe("runMigrations", () => {
     const names = tableNames(openMigrated());
     for (const table of SPEC_TABLES) expect(names).toContain(table);
     for (const table of EXTRA_TABLES) expect(names).toContain(table);
+    for (const table of BETTER_AUTH_TABLES) expect(names).toContain(table);
     expect(names).toContain("__drizzle_migrations");
   });
 
   test("is idempotent", () => {
     const db = openMigrated();
     runMigrations(db);
-    expect(tableNames(db).length).toBe(SPEC_TABLES.length + EXTRA_TABLES.length + 1);
+    expect(tableNames(db).length).toBe(
+      SPEC_TABLES.length + EXTRA_TABLES.length + BETTER_AUTH_TABLES.length + 1,
+    );
   });
 
   test("works on a file database and survives reopen", () => {
