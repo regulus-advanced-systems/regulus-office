@@ -10,6 +10,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { copyFile, mkdir, readFile, rm, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { FakeAdapter, Secret, type SpawnPlan } from "@regulus/agent-adapters";
+import { attachWatcher } from "../testing/watcher.ts";
 import { bindRunnerOps, type RunnerHandle } from "../types.ts";
 import { DEFAULT_HELPER_PATH } from "./helper-client.ts";
 import { LinuxUserRunner } from "./linux-user-runner.ts";
@@ -121,13 +122,33 @@ describe.skipIf(!enabled)("LinuxUserRunner (real accounts, systemd, tmux)", () =
     const hook = await runner.readTextFile(user, join(handle.home, ".fake-agent/a1.json"));
     expect(hook).toContain("hook-token");
 
-    await runner.sendKeys(session, "hello linux-user", { enter: true });
+    // Input must get through while a read-only watcher is attached (#107).
+    const watcher = await attachWatcher(runner, session, "FAKE AGENT READY");
+    const asHuman = (...args: string[]) =>
+      Bun.$`sudo -n -u office-u-${rid} tmux -S ${handle.tmuxSocket} ${args}`.text();
+    expect(await asHuman("list-clients", "-F", "#{client_flags}")).toContain("read-only");
+    await runner.sendKeys(session, "hello linux-user\nsecond line", { enter: true });
+    const echoed = await waitFor(
+      () => runner.capturePane(session, 50),
+      (s) => s.includes("you said: second line"),
+    );
+    expect(echoed).toContain("you said: hello linux-user");
+    await runner.sendKeys(session, "\u0003");
+    await runner.sendKeys(session, "after ctrl-c", { enter: true });
     expect(
       await waitFor(
         () => runner.capturePane(session, 50),
-        (s) => s.includes("you said: hello linux-user"),
+        (s) => s.includes("you said: after ctrl-c"),
       ),
-    ).toContain("you said: hello linux-user");
+    ).toContain("FAKE AGENT INTERRUPTED");
+    expect(
+      await waitFor(
+        async () => watcher.output(),
+        (s) => s.includes("after ctrl-c"),
+      ),
+    ).toContain("after ctrl-c");
+    expect((await asHuman("list-buffers")).trim()).toBe("");
+    await watcher.close();
 
     const procs = await runner.listProcesses({ userId: rid, agentId: "a1" });
     expect(procs.map((p) => p.command)).toContain("sh");

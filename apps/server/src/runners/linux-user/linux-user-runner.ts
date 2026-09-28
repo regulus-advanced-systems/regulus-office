@@ -18,6 +18,7 @@
 import type { PipedProcess, SpawnPlan } from "@regulus/agent-adapters";
 import { tmuxSessionName } from "@regulus/agent-adapters";
 import type { TerminalMode } from "@regulus/protocol";
+import { pasteMode } from "../keys.ts";
 import type {
   AgentRef,
   AttachArgv,
@@ -133,9 +134,10 @@ export class LinuxUserRunner implements Runner {
     return res.stdout.replace(/\n$/, "");
   }
 
+  /** Pasted through tmux buffers by the helper (keys on stdin), so watchers don't block it. */
   async sendKeys(session: TmuxSessionRef, keys: string, opts?: { enter?: boolean }): Promise<void> {
     if (keys.length === 0 && !opts?.enter) return;
-    const args = [...this.#sessionArgs(session), opts?.enter ? "1" : "0"];
+    const args = [...this.#sessionArgs(session), opts?.enter ? "1" : "0", pasteMode(keys)];
     await this.helper.call("send-keys", args, { stdin: keys });
   }
 

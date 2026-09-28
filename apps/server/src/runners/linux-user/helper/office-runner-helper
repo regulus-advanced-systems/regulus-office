@@ -72,7 +72,9 @@ usage: office-runner-helper <verb> <args>
   sockets <rid> <agentId>                 "<pid> <inode>" for sockets of the agent's processes
   capture <rid> <session> <lines>         tmux capture-pane
   pane-title <rid> <session>              tmux pane title
-  send-keys <rid> <session> <0|1>         paste stdin into the pane, 1 = press Enter after
+  send-keys <rid> <session> <0|1> <text|raw>
+                                          paste stdin into the pane (text = bracketed,
+                                          raw = control keys), 1 = press Enter after
   has-session <rid> <session>             exit 0 when the session exists
   list-sessions <rid>                     session names
   attach <rid> <session> <ro|rw>          tmux attach-session (ro = read-only)
@@ -356,15 +358,35 @@ cmd_sockets() {
     sed -n 's|^/proc/\([0-9]*\)/fd socket:\[\([0-9]*\)\]$|\1 \2|p' | sort -u || true
 }
 
+# Paste buffer $1 into the pane and delete it. `send-keys` is not used: tmux
+# refuses it while a read-only client (a watcher) is attached. text = bracketed
+# paste (-p); raw = control keys, -S so tmux >= 3.5 does not sanitize them
+# (older tmux has no -S and pastes raw anyway).
+paste_buffer() {
+  local buf=$1 mode=$2 err
+  if [[ $mode == text ]]; then
+    err=$(tmux_u paste-buffer -d -p -b "$buf" -t "=$SESSION:" 2>&1) && return 0
+  else
+    err=$(tmux_u paste-buffer -d -S -b "$buf" -t "=$SESSION:" 2>&1) && return 0
+    if [[ $err == *"unknown flag"* || $err == *"usage: paste-buffer"* ]]; then
+      err=$(tmux_u paste-buffer -d -b "$buf" -t "=$SESSION:" 2>&1) && return 0
+    fi
+  fi
+  tmux_u delete-buffer -b "$buf" 2>/dev/null || true
+  die "paste-buffer failed: $err"
+}
+
 cmd_send_keys() {
   load_user
-  local buf="office-keys-$$"
+  local buf
+  buf="office-keys-$(od -An -N8 -tx1 /dev/urandom | tr -d ' \n')"
   tmux_u load-buffer -b "$buf" - || die "load-buffer failed"
   # Empty stdin leaves no buffer behind (Enter alone).
-  if tmux_u show-buffer -b "$buf" >/dev/null 2>&1; then
-    tmux_u paste-buffer -d -b "$buf" -t "=$SESSION:" || die "paste-buffer failed"
+  if tmux_u show-buffer -b "$buf" >/dev/null 2>&1; then paste_buffer "$buf" "$PASTE"; fi
+  if [[ $ENTER == 1 ]]; then
+    printf '\r' | tmux_u load-buffer -b "$buf" - || die "load-buffer failed"
+    paste_buffer "$buf" raw
   fi
-  if [[ $ENTER == 1 ]]; then tmux_u send-keys -t "=$SESSION:" Enter; fi
 }
 
 cmd_attach() {
@@ -431,11 +453,12 @@ main() {
       SESSION=$2
       ;;
     send-keys)
-      [[ $# -eq 3 ]] || usage
+      [[ $# -eq 4 ]] || usage
       check_rid "$1"
       check_session "$2"
       [[ $3 == 0 || $3 == 1 ]] || bad "enter flag"
-      SESSION=$2 ENTER=$3
+      [[ $4 == text || $4 == raw ]] || bad "paste mode"
+      SESSION=$2 ENTER=$3 PASTE=$4
       ;;
     attach)
       [[ $# -eq 3 ]] || usage

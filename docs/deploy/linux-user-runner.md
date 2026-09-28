@@ -96,7 +96,8 @@ greppable and lets an operator drop verbs they do not want.
 | `spawn-piped` | `systemd-run --uid --gid --scope` a stdio process (e.g. `codex app-server`) as the human. Root: same. |
 | `kill` | Kill the session and `systemctl kill` every `agent-<agentId>*` scope (only if all its processes are the human's). Root: the processes belong to another uid. |
 | `sockets` | Socket inodes held by the agent's processes, for port detection. Root: `/proc/<pid>/fd` is readable only by the owner. |
-| `capture`, `pane-title`, `send-keys`, `has-session`, `list-sessions` | Read or type into the human's tmux server. Root only to switch to the human (`setpriv`); tmux sockets are private to their owner. |
+| `capture`, `pane-title`, `has-session`, `list-sessions` | Read the human's tmux server. Root only to switch to the human (`setpriv`); tmux sockets are private to their owner. |
+| `send-keys` | `send-keys <rid> <session> <0\|1> <text\|raw>`: the input arrives on stdin, is loaded into a one-off tmux buffer (`office-keys-<random>`) and pasted with `paste-buffer -d` (`-p` for text, `-S` for raw control keys), then `\r` is pasted when the Enter flag is 1. tmux's own `send-keys` is not used because it fails while a read-only watcher is attached (#107). Input never appears on a command line. |
 | `attach` | The terminal bridge (#24) runs it in a PTY: `tmux attach-session` as the human, `-r` for watchers. |
 | `write-file` | Write a `SpawnPlan` file (hook settings, statusline scripts) as the human; contents arrive on stdin. |
 | `read-file`, `list-dir` | Read transcripts and session dirs in the human's private HOME. |

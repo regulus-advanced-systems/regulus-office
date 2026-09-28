@@ -179,15 +179,18 @@ describe("LinuxUserRunner command construction", () => {
     expect(await runner.listSessions(user)).toEqual(["agent-a1", "agent-b2"]);
     await runner.sendKeys(s, "hello", { enter: true });
     await runner.sendKeys(s, "");
+    await runner.sendKeys(s, "\u001b");
     expect(calls.map((c) => c.argv.slice(3))).toEqual([
       ["capture", "u1", "agent-a1", "50"],
       ["pane-title", "u1", "agent-a1"],
       ["has-session", "u1", "agent-a1"],
       ["has-session", "u1", "agent-a2"],
       ["list-sessions", "u1"],
-      ["send-keys", "u1", "agent-a1", "1"],
+      ["send-keys", "u1", "agent-a1", "1", "text"],
+      ["send-keys", "u1", "agent-a1", "0", "raw"],
     ]);
-    expect(calls.at(-1)?.stdin).toBe("hello");
+    expect(calls.at(-2)?.stdin).toBe("hello");
+    expect(calls.at(-1)?.stdin).toBe("\u001b");
   });
 
   test("session names are validated before the helper runs", async () => {

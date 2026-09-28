@@ -13,6 +13,14 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { type PipedProcess, type SpawnPlan, tmuxSessionName } from "@regulus/agent-adapters";
 import type { TerminalMode } from "@regulus/protocol";
+import {
+  ENTER,
+  isUnknownFlag,
+  type PasteMode,
+  pasteBufferArgs,
+  pasteBufferName,
+  pasteMode,
+} from "../keys.ts";
 import type {
   AgentRef,
   AttachArgv,
@@ -142,10 +150,10 @@ export class LocalTmuxRunner implements Runner {
     return (await this.#display(session, "#{pane_title}")) ?? "";
   }
 
+  /** Buffer paste, not `send-keys`, so it works while a watcher is attached (see keys.ts). */
   async sendKeys(session: TmuxSessionRef, keys: string, opts?: { enter?: boolean }): Promise<void> {
-    const res = await this.#tmux(["send-keys", "-t", paneTarget(session), "-l", keys]);
-    if (res.code !== 0) throw new Error(`send-keys failed: ${res.stderr.trim()}`);
-    if (opts?.enter) await this.#tmux(["send-keys", "-t", paneTarget(session), "Enter"]);
+    if (keys.length > 0) await this.#paste(session, keys, pasteMode(keys));
+    if (opts?.enter) await this.#paste(session, ENTER, "raw");
   }
 
   async sessionExists(session: TmuxSessionRef): Promise<boolean> {
@@ -233,8 +241,23 @@ export class LocalTmuxRunner implements Runner {
     return res.code === 0 ? res.stdout.trim() : null;
   }
 
-  #tmux(args: string[]): Promise<Result> {
-    return run(["tmux", "-S", this.socket, "-f", "/dev/null", ...args]);
+  /** Load `data` into a fresh buffer via stdin (never argv) and paste it into the pane. */
+  async #paste(session: TmuxSessionRef, data: string, mode: PasteMode): Promise<void> {
+    const buffer = pasteBufferName();
+    const load = await this.#tmux(["load-buffer", "-b", buffer, "-"], data);
+    if (load.code !== 0) throw new Error(`load-buffer failed: ${load.stderr.trim()}`);
+    let res = await this.#tmux(pasteBufferArgs(buffer, mode, paneTarget(session)));
+    if (res.code !== 0 && isUnknownFlag(res.stderr)) {
+      res = await this.#tmux(pasteBufferArgs(buffer, mode, paneTarget(session), true));
+    }
+    if (res.code !== 0) {
+      await this.#tmux(["delete-buffer", "-b", buffer]);
+      throw new Error(`paste-buffer failed: ${res.stderr.trim()}`);
+    }
+  }
+
+  #tmux(args: string[], stdin?: string): Promise<Result> {
+    return run(["tmux", "-S", this.socket, "-f", "/dev/null", ...args], stdin);
   }
 }
 
@@ -252,10 +275,11 @@ function sessionOf(agent: AgentRef): TmuxSessionRef {
   return { userId: agent.userId, name: tmuxSessionName(agent.agentId) };
 }
 
-async function run(argv: string[]): Promise<Result> {
+async function run(argv: string[], stdin?: string): Promise<Result> {
   const env = { ...process.env };
   delete env.TMUX;
-  const proc = Bun.spawn(argv, { env, stdout: "pipe", stderr: "pipe", stdin: "ignore" });
+  const input = stdin === undefined ? "ignore" : new TextEncoder().encode(stdin);
+  const proc = Bun.spawn(argv, { env, stdout: "pipe", stderr: "pipe", stdin: input });
   const [stdout, stderr, code] = await Promise.all([
     new Response(proc.stdout).text(),
     new Response(proc.stderr).text(),

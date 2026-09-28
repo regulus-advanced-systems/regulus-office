@@ -14,6 +14,7 @@ import { chmod, mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { FakeAdapter, Secret, type SpawnPlan } from "@regulus/agent-adapters";
+import { attachWatcher } from "../testing/watcher.ts";
 import { bindRunnerOps, type RunnerHandle } from "../types.ts";
 import { DockerRunner } from "./docker-runner.ts";
 import { EngineClient } from "./engine.ts";
@@ -165,12 +166,37 @@ describe.skipIf(!enabled)("DockerRunner (real Docker)", () => {
     const pwd = await engine.exec(containerId ?? "", { cmd: ["ls", "-d", workdir] });
     expect(pwd.code).toBe(0);
 
-    await runner.sendKeys(session, "hello docker", { enter: true });
+    // Input must get through while a read-only watcher is attached (#107).
+    const watcher = await attachWatcher(runner, session, "FAKE AGENT READY");
+    const socket = handle.tmuxSocket;
+    const clients = await engine.exec(containerId ?? "", {
+      cmd: ["tmux", "-S", socket, "list-clients", "-F", "#{client_flags}"],
+    });
+    expect(clients.stdout).toContain("read-only");
+    await runner.sendKeys(session, "hello docker\nsecond line", { enter: true });
     const echoed = await waitFor(
       () => runner.capturePane(session, 50),
-      (s) => s.includes("you said: hello docker"),
+      (s) => s.includes("you said: second line"),
     );
     expect(echoed).toContain("you said: hello docker");
+    await runner.sendKeys(session, "\u0003");
+    await runner.sendKeys(session, "after ctrl-c", { enter: true });
+    const interrupted = await waitFor(
+      () => runner.capturePane(session, 50),
+      (s) => s.includes("you said: after ctrl-c"),
+    );
+    expect(interrupted).toContain("FAKE AGENT INTERRUPTED");
+    expect(
+      await waitFor(
+        async () => watcher.output(),
+        (s) => s.includes("after ctrl-c"),
+      ),
+    ).toContain("after ctrl-c");
+    const buffers = await engine.exec(containerId ?? "", {
+      cmd: ["tmux", "-S", socket, "list-buffers"],
+    });
+    expect(buffers.stdout.trim()).toBe("");
+    await watcher.close();
 
     const procs = await runner.listProcesses({ userId: "u1", agentId: "a1" });
     expect(procs.length).toBeGreaterThan(0);
