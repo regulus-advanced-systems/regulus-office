@@ -6,15 +6,13 @@
  *   or an office `admin`/`owner`.
  * - `viewer`s watch only, even their own robots.
  *
- * Floor visibility follows the rules #30 introduces in floors/access.ts
- * (owners/admins see every live floor, others need a `floor_members` row,
- * archived floors are invisible); {@link dbFloorVisibility} mirrors them
- * until that module lands and can then be swapped for `floorAccessFor`.
+ * "Can view the floor" is any access from floors/access.ts (owners/admins see
+ * every live floor, others need a `floor_members` row, archived floors are
+ * invisible), so the terminal and the FloorRoom agree on who sees a robot.
  */
 import type { TerminalMode, UserRole } from "@regulus/protocol";
-import { and, eq, isNull } from "drizzle-orm";
 import type { Db } from "../db/index.ts";
-import { floorMembers, floors } from "../db/schema/index.ts";
+import { floorAccessFor, isOfficeManager } from "../floors/access.ts";
 
 export interface TerminalUser {
   id: string;
@@ -28,8 +26,6 @@ export type TerminalDecision =
   | { ok: true }
   /** `not_found`: the floor is invisible to the user, so the robot's existence is not revealed. */
   | { ok: false; reason: "not_found" | "forbidden" };
-
-const isOfficeManager = (role: UserRole): boolean => role === "owner" || role === "admin";
 
 /** Whether `user` may take `mode` on a robot owned by `ownerUserId` on a floor they can see. */
 export function mayUseTerminal(
@@ -54,19 +50,7 @@ export function decideTerminalAccess(
     : { ok: false, reason: "forbidden" };
 }
 
-/** Floor visibility from `floors` + `floor_members` (same rules as #30's floors/access.ts). */
+/** Floor visibility from `floors` + `floor_members` via floors/access.ts. */
 export function dbFloorVisibility(db: Db): FloorVisibility {
-  return (user, floorId) => {
-    const row = db
-      .select({ id: floors.id, access: floorMembers.access })
-      .from(floors)
-      .leftJoin(
-        floorMembers,
-        and(eq(floorMembers.floorId, floors.id), eq(floorMembers.userId, user.id)),
-      )
-      .where(and(eq(floors.id, floorId), isNull(floors.archivedAt)))
-      .get();
-    if (!row) return false;
-    return isOfficeManager(user.role) || row.access !== null;
-  };
+  return (user, floorId) => floorAccessFor(db, user, floorId) !== null;
 }
