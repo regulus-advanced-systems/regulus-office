@@ -68,7 +68,8 @@ jobs:
             echo "compose accepted a config without secrets" >&2; exit 1
           fi
           cat err.txt
-          grep -q "set BETTER_AUTH_SECRET in deploy/.env" err.txt
+          # Compose reports whichever missing secret it meets first; the order is not stable.
+          grep -qE "set (BETTER_AUTH_SECRET|OFFICE_MASTER_KEY) in deploy/.env" err.txt
       - name: deploy/.env with throwaway secrets
         run: |
           auth="$(openssl rand -base64 32)"; key="$(openssl rand -base64 32)"
