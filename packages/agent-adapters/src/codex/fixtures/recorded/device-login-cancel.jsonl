@@ -1,0 +1,9 @@
+{"dir":"out","msg":{"method":"initialize","id":0,"params":{"clientInfo":{"name":"regulus_office","title":"Regulus Office","version":"0.0.0"},"capabilities":null}}}
+{"dir":"in","msg":{"id":0,"result":{"userAgent":"regulus_office/0.158.0 (Linux Unknown; x86_64) unknown (regulus_office; 0.0.0)","codexHome":"/home/office-u-u1/.codex","platformFamily":"unix","platformOs":"linux"}}}
+{"dir":"out","msg":{"method":"initialized"}}
+{"dir":"in","msg":{"method":"remoteControl/status/changed","params":{"status":"disabled","serverName":"runner","installationId":"00000000-0000-4000-8000-000000000001","environmentId":null},"emittedAtMs":1700000000000}}
+{"dir":"out","msg":{"method":"account/login/start","id":1,"params":{"type":"chatgptDeviceCode"}}}
+{"dir":"in","msg":{"id":1,"result":{"type":"chatgptDeviceCode","loginId":"00000000-0000-4000-8000-000000000002","verificationUrl":"https://auth.openai.com/codex/device","userCode":"ABCD-1234"}}}
+{"dir":"out","msg":{"method":"account/login/cancel","id":2,"params":{"loginId":"00000000-0000-4000-8000-000000000002"}}}
+{"dir":"in","msg":{"id":2,"result":{"status":"canceled"}}}
+{"dir":"in","msg":{"method":"account/login/completed","params":{"loginId":"00000000-0000-4000-8000-000000000002","success":false,"error":"Login was not completed","onboardingEntrypoint":null},"emittedAtMs":1700000000000}}

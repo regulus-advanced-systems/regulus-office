@@ -1,0 +1,6 @@
+{"dir":"out","msg":{"method":"initialize","id":0,"params":{"clientInfo":{"name":"regulus_office","title":"Regulus Office","version":"0.0.0"},"capabilities":null}}}
+{"dir":"in","msg":{"id":0,"result":{"userAgent":"regulus_office/0.158.0 (Linux Unknown; x86_64) unknown (regulus_office; 0.0.0)","codexHome":"/home/office-u-u1/.codex","platformFamily":"unix","platformOs":"linux"}}}
+{"dir":"out","msg":{"method":"initialized"}}
+{"dir":"in","msg":{"method":"remoteControl/status/changed","params":{"status":"disabled","serverName":"runner","installationId":"00000000-0000-4000-8000-000000000001","environmentId":null},"emittedAtMs":1700000000000}}
+{"dir":"out","msg":{"method":"account/rateLimits/read","id":1}}
+{"dir":"in","msg":{"error":{"code":-32600,"message":"codex account authentication required to read rate limits"},"id":1}}
