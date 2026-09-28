@@ -212,6 +212,14 @@ jobs:
           echo "--- slowest syscalls of the first useradd"
           sudo awk '{ if (match($0, /<([0-9.]+)>$/, m) && m[1] > 0.5) print }' "$RUNNER_TEMP/ua.strace" | head -40
           sudo grep -c . "$RUNNER_TEMP/ua.strace"
+          echo "--- syscalls by name"
+          sudo awk '{ s=$3; sub(/\(.*/, "", s); c[s]++ } END { for (k in c) print c[k], k }' "$RUNNER_TEMP/ua.strace" | sort -rn | head -15
+          echo "--- paths by count"
+          sudo grep -oE '"/[^"]*"' "$RUNNER_TEMP/ua.strace" | sort | uniq -c | sort -rn | head -25
+          echo "--- per second of wall time: syscall count and top syscall"
+          sudo awk '{ t=substr($2,1,8); c[t]++; s=$3; sub(/\(.*/, "", s); n[t" "s]++ } END { for (k in n) print k, n[k] }' "$RUNNER_TEMP/ua.strace" | sort -k1,1 -k3,3rn | awk '$1!=p { print; p=$1 }'
+          echo "--- first/last 30 lines"
+          sudo head -30 "$RUNNER_TEMP/ua.strace"; sudo tail -30 "$RUNNER_TEMP/ua.strace"
           t sudo systemd-run --quiet --collect --scope --uid=office-probe1 -- true
           t sudo userdel --remove office-probe1
           t sudo useradd --create-home --shell /bin/bash --comment probe --user-group office-probe2
