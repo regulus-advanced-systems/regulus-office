@@ -10,6 +10,10 @@
  * Set E2E_BASE_URL to run against an already running, freshly created office
  * instead (e.g. https://localhost from deploy/docker-compose.yml); the first
  * step registers the owner, so the office must have no users yet.
+ *
+ * E2E_AGENTS=1 (`bun run e2e:agents`) runs only tests/e2e/agents.e2e.ts, the M1
+ * robot flow. That spec starts and restarts its own office-server (docker runner
+ * backend, fake `claude` in a test runner image), so no webServer is started.
  */
 import { randomBytes } from "node:crypto";
 import { mkdtempSync } from "node:fs";
@@ -21,16 +25,21 @@ const external = process.env.E2E_BASE_URL?.replace(/\/+$/, "");
 const port = Number(process.env.E2E_PORT ?? 4610);
 const baseURL = external ?? `http://127.0.0.1:${port}`;
 const ci = Boolean(process.env.CI);
+const agents = process.env.E2E_AGENTS === "1";
+const AGENTS_SPEC = "**/agents.e2e.ts";
+/** No webServer: an external office, or the agents spec, which runs its own. */
+const noWebServer = Boolean(external) || agents;
 
 // Evaluated once in the runner and again in each worker; the env var makes them agree.
-if (!external && !process.env.E2E_DATA_DIR)
+if (!noWebServer && !process.env.E2E_DATA_DIR)
   process.env.E2E_DATA_DIR = mkdtempSync(join(tmpdir(), "regulus-e2e-"));
 /** Throwaway per-run secrets unless the caller provides them (CI generates its own). */
 const secret = () => randomBytes(32).toString("base64");
 
 export default defineConfig({
   testDir: "tests/e2e",
-  testMatch: "**/*.e2e.ts",
+  testMatch: agents ? AGENTS_SPEC : "**/*.e2e.ts",
+  testIgnore: agents ? [] : [AGENTS_SPEC],
   globalTeardown: "./tests/e2e/global-teardown.ts",
   fullyParallel: false,
   workers: 1,
@@ -60,7 +69,7 @@ export default defineConfig({
       },
     },
   ],
-  webServer: external
+  webServer: noWebServer
     ? undefined
     : {
         command: "bun apps/server/src/index.ts",

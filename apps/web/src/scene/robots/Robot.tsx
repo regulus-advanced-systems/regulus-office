@@ -85,6 +85,15 @@ function RobotImpl({ robot, seat, reducedMotion, onSelect }: RobotProps) {
   return (
     <group
       name={`robot-${robot.agentId}`}
+      // Read by the e2e scene probes (tests/e2e/agentProbes.ts); plain data, no behaviour.
+      userData={{
+        status: robot.status,
+        action: robot.action,
+        handRaised: robot.handRaised,
+        animation,
+        seated: look.seated,
+        seatId: robot.seatId,
+      }}
       position={[place.position[0], place.position[1], place.position[2]]}
       rotation-y={place.rotationY}
       onClick={select}
