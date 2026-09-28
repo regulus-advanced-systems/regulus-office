@@ -1,28 +1,44 @@
-/** White rounded panel with a 1 px grey border (SPEC §12); `modal` gives the golden variant. */
+/**
+ * White rounded panel with a 1 px grey border (SPEC §12). `heading` renders a
+ * title; `muted` greys the panel to ~30% the way GDT shows "No Project".
+ * Pass `as="section"` with `aria-label` for landmark panels.
+ */
 import type { CSSProperties, ReactNode } from "react";
-import { colors, radii } from "./theme.ts";
+
+export interface PanelProps {
+  children: ReactNode;
+  title?: ReactNode;
+  as?: "div" | "section" | "nav" | "header" | "aside";
+  flush?: boolean;
+  muted?: boolean;
+  className?: string;
+  style?: CSSProperties;
+  id?: string;
+  "aria-label"?: string;
+  "aria-labelledby"?: string;
+}
 
 export function Panel({
   children,
-  modal = false,
-  style,
-}: {
-  children: ReactNode;
-  modal?: boolean;
-  style?: CSSProperties;
-}) {
+  title,
+  as: Tag = "div",
+  flush,
+  muted,
+  className,
+  ...rest
+}: PanelProps) {
+  const cls = [
+    "rg-panel",
+    flush ? "rg-panel--flush" : "",
+    muted ? "rg-panel--muted" : "",
+    className ?? "",
+  ]
+    .filter(Boolean)
+    .join(" ");
   return (
-    <div
-      style={{
-        background: modal ? colors.modalSurface : colors.panelSurface,
-        border: `${modal ? 2 : 1}px solid ${modal ? colors.gold : colors.panelBorder}`,
-        borderRadius: radii.panel,
-        boxShadow: modal ? `0 0 24px ${colors.cream}` : "0 2px 8px rgba(0,0,0,0.08)",
-        padding: 16,
-        ...style,
-      }}
-    >
+    <Tag className={cls} {...rest}>
+      {title && <h2 className="rg-panel__title">{title}</h2>}
       {children}
-    </div>
+    </Tag>
   );
 }

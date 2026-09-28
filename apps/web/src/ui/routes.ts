@@ -4,13 +4,15 @@
  */
 import { matchRoutes } from "react-router";
 
-export type RouteId = "home" | "login" | "join" | "office";
+export type RouteId = "home" | "login" | "join" | "office" | "uiKit";
 
 export const ROUTE_PATHS: Readonly<Record<RouteId, string>> = {
   home: "/",
   login: "/login",
   join: "/join/:token",
   office: "/office",
+  /** Dev gallery of every HUD component and state (issue #18); no Storybook. */
+  uiKit: "/ui-kit",
 };
 
 export const ROUTE_TABLE = (Object.keys(ROUTE_PATHS) as RouteId[]).map((id) => ({
