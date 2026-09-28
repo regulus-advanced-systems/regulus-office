@@ -45,13 +45,49 @@ export interface TmuxSessionRef {
 
 /**
  * A command the terminal bridge (#24) spawns in a PTY to attach to a session,
- * e.g. `tmux -S <sock> attach-session -r -t agent-a1` or the `docker exec`
- * equivalent. Carries no secrets.
+ * e.g. `tmux -S <sock> attach-session -r -t agent-a1`. Carries no secrets.
+ * Backends whose tmux is reachable from the office host (linux-user, the test
+ * runner) return this. `kind` is optional so existing `{ argv }` literals stay
+ * valid; narrow with `cmd.kind === "stream"`.
  */
-export interface AttachCommand {
+export interface AttachArgv {
+  kind?: "argv";
   argv: readonly string[];
   env?: Readonly<Record<string, string>>;
 }
+
+/** Terminal size in character cells. */
+export interface TtySize {
+  cols: number;
+  rows: number;
+}
+
+/**
+ * A live TTY attached to a tmux session, already allocated by the backend (no
+ * local PTY needed). The docker backend returns this: the office image has no
+ * docker CLI, so it runs `tmux attach` through an Engine API exec with a TTY
+ * and hands over the hijacked connection.
+ */
+export interface DuplexTty {
+  /** Raw terminal output (not multiplexed). Ends when the attach ends. */
+  readonly output: ReadableStream<Uint8Array>;
+  /** Raw terminal input (keystrokes, escape sequences). */
+  write(data: string | Uint8Array): Promise<void>;
+  resize(size: TtySize): Promise<void>;
+  /** Detach: closes the connection; the tmux session keeps running. */
+  close(): void;
+  /** Resolves once the attach has ended (detach, session gone, `close()`). */
+  readonly closed: Promise<void>;
+}
+
+/** Opens a {@link DuplexTty} per viewer; `watch` sessions are read-only (`attach -r`). */
+export interface AttachStream {
+  kind: "stream";
+  open(size: TtySize): Promise<DuplexTty>;
+}
+
+/** How the terminal bridge attaches to a session: a PTY command or a ready TTY stream. */
+export type AttachCommand = AttachArgv | AttachStream;
 
 export interface ProcessInfo {
   pid: number;
@@ -95,7 +131,7 @@ export interface Runner {
   /** Side process with piped stdio (e.g. `codex app-server`), same env rules. */
   spawnPiped(user: RunnerUser, plan: SpawnPlan): Promise<PipedProcess>;
 
-  /** Command to attach a PTY; `watch` must be read-only (`attach -r`). */
+  /** How to attach a terminal; `watch` must be read-only (`attach -r`). */
   attach(session: TmuxSessionRef, mode: TerminalMode): AttachCommand;
   capturePane(session: TmuxSessionRef, lines: number): Promise<string>;
   paneTitle(session: TmuxSessionRef): Promise<string>;

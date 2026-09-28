@@ -15,7 +15,7 @@ import { type PipedProcess, type SpawnPlan, tmuxSessionName } from "@regulus/age
 import type { TerminalMode } from "@regulus/protocol";
 import type {
   AgentRef,
-  AttachCommand,
+  AttachArgv,
   FloorRepoRef,
   MountedProject,
   PortInfo,
@@ -116,9 +116,10 @@ export class LocalTmuxRunner implements Runner {
     };
   }
 
-  attach(session: TmuxSessionRef, mode: TerminalMode): AttachCommand {
+  attach(session: TmuxSessionRef, mode: TerminalMode): AttachArgv {
     const readOnly = mode === "watch" ? ["-r"] : [];
     return {
+      kind: "argv",
       argv: ["tmux", "-S", this.socket, "attach-session", ...readOnly, "-t", target(session)],
     };
   }

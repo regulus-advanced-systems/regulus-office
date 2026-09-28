@@ -84,6 +84,38 @@ const secretStr = (min = 1) =>
     .min(min)
     .transform((v) => new SecretValue(v));
 
+export const DEFAULT_RUNNER_IMAGE = "ghcr.io/regulus-advanced-systems/regulus-office-runner:latest";
+
+const absPath = () => str().regex(/^\//, "must be an absolute path");
+
+const splitList = (v: string) =>
+  v
+    .split(",")
+    .map((x) => x.trim())
+    .filter(Boolean);
+
+/** `512m`, `4g`, `1073741824`: bytes, with an optional k/m/g suffix (powers of 1024). */
+const byteSize = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .regex(/^\d+[kmg]?b?$/, "bytes with optional k/m/g suffix, e.g. 4g")
+  .transform((v) => {
+    const unit = { k: 1024, m: 1024 ** 2, g: 1024 ** 3 }[v.replace(/b$/, "").slice(-1)] ?? 1;
+    return Number.parseInt(v, 10) * unit;
+  });
+
+/** `/srv/office/projects=regulus_projects,...`: office path → named volume holding it. */
+const volumeMap = z.string().transform((v, ctx) =>
+  splitList(v).map((pair) => {
+    const [path = "", volume = ""] = pair.split("=").map((x) => x.trim());
+    if (!path.startsWith("/") || !volume) {
+      ctx.addIssue({ code: "custom", message: "expected /abs/path=volume-name[,...]" });
+    }
+    return { path, volume };
+  }),
+);
+
 /** Minimum length for BETTER_AUTH_SECRET; `openssl rand -base64 32` yields 44 characters. */
 export const MIN_AUTH_SECRET_LENGTH = 32;
 
@@ -106,6 +138,45 @@ export const envSchema = z.object({
   GITHUB_CLIENT_ID: z.preprocess(emptyToUndefined, str().optional()),
   GITHUB_CLIENT_SECRET: z.preprocess(emptyToUndefined, secretStr().optional()),
   OFFICE_OPEN_SIGNUP: bool(false),
+  // Docker runner backend (SPEC §8); see DockerBackendConfig.
+  DOCKER_HOST: z.preprocess(emptyToUndefined, str().default("unix:///var/run/docker.sock")),
+  OFFICE_RUNNER_IMAGE: z.preprocess(emptyToUndefined, str().default(DEFAULT_RUNNER_IMAGE)),
+  OFFICE_DOCKER_RUNNER_PREFIX: z.preprocess(
+    emptyToUndefined,
+    z
+      .string()
+      .regex(/^[a-z0-9][a-z0-9_.-]{0,31}$/, "lowercase letters, digits, _ . - (max 32)")
+      .default("office"),
+  ),
+  OFFICE_DOCKER_RUNNER_USER: z.preprocess(
+    emptyToUndefined,
+    z
+      .string()
+      .trim()
+      .regex(/^\d+:\d+$/, "must be a numeric uid:gid")
+      .refine((v) => !v.startsWith("0:"), "must not be root (SPEC §8: runners use a non-root uid)")
+      .default("1001:1001"),
+  ),
+  OFFICE_DOCKER_RUNNER_HOME: z.preprocess(emptyToUndefined, absPath().default("/home/runner")),
+  OFFICE_DOCKER_RUNNER_NETWORK: z.preprocess(emptyToUndefined, str().optional()),
+  OFFICE_DOCKER_RUNNER_MEMORY: z.preprocess(emptyToUndefined, byteSize.optional()),
+  OFFICE_DOCKER_RUNNER_CPUS: z.preprocess(
+    emptyToUndefined,
+    z.coerce.number().positive().optional(),
+  ),
+  OFFICE_DOCKER_RUNNER_PIDS: z.preprocess(
+    emptyToUndefined,
+    z.coerce.number().int().positive().default(4096),
+  ),
+  OFFICE_DOCKER_FLOOR_ROOTS: z.preprocess(
+    emptyToUndefined,
+    z
+      .string()
+      .default("/srv/office/projects,/srv/office/worktrees")
+      .transform((v) => splitList(v))
+      .pipe(z.array(absPath()).min(1)),
+  ),
+  OFFICE_DOCKER_VOLUME_MAP: z.preprocess(emptyToUndefined, volumeMap.default([])),
 });
 
 /** GitHub OAuth app used for human sign-in (SPEC §4.2 Auth); unrelated to agent credentials. */
@@ -139,6 +210,35 @@ export interface OfficeConfig {
    * Default false: after the first user, sign-up needs an invite link.
    */
   openSignup: boolean;
+  /** Docker runner backend settings; only used when that backend is selected. */
+  docker: DockerBackendConfig;
+}
+
+/**
+ * Docker runner backend settings (SPEC §8): one runner container per human from
+ * `image`, reached through `dockerHost` (the local socket, or a
+ * docker-socket-proxy such as `tcp://docker-proxy:2375`).
+ */
+export interface DockerBackendConfig {
+  /** `DOCKER_HOST`: `unix:///var/run/docker.sock` or `tcp://host:port` (no TLS). */
+  dockerHost: string;
+  image: string;
+  /** Container/volume name prefix: `<prefix>-runner-<userId>`, `<prefix>-home-<userId>`. */
+  prefix: string;
+  /** Numeric non-root `uid:gid` the runner runs as (runner/Dockerfile: 1001). */
+  user: string;
+  /** HOME inside the runner; the human's credential volume is mounted here. */
+  home: string;
+  /** Network for runners (so hooks can reach the office); default bridge when unset. */
+  network: string | undefined;
+  memoryBytes: number | undefined;
+  /** CPU limit in cores (Docker NanoCpus / 1e9). */
+  cpus: number | undefined;
+  pidsLimit: number;
+  /** Floor directories are mounted per `<root>/<floor>` for each root. */
+  floorRoots: string[];
+  /** Office paths that live in named volumes (Compose); mounted with a volume subpath. */
+  volumeMap: { path: string; volume: string }[];
 }
 
 export class ConfigError extends Error {
@@ -179,6 +279,19 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
         ? { clientId: e.GITHUB_CLIENT_ID, clientSecret: e.GITHUB_CLIENT_SECRET }
         : undefined,
     openSignup: e.OFFICE_OPEN_SIGNUP,
+    docker: {
+      dockerHost: e.DOCKER_HOST,
+      image: e.OFFICE_RUNNER_IMAGE,
+      prefix: e.OFFICE_DOCKER_RUNNER_PREFIX,
+      user: e.OFFICE_DOCKER_RUNNER_USER,
+      home: e.OFFICE_DOCKER_RUNNER_HOME,
+      network: e.OFFICE_DOCKER_RUNNER_NETWORK,
+      memoryBytes: e.OFFICE_DOCKER_RUNNER_MEMORY,
+      cpus: e.OFFICE_DOCKER_RUNNER_CPUS,
+      pidsLimit: e.OFFICE_DOCKER_RUNNER_PIDS,
+      floorRoots: e.OFFICE_DOCKER_FLOOR_ROOTS,
+      volumeMap: e.OFFICE_DOCKER_VOLUME_MAP,
+    },
   };
 }
 
