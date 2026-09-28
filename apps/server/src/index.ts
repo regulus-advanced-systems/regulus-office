@@ -4,7 +4,9 @@
  * attach agents and the rest to the same process.
  */
 import { mkdir } from "node:fs/promises";
+import { ClaudeCodeAdapter } from "@regulus/agent-adapters";
 import { sql } from "drizzle-orm";
+import { denyAllAgentTokens, mountClaudeHookRoutes } from "./agents/hooks/index.ts";
 import { AuthConfigError, createAuth, mountAuthRoutes, type OfficeAuth } from "./auth/index.ts";
 import { ConfigError, loadConfig, redactConfig } from "./config.ts";
 import { closeDatabase, databasePathFor, openDatabase, runMigrations } from "./db/index.ts";
@@ -104,6 +106,14 @@ async function main(): Promise<void> {
     attach: rooms.transport.attachment,
   });
   mountAuthRoutes(server.router, auth);
+  // Claude Code hooks + statusline (#27). Until the AgentManager (#26) issues
+  // per-agent tokens and provides the real sink, every hook is rejected.
+  mountClaudeHookRoutes(server.router, {
+    sink: { publish: () => {} },
+    tokens: denyAllAgentTokens,
+    adapter: new ClaudeCodeAdapter(),
+    logger,
+  });
   server.health.register("db", () => {
     db.run(sql`select 1`);
     return true;

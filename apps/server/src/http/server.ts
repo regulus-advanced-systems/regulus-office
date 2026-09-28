@@ -72,7 +72,7 @@ export function createOfficeServer(options: OfficeServerOptions): OfficeServer {
     }
     const match = router.match(request.method, url.pathname);
     if (match) {
-      const ctx = { request, url, params: match.params };
+      const ctx = { request, url, params: match.params, server: bun };
       return [await match.handler(ctx), match.pattern];
     }
     if (router.hasPath(url.pathname)) {

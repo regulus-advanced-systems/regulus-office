@@ -1,0 +1,43 @@
+{
+  "_source": "Written from the full JSON schema at https://code.claude.com/docs/en/statusline#available-data (2026-09-28). Not captured from a real session.",
+  "cwd": "/srv/office/projects/demo",
+  "session_id": "00893aaf-19fa-41d2-8238-13269b9b3ca0",
+  "transcript_path": "/home/office-u-u1/.claude/projects/-srv-office-projects-demo/00893aaf-19fa-41d2-8238-13269b9b3ca0.jsonl",
+  "model": { "id": "claude-opus-5-5", "display_name": "Opus" },
+  "workspace": {
+    "current_dir": "/srv/office/projects/demo",
+    "project_dir": "/srv/office/projects/demo",
+    "added_dirs": []
+  },
+  "version": "2.1.283",
+  "output_style": { "name": "default" },
+  "cost": {
+    "total_cost_usd": 0.01234,
+    "total_duration_ms": 45000,
+    "total_api_duration_ms": 2300,
+    "total_lines_added": 156,
+    "total_lines_removed": 23
+  },
+  "context_window": {
+    "total_input_tokens": 15500,
+    "total_output_tokens": 1200,
+    "context_window_size": 200000,
+    "used_percentage": 8,
+    "remaining_percentage": 92,
+    "current_usage": {
+      "input_tokens": 8500,
+      "output_tokens": 1200,
+      "cache_creation_input_tokens": 5000,
+      "cache_read_input_tokens": 2000
+    }
+  },
+  "exceeds_200k_tokens": false,
+  "fast_mode": false,
+  "effort": { "level": "high" },
+  "thinking": { "enabled": true },
+  "rate_limits": {
+    "five_hour": { "used_percentage": 23.5, "resets_at": 1738425600 },
+    "seven_day": { "used_percentage": 41.2, "resets_at": 1738857600 },
+    "spend_limit": { "used_percentage": 62.8, "resets_at": 1740787200 }
+  }
+}
