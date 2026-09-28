@@ -8,8 +8,6 @@
  */
 import type { NavGrid } from "@regulus/floor-layout";
 
-/** Walking speed in metres per second. */
-export const WALK_SPEED = 2.5;
 /** Longest frame step in seconds, so a hitch never tunnels through a wall. */
 export const MAX_FRAME_DT = 0.1;
 /** Half-width of the player's collision footprint, metres. */

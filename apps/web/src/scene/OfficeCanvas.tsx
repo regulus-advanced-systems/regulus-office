@@ -21,13 +21,15 @@ import {
   paletteById,
 } from "@regulus/floor-layout";
 import { type ReactNode, Suspense, useMemo } from "react";
+import { usePlayerStore } from "../state/player.ts";
 import { useViewStore } from "../state/view.ts";
 import { useViewHotkey } from "../ui/hud/ViewToggle.tsx";
 import { vignetteBackground } from "./backdrop.ts";
 import { IsoCamera } from "./camera/IsoCamera.tsx";
 import { CAMERA_FAR, CAMERA_NEAR, cameraPosition, roomTarget } from "./camera/isoCamera.ts";
 import { ViewCrossfade } from "./camera/ViewCrossfade.tsx";
-import { FirstPersonRig, type FirstPersonRigProps } from "./fpv/FirstPersonRig.tsx";
+import { FirstPersonRig } from "./fpv/FirstPersonRig.tsx";
+import { createPlayerBinding } from "./fpv/playerBinding.ts";
 import { Furniture } from "./furniture/Furniture.tsx";
 import { WallAnchors } from "./furniture/WallAnchors.tsx";
 import { useDocumentHidden } from "./hooks/useDocumentHidden.ts";
@@ -47,11 +49,10 @@ export interface OfficeCanvasProps {
   avatars?: ReactNode;
   /** Anything else to add to the scene (bubbles, decals, debug helpers). */
   children?: ReactNode;
-  /** Player pose for the first-person rig (from the player store); local fallback when omitted. */
-  playerPose?: FirstPersonRigProps["pose"];
-  /** Receives first-person WASD steps (collision-resolved) and the camera yaw. */
-  onPlayerMove?: FirstPersonRigProps["onMove"];
 }
+
+/** First-person rig <-> player store (#15); only once MovementController has spawned us. */
+const playerBinding = createPlayerBinding(usePlayerStore);
 
 function requirePalette(id: string): Palette {
   const p = paletteById(id);
@@ -66,8 +67,6 @@ export function OfficeCanvas({
   floorName,
   avatars,
   children,
-  playerPose,
-  onPlayerMove,
 }: OfficeCanvasProps) {
   const hidden = useDocumentHidden();
   const showStats = useMemo(() => statsEnabled(window.location.search), []);
@@ -86,6 +85,8 @@ export function OfficeCanvas({
   const firstPerson = cameraMode === "first_person";
   /** The rig mounts on request (to grab pointer lock early) and stays until the camera swaps back. */
   const rigMounted = firstPerson || mode === "first_person";
+  /** Without a spawned player (e.g. the dev harness) the rig walks a local pose. */
+  const spawned = usePlayerStore((s) => s.spawned);
 
   return (
     <div style={{ position: "absolute", inset: 0, background: vignetteBackground() }}>
@@ -104,8 +105,8 @@ export function OfficeCanvas({
           <FirstPersonRig
             template={template}
             active={firstPerson}
-            pose={playerPose}
-            onMove={onPlayerMove}
+            getPose={spawned ? playerBinding.getPose : undefined}
+            onMove={spawned ? playerBinding.onMove : undefined}
           />
         )}
         <Lighting />
