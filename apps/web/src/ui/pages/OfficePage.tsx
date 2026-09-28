@@ -1,10 +1,11 @@
 import { LOBBY_FLOOR_ID } from "@regulus/protocol";
-import { useEffect } from "react";
+import { Suspense, useEffect } from "react";
 import { getOfficeClient } from "../../net/index.ts";
 import { AvatarLayer } from "../../scene/avatars/AvatarLayer.tsx";
 import { floorViewFor } from "../../scene/floorView.ts";
 import { MovementController } from "../../scene/movement/MovementController.tsx";
 import { OfficeCanvas } from "../../scene/OfficeCanvas.tsx";
+import { RobotLayer } from "../../scene/robots/RobotLayer.tsx";
 import { DepartingRobots } from "../../scene/robots/sendHome/DepartingRobots.tsx";
 import { useBuildingStore } from "../../state/building.ts";
 import { useFloorStore } from "../../state/floor.ts";
@@ -16,7 +17,7 @@ import { Hud } from "../Hud.tsx";
 /**
  * The office: R3F scene for the floor we are on (the lobby, or a project
  * floor's own template, palette and painted name), the local and remote
- * humans, the HUD on top.
+ * humans, the robots at their desks (scene/robots), the HUD on top.
  */
 export function OfficePage() {
   const fetchSession = useSessionStore((s) => s.fetchSession);
@@ -51,6 +52,11 @@ export function OfficePage() {
       >
         <MovementController template={view.template} floorKey={view.key} />
         <DepartingRobots template={view.template} />
+        {floorId && view.key !== "lobby" && (
+          <Suspense fallback={null}>
+            <RobotLayer key={view.key} template={view.template} />
+          </Suspense>
+        )}
       </OfficeCanvas>
       <Hud />
     </div>

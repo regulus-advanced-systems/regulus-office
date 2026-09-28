@@ -3,7 +3,9 @@
  * mints an invite in the UI, a second browser joins through the link, both
  * reach /office and see each other, one walks and the other sees it move,
  * chat crosses between them, the first-person view toggles on V and back,
- * and the owner adds a floor bound to a (local) repo and rides to it.
+ * the owner adds a floor bound to a (local) repo and rides to it, and
+ * clicking a free desk there opens the spawn dialog, whose agent.spawn gets
+ * an answer from the server (no agent CLI runs in e2e).
  *
  * Runs against office-server in production mode (see playwright.config.ts),
  * so room joins are authorised by the Better Auth session cookie only.
@@ -14,6 +16,7 @@ import {
   cameraType,
   distance,
   floorSize,
+  freeDeskPoint,
   humans,
   OFFICE_PROBE_PATH,
   remoteHumans,
@@ -202,4 +205,36 @@ test("the owner adds a floor from a repo and rides the elevator to it and back",
   await expect(ownerPage.locator(".rg-topbar__floor")).toHaveText("Lobby");
   await expect.poll(() => floorSize(ownerPage)).toBe(lobbySize);
   await expect.poll(() => remoteHumans(memberPage)).toHaveLength(1);
+});
+
+test("clicking a free desk opens the spawn dialog and the server answers agent.spawn", async () => {
+  test.skip(!process.env.E2E_DATA_DIR, "needs the floor from the previous step");
+  await ownerPage.bringToFront();
+  const elevator = ownerPage.getByRole("navigation", { name: "Elevator" });
+  await elevator.getByRole("button", { name: /1\. Apollo/ }).click();
+  await expect(ownerPage.locator(".rg-topbar__floor")).toHaveText("Apollo");
+  // The floor HUD counters appear once the FloorRoom state is in.
+  await expect(ownerPage.getByRole("list", { name: "Work on this floor" })).toBeVisible();
+
+  await expect.poll(() => freeDeskPoint(ownerPage)).not.toBeNull();
+  const desk = await freeDeskPoint(ownerPage);
+  if (!desk) throw new Error("no free desk in the scene");
+  await ownerPage.mouse.click(desk.x, desk.y);
+  const dialog = ownerPage.getByRole("dialog", { name: "Spawn a robot" });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByText(desk.seatId)).toBeVisible();
+  await expect(dialog.getByLabel("Repo")).toHaveValue(/.+/);
+  await expect(dialog.getByLabel("Credentials")).toContainText("Your Claude Code login");
+  await expect(dialog.locator('input[type="password"]')).toHaveCount(0);
+
+  await dialog.getByLabel("Prompt").fill("Say hello");
+  await dialog.getByRole("button", { name: "Spawn robot" }).click();
+  // Without an agent CLI in the e2e server the spawn is refused (shown in the
+  // dialog), unless a runner took it, in which case the robot sits down.
+  await expect(dialog.getByRole("alert").or(ownerPage.getByText("Robot spawned"))).toBeVisible({
+    timeout: 30_000,
+  });
+  if (await dialog.isVisible())
+    await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
 });

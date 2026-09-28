@@ -1,4 +1,11 @@
-export { CLIP_CANDIDATES, clipTable, ROBOT_CLIP_NAMES, ROBOT_CLIPS, resolveClip } from "./clips.ts";
+export {
+  CLIP_CANDIDATES,
+  clipTable,
+  ROBOT_CLIP_NAMES,
+  ROBOT_CLIPS,
+  resolveClip,
+  resolveSeatedClip,
+} from "./clips.ts";
 export {
   ACCESSORIES,
   type Accessory,
@@ -14,6 +21,7 @@ export { HUMAN_PLATE_STYLE, type NamePlateStyle } from "./namePlateTexture.ts";
 export { avatarAnimationFor, presenceAnimation } from "./presence.ts";
 export {
   MODEL_SCALE,
+  MODEL_YAW,
   preloadRobotModel,
   ROBOT_HEIGHT,
   RobotAvatar,

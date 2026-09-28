@@ -22,9 +22,19 @@ import {
   createPoseMemo,
   findBone,
   HEAD_TILT,
+  MODEL_YAW,
   ROBOT_MODEL_URL,
 } from "./avatarRig.ts";
-import { CROSSFADE_SECONDS, PROCEDURAL_HEAD_TILT, ROBOT_CLIPS, resolveClip } from "./clips.ts";
+
+export { MODEL_YAW };
+
+import {
+  CROSSFADE_SECONDS,
+  PROCEDURAL_HEAD_TILT,
+  ROBOT_CLIPS,
+  resolveClip,
+  resolveSeatedClip,
+} from "./clips.ts";
 import { colorForRole, materialRoleFor, resolveLook } from "./colorSets.ts";
 import { NamePlate } from "./NamePlate.tsx";
 import type { NamePlateStyle } from "./namePlateTexture.ts";
@@ -55,6 +65,8 @@ export type RobotAvatarProps = Omit<ThreeElements["group"], "ref" | "children"> 
   plateStyle?: NamePlateStyle;
   /** Show the human badge mesh. */
   badge?: boolean;
+  /** Stay in the chair: seated stand-ins for read/think instead of a standing idle (robots at desks). */
+  seated?: boolean;
 };
 
 export function RobotAvatar({
@@ -66,6 +78,7 @@ export function RobotAvatar({
   name,
   plateStyle,
   badge = false,
+  seated = false,
   ...groupProps
 }: RobotAvatarProps) {
   const gltf = useGLTF(ROBOT_MODEL_URL);
@@ -99,7 +112,7 @@ export function RobotAvatar({
   }, [resolved.colors, instance]);
 
   // Animation: crossfade to the resolved clip whenever the animation changes.
-  const clip = resolveClip(animation, names);
+  const clip = seated ? resolveSeatedClip(animation, names) : resolveClip(animation, names);
   const current = useRef<AnimationAction | null>(null);
   useEffect(() => {
     const next = actions[clip];
@@ -138,7 +151,7 @@ export function RobotAvatar({
   const showAntenna = status !== undefined || resolved.accessory === "antenna";
   return (
     <group {...groupProps}>
-      <group scale={MODEL_SCALE}>
+      <group scale={MODEL_SCALE} rotation-y={MODEL_YAW}>
         <primitive ref={root} object={instance} />
       </group>
       {bones &&

@@ -12,6 +12,16 @@ export const ROBOT_MODEL_URL = new URL(
   import.meta.url,
 ).href;
 
+/** Direction the model's face points in its own space: robot.glb faces +z. */
+export const MODEL_FORWARD = new Vector3(0, 0, 1);
+
+/**
+ * robot.glb faces +z, but a heading of 0 faces -z (floor-layout geometry.ts;
+ * three.js `rotation.y`): `RobotAvatar` turns the model half way round, so
+ * every caller sets `rotation.y = heading` and the robot faces its heading.
+ */
+export const MODEL_YAW = Math.PI;
+
 /** Depth-first search for a Bone by name, skipping same-named meshes. */
 export function findBone(root: Object3D, name: string): Bone | undefined {
   let found: Bone | undefined;

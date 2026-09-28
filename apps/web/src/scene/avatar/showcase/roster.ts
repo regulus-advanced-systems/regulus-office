@@ -46,7 +46,8 @@ export function showcaseRobots(count: number, overrides: RosterOverrides = {}): 
       look,
       animation,
       position: [x, 0, z],
-      rotation: [0, Math.PI / 4, 0],
+      // Heading that faces the iso camera (+x, +z).
+      rotation: [0, (-3 * Math.PI) / 4, 0],
     };
     robots.push({
       key: `robot-${i}`,

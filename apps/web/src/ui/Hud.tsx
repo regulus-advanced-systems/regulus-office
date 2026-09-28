@@ -1,5 +1,5 @@
 /**
- * HUD layered over the office canvas: top bar, status box, elevator,
+ * HUD layered over the office canvas: top bar, floor work counters, status box, elevator,
  * lobby chat, corner buttons for settings and shortcut help, dialogs and toasts.
  * The container ignores pointer events so the scene stays clickable
  * between panels.
@@ -16,8 +16,10 @@ import { useGlobalHotkeys } from "./hotkeys/useHotkeys.ts";
 import { ElevatorPanel } from "./hud/ElevatorPanel.tsx";
 import { StatusBox } from "./hud/StatusBox.tsx";
 import { TopBar } from "./hud/TopBar.tsx";
+import { WorkCounters } from "./hud/WorkCounters.tsx";
 import { ProvidersPanelHost } from "./providers/ProvidersPanel.tsx";
 import { SettingsForm } from "./settings/SettingsPanel.tsx";
+import { SpawnDialogHost } from "./spawn/SpawnDialog.tsx";
 import { TerminalModalHost } from "./terminal/TerminalModal.tsx";
 import { Toaster } from "./toast/Toaster.tsx";
 
@@ -49,6 +51,7 @@ export function HudDialogs() {
       </Modal>
       <AddFloorDialogHost />
       <ProvidersPanelHost />
+      <SpawnDialogHost />
       <TerminalModalHost />
     </>
   );
@@ -60,6 +63,7 @@ export function Hud() {
   return (
     <div className="rg-hud">
       <TopBar />
+      <WorkCounters />
       <StatusBox />
       <div className="rg-hud__left">
         <ElevatorPanel />

@@ -91,3 +91,19 @@ export function clipTable(
 export function isFallbackClip(animation: AvatarAnimation, clip: string): boolean {
   return CLIP_CANDIDATES[animation][0] !== clip;
 }
+
+/**
+ * Clip for a robot that stays in its chair: seated animations whose own clip
+ * is missing (read, think) fall back to the sitting clip instead of a
+ * standing idle, so the robot does not stand up to read. Procedural layers
+ * (the think head tilt, papers) still apply on top.
+ */
+export function resolveSeatedClip(
+  animation: AvatarAnimation,
+  available: readonly string[] = ROBOT_CLIP_NAMES,
+): string {
+  if (SEATED_ANIMATIONS.has(animation)) return resolveClip(animation, available);
+  const own = CLIP_CANDIDATES[animation][0];
+  if (own && available.includes(own)) return own;
+  return resolveClip("sit_idle", available);
+}
