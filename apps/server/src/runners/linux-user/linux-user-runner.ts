@@ -20,7 +20,7 @@ import { tmuxSessionName } from "@regulus/agent-adapters";
 import type { TerminalMode } from "@regulus/protocol";
 import type {
   AgentRef,
-  AttachCommand,
+  AttachArgv,
   FloorRepoRef,
   MountedProject,
   PortInfo,
@@ -114,9 +114,13 @@ export class LinuxUserRunner implements Runner {
     return proc;
   }
 
-  attach(session: TmuxSessionRef, mode: TerminalMode): AttachCommand {
+  /** A PTY command (`sudo -n <helper> attach ...`); the bridge spawns it. */
+  attach(session: TmuxSessionRef, mode: TerminalMode): AttachArgv {
     const args = [runnerId(session.userId), checkSessionName(session.name)];
-    return { argv: this.helper.argv("attach", [...args, mode === "watch" ? "ro" : "rw"]) };
+    return {
+      kind: "argv",
+      argv: this.helper.argv("attach", [...args, mode === "watch" ? "ro" : "rw"]),
+    };
   }
 
   async capturePane(session: TmuxSessionRef, lines: number): Promise<string> {
