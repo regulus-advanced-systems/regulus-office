@@ -4,7 +4,10 @@
  * floors and robots, and a small WebSocket client that records frames.
  */
 import {
+  parseScreenFeedMessage,
   parseTerminalServerMessage,
+  type ScreenFeedMessage,
+  screensWsPath,
   type TerminalMode,
   type TerminalServerMessage,
   terminalWsPath,
@@ -24,11 +27,13 @@ import { createRooms } from "../rooms/index.ts";
 import type { Runner } from "../runners/types.ts";
 import { dbFloorVisibility } from "./acl.ts";
 import { TerminalBridge, type TerminalBridgeOptions } from "./bridge.ts";
+import { ScreenFeed, type ScreenFeedOptions } from "./screens.ts";
 import { DbTerminalTargets, RunnerRegistry } from "./targets.ts";
 
 export interface TerminalOfficeOptions {
   runner: Runner;
   bridge?: Partial<TerminalBridgeOptions>;
+  screens?: Partial<ScreenFeedOptions>;
 }
 
 export async function startTerminalOffice(options: TerminalOfficeOptions) {
@@ -66,8 +71,9 @@ export async function startTerminalOffice(options: TerminalOfficeOptions) {
     },
   });
   mountAuthRoutes(server.router, auth);
+  const targets = new DbTerminalTargets(db, new RunnerRegistry().setDefault(options.runner));
   const bridge = new TerminalBridge({
-    targets: new DbTerminalTargets(db, new RunnerRegistry().setDefault(options.runner)),
+    targets,
     sessions,
     canViewFloor: dbFloorVisibility(db),
     // Production policy: only the office's own origin, no localhost wildcard.
@@ -75,7 +81,15 @@ export async function startTerminalOffice(options: TerminalOfficeOptions) {
     logger,
     ...options.bridge,
   });
-  router.use(bridge).use(rooms.transport.attachment);
+  const screens = new ScreenFeed({
+    sources: targets,
+    sessions,
+    canViewFloor: dbFloorVisibility(db),
+    originPolicy: { publicUrl: String(server.url) },
+    logger,
+    ...options.screens,
+  });
+  router.use(bridge).use(screens).use(rooms.transport.attachment);
   await rooms.transport.listen();
 
   let seq = 0;
@@ -147,6 +161,12 @@ export async function startTerminalOffice(options: TerminalOfficeOptions) {
       },
     });
 
+  const subscribeScreens = (floorId: string, cookie: string) =>
+    FeedClient.open(
+      `${String(server.url).replace(/^http/, "ws").replace(/\/$/, "")}${screensWsPath(floorId)}`,
+      { cookie, origin },
+    );
+
   const connect = (agentId: string, mode: TerminalMode, cookie: string, extra = {}) =>
     TermClient.open(wsUrl(agentId, mode), { cookie, origin, ...extra });
 
@@ -155,14 +175,17 @@ export async function startTerminalOffice(options: TerminalOfficeOptions) {
     server,
     origin,
     bridge,
+    screens,
     rooms,
     signUp,
     addFloor,
     addAgent,
     probe,
     connect,
+    subscribeScreens,
     async stop() {
       bridge.shutdown();
+      screens.shutdown();
       await rooms.transport.shutdown();
       await server.stop(true);
       db.$client.close();
@@ -237,6 +260,43 @@ export class TermClient {
     }
   }
 
+  close(): Promise<number> {
+    this.ws.close();
+    return this.closed;
+  }
+}
+
+/** Records laptop screen feed messages (`/ws/screens/<floorId>`). */
+export class FeedClient {
+  readonly messages: ScreenFeedMessage[] = [];
+  readonly closed: Promise<number>;
+  private constructor(readonly ws: WebSocket) {
+    ws.onmessage = (event) => {
+      const message = parseScreenFeedMessage(String(event.data));
+      if (message) this.messages.push(message);
+    };
+    this.closed = new Promise((resolve) => ws.addEventListener("close", (e) => resolve(e.code)));
+  }
+  static open(url: string, headers: Record<string, string>): Promise<FeedClient> {
+    const ws = new WebSocket(url, { headers } as unknown as string[]);
+    const client = new FeedClient(ws);
+    return new Promise((resolve, reject) => {
+      ws.onopen = () => resolve(client);
+      ws.onerror = () => reject(new Error("websocket failed"));
+    });
+  }
+  screens(agentId: string): string[] {
+    return this.messages.flatMap((m) =>
+      m.type === "screen" && m.agentId === agentId ? [m.text] : [],
+    );
+  }
+  async waitFor(check: (c: FeedClient) => boolean, what: string, ms = 3000): Promise<void> {
+    const deadline = Date.now() + ms;
+    while (!check(this)) {
+      if (Date.now() > deadline) throw new Error(`timed out waiting for ${what}`);
+      await Bun.sleep(5);
+    }
+  }
   close(): Promise<number> {
     this.ws.close();
     return this.closed;

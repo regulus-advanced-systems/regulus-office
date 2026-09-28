@@ -11,6 +11,7 @@
  * - agent-events.ts    adapter→server AgentEvent union (zod, discriminated on `kind`)
  * - schema/            @colyseus/schema classes mirroring the state shapes
  * - terminal.ts        terminal WebSocket control messages and constants
+ * - terminal-screens.ts laptop screen feed (plain-text screens per floor)
  */
 export * from "./agent-events.ts";
 export * from "./building-state.ts";
@@ -22,3 +23,4 @@ export * from "./floors-api.ts";
 export * from "./rooms.ts";
 export * from "./schema/index.ts";
 export * from "./terminal.ts";
+export * from "./terminal-screens.ts";

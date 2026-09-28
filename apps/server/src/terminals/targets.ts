@@ -5,7 +5,7 @@
  * can register runners here or replace {@link TerminalTargets} wholesale.
  */
 import { tmuxSessionName } from "@regulus/agent-adapters";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import type { Db } from "../db/index.ts";
 import { agents } from "../db/schema/index.ts";
 import type { Runner, TmuxSessionRef } from "../runners/types.ts";
@@ -26,6 +26,12 @@ export interface TerminalTarget {
 export interface TerminalTargets {
   /** The agent's terminal target, or null when it is unknown or has no runner. */
   resolve(agentId: string): Promise<TerminalTarget | null>;
+}
+
+/** The robots on one floor whose screens can be captured (laptop screen feed). */
+export interface FloorTerminalTargets {
+  /** Live agents on `floorId` that have a runner; exited ones are left out. */
+  listFloor(floorId: string): Promise<TerminalTarget[]>;
 }
 
 /** Which runner backend hosts a given human's runner. */
@@ -57,7 +63,7 @@ export class RunnerRegistry implements RunnerLookup {
 }
 
 /** {@link TerminalTargets} over the `agents` table. */
-export class DbTerminalTargets implements TerminalTargets {
+export class DbTerminalTargets implements TerminalTargets, FloorTerminalTargets {
   constructor(
     private readonly db: Db,
     private readonly runners: RunnerLookup,
@@ -85,5 +91,26 @@ export class DbTerminalTargets implements TerminalTargets {
       session: { userId: row.ownerUserId, name: row.tmuxSession ?? tmuxSessionName(agentId) },
       runner,
     };
+  }
+
+  async listFloor(floorId: string): Promise<TerminalTarget[]> {
+    const rows = this.db
+      .select({ id: agents.id, ownerUserId: agents.ownerUserId, tmuxSession: agents.tmuxSession })
+      .from(agents)
+      .where(and(eq(agents.floorId, floorId), isNull(agents.exitedAt)))
+      .all();
+    const targets: TerminalTarget[] = [];
+    for (const row of rows) {
+      const runner = this.runners.runnerFor(row.ownerUserId);
+      if (!runner || !AGENT_ID_PATTERN.test(row.id)) continue;
+      targets.push({
+        agentId: row.id,
+        ownerUserId: row.ownerUserId,
+        floorId,
+        session: { userId: row.ownerUserId, name: row.tmuxSession ?? tmuxSessionName(row.id) },
+        runner,
+      });
+    }
+    return targets;
   }
 }

@@ -9,10 +9,13 @@
  */
 import {
   TERMINAL_DEFAULT_SIZE,
+  TERMINAL_MAX_PEERS,
   TERMINAL_MODES,
   TERMINAL_SCROLLBACK_LINES,
+  TERMINAL_TYPING_THROTTLE_MS,
   TERMINAL_WS_PREFIX,
   type TerminalMode,
+  type TerminalPeer,
 } from "@regulus/protocol";
 import type { Server, ServerWebSocket, WebSocketHandler } from "bun";
 import { checkOrigin, type OriginPolicy } from "../auth/origin.ts";
@@ -44,12 +47,16 @@ export interface TerminalBridgeOptions {
   size?: TtySize;
   scrollbackLines?: number;
   maxBufferedBytes?: number;
+  /** Clock for the typing throttle (tests). */
+  now?: () => number;
 }
 
 interface TermSocketData {
   target: TerminalTarget;
   mode: TerminalMode;
   userId: string;
+  name: string;
+  lastTypingAt?: number;
   viewer?: TerminalViewer;
   releaseScrollback?: () => void;
 }
@@ -125,7 +132,8 @@ export class TerminalBridge implements WsRoute {
     }
     if (!exists) return reject(404, "session_not_found");
 
-    const data: TermSocketData = { target, mode, userId: user.id };
+    const name = (user.displayName ?? user.id).slice(0, 64);
+    const data: TermSocketData = { target, mode, userId: user.id, name };
     if (!server.upgrade(request, { data })) return reject(400, "upgrade_failed");
     log.info({ agentId, userId: user.id, mode }, "terminal attached");
     return UPGRADED;
@@ -149,6 +157,7 @@ export class TerminalBridge implements WsRoute {
       scrollbackLines: this.#opts.scrollbackLines ?? TERMINAL_SCROLLBACK_LINES,
       maxBufferedBytes: this.#opts.maxBufferedBytes ?? 4 * 1024 * 1024,
       logger: this.#logger,
+      onInput: () => this.#typing(ws),
     });
     ws.data.viewer = viewer;
     ws.data.releaseScrollback = this.#opts.scrollback?.track(target);
@@ -164,6 +173,7 @@ export class TerminalBridge implements WsRoute {
       cols: size.cols,
       rows: size.rows,
       viewers: sockets.size,
+      peers: this.#peers(sockets),
     });
     this.#announce(target.agentId, ws);
     void viewer.start();
@@ -183,8 +193,28 @@ export class TerminalBridge implements WsRoute {
   #announce(agentId: string, except?: ServerWebSocket<TermSocketData>): void {
     const sockets = this.#viewers.get(agentId);
     if (!sockets) return;
+    const peers = this.#peers(sockets);
     for (const ws of sockets) {
-      if (ws !== except) ws.data.viewer?.sendControl({ type: "viewers", viewers: sockets.size });
+      if (ws !== except)
+        ws.data.viewer?.sendControl({ type: "viewers", viewers: sockets.size, peers });
     }
+  }
+
+  #peers(sockets: Set<ServerWebSocket<TermSocketData>>): TerminalPeer[] {
+    return [...sockets]
+      .slice(0, TERMINAL_MAX_PEERS)
+      .map((ws) => ({ userId: ws.data.userId, name: ws.data.name, mode: ws.data.mode }));
+  }
+
+  /** A control viewer typed: tell the others who (never what), at most once a second. */
+  #typing(from: ServerWebSocket<TermSocketData>): void {
+    const now = (this.#opts.now ?? Date.now)();
+    const last = from.data.lastTypingAt;
+    if (last !== undefined && now - last < TERMINAL_TYPING_THROTTLE_MS) return;
+    from.data.lastTypingAt = now;
+    const sockets = this.#viewers.get(from.data.target.agentId);
+    if (!sockets) return;
+    const message = { type: "typing", userId: from.data.userId, name: from.data.name } as const;
+    for (const ws of sockets) if (ws !== from) ws.data.viewer?.sendControl(message);
   }
 }

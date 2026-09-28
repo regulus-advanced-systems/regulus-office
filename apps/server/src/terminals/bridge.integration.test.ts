@@ -108,6 +108,32 @@ describe.skipIf(!hasTmux() || !hasBunPty())("terminal bridge (tmux + Bun PTY)", 
     await rm(workdir, { recursive: true, force: true });
   });
 
+  test("screen feed: the laptop picture follows the real pane, typing is announced", async () => {
+    const feed = await office.subscribeScreens("f1", member.cookie);
+    await feed.waitFor(
+      (f) => f.screens("a1").some((t) => t.includes("before-anyone-watched")),
+      "a1 screen",
+    );
+    expect(feed.messages.some((m) => m.agentId === "a2")).toBe(false);
+    const watcher = await connect("a1", "watch", member);
+    const driver = await connect("a1", "control", robotOwner);
+    await driver.waitFor((c) => c.output.includes("FAKE AGENT"), "driver attached");
+    driver.type("shown-on-laptop\r");
+    await watcher.waitFor((c) => c.controls.some((m) => m.type === "typing"), "typing notice");
+    expect(watcher.controls.find((m) => m.type === "typing")).toEqual({
+      type: "typing",
+      userId: robotOwner.id,
+      name: "Rita",
+    });
+    await feed.waitFor(
+      (f) => f.screens("a1").some((t) => t.includes("you said: shown-on-laptop")),
+      "screen update",
+    );
+    await driver.close();
+    await watcher.close();
+    await feed.close();
+  });
+
   describe("ACL matrix (D12) on the wire", () => {
     const cases: [string, () => User, TerminalMode, number][] = [
       ["office owner", () => owner, "watch", 101],
@@ -157,7 +183,14 @@ describe.skipIf(!hasTmux() || !hasBunPty())("terminal bridge (tmux + Bun PTY)", 
   test("hello, then scrollback, then live bytes", async () => {
     const client = await connect("a1", "watch", member);
     await client.waitFor((c) => c.output.includes("before-anyone-watched"), "scrollback");
-    expect(client.hello).toEqual({ type: "hello", mode: "watch", cols: 160, rows: 45, viewers: 1 });
+    expect(client.hello).toEqual({
+      type: "hello",
+      mode: "watch",
+      cols: 160,
+      rows: 45,
+      viewers: 1,
+      peers: [{ userId: member.id, name: "Mo", mode: "watch" }],
+    });
     const second = client.frames[1];
     expect(second && "bytes" in second).toBe(true);
     const scrollback = new TextDecoder().decode((second as { bytes: Uint8Array }).bytes);

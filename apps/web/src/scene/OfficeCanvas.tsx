@@ -33,6 +33,7 @@ import { createPlayerBinding } from "./fpv/playerBinding.ts";
 import { Furniture } from "./furniture/Furniture.tsx";
 import { WallAnchors } from "./furniture/WallAnchors.tsx";
 import { useDocumentHidden } from "./hooks/useDocumentHidden.ts";
+import { LaptopLayer } from "./laptops/LaptopLayer.tsx";
 import { Lighting } from "./lights/Lighting.tsx";
 import { StatsOverlay } from "./perf/StatsOverlay.tsx";
 import { statsEnabled } from "./perf/stats.ts";
@@ -89,7 +90,15 @@ export function OfficeCanvas({
   const spawned = usePlayerStore((s) => s.spawned);
 
   return (
-    <div style={{ position: "absolute", inset: 0, background: vignetteBackground() }}>
+    <div
+      // Own stacking context: drei <Html> z-indices (live laptop screens) stay under the HUD.
+      style={{
+        position: "absolute",
+        inset: 0,
+        isolation: "isolate",
+        background: vignetteBackground(),
+      }}
+    >
       <Canvas
         orthographic
         flat
@@ -120,6 +129,7 @@ export function OfficeCanvas({
           <Furniture template={template} palette={palette} />
           <WallAnchors template={template} palette={palette} />
           <BlobShadows template={template} />
+          <LaptopLayer template={template} />
         </Suspense>
         <group name="avatars">{avatars}</group>
         {children}

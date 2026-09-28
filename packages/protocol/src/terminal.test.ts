@@ -3,6 +3,7 @@ import {
   parseTerminalClientMessage,
   parseTerminalServerMessage,
   TERMINAL_DEFAULT_SIZE,
+  TERMINAL_MAX_PEERS,
   TERMINAL_SIZE_LIMITS,
   terminalWsPath,
 } from "./terminal.ts";
@@ -46,6 +47,25 @@ describe("terminal wire protocol", () => {
       parseTerminalServerMessage(
         '{"type":"hello","mode":"admin","cols":160,"rows":45,"viewers":1}',
       ),
+    ).toBeNull();
+  });
+
+  test("peers and typing parse; typing never carries input", () => {
+    const peers = [{ userId: "u1", name: "Ada", mode: "control" }];
+    const viewers = { type: "viewers", viewers: 1, peers };
+    expect(parseTerminalServerMessage(JSON.stringify(viewers))).toEqual(viewers as never);
+    const typing = { type: "typing", userId: "u1", name: "Ada" };
+    expect(parseTerminalServerMessage(JSON.stringify(typing))).toEqual(typing as never);
+    expect(
+      parseTerminalServerMessage('{"type":"viewers","viewers":1,"peers":[{"userId":"u"}]}'),
+    ).toBeNull();
+    const tooMany = Array.from({ length: TERMINAL_MAX_PEERS + 1 }, (_, i) => ({
+      userId: `u${i}`,
+      name: "x",
+      mode: "watch",
+    }));
+    expect(
+      parseTerminalServerMessage(JSON.stringify({ type: "viewers", viewers: 40, peers: tooMany })),
     ).toBeNull();
   });
 });

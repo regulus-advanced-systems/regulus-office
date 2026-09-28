@@ -17,6 +17,8 @@ import { floorAccessFor, isOfficeManager } from "../floors/access.ts";
 export interface TerminalUser {
   id: string;
   role: UserRole;
+  /** Shown to the other viewers (faces, "X is typing"); the id is used when absent. */
+  displayName?: string;
 }
 
 /** Whether `user` may see floor `floorId` at all. */

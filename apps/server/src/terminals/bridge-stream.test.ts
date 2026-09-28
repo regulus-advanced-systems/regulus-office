@@ -101,6 +101,7 @@ describe("terminal bridge over a backend TTY stream", () => {
       cols: 160,
       rows: 45,
       viewers: 1,
+      peers: [{ userId: owner.id, name: "Owner", mode: "control" }],
     });
     expect(client.output).toBe("earlier line 1\r\nearlier line 2\r\nlive bytes");
 
@@ -132,9 +133,47 @@ describe("terminal bridge over a backend TTY stream", () => {
     await client.close();
   });
 
+  test("peers and typing: others learn who types (throttled), never what", async () => {
+    const before = ttys.length;
+    const watcher = await office.connect("s1", "watch", owner.cookie);
+    await waitForTty(before + 1);
+    const driver = await office.connect("s1", "control", owner.cookie);
+    const tty = await waitForTty(before + 2);
+    await watcher.waitFor(
+      (c) => c.controls.some((m) => m.type === "viewers" && m.peers?.length === 2),
+      "viewers with peers",
+    );
+    const viewers = watcher.controls.findLast((m) => m.type === "viewers");
+    expect(viewers).toMatchObject({
+      viewers: 2,
+      peers: [
+        { userId: owner.id, mode: "watch" },
+        { userId: owner.id, mode: "control" },
+      ],
+    });
+
+    driver.type("a");
+    driver.type("b");
+    driver.type("c");
+    await watcher.waitFor((c) => c.controls.some((m) => m.type === "typing"), "typing notice");
+    await Bun.sleep(50);
+    const typing = watcher.controls.filter((m) => m.type === "typing");
+    expect(typing).toEqual([{ type: "typing", userId: owner.id, name: "Owner" }]);
+    expect(JSON.stringify(watcher.controls)).not.toContain("abc");
+    expect(driver.controls.some((m) => m.type === "typing")).toBe(false);
+    expect(tty.writes.join("")).toBe("abc");
+
+    watcher.type("x");
+    await Bun.sleep(50);
+    expect(driver.controls.some((m) => m.type === "typing")).toBe(false);
+    await driver.close();
+    await watcher.close();
+  });
+
   test("the stream ending closes the socket with sessionEnded", async () => {
+    const before = ttys.length;
     const client = await office.connect("s1", "watch", owner.cookie);
-    const tty = await waitForTty(3);
+    const tty = await waitForTty(before + 1);
     tty.end();
     expect(await client.closed).toBe(TERMINAL_CLOSE_CODES.sessionEnded);
     expect(office.bridge.viewerCount("s1")).toBe(0);
