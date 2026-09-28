@@ -29,6 +29,13 @@
       "when": 1790626950086,
       "tag": "0003_floor_repo_clone_state",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1790633188475,
+      "tag": "0004_agent_hook_token",
+      "breakpoints": true
     }
   ]
 }

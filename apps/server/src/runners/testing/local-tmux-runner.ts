@@ -60,6 +60,16 @@ export class LocalTmuxRunner implements Runner {
     return new LocalTmuxRunner(await mkdtemp(join(tmpdir(), "rgo-tmux-")));
   }
 
+  /**
+   * Over a fixed directory instead of a fresh temp dir, so the tmux server
+   * (and its agents) survive office restarts. Backs the dev-only `local`
+   * runner backend (OFFICE_RUNNER_BACKEND=local, never in production).
+   */
+  static async open(dir: string): Promise<LocalTmuxRunner> {
+    await mkdir(dir, { recursive: true, mode: 0o700 });
+    return new LocalTmuxRunner(dir);
+  }
+
   async dispose(): Promise<void> {
     await this.#tmux(["kill-server"]);
     await rm(this.dir, { recursive: true, force: true });

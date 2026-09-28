@@ -4,9 +4,9 @@
  * attach agents and the rest to the same process.
  */
 import { mkdir } from "node:fs/promises";
-import { ClaudeCodeAdapter } from "@regulus/agent-adapters";
 import { sql } from "drizzle-orm";
-import { denyAllAgentTokens, mountClaudeHookRoutes } from "./agents/hooks/index.ts";
+import { createAgents } from "./agents/manager/boot.ts";
+import { createRunner } from "./agents/manager/runner-backend.ts";
 import {
   AuthConfigError,
   createAuth,
@@ -110,8 +110,7 @@ async function main(): Promise<void> {
     publicUrl: config.publicUrl,
     production,
   });
-  // Terminal bridge (#24). Runners are registered by the AgentManager (#26);
-  // until then every terminal lookup misses and connections get 404.
+  // Terminal bridge (#24). The AgentManager registers its runner below.
   const terminals = createTerminals({
     db,
     sessions: auth,
@@ -126,14 +125,6 @@ async function main(): Promise<void> {
     attach: new WsRouter().use(terminals.bridge).use(rooms.transport.attachment),
   });
   mountAuthRoutes(server.router, auth);
-  // Claude Code hooks + statusline (#27). Until the AgentManager (#26) issues
-  // per-agent tokens and provides the real sink, every hook is rejected.
-  mountClaudeHookRoutes(server.router, {
-    sink: { publish: () => {} },
-    tokens: denyAllAgentTokens,
-    adapter: new ClaudeCodeAdapter(),
-    logger,
-  });
 
   let keyring: MasterKeyring | undefined;
   if (config.masterKey) {
@@ -156,10 +147,25 @@ async function main(): Promise<void> {
   mountFloorRoutes(server.router, { auth, floors: floors.service });
   logger.info({ projectsDir: config.projectsDir }, "floor repos clone here");
   // Per-agent worktrees + one-click PR (#31). The AgentManager (#26) takes
-  // `worktrees.workspaces` and passes its runner for mountProject; #33 wires
+  // `worktrees.workspaces`, the runner does mountProject; #33 wires
   // `agent.pr` to `worktrees.openPullRequest`.
-  const worktrees = createWorktrees({ db, logger, config, repos: floors.repos });
+  // Runner backend from OFFICE_RUNNER_BACKEND (SPEC §8): agents run only in their human's runner.
+  const runner = await createRunner(config, production);
+  logger.info({ backend: config.runnerBackend }, "agent runner backend selected");
+  const worktrees = createWorktrees({ db, logger, config, repos: floors.repos, runner });
   mountWorktreeRoutes(server.router, { auth, db, prune: worktrees.prune });
+  // Agents (#26): the manager, its FloorRoom/terminal registration, Claude hook routes (#27).
+  const agents = await createAgents({
+    db,
+    config,
+    logger,
+    rooms,
+    terminals,
+    router: server.router,
+    keyring,
+    runner,
+    workspaces: worktrees.workspaces,
+  });
   server.health.register("db", () => {
     db.run(sql`select 1`);
     return true;
@@ -168,9 +174,12 @@ async function main(): Promise<void> {
     await server.stop(false);
   });
   await rooms.transport.listen();
+  agents.adopt().catch((err) => logger.error({ err }, "re-adopting agents failed"));
   floors.cloner.resumePending().catch((err) => logger.error({ err }, "resuming clones failed"));
   shutdown.register("rooms", () => rooms.transport.shutdown());
   shutdown.register("terminals", () => terminals.shutdown());
+  // Detach only: agents keep running in their runners' tmux (SPEC §11).
+  shutdown.register("agents", () => agents.close());
   installSignalHandlers(shutdown, (code) => {
     logger.flush();
     process.exit(code);

@@ -1,0 +1,228 @@
+/**
+ * AgentManager (issue #26; SPEC §5, §7, §8, §11): owns the agent lifecycle.
+ *
+ * spawn → starting → idle / working / waiting_* → done / error / exited, with
+ * guarded transitions (state-machine.ts); persistence of `agents` and
+ * `agent_events`; RobotState in the FloorRoom and floor counters in the
+ * BuildingRoom; re-adoption of live tmux sessions on boot (adopt.ts).
+ *
+ * It is also the `AgentEventSink` every event source publishes into: the
+ * structured channels it pumps, the Claude hook routes, and the heuristic
+ * rungs of the status ladder (ladder.ts).
+ *
+ * Credentials (SPEC §8): keys are decrypted by `CredentialResolver.resolve`
+ * right before `buildSpawn`, live only in that SpawnPlan's `SecretEnv`, and
+ * are never written to a row, an event or a log. Agents run only in their
+ * owner's runner: every runner call is bound to `ownerUserId`.
+ */
+import type { AgentControl } from "@regulus/agent-adapters";
+import type { PermissionDecision } from "@regulus/protocol";
+import { eq } from "drizzle-orm";
+import { AUDIT_ACTIONS } from "../../auth/audit.ts";
+import { floorRepos } from "../../db/schema/index.ts";
+import { type FloorActor, isOfficeManager } from "../../floors/access.ts";
+import type { Workspaces } from "../../worktrees/types.ts";
+import { adoptAll } from "./adopt.ts";
+import { AgentManagerError } from "./errors.ts";
+import { closeQuietly } from "./launch.ts";
+import { setStatus } from "./robot.ts";
+import {
+  type AgentManagerOptions,
+  AgentRuntime,
+  asManagerError,
+  type LiveAgent,
+} from "./runtime.ts";
+import { admitSpawn, type SpawnInput } from "./spawn.ts";
+import { startAgent } from "./start.ts";
+import { isLive, RESUMABLE_STATUSES } from "./state-machine.ts";
+import { RepoWorkspaces, taskSlug } from "./workspaces.ts";
+
+export type {
+  AgentManagerOptions,
+  LiveAgent,
+  RobotPublisher,
+  ScrollbackTracker,
+} from "./runtime.ts";
+export type { SpawnInput } from "./spawn.ts";
+
+export class AgentManager extends AgentRuntime {
+  readonly #repoWorkspaces: RepoWorkspaces;
+
+  constructor(opts: AgentManagerOptions) {
+    super(opts);
+    this.#repoWorkspaces = new RepoWorkspaces(opts.db);
+  }
+
+  // ---- Spawn ---------------------------------------------------------------
+
+  async spawn(actor: FloorActor, input: SpawnInput): Promise<{ agentId: string; seatId: string }> {
+    const admitted = admitSpawn(
+      {
+        db: this.opts.db,
+        store: this.store,
+        adapters: this.adapters,
+        credentials: this.credentials,
+      },
+      actor,
+      input,
+      this.now(),
+    );
+    const { agentId, seatId } = admitted;
+    const live = this.trackRow(this.row(agentId));
+    this.publishLive(live);
+    this.countersChanged();
+    try {
+      const workspaces = input.autoWorktree ? this.#workspaces() : this.#repoWorkspaces;
+      const workspace = await workspaces.prepare({
+        agentId,
+        floorId: input.floorId,
+        repoId: input.repoId,
+        slug: taskSlug({ taskTitle: admitted.taskTitle, issueNumber: input.issueNumber }),
+        ownerUserId: actor.id,
+      });
+      this.store.update(agentId, { workdir: workspace.workdir, worktreeBranch: workspace.branch });
+      live.view.worktreeBranch = workspace.branch;
+      await this.#launch(live, { prompt: input.prompt, repoWorkdir: admitted.repoWorkdir });
+    } catch (err) {
+      this.failed(live, err);
+      throw asManagerError(err, "the agent could not be started");
+    }
+    return { agentId, seatId };
+  }
+
+  async #launch(
+    live: LiveAgent,
+    opts: { prompt?: string; resumeSessionId?: string; repoWorkdir: string },
+  ): Promise<void> {
+    const row = this.row(live.view.agentId);
+    const started = await startAgent(this, row, live.profile, opts);
+    live.ctx = started.ctx;
+    this.store.update(row.id, {
+      workdir: started.workdir,
+      tmuxSession: started.tmuxSession,
+      providerSessionId: started.providerSessionId ?? null,
+    });
+    const structured = this.adapters.get(row.provider).capabilities.structured;
+    this.attach(live, started.control, !structured);
+    if (opts.prompt && live.profile.firstPrompt === "control") {
+      await started.control.prompt(opts.prompt);
+    }
+    this.syncSessionId(live);
+  }
+  // ---- Controls for #33 ----------------------------------------------------
+
+  async prompt(actor: FloorActor, agentId: string, text: string): Promise<void> {
+    await this.#controlFor(actor, agentId).prompt(text);
+  }
+
+  async respondPermission(
+    actor: FloorActor,
+    agentId: string,
+    requestId: string,
+    decision: PermissionDecision,
+  ): Promise<void> {
+    await this.#controlFor(actor, agentId).respondPermission(requestId, decision);
+    this.store.audit(actor.id, AUDIT_ACTIONS.agentApprove, agentId, { requestId, decision });
+  }
+
+  async interrupt(actor: FloorActor, agentId: string): Promise<void> {
+    await this.#controlFor(actor, agentId).interrupt();
+  }
+
+  /** Stop the process (kill its session and processes). The robot stays at its desk. */
+  async stop(actor: FloorActor, agentId: string): Promise<void> {
+    const live = this.#authorize(actor, agentId);
+    await this.#halt(live, "stopped");
+    this.store.audit(actor.id, AUDIT_ACTIONS.agentStop, agentId);
+  }
+
+  async #halt(live: LiveAgent, reason: string): Promise<void> {
+    const { agentId, ownerUserId } = live.view;
+    await closeQuietly(live.control);
+    await this.runner.kill({ userId: ownerUserId, agentId });
+    this.tokens.revoke(agentId);
+    this.publish(agentId, { kind: "exit", ts: this.now(), reason });
+  }
+
+  /** Restart an exited / offline / failed agent, resuming its provider session when possible. */
+  async resume(actor: FloorActor, agentId: string): Promise<void> {
+    const live = this.#authorize(actor, agentId);
+    if (!RESUMABLE_STATUSES.includes(live.view.status)) {
+      throw new AgentManagerError("conflict", "the agent is still running");
+    }
+    await this.#halt(live, "restarting");
+    await this.relaunch(live);
+    this.store.audit(actor.id, AUDIT_ACTIONS.agentResume, agentId);
+  }
+
+  /** Back to `starting` and launch again with the stored provider session (adopt.ts too). */
+  async relaunch(live: LiveAgent): Promise<void> {
+    const row = this.row(live.view.agentId);
+    const adapter = this.adapters.get(row.provider);
+    if (setStatus(live.view, "starting", this.now())) {
+      this.store.setStatus(row.id, "starting", this.now());
+      this.publishLive(live);
+      this.countersChanged();
+    }
+    const repo = this.opts.db
+      .select({ workdir: floorRepos.workdir })
+      .from(floorRepos)
+      .where(eq(floorRepos.id, row.repoId))
+      .get();
+    try {
+      await this.#launch(live, {
+        resumeSessionId: adapter.capabilities.resume
+          ? (row.providerSessionId ?? undefined)
+          : undefined,
+        repoWorkdir: repo?.workdir ?? row.workdir,
+      });
+    } catch (err) {
+      this.failed(live, err);
+      throw asManagerError(err, "the agent could not be restarted");
+    }
+  }
+
+  /** Stop if needed, release the workspace, free the desk and remove the robot. */
+  async sendHome(actor: FloorActor, agentId: string, opts: { keepBranch: boolean }): Promise<void> {
+    const live = this.#authorize(actor, agentId);
+    if (live.view.status !== "exited") await this.#halt(live, "sent home");
+    this.processGone(live);
+    await this.#workspaces().release({ agentId, keepBranch: opts.keepBranch });
+    this.store.freeDesk(agentId);
+    this.tokens.revoke(agentId);
+    const adapter = this.adapters.find(live.view.provider) as { forget?(id: string): void };
+    adapter?.forget?.(agentId);
+    this.agents.delete(agentId);
+    this.opts.robots.removeRobot(live.view.floorId, agentId);
+    this.countersChanged();
+    this.store.audit(actor.id, AUDIT_ACTIONS.agentSendHome, agentId, {
+      keepBranch: opts.keepBranch,
+    });
+  }
+  /** Re-publish seated robots and re-adopt live sessions (boot). */
+  async adopt(): Promise<void> {
+    this.store.sweep();
+    await adoptAll(this);
+    this.countersChanged();
+  }
+  #authorize(actor: FloorActor, agentId: string): LiveAgent {
+    const live = this.agents.get(agentId);
+    if (!live) throw new AgentManagerError("not_found", "no such agent");
+    if (live.view.ownerUserId !== actor.id && !isOfficeManager(actor.role)) {
+      throw new AgentManagerError("forbidden", "only the robot's owner or an admin may control it");
+    }
+    return live;
+  }
+
+  #controlFor(actor: FloorActor, agentId: string): AgentControl {
+    const live = this.#authorize(actor, agentId);
+    if (!live.control || !isLive(live.view.status)) {
+      throw new AgentManagerError("conflict", "the agent is not running");
+    }
+    return live.control;
+  }
+
+  #workspaces(): Workspaces {
+    return this.opts.workspaces ?? this.#repoWorkspaces;
+  }
+}
