@@ -31,6 +31,7 @@ function isDenied(err: unknown): boolean {
 }
 
 export type RejectionListener = (notice: CommandRejected) => void;
+export type MessageListener = (payload: unknown) => void;
 
 export type Scheduler = (fn: () => void, delayMs: number) => () => void;
 
@@ -73,6 +74,9 @@ export class OfficeClient {
   private buildingSubs: Unsubscribe[] = [];
   private floorSubs: Unsubscribe[] = [];
   private readonly rejectionListeners = new Set<RejectionListener>();
+  /** FloorRoom message listeners by type; they survive floor changes and re-joins. */
+  private readonly floorListeners = new Map<string, Set<MessageListener>>();
+  private floorMessageSubs = new Map<string, Unsubscribe>();
   private readonly emitRejected: RejectionListener = (notice) => {
     for (const listener of this.rejectionListeners) listener(notice);
   };
@@ -175,6 +179,33 @@ export class OfficeClient {
     return () => this.rejectionListeners.delete(listener);
   }
 
+  /**
+   * Listen for a server→client FloorRoom message (e.g. `agent.permissions`)
+   * on whichever floor we are on now or later. Payloads are unvalidated.
+   */
+  onFloorMessage(type: string, listener: MessageListener): Unsubscribe {
+    let set = this.floorListeners.get(type);
+    if (!set) {
+      set = new Set();
+      this.floorListeners.set(type, set);
+    }
+    set.add(listener);
+    if (this.floor) this.subscribeFloorMessage(this.floor, type);
+    return () => {
+      set.delete(listener);
+    };
+  }
+
+  private subscribeFloorMessage(handle: RoomHandle<FloorState>, type: string) {
+    if (this.floorMessageSubs.has(type)) return;
+    this.floorMessageSubs.set(
+      type,
+      handle.onMessage(type, (payload) => {
+        for (const listener of this.floorListeners.get(type) ?? []) listener(payload);
+      }),
+    );
+  }
+
   private bindBuilding(handle: RoomHandle<BuildingState>) {
     this.building = handle;
     this.attempt = 0;
@@ -254,6 +285,7 @@ export class OfficeClient {
       handle.onLeave((code, reason) => this.onFloorLeft(floorId, code, reason)),
       handle.onRejected(this.emitRejected),
     ];
+    for (const type of this.floorListeners.keys()) this.subscribeFloorMessage(handle, type);
   }
 
   private onFloorLeft(floorId: string, code: number, reason?: string) {
@@ -286,6 +318,8 @@ export class OfficeClient {
   private unbindFloor() {
     for (const off of this.floorSubs) off();
     this.floorSubs = [];
+    for (const off of this.floorMessageSubs.values()) off();
+    this.floorMessageSubs.clear();
     this.floor = null;
     this.floorHandleId = null;
   }

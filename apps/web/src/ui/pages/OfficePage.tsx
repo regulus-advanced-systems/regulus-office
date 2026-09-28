@@ -5,6 +5,7 @@ import { AvatarLayer } from "../../scene/avatars/AvatarLayer.tsx";
 import { floorViewFor } from "../../scene/floorView.ts";
 import { MovementController } from "../../scene/movement/MovementController.tsx";
 import { OfficeCanvas } from "../../scene/OfficeCanvas.tsx";
+import { DepartingRobots } from "../../scene/robots/sendHome/DepartingRobots.tsx";
 import { useBuildingStore } from "../../state/building.ts";
 import { useFloorStore } from "../../state/floor.ts";
 import { useFloorsStore } from "../../state/floors.ts";
@@ -49,6 +50,7 @@ export function OfficePage() {
         avatars={<AvatarLayer />}
       >
         <MovementController template={view.template} floorKey={view.key} />
+        <DepartingRobots template={view.template} />
       </OfficeCanvas>
       <Hud />
     </div>

@@ -84,6 +84,7 @@ class FakeRoom<S> implements RoomHandle<S> {
   private dropCbs = new Set<(code: number, reason?: string) => void>();
   private reconnectCbs = new Set<() => void>();
   private rejectedCbs = new Set<(notice: CommandRejected) => void>();
+  private messageCbs = new Map<string, Set<(payload: unknown) => void>>();
 
   constructor(initial: S) {
     this.state = initial;
@@ -114,6 +115,12 @@ class FakeRoom<S> implements RoomHandle<S> {
     this.rejectedCbs.add(cb);
     return () => this.rejectedCbs.delete(cb);
   }
+  onMessage(type: string, cb: (payload: unknown) => void) {
+    const set = this.messageCbs.get(type) ?? new Set();
+    this.messageCbs.set(type, set);
+    set.add(cb);
+    return () => set.delete(cb);
+  }
   send(type: string, payload: unknown) {
     this.sent.push({ type, payload });
   }
@@ -137,6 +144,12 @@ class FakeRoom<S> implements RoomHandle<S> {
   }
   reject(notice: CommandRejected) {
     for (const cb of this.rejectedCbs) cb(notice);
+  }
+  message(type: string, payload: unknown) {
+    for (const cb of this.messageCbs.get(type) ?? []) cb(payload);
+  }
+  listenerCount(type: string) {
+    return this.messageCbs.get(type)?.size ?? 0;
   }
 }
 
@@ -322,6 +335,27 @@ describe("OfficeClient", () => {
     off();
     transport.building.reject({ type: "chat", reason: "again" });
     expect(seen).toHaveLength(2);
+  });
+
+  test("floor messages reach listeners on the current and later floors, once each", async () => {
+    const { transport, client } = setup();
+    const seen: unknown[] = [];
+    const off = client.onFloorMessage("agent.permissions", (p) => seen.push(p));
+    await client.connect();
+    await client.goToFloor("f1");
+    transport.floor.message("agent.permissions", { agentId: "a1", requests: [] });
+    const first = transport.floor;
+    await client.goToFloor("f2");
+    expect(first.listenerCount("agent.permissions")).toBe(0);
+    transport.floor.message("agent.permissions", { agentId: "a2", requests: [] });
+    client.onFloorMessage("agent.permissions", () => undefined);
+    expect(transport.floor.listenerCount("agent.permissions")).toBe(1);
+    off();
+    transport.floor.message("agent.permissions", { agentId: "a3", requests: [] });
+    expect(seen).toEqual([
+      { agentId: "a1", requests: [] },
+      { agentId: "a2", requests: [] },
+    ]);
   });
 
   test("re-joins with exponential backoff when the building room is lost", async () => {

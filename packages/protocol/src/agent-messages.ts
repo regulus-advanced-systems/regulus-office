@@ -54,7 +54,7 @@ export const WorktreeInfo = z.object({
 });
 export type WorktreeInfo = z.infer<typeof WorktreeInfo>;
 
-const ack = (type: string) => z.object({ type: z.literal(type), agentId: Id });
+const ack = <T extends string>(type: T) => z.object({ type: z.literal(type), agentId: Id });
 
 export const AgentCommandResult = z.discriminatedUnion("type", [
   ack("agent.prompt"),

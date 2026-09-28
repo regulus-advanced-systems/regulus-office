@@ -5,6 +5,7 @@
  * between panels.
  */
 import { useUiStore } from "../state/ui.ts";
+import { AgentHost } from "./agent/AgentHost.tsx";
 import { ChatPanel } from "./chat/ChatPanel.tsx";
 import { Button } from "./components/Button.tsx";
 import { GearIcon, QuestionIcon } from "./components/icons.tsx";
@@ -82,6 +83,7 @@ export function Hud() {
         </Button>
       </div>
       <HudDialogs />
+      <AgentHost />
       <Toaster />
     </div>
   );
