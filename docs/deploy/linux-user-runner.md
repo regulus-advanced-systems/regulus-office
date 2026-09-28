@@ -49,8 +49,8 @@ socket path from `provision`'s output.
 
 ```ini
 OFFICE_TMUX_DIR=/run/office/tmux          # per-human tmux sockets
-OFFICE_PROJECTS_ROOT=/srv/office/projects # floor checkouts
-OFFICE_WORKTREES_ROOT=/srv/office/worktrees
+OFFICE_PROJECTS_ROOT=/srv/office/projects # office-only floor mirrors (reclaim only)
+OFFICE_WORKTREES_ROOT=/srv/office/worktrees # humans' clones and worktrees
 OFFICE_SERVER_USER=office                 # gets rw ACLs on project files
 ```
 
@@ -66,6 +66,7 @@ Defaults!OFFICE_RUNNER_HELPER !use_pty
 office ALL=(root) NOPASSWD: /usr/local/lib/office/office-runner-helper provision *
 office ALL=(root) NOPASSWD: /usr/local/lib/office/office-runner-helper deprovision *
 office ALL=(root) NOPASSWD: /usr/local/lib/office/office-runner-helper mount-project *
+office ALL=(root) NOPASSWD: /usr/local/lib/office/office-runner-helper reclaim *
 office ALL=(root) NOPASSWD: /usr/local/lib/office/office-runner-helper exec *
 office ALL=(root) NOPASSWD: /usr/local/lib/office/office-runner-helper spawn-piped *
 office ALL=(root) NOPASSWD: /usr/local/lib/office/office-runner-helper kill *
@@ -91,7 +92,8 @@ greppable and lets an operator drop verbs they do not want.
 | `Defaults!… !use_pty` | `attach` is spawned inside the terminal bridge's PTY and `spawn-piped` speaks JSON over pipes; an extra sudo PTY layer would only relay bytes. The helper still runs with sudo's `env_reset`. |
 | `provision` | `useradd` the account and group, HOME 0700, create the sticky run dir, start the account's tmux server in its own scope with `systemd-run --uid --gid --scope`. Root: account creation and cross-uid scopes. |
 | `deprovision` | Kill every process of the account, stop its tmux scope, `userdel --remove`. Root. |
-| `mount-project` | `setfacl` on a floor checkout or agent worktree (must be a canonical path under the configured roots) so the human's group and the office user can read and write it. Root: files in a checkout may belong to other humans' accounts. |
+| `mount-project` | `mount-project <rid> <dir>`: `setfacl` on the human's own clone or agent worktree so their group and the office user can read and write it. `<dir>` must be canonical and inside `<worktrees>/<floor>/<rid>`, that human's own area (#114); mirrors, floor dirs and other humans' areas are refused before anything runs. It also removes "other" access from the area. Root: files in a checkout may belong to the human's account. |
+| `reclaim` | `reclaim <dir>`: upgrade from the shared layout before #114. `<dir>` is the projects root (floor mirrors) or a per-agent worktree directly in a floor dir, `<worktrees>/<floor>/<agent>`. Everything in it becomes the office user's again (`chown -R -P -h`), every extended ACL entry is removed (`setfacl -R -P -b`), and "other" loses access to the top dir. Root: those files belong to runner accounts. |
 | `exec` | Start `agent-<agentId>` on the human's tmux server as the human and move the pane into its own `agent-<agentId>.scope`. Root: acting as another uid, creating a system scope. |
 | `spawn-piped` | `systemd-run --uid --gid --scope` a stdio process (e.g. `codex app-server`) as the human. Root: same. |
 | `kill` | Kill the session and `systemctl kill` every `agent-<agentId>*` scope (only if all its processes are the human's). Root: the processes belong to another uid. |
@@ -142,14 +144,47 @@ marker, uid 0, and IDs outside `^[a-z0-9]{1,23}$` (runner), `^[A-Za-z0-9_-]{1,64
   `cgroup.procs` and `/proc/<pid>/stat` directly (no sudo). `listPorts` asks
   the helper for `<pid> <socket inode>` pairs and matches them against LISTEN
   rows of `/proc/net/tcp{,6}`.
-- **Project workdirs: ACLs, not group membership.** `mount-project` grants
+- **Project workdirs: one area per human per floor (#114).** Humans on a
+  floor never share a git directory, because hooks and config in a shared
+  `.git` would run in every other human's runner. The layout is:
+
+  | Path | Who can reach it |
+  |---|---|
+  | `<projects>/<floor>/<repo>` | the office only: the floor mirror, fetched with the floor credential |
+  | `<worktrees>/<floor>/<rid>/` | the office and `office-u-<rid>`: that human's area |
+  | `<worktrees>/<floor>/<rid>/_clones/<repo>` | the human's own clone, copied from the mirror |
+  | `<worktrees>/<floor>/<rid>/<agentId>` | a worktree of that clone for one agent |
+
+  Runners get no ACL at all under the projects root, not even traverse, so a
+  mirror is out of reach whatever its file modes. The office creates each
+  area without "other" permissions, and `mount-project` removes them again.
+- **ACLs, not group membership.** `mount-project` grants
   `g:office-u-<rid>:rwX` plus the same default ACL (so new files inherit it),
   `u:office:rwX` (+ default) for the office's own git work, and `--x` on each
-  ancestor below the projects root. Chosen over a shared per-floor group
-  because supplementary groups only apply to new processes: adding a human to
-  a floor group would not reach their already-running tmux server. ACLs work
-  immediately, need no `usermod`, and are per human. `setfacl -R -P` never
-  follows symlinks inside the checkout.
+  ancestor below the worktrees root. The helper checks that the path is inside
+  `<worktrees>/<floor>/<rid>` for the same `<rid>` it grants, so the office
+  cannot give a runner access to anything else, even by mistake. Chosen over a
+  shared per-floor group because supplementary groups only apply to new
+  processes: adding a human to a floor group would not reach their
+  already-running tmux server. ACLs work immediately, need no `usermod`, and
+  are per human. `setfacl -R -P` never follows symlinks inside the checkout.
+
+## Upgrading from the shared layout (before #114)
+
+Before #114 every human on a floor had ACLs on the floor's one clone and on
+each other's worktrees. Install the new helper and sudoers file (they add the
+`reclaim` verb) before starting the new office. On its first boot the office:
+
+1. stops agents whose workdir is still in the old layout and marks them
+   `offline` ("workspace predates per-human clones"). They cannot be resumed;
+   the office can still show their changes and open their PR, and send-home
+   removes the old worktree. Spawn a new agent to continue the work.
+2. runs `reclaim` on the projects root and on each old per-agent worktree, so
+   no runner account keeps an ACL on or owns a file in the mirrors or those
+   worktrees.
+3. writes `<projects>/.office-layout`, so the reclaim runs once. If `reclaim`
+   fails (an old helper or sudoers file), the office logs an error and tries
+   again on the next boot.
 
 ## Verifying
 
@@ -165,7 +200,5 @@ It is the `linux-user` job in `.github/workflows/ci.yml`.
 
 ## Not covered yet
 
-- Git refuses repositories owned by another user ("dubious ownership"); the
-  worktree/PR work (#31) needs `safe.directory` for runner accounts.
 - Resource limits (CPU/memory) per agent or per human: set them on the scopes
   or a slice later.

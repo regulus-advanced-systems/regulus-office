@@ -50,7 +50,7 @@ function plan(runner: LinuxUserRunner, agentId = "a1"): SpawnPlan {
     {
       agentId,
       provider: "custom",
-      workdir: "/srv/office/projects/f1/r1",
+      workdir: "/srv/office/worktrees/f1/u1/_clones/r1",
       credential: { kind: "api_key", apiKey: Secret.of(KEY), attributedTo: "user" },
     },
     {
@@ -112,7 +112,7 @@ describe("LinuxUserRunner command construction", () => {
       "exec",
       "u1",
       "a1",
-      "/srv/office/projects/f1/r1",
+      "/srv/office/worktrees/f1/u1/_clones/r1",
       "--",
       "sh",
       "/opt/fake-agent.sh",
@@ -218,15 +218,17 @@ describe("LinuxUserRunner command construction", () => {
     await runner.mountProject(user, {
       floorId: "f1",
       repoId: "r1",
-      workdir: "/srv/office/projects/f1/r1",
+      workdir: "/srv/office/worktrees/f1/u1/_clones/r1",
     });
+    await runner.reclaim("/srv/office/projects");
     expect(calls.map((c) => c.argv.slice(3))).toEqual([
       ["read-file", "u1", "/x"],
       ["read-file", "u1", "/missing"],
       ["list-dir", "u1", "/d"],
       ["sockets", "u1", "a1"],
       ["kill", "u1", "a1"],
-      ["mount-project", "u1", "/srv/office/projects/f1/r1"],
+      ["mount-project", "u1", "/srv/office/worktrees/f1/u1/_clones/r1"],
+      ["reclaim", "/srv/office/projects"],
     ]);
   });
 });

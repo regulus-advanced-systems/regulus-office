@@ -100,8 +100,8 @@ describe("FloorService", () => {
     expect((await stat(join(workdir, "README.md"))).isFile()).toBe(true);
     const gitConfig = await readFile(join(workdir, ".git", "config"), "utf8");
     expect(gitConfig).not.toContain(FAKE_PAT);
-    // Shared with runner uids through the office's group (deploy/office.Dockerfile).
-    expect(gitConfig).toMatch(/sharedRepository = group/i);
+    // An office-only mirror (#114): humans get their own clones, nobody shares this one.
+    expect(gitConfig).not.toMatch(/sharedRepository/i);
 
     const deskSeats = t.db.select().from(desks).where(eq(desks.floorId, floor.floorId)).all();
     const expected = smallTemplate.seats.filter((s) => s.kind === "desk").map((s) => s.id);

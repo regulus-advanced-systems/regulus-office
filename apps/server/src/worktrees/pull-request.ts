@@ -2,10 +2,10 @@
  * One-click PR, the server side of `agent.pr` (SPEC §6; §10 M1).
  *
  * Agents commit their own work, so a dirty worktree is an error that lists
- * the files. Otherwise: fetch, push `office/<slug>` with the floor repo's
- * project credential (never a user's PAT, SPEC §8 / D14), and open the PR via
- * GitHub REST with a drafted title and body (`Closes #n` when the agent works
- * on an issue). An already open PR for the branch is returned as is.
+ * the files. Otherwise: fetch, push `office/<slug>` from the owner's own
+ * clone (#114) with the floor repo's project credential (never a user's PAT,
+ * SPEC §8 / D14), and open the PR via GitHub REST with a drafted title and
+ * body (`Closes #n` when the agent works on an issue). An already open PR for the branch is returned as is.
  */
 import { eq } from "drizzle-orm";
 import { AUDIT_ACTIONS, writeAudit } from "../auth/audit.ts";
@@ -97,10 +97,12 @@ export class PullRequestService {
     const repo = repos.getRepo(row.repoId);
     if (!repo) throw new WorkspaceError("repo_not_found");
     const workdir = row.workdir;
-    const ctx = workspaces.ctx(repo, workdir);
+    // The owner's own clone (#114); the shared mirror for a pre-#114 worktree.
+    const { clone } = workspaces.cloneFor(row);
+    const ctx = workspaces.ctx(clone, workdir);
 
-    const opened = await workspaces.locks.run(repo.repoId, async () => {
-      const dirty = await workspaces.uncommitted(repo, workdir);
+    const opened = await workspaces.locks.run(clone, async () => {
+      const dirty = await workspaces.uncommitted(repo, clone, workdir);
       if (dirty.length > 0) {
         throw new WorkspaceError(
           "uncommitted_changes",
@@ -108,7 +110,7 @@ export class PullRequestService {
           dirty.slice(0, 200),
         );
       }
-      await workspaces.fetch(repo);
+      await workspaces.fetch(repo, clone);
 
       const log = await gitIn(
         ctx,
@@ -118,7 +120,7 @@ export class PullRequestService {
           "--format=%h%x1f%s",
           `origin/${repo.defaultBranch}..refs/heads/${branch}`,
         ],
-        { cwd: repo.workdir },
+        { cwd: clone },
       );
       if (log.code !== 0) {
         throw new WorkspaceError("worktree_failed", summarizeGitError(log.stderr, []));
@@ -148,11 +150,7 @@ export class PullRequestService {
         const push = await gitIn(
           ctx,
           ["push", "--quiet", "--porcelain", "origin", `${ref}:${ref}`],
-          {
-            cwd: repo.workdir,
-            token,
-            tokenScope: repo.remoteUrl,
-          },
+          { cwd: clone, token, tokenScope: repo.remoteUrl },
         );
         if (push.code !== 0) {
           throw new WorkspaceError(

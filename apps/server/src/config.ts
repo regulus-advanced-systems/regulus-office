@@ -192,7 +192,7 @@ export const envSchema = z.object({
     emptyToUndefined,
     z
       .string()
-      .default("/srv/office/projects,/srv/office/worktrees")
+      .default("/srv/office/worktrees")
       .transform((v) => splitList(v))
       .pipe(z.array(absPath()).min(1)),
   ),
@@ -288,7 +288,7 @@ export interface DockerBackendConfig {
   /** CPU limit in cores (Docker NanoCpus / 1e9). */
   cpus: number | undefined;
   pidsLimit: number;
-  /** Floor directories are mounted per `<root>/<floor>` for each root. */
+  /** Roots under which a human's own `<root>/<floor>/<runner id>` dir is mounted (#114). */
   floorRoots: string[];
   /** Office paths that live in named volumes (Compose); mounted with a volume subpath. */
   volumeMap: { path: string; volume: string }[];

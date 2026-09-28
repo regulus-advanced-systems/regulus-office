@@ -1,7 +1,14 @@
 import { describe, expect, test } from "bun:test";
 import { loadConfig } from "../../config.ts";
+import { runnerId } from "../layout.ts";
 import { HijackError, hijack, parseDockerHost } from "./hijack.ts";
-import { floorMountTargets, isCovered, toMountSpec } from "./mounts.ts";
+import {
+  humanMountTarget,
+  isCovered,
+  isOwnArea,
+  MountRefusedError,
+  toMountSpec,
+} from "./mounts.ts";
 import { demuxAll, frame, STDERR, STDOUT } from "./mux.ts";
 import { decodeAddress, parsePortOutput, parseProcessOutput, parseStat } from "./procfs.ts";
 import { FakeEngine } from "./testing/fake-engine.ts";
@@ -62,19 +69,38 @@ describe("procfs", () => {
 });
 
 describe("mounts", () => {
-  const roots = ["/srv/office/projects", "/srv/office/worktrees"];
+  const roots = ["/srv/office/worktrees"];
+  const rid = runnerId("user-a");
+  const other = runnerId("user-b");
 
-  test("a floor repo mounts the whole floor dir under every root", () => {
-    expect(floorMountTargets("/srv/office/projects/f1/repo", roots)).toEqual([
-      "/srv/office/projects/f1",
+  test("a human's clone or worktree mounts that human's area on the floor, nothing wider", () => {
+    const area = `/srv/office/worktrees/f1/${rid}`;
+    expect(humanMountTarget(`${area}/_clones/repo`, roots, "user-a")).toBe(area);
+    expect(humanMountTarget(`${area}/agent-1/`, roots, "user-a")).toBe(area);
+    expect(humanMountTarget(area, roots, "user-a")).toBe(area);
+  });
+
+  test("mirrors, floor dirs and other humans' areas are refused", () => {
+    for (const path of [
+      "/srv/office/projects/f1/repo",
+      "/srv/office/worktrees",
       "/srv/office/worktrees/f1",
-    ]);
-    expect(floorMountTargets("/srv/office/worktrees/f1/a1/", roots)).toEqual([
-      "/srv/office/projects/f1",
-      "/srv/office/worktrees/f1",
-    ]);
-    expect(floorMountTargets("/elsewhere/repo", roots)).toEqual(["/elsewhere/repo"]);
-    expect(() => floorMountTargets("relative/repo", roots)).toThrow(/absolute/);
+      "/srv/office/worktrees/f1/agent-1",
+      `/srv/office/worktrees/f1/${other}/agent-1`,
+      `/srv/office/worktrees/f1/${rid}/../${other}`,
+      "/elsewhere/repo",
+    ]) {
+      expect(() => humanMountTarget(path, roots, "user-a")).toThrow(MountRefusedError);
+    }
+    expect(() => humanMountTarget("relative/repo", roots, "user-a")).toThrow(/absolute/);
+  });
+
+  test("only exact own areas count as mounts a runner may keep", () => {
+    const m = (Target: string) => ({ Type: "bind" as const, Source: Target, Target });
+    expect(isOwnArea(m(`/srv/office/worktrees/f1/${rid}`), roots, "user-a")).toBe(true);
+    expect(isOwnArea(m("/srv/office/worktrees/f1"), roots, "user-a")).toBe(false);
+    expect(isOwnArea(m("/srv/office/projects/f1"), roots, "user-a")).toBe(false);
+    expect(isOwnArea(m(`/srv/office/worktrees/f1/${other}`), roots, "user-a")).toBe(false);
   });
 
   test("coverage by parent mounts, not by prefix", () => {
@@ -146,7 +172,7 @@ describe("docker backend config", () => {
       memoryBytes: undefined,
       cpus: undefined,
       pidsLimit: 4096,
-      floorRoots: ["/srv/office/projects", "/srv/office/worktrees"],
+      floorRoots: ["/srv/office/worktrees"],
       volumeMap: [],
     });
   });

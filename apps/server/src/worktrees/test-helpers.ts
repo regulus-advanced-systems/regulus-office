@@ -6,12 +6,13 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { mkdtemp, readdir, readFile, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { agents } from "../db/schema/index.ts";
 import { createFloors } from "../floors/index.ts";
 import { FAKE_PAT, makeBareRepo, testDb } from "../floors/test-helpers.ts";
 import { type GitRunner, gitBaseEnv, runGit } from "../github/git.ts";
 import { createLogger } from "../logging.ts";
+import { humanAreaDir, humanClonePath } from "../runners/layout.ts";
 import { createWorktrees } from "./index.ts";
 
 export { FAKE_PAT };
@@ -144,7 +145,12 @@ export async function setupFloor(
 
   const addAgent = (
     agentId: string,
-    fields: { taskTitle?: string; issueNumber?: number; taskSummary?: string } = {},
+    fields: {
+      taskTitle?: string;
+      issueNumber?: number;
+      taskSummary?: string;
+      ownerUserId?: string;
+    } = {},
   ) => {
     db.insert(agents)
       .values({
@@ -152,7 +158,7 @@ export async function setupFloor(
         floorId,
         repoId: repo.repoId,
         deskSeatId: `desk-${agentId}`,
-        ownerUserId: owner.id,
+        ownerUserId: fields.ownerUserId ?? owner.id,
         provider: "claude-code",
         model: "test",
         profileId: "office:claude-code",
@@ -165,13 +171,21 @@ export async function setupFloor(
     return agentId;
   };
 
+  /** A human's own clone of the floor repo (#114), and their area on the floor. */
+  const cloneOf = (userId: string = owner.id) =>
+    humanClonePath(worktreesDir, "wt-floor", userId, basename(repo.workdir));
+  const areaOf = (userId: string = owner.id) => humanAreaDir(worktreesDir, "wt-floor", userId);
+
   return {
     db,
     owner,
+    addUser,
     floorId,
     repo,
     bare,
     worktreesDir,
+    cloneOf,
+    areaOf,
     worktrees,
     /** A second service over the same database, as after an office restart. */
     restart: makeWorktrees,

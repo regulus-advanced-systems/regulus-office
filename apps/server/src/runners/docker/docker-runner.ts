@@ -8,8 +8,8 @@
  * Piped processes get it as exec-scoped `Env`, which Docker keeps off the
  * container config and out of `docker inspect`.
  *
- * Mount strategy: see mounts.ts (whole floor dirs, same paths as the office)
- * and `mountProject` (recreate only while the runner is idle).
+ * Mount strategy: see mounts.ts (the human's own area per floor, same paths as
+ * the office) and `mountProject` (recreate only while the runner is idle).
  */
 import { randomUUID } from "node:crypto";
 import { mkdir } from "node:fs/promises";
@@ -37,51 +37,29 @@ import type {
 import { type ContainerSettings, RunnerContainers } from "./containers.ts";
 import { DockerApiError, EngineClient, type ExecOptions, type ExecResult } from "./engine.ts";
 import { openTty, startPiped } from "./interactive.ts";
-import { floorMountTargets, isCovered, toMountSpec, type VolumeMapping } from "./mounts.ts";
+import {
+  DEFAULT_FLOOR_ROOTS,
+  humanMountTarget,
+  isCovered,
+  isOwnArea,
+  type MountSpec,
+  RunnerBusyError,
+  toMountSpec,
+  type VolumeMapping,
+} from "./mounts.ts";
 import { PORT_SCRIPT, PROCESS_SCRIPT, parsePortOutput, parseProcessOutput } from "./procfs.ts";
+import { envFileContents, shellQuote, WRITE_SCRIPT } from "./shell.ts";
 
 export interface DockerRunnerOptions extends ContainerSettings {
   /** Defaults to a client for `DOCKER_HOST` / the local socket. */
   engine?: EngineClient;
-  /** Roots whose `<root>/<floor>` dirs are mounted as a unit (see mounts.ts). */
+  /** Roots whose `<root>/<floor>/<runner id>` dirs are mounted as a unit (see mounts.ts). */
   floorRoots?: readonly string[];
   volumeMap?: readonly VolumeMapping[];
 }
 
-/** `mountProject` needs a new mount but the runner has live work that a recreate would kill. */
-export class RunnerBusyError extends Error {
-  override name = "RunnerBusyError";
-  constructor(
-    readonly userId: string,
-    readonly sessions: readonly string[],
-    readonly missing: readonly string[],
-  ) {
-    super(
-      `runner for ${userId} needs new mounts (${missing.join(", ")}) but is busy ` +
-        `(${sessions.length} tmux sessions, or piped processes); stop its agents first`,
-    );
-  }
-}
-
-/** POSIX single-quote a word for `sh`. */
-export function shellQuote(word: string): string {
-  return `'${word.replaceAll("'", `'\\''`)}'`;
-}
-
-/** `export NAME='value'` lines for an env file the session sources. */
-export function envFileContents(env: Readonly<Record<string, string>>): string {
-  const lines = Object.entries(env).map(([k, v]) => `export ${k}=${shellQuote(v)}`);
-  return `${lines.join("\n")}\n`;
-}
-
-/** `sh -c WRITE_SCRIPT sh <path> <bytes> <octal-mode>`, contents on stdin. */
-const WRITE_SCRIPT = [
-  "umask 077",
-  'mkdir -p -m 700 -- "$(dirname -- "$1")" || exit 1',
-  't="$1.office-tmp-$$"',
-  'if head -c "$2" > "$t" && chmod "$3" "$t" && mv -f -- "$t" "$1"; then exit 0; fi',
-  'rm -f -- "$t"; exit 1',
-].join("\n");
+export { DEFAULT_FLOOR_ROOTS, RunnerBusyError } from "./mounts.ts";
+export { envFileContents, shellQuote } from "./shell.ts";
 
 const target = (s: TmuxSessionRef) => `=${s.name}`;
 const paneTarget = (s: TmuxSessionRef) => `=${s.name}:`;
@@ -106,7 +84,7 @@ export class DockerRunner implements Runner {
     }
     this.engine = opts.engine ?? new EngineClient();
     this.containers = new RunnerContainers(this.engine, opts);
-    this.#floorRoots = opts.floorRoots ?? ["/srv/office/projects", "/srv/office/worktrees"];
+    this.#floorRoots = opts.floorRoots ?? DEFAULT_FLOOR_ROOTS;
     this.#volumeMap = opts.volumeMap ?? [];
   }
 
@@ -138,28 +116,60 @@ export class DockerRunner implements Runner {
    * not seen yet means recreating it. HOME is a named volume and survives; the
    * tmux server and every process do not. So the recreate only happens while the
    * runner is idle (no tmux sessions, no piped processes from this office);
-   * otherwise {@link RunnerBusyError}. Floor-level mounts keep this to once per
-   * floor per human, not once per repo or worktree.
+   * otherwise {@link RunnerBusyError}. The unit is the human's own area on the
+   * floor (mounts.ts), so this happens once per floor per human.
+   *
+   * Mounts that are not one of this human's areas (the whole-floor mounts made
+   * before #114) are dropped by the same recreate; a busy runner that still
+   * has them is refused, because it could see other humans' work.
    */
   async mountProject(user: RunnerUser, repo: FloorRepoRef): Promise<MountedProject> {
     const workdir = posix.normalize(repo.workdir);
-    const targets = floorMountTargets(workdir, this.#floorRoots);
+    const target = humanMountTarget(workdir, this.#floorRoots, user.userId);
     const c = await this.containers.ensure(user.userId);
     this.#ids.set(user.userId, c.id);
-    const missing = targets.filter((t) => !isCovered(t, c.floorMounts));
-    if (missing.length === 0) return { workdir };
+    // Only the human's own areas count: a stale whole-floor mount covers the path but goes.
+    const own = c.floorMounts.filter((m) => isOwnArea(m, this.#floorRoots, user.userId));
+    const missing = isCovered(target, own) ? [] : [target];
+    await this.#remount(user, c.floorMounts, missing, { running: true, strict: true });
+    return { workdir };
+  }
 
-    const sessions = await this.listSessions(user);
+  /**
+   * Drop mounts that are not this human's own areas (pre-#114 floor mounts),
+   * recreating the runner if it is idle. Returns false when stale mounts
+   * remain because the runner is busy (the next `mountProject` refuses it).
+   */
+  async reconcileMounts(user: RunnerUser): Promise<boolean> {
+    const c = await this.containers.lookup(user.userId);
+    if (!c) return true;
+    this.#ids.set(user.userId, c.id);
+    return this.#remount(user, c.floorMounts, [], { running: c.running, strict: false });
+  }
+
+  async #remount(
+    user: RunnerUser,
+    current: readonly MountSpec[],
+    missing: readonly string[],
+    /** `running`: false for a stopped container (nothing runs in it). `strict`: throw when busy. */
+    opts: { running: boolean; strict: boolean },
+  ): Promise<boolean> {
+    const keep = current.filter((m) => isOwnArea(m, this.#floorRoots, user.userId));
+    const stale = current.filter((m) => !keep.includes(m)).map((m) => m.Target);
+    if (missing.length === 0 && stale.length === 0) return true;
+
+    const sessions = opts.running ? await this.listSessions(user) : [];
     if (sessions.length > 0 || (this.#piped.get(user.userId)?.size ?? 0) > 0) {
-      throw new RunnerBusyError(user.userId, sessions, missing);
+      if (!opts.strict) return false;
+      throw new RunnerBusyError(user.userId, sessions, [...missing, ...stale.map((t) => `-${t}`)]);
     }
     // Mount sources must exist; create them as the office sees them (host path
     // for binds, the office's view of the volume for volume subpaths).
     for (const dir of missing) await mkdir(dir, { recursive: true }).catch(() => {});
-    const mounts = [...c.floorMounts, ...missing.map((t) => toMountSpec(t, this.#volumeMap))];
+    const mounts = [...keep, ...missing.map((t) => toMountSpec(t, this.#volumeMap))];
     const next = await this.containers.recreate(user.userId, mounts);
     this.#ids.set(user.userId, next.id);
-    return { workdir };
+    return true;
   }
 
   async exec(user: RunnerUser, plan: SpawnPlan): Promise<TmuxSessionRef> {

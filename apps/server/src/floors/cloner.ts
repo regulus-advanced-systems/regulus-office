@@ -1,5 +1,8 @@
 /**
- * Clones floor repos in the background (SPEC §8): `floor_repos.cloneStatus`
+ * Clones floor repos in the background (SPEC §8) into
+ * `<projects>/<floor>/<repo>`, the floor's office-only mirror (#114): the
+ * office fetches into it with the floor credential and seeds each human's own
+ * clone from it; runners get no access to it. `floor_repos.cloneStatus`
  * goes `cloning` → `ready` (with the default branch recorded) or `error`
  * (with a redacted reason). A clone lands in a temporary sibling directory
  * and is renamed into place, so a half-finished clone never looks ready.
@@ -111,20 +114,11 @@ export class RepoCloner {
           await mkdir(dirname(workdir), { recursive: true });
           const partial = `${workdir}.partial-${randomUUID().slice(0, 8)}`;
           log.info({ workdir }, "cloning floor repo");
-          // Group-shared git dir: runners (another uid in the office's group, SPEC §8) commit
-          // into this repo from their worktrees, whatever their umask.
-          const result = await this.#git(
-            [
-              "clone",
-              "--quiet",
-              "--config",
-              "core.sharedRepository=group",
-              "--",
-              remoteUrl,
-              partial,
-            ],
-            { token },
-          );
+          // An office-only mirror (#114): no runner ever reaches it. Each human gets their
+          // own clone of it (worktrees/clones.ts), so it is not group-shared.
+          const result = await this.#git(["clone", "--quiet", "--", remoteUrl, partial], {
+            token,
+          });
           if (result.code !== 0) {
             await rm(partial, { recursive: true, force: true });
             throw new CloneFailure(summarizeGitError(result.stderr, [token]));

@@ -1,20 +1,21 @@
 /**
- * Which host directories a runner container needs for a floor repo, and how to
- * express them as Engine API mounts.
+ * Which host directory a runner container needs for a workdir, and how to
+ * express it as an Engine API mount.
  *
- * Mount unit: a whole floor directory, not a single repo. For a workdir
- * `<root>/<floor>/<repo>` under one of the configured floor roots (default
- * `/srv/office/projects` and `/srv/office/worktrees`, SPEC §8), the runner gets
- * `<root>/<floor>` for every root, so later repos and per-agent worktrees on
- * the same floor need no new mount (and no container recreate). Paths are the
- * same inside the runner as in the office, so `SpawnPlan.cwd` needs no mapping.
+ * Mount unit: the human's own area on a floor, `<root>/<floor>/<rid>` (see
+ * ../layout.ts), never a whole floor dir. It holds that human's clones and
+ * worktrees, so later repos and worktrees on the same floor need no new mount
+ * (and no container recreate), and nothing of another human or the office's
+ * mirrors is ever visible in the runner (#114). Paths are the same inside the
+ * runner as in the office, so `SpawnPlan.cwd` needs no mapping.
  *
  * Sources: a path under a `volumeMap` entry (the office itself runs in Compose
- * with the projects dir in a named volume) becomes a volume mount with
+ * with the worktrees dir in a named volume) becomes a volume mount with
  * `Subpath`; anything else is a bind mount of the same host path (bare-metal
  * office talking to a local daemon).
  */
-import { isAbsolute, normalize, relative, sep } from "node:path";
+import { isAbsolute, normalize, relative } from "node:path";
+import { humanAreaOf } from "../layout.ts";
 
 export interface VolumeMapping {
   /** Directory as the office sees it, e.g. `/srv/office/projects`. */
@@ -43,15 +44,31 @@ function checkPath(path: string): string {
   return clean === "" ? "/" : clean;
 }
 
-/** Directories to mount so `workdir` (on the given floor) is reachable. */
-export function floorMountTargets(workdir: string, floorRoots: readonly string[]): string[] {
+/** Thrown when a workdir is outside the human's own area (nothing else is ever mounted). */
+export class MountRefusedError extends Error {
+  override name = "MountRefusedError";
+}
+
+/** The human area to mount so `workdir` is reachable; refuses anything else. */
+export function humanMountTarget(
+  workdir: string,
+  roots: readonly string[],
+  userId: string,
+): string {
   const dir = checkPath(workdir);
-  for (const root of floorRoots.map(checkPath)) {
-    if (!inside(dir, root) || dir === root) continue;
-    const floorDir = relative(root, dir).split(sep)[0] ?? "";
-    return [...new Set(floorRoots.map((r) => `${checkPath(r)}/${floorDir}`))];
+  for (const root of roots.map(checkPath)) {
+    const area = humanAreaOf(dir, root, userId);
+    if (area) return area;
   }
-  return [dir];
+  throw new MountRefusedError(
+    `refusing to mount ${dir}: runners only get their own <root>/<floor>/<runner id> dir`,
+  );
+}
+
+/** A mount a runner may keep: exactly one of this human's areas under a root. */
+export function isOwnArea(mount: MountSpec, roots: readonly string[], userId: string): boolean {
+  const target = checkPath(mount.Target);
+  return roots.some((root) => humanAreaOf(target, checkPath(root), userId) === target);
 }
 
 /** True when some existing mount's target is `target` or one of its parents. */
@@ -74,3 +91,21 @@ export function toMountSpec(target: string, volumeMap: readonly VolumeMapping[])
   }
   return { Type: "bind", Source: dir, Target: dir };
 }
+
+/** `mountProject` needs a new mount but the runner has live work that a recreate would kill. */
+export class RunnerBusyError extends Error {
+  override name = "RunnerBusyError";
+  constructor(
+    readonly userId: string,
+    readonly sessions: readonly string[],
+    readonly missing: readonly string[],
+  ) {
+    super(
+      `runner for ${userId} needs its mounts changed (${missing.join(", ")}) but is busy ` +
+        `(${sessions.length} tmux sessions, or piped processes); stop its agents first`,
+    );
+  }
+}
+
+/** Default mount root: the worktrees dir, which holds every human's area (../layout.ts). */
+export const DEFAULT_FLOOR_ROOTS = ["/srv/office/worktrees"] as const;

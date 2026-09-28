@@ -80,7 +80,7 @@ describe("prepare", () => {
       ownerUserId: f.owner.id,
     });
     expect(ws.branch).toBe("office/fix-login");
-    expect(ws.workdir).toBe(join(f.worktreesDir, "wt-floor", agentId));
+    expect(ws.workdir).toBe(join(f.areaOf(), agentId));
     const head = await git([
       "-c",
       `safe.directory=${ws.workdir}`,
@@ -101,8 +101,14 @@ describe("prepare", () => {
     ]);
     expect(current).toBe("office/fix-login");
 
-    // Runner access for both the shared clone and the worktree.
-    expect(f.mounts).toEqual([f.repo.workdir, ws.workdir]);
+    // Runner access for the owner's own clone and the worktree, never the mirror (#114).
+    const clone = f.cloneOf();
+    expect(f.mounts).toEqual([clone, ws.workdir]);
+    expect(await git(["-C", clone, "config", "remote.origin.url"])).toBe(f.repo.remoteUrl);
+    expect(await git(["-C", clone, "config", "core.sharedRepository"])).toBe("1"); // git stores --shared=group as 1;
+    expect(await git(["-C", f.repo.workdir, "worktree", "list"])).not.toContain(ws.workdir);
+    // Other humans' runners may traverse the floor dir; the area is closed to "other".
+    expect((await stat(f.areaOf())).mode & 0o007).toBe(0);
     // Recorded on the agent.
     const row = f.db.select().from(agents).where(eq(agents.id, agentId)).get();
     expect(row?.worktreeBranch).toBe("office/fix-login");
@@ -113,6 +119,7 @@ describe("prepare", () => {
     expect(f.gitCalls.flat().join(" ")).not.toContain(FAKE_PAT);
     for (const needle of [FAKE_PAT, header]) {
       expect(await filesContaining(join(f.repo.workdir, ".git"), needle)).toEqual([]);
+      expect(await filesContaining(join(clone, ".git"), needle)).toEqual([]);
       expect(await filesContaining(ws.workdir, needle)).toEqual([]);
     }
     // Office git in a repo never runs its hooks (config reads use --file, outside any repo).
@@ -138,7 +145,22 @@ describe("prepare", () => {
     expect(await f.worktrees.workspaces.prepare(input("a1"))).toEqual(a);
   });
 
-  test("refuses a clone whose shared config was tampered with", async () => {
+  test("refuses a human's clone whose config their agent tampered with", async () => {
+    const f = await setupFloor(root);
+    const input = (agentId: string) => ({
+      agentId,
+      floorId: f.floorId,
+      repoId: f.repo.repoId,
+      slug: "x",
+      ownerUserId: f.owner.id,
+    });
+    await f.worktrees.workspaces.prepare(input(f.addAgent("a1")));
+    await git(["-C", f.cloneOf(), "config", "core.fsmonitor", "touch /tmp/pwned"]);
+    const err = await errorOf(f.worktrees.workspaces.prepare(input(f.addAgent("a2"))));
+    expect(err.message).toContain("core.fsmonitor");
+  });
+
+  test("refuses a mirror whose config was tampered with (before #114 runners could write it)", async () => {
     const f = await setupFloor(root);
     await git([
       "-C",
@@ -159,20 +181,79 @@ describe("prepare", () => {
     expect(err.message).toContain("insteadof");
   });
 
-  test("repo hooks planted in the shared clone do not run", async () => {
+  test("hooks planted in the mirror or a human's clone do not run in office git", async () => {
     const f = await setupFloor(root);
     const marker = join(root, `hook-ran-${Date.now()}`);
-    await mkdir(join(f.repo.workdir, ".git", "hooks"), { recursive: true });
-    const hook = join(f.repo.workdir, ".git", "hooks", "post-checkout");
-    await writeFile(hook, `#!/bin/sh\ntouch ${marker}\n`, { mode: 0o755 });
-    await f.worktrees.workspaces.prepare({
-      agentId: f.addAgent("a1"),
+    const plant = async (repo: string) => {
+      await mkdir(join(repo, ".git", "hooks"), { recursive: true });
+      for (const name of ["post-checkout", "reference-transaction", "post-index-change"]) {
+        const hook = join(repo, ".git", "hooks", name);
+        await writeFile(hook, `#!/bin/sh\ntouch ${marker}\n`, { mode: 0o755 });
+      }
+    };
+    const input = (agentId: string) => ({
+      agentId,
       floorId: f.floorId,
       repoId: f.repo.repoId,
       slug: "hooks",
       ownerUserId: f.owner.id,
     });
+    await plant(f.repo.workdir);
+    await f.worktrees.workspaces.prepare(input(f.addAgent("a1")));
+    await plant(f.cloneOf());
+    await f.worktrees.workspaces.prepare(input(f.addAgent("a2")));
     expect(await exists(marker)).toBe(false);
+  });
+
+  test("each human gets their own clone; branch names stay unique across them", async () => {
+    const f = await setupFloor(root);
+    const bob = f.addUser("Bob", "member");
+    const input = (agentId: string, ownerUserId: string) => ({
+      agentId,
+      floorId: f.floorId,
+      repoId: f.repo.repoId,
+      slug: "same task",
+      ownerUserId,
+    });
+    const a = await f.worktrees.workspaces.prepare(input(f.addAgent("a1"), f.owner.id));
+    const b = await f.worktrees.workspaces.prepare(
+      input(f.addAgent("b1", { ownerUserId: bob.id }), bob.id),
+    );
+    expect(f.cloneOf(bob.id)).not.toBe(f.cloneOf());
+    expect(b.workdir).toBe(join(f.areaOf(bob.id), "b1"));
+    expect([a.branch, b.branch]).toEqual(["office/same-task", "office/same-task-2"]);
+    // Neither clone knows the other's worktrees or branches.
+    expect(await git(["-C", f.cloneOf(), "worktree", "list"])).not.toContain(b.workdir);
+    expect(await git(["-C", f.cloneOf(bob.id), "branch", "--list", a.branch])).toBe("");
+    const ws = f.worktrees.workspaces;
+    expect(ws.cloneFor({ ownerUserId: bob.id, repoId: f.repo.repoId, workdir: b.workdir })).toEqual(
+      { clone: f.cloneOf(bob.id), legacy: false },
+    );
+    // A worktree in someone else's area, or a pre-#114 one, is never treated as Bob's clone.
+    for (const workdir of [a.workdir, join(f.worktreesDir, "wt-floor", "b1"), f.repo.workdir]) {
+      expect(ws.cloneFor({ ownerUserId: bob.id, repoId: f.repo.repoId, workdir })).toEqual({
+        clone: f.repo.workdir,
+        legacy: true,
+      });
+    }
+  });
+
+  test("prepareClone (no worktree) gives the owner's clone on the default branch", async () => {
+    const f = await setupFloor(root);
+    const agentId = f.addAgent("a1");
+    const ws = await f.worktrees.workspaces.prepareClone({
+      agentId,
+      floorId: f.floorId,
+      repoId: f.repo.repoId,
+      slug: "x",
+      ownerUserId: f.owner.id,
+    });
+    expect(ws).toEqual({ workdir: f.cloneOf(), branch: "trunk" });
+    expect(f.mounts).toEqual([f.cloneOf()]);
+    f.db.update(agents).set({ workdir: ws.workdir, worktreeBranch: ws.branch }).run();
+    // Send-home never removes the human's clone.
+    await f.worktrees.workspaces.release({ agentId, keepBranch: false });
+    expect(await exists(join(f.cloneOf(), ".git"))).toBe(true);
   });
 
   test("unknown or foreign repos are refused", async () => {
@@ -202,7 +283,7 @@ describe("release", () => {
       ownerUserId: f.owner.id,
     });
     await commitIn(ws.workdir, "work.md", "agent work");
-    await git(["-C", f.repo.workdir, "push", "--quiet", "origin", ws.branch]);
+    await git(["-C", f.cloneOf(), "push", "--quiet", "origin", ws.branch]);
     return { f, agentId, ws };
   }
 
@@ -213,9 +294,9 @@ describe("release", () => {
     const { f, agentId, ws } = await prepared("keep");
     await f.worktrees.workspaces.release({ agentId, keepBranch: true });
     expect(await exists(ws.workdir)).toBe(false);
-    expect(await git(["-C", f.repo.workdir, "branch", "--list", ws.branch])).toContain(ws.branch);
+    expect(await git(["-C", f.cloneOf(), "branch", "--list", ws.branch])).toContain(ws.branch);
     expect(await remoteHas(f.bare, ws.branch)).toBe(true);
-    expect(await git(["-C", f.repo.workdir, "worktree", "list"])).not.toContain(ws.workdir);
+    expect(await git(["-C", f.cloneOf(), "worktree", "list"])).not.toContain(ws.workdir);
     const row = f.db.select().from(agents).where(eq(agents.id, agentId)).get();
     expect(row?.worktreeBranch).toBe(ws.branch);
   });
@@ -225,7 +306,7 @@ describe("release", () => {
     await writeFile(join(ws.workdir, "scratch.txt"), "unsaved\n");
     await f.worktrees.workspaces.release({ agentId, keepBranch: false });
     expect(await exists(ws.workdir)).toBe(false);
-    expect(await git(["-C", f.repo.workdir, "branch", "--list", ws.branch])).toBe("");
+    expect(await git(["-C", f.cloneOf(), "branch", "--list", ws.branch])).toBe("");
     expect(await remoteHas(f.bare, ws.branch)).toBe(false);
     const row = f.db.select().from(agents).where(eq(agents.id, agentId)).get();
     expect(row?.worktreeBranch).toBeNull();
@@ -239,7 +320,7 @@ describe("release", () => {
       ownerUserId: f.owner.id,
     });
     await f.worktrees.workspaces.release({ agentId: other, keepBranch: false });
-    expect(await git(["-C", f.repo.workdir, "branch", "--list", w2.branch])).toBe("");
+    expect(await git(["-C", f.cloneOf(), "branch", "--list", w2.branch])).toBe("");
   });
 
   test("unknown agents are a no-op", async () => {
@@ -263,29 +344,30 @@ describe("prune", () => {
     const live = await f.worktrees.workspaces.prepare(input(keep));
     const dead = await f.worktrees.workspaces.prepare(input(gone));
     f.db.delete(agents).where(eq(agents.id, gone)).run();
-    // A leftover directory git never knew about.
-    const stray = join(f.worktreesDir, "wt-floor", "stray");
+    // Leftover directories git never knew about, in the area and (pre-#114) in the floor dir.
+    const stray = join(f.areaOf(), "stray");
+    const oldStray = join(f.worktreesDir, "wt-floor", "old-agent");
     await mkdir(stray, { recursive: true });
+    await mkdir(oldStray, { recursive: true });
     // Prepared by this process, row not inserted yet (the manager inserts it after prepare).
     const pending = await f.worktrees.workspaces.prepare(input("pending"));
 
     const first = await f.worktrees.prune();
-    expect(first.removed).toEqual([stray]);
+    expect(first.removed.sort()).toEqual([oldStray, stray].sort());
     expect(await exists(pending.workdir)).toBe(true);
     expect(await exists(dead.workdir)).toBe(true);
 
     const res = await f.restart().prune();
     expect(res.removed.sort()).toEqual([dead.workdir, pending.workdir].sort());
     expect(res.failed).toEqual([]);
-    expect(res.repos).toBe(1);
+    expect(res.repos).toBe(2); // the human's clone and the mirror
     expect(await exists(live.workdir)).toBe(true);
-    const list = await git(["-C", f.repo.workdir, "worktree", "list"]);
+    expect(await exists(join(f.cloneOf(), ".git"))).toBe(true);
+    const list = await git(["-C", f.cloneOf(), "worktree", "list"]);
     expect(list).toContain(live.workdir);
     expect(list).not.toContain(dead.workdir);
     // The orphan's branch is kept: it may hold unpushed work.
-    expect(await git(["-C", f.repo.workdir, "branch", "--list", dead.branch])).toContain(
-      dead.branch,
-    );
+    expect(await git(["-C", f.cloneOf(), "branch", "--list", dead.branch])).toContain(dead.branch);
     expect(await readFile(join(live.workdir, "README.md"), "utf8")).toContain("hello");
   });
 });
