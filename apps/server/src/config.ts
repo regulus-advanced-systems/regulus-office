@@ -154,6 +154,10 @@ export const envSchema = z.object({
   // Runner backend (SPEC §8, D6): docker (Compose default), linux-user (bare
   // install), or local (dev/test only: agents run as the office user).
   OFFICE_RUNNER_BACKEND: z.preprocess(emptyToUndefined, z.enum(RUNNER_BACKENDS).optional()),
+  OFFICE_RUNNER_OFFICE_URL: z.preprocess(
+    emptyToUndefined,
+    z.url({ protocol: /^https?$/ }).optional(),
+  ),
   // Docker runner backend (SPEC §8); see DockerBackendConfig.
   DOCKER_HOST: z.preprocess(emptyToUndefined, str().default("unix:///var/run/docker.sock")),
   OFFICE_RUNNER_IMAGE: z.preprocess(emptyToUndefined, str().default(DEFAULT_RUNNER_IMAGE)),
@@ -249,6 +253,12 @@ export interface OfficeConfig {
    * production.
    */
   runnerBackend: RunnerBackendChoice;
+   * `OFFICE_RUNNER_OFFICE_URL`: the office's base URL as reachable from inside a runner, fed to
+   * adapters as `RunnerContext.officeUrl` for Claude hooks and the statusline forwarder. Compose
+   * sets `http://office:4600` (the office's alias on the runners network); the default,
+   * `http://127.0.0.1:<port>`, suits the linux-user backend where runners share the host.
+   */
+  runnerOfficeUrl: string;
   /** Docker runner backend settings; only used when that backend is selected. */
   docker: DockerBackendConfig;
 }
@@ -268,7 +278,10 @@ export interface DockerBackendConfig {
   user: string;
   /** HOME inside the runner; the human's credential volume is mounted here. */
   home: string;
-  /** Network for runners (so hooks can reach the office); default bridge when unset. */
+  /**
+   * Network for runners (so hooks can reach the office at `runnerOfficeUrl`); default bridge
+   * when unset. Compose uses a dedicated `<project>_runners` network without docker-proxy.
+   */
   network: string | undefined;
   memoryBytes: number | undefined;
   /** CPU limit in cores (Docker NanoCpus / 1e9). */
@@ -337,6 +350,10 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
         : undefined,
     openSignup: e.OFFICE_OPEN_SIGNUP,
     runnerBackend: e.OFFICE_RUNNER_BACKEND ?? (production ? "docker" : "local"),
+    runnerOfficeUrl: (e.OFFICE_RUNNER_OFFICE_URL ?? `http://127.0.0.1:${e.OFFICE_PORT}`).replace(
+      /\/+$/,
+      "",
+    ),
     docker: {
       dockerHost: e.DOCKER_HOST,
       image: e.OFFICE_RUNNER_IMAGE,

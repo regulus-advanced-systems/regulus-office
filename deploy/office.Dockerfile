@@ -20,6 +20,9 @@ COPY packages ./packages
 RUN bun run --filter '@regulus/web' build
 
 FROM oven/bun:${BUN_VERSION}-slim AS runtime
+# git clones floor repos and pushes branches (SPEC §8 floor workdirs); ca-certificates for HTTPS.
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 ENV NODE_ENV=production \
     OFFICE_HOST=0.0.0.0 \
@@ -42,10 +45,18 @@ COPY packages/floor-layout ./packages/floor-layout
 COPY packages/protocol ./packages/protocol
 COPY --from=build /app/apps/web/dist ./apps/web/dist
 # /data is the SQLite + blob volume; owned by `bun` so a fresh named volume inherits it.
-RUN mkdir -p /data /srv/office/projects && chown -R bun:bun /data /srv/office
+# Floor workdirs are shared with runner containers (uid 1001, gid 1001; runner/Dockerfile)
+# through group 1001: `bun` is a member, and the roots are setgid 2775 so everything created
+# below them belongs to that group. Fresh named volumes copy this ownership and mode.
+RUN groupadd -g 1001 runners && usermod -aG runners bun \
+    && mkdir -p /data /srv/office/projects /srv/office/worktrees \
+    && chown -R bun:bun /data && chown bun:runners /srv/office/projects /srv/office/worktrees \
+    && chmod 2775 /srv/office/projects /srv/office/worktrees
 USER bun
 VOLUME ["/data"]
 EXPOSE 4600
 HEALTHCHECK --interval=10s --timeout=3s --start-period=10s --retries=3 \
   CMD ["bun", "-e", "fetch('http://127.0.0.1:4600/healthz').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
-CMD ["bun", "apps/server/src/index.ts"]
+# umask 0002: dirs and files the office creates under the floor roots stay group-writable for
+# the runners; `exec` keeps bun as the signal-receiving main process.
+CMD ["sh", "-c", "umask 0002 && exec bun apps/server/src/index.ts"]

@@ -1,5 +1,6 @@
 # Regulus Office deployment (docs/SPEC.md §4.2 Packaging, §8).
-# Base: office server + Caddy + a filtered Docker API proxy. Profiles: media (LiveKit), pg (Postgres), build-only (runner image).
+# Base: office server + Caddy + a filtered Docker API proxy; the office creates one runner container
+# per human on the `runners` network. Profiles: media (LiveKit), pg (Postgres), build-only (runner image).
 #
 #   cp .env.example .env   # then fill BETTER_AUTH_SECRET and OFFICE_MASTER_KEY
 #   docker compose up -d --build
@@ -29,10 +30,28 @@ services:
       # The docker runner backend (SPEC §8, D6) talks to the Engine API through docker-proxy,
       # never to the socket itself: the office runs as the non-root `bun` user and has no socket.
       DOCKER_HOST: tcp://docker-proxy:2375
+      # Runner containers (one per human, SPEC §8) from the build-only `runner-image` service.
+      OFFICE_RUNNER_IMAGE: ${OFFICE_RUNNER_IMAGE:-ghcr.io/regulus-advanced-systems/regulus-office-runner:${OFFICE_IMAGE_TAG:-latest}}
+      # Runner and HOME-volume names start with the project name, so two Compose projects on
+      # one daemon never share runners.
+      OFFICE_DOCKER_RUNNER_PREFIX: ${COMPOSE_PROJECT_NAME}
+      # Runners join only the `runners` network, where they reach the office (hooks, statusline)
+      # but not docker-proxy or Caddy. Adapters write this URL into hook and statusline configs.
+      OFFICE_DOCKER_RUNNER_NETWORK: ${COMPOSE_PROJECT_NAME}_runners
+      OFFICE_RUNNER_OFFICE_URL: ${OFFICE_RUNNER_OFFICE_URL:-http://office:4600}
+      # Floor dirs live in these named volumes; runners mount `<root>/<floor>` of them with a
+      # volume subpath at the same path the office uses (needs Docker Engine 26+).
+      OFFICE_DOCKER_VOLUME_MAP: /srv/office/projects=${COMPOSE_PROJECT_NAME}_projects,/srv/office/worktrees=${COMPOSE_PROJECT_NAME}_worktrees
     volumes:
       - office-data:/data
       - projects:/srv/office/projects
-    networks: [default, docker-api]
+      - worktrees:/srv/office/worktrees
+    networks:
+      default:
+      docker-api:
+      runners:
+        # Host part of OFFICE_RUNNER_OFFICE_URL; the only name runners can resolve here.
+        aliases: [office]
     depends_on:
       docker-proxy:
         condition: service_healthy
@@ -104,10 +123,12 @@ services:
       timeout: 5s
       retries: 3
 
+  # Not a service: the office creates runner containers itself. This entry only builds the
+  # image: `docker compose --profile build-only build runner-image` (or pull the release tag).
   runner-image:
     build:
       context: ../runner
-    image: ghcr.io/regulus-advanced-systems/regulus-office-runner:${OFFICE_IMAGE_TAG:-latest}
+    image: ${OFFICE_RUNNER_IMAGE:-ghcr.io/regulus-advanced-systems/regulus-office-runner:${OFFICE_IMAGE_TAG:-latest}}
     profiles: ["build-only"]
     command: ["true"]
 
@@ -152,10 +173,20 @@ networks:
   # Office <-> docker-proxy only. Internal: no route out, and no other service joins it.
   docker-api:
     internal: true
+  # Office <-> runner containers. Not internal: agents need outbound access to provider APIs and
+  # GitHub. Fixed name so OFFICE_DOCKER_RUNNER_NETWORK can point at it. docker-proxy and Caddy
+  # are not on it. Stop runners before `docker compose down` (see README, Deploy notes).
+  runners:
+    name: ${COMPOSE_PROJECT_NAME}_runners
 
 volumes:
   office-data:
+  # Floor checkouts and per-agent worktrees (SPEC §8), shared with runners through group 1001
+  # (deploy/office.Dockerfile). Fixed names so OFFICE_DOCKER_VOLUME_MAP can point at them.
   projects:
+    name: ${COMPOSE_PROJECT_NAME}_projects
+  worktrees:
+    name: ${COMPOSE_PROJECT_NAME}_worktrees
   caddy-data:
   caddy-config:
   pg-data:

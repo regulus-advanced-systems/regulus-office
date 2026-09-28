@@ -19,6 +19,16 @@ describe("loadConfig", () => {
     expect(c.betterAuthSecret).toBeUndefined();
     expect(c.githubOAuth).toBeUndefined();
     expect(c.openSignup).toBe(false);
+    expect(c.runnerOfficeUrl).toBe(`http://127.0.0.1:${DEFAULT_PORT}`);
+  });
+
+  test("reads OFFICE_RUNNER_OFFICE_URL, the office as runners reach it", () => {
+    expect(loadConfig({ OFFICE_PORT: "5000" }).runnerOfficeUrl).toBe("http://127.0.0.1:5000");
+    const c = loadConfig({ OFFICE_RUNNER_OFFICE_URL: "http://office:4600/" });
+    expect(c.runnerOfficeUrl).toBe("http://office:4600");
+    expect(() => loadConfig({ OFFICE_RUNNER_OFFICE_URL: "office:4600" })).toThrow(
+      /OFFICE_RUNNER_OFFICE_URL/,
+    );
   });
 
   test("projects dir: /srv/office/projects in production, under the data dir otherwise", () => {

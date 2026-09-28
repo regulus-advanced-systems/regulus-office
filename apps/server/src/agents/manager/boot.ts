@@ -42,9 +42,8 @@ export async function createAgents(opts: AgentsBootOptions): Promise<AgentManage
     workspaces: opts.workspaces,
     refreshFloors: () => opts.rooms.refreshFloors(),
     keyring: opts.keyring,
-    // TODO(#104): use OFFICE_RUNNER_OFFICE_URL once it exists; publicUrl is
-    // only right when runners reach the office on its public origin.
-    officeUrl: opts.config.publicUrl,
+    // The office as runners reach it (OFFICE_RUNNER_OFFICE_URL; Compose: http://office:4600).
+    officeUrl: opts.config.runnerOfficeUrl,
     logger: opts.logger,
     scrollback: opts.terminals.scrollback,
   });
