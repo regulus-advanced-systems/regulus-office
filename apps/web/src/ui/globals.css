@@ -1,0 +1,25 @@
+:root {
+  --cream: #fff6d9;
+  --ink: #1f1f1f;
+  font-family: "Open Sans", "Segoe UI", system-ui, sans-serif;
+  color: var(--ink);
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  background: radial-gradient(ellipse at center, var(--cream) 55%, #f0e3bd 100%);
+}
+
+.centered {
+  min-height: 100%;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  box-sizing: border-box;
+}
