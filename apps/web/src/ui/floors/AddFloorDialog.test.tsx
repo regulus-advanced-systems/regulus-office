@@ -4,7 +4,7 @@ import { act } from "react";
 import { useFloorsStore } from "../../state/floors.ts";
 import { useSessionStore } from "../../state/session.ts";
 import { useUiStore } from "../../state/ui.ts";
-import { click, mount, useDom } from "../a11y/dom.ts";
+import { click, type Mounted, mount as mountNode, useDom } from "../a11y/dom.ts";
 import { fakeFetch } from "../auth/fakeFetch.ts";
 import { button, settle, text } from "../auth/testDom.tsx";
 import { ADD_FLOOR_OVERLAY, AddFloorDialogHost } from "./AddFloorDialog.tsx";
@@ -27,6 +27,13 @@ async function typeInto(el: Element | null, value: string) {
   await act(async () => {
     el.value = value;
   });
+}
+
+const mounted: Mounted[] = [];
+async function mount(node: Parameters<typeof mountNode>[0]) {
+  const m = await mountNode(node);
+  mounted.push(m);
+  return m;
 }
 
 const byLabel = (label: string) => document.querySelector(`[aria-label="${label}"]`);
@@ -62,16 +69,24 @@ describe("Add floor dialog", () => {
     act(() => useUiStore.setState({ overlay: null }));
     useFloorsStore.getState().clear();
   });
-  afterEach(() => useSessionStore.setState({ status: "unknown", user: null, error: null }));
+  // Leave nothing behind for other test files sharing this process: unmount
+  // (removing the portalled modal), flush React's scheduler, reset stores.
+  afterEach(async () => {
+    for (const m of mounted.splice(0)) await m.unmount();
+    await settle();
+    await act(async () => {
+      useUiStore.setState({ overlay: null });
+      useFloorsStore.getState().clear();
+      useSessionStore.setState({ status: "unknown", user: null, error: null });
+    });
+    for (const el of document.querySelectorAll(".rg-backdrop")) el.remove();
+  });
 
   test("members never get the dialog", async () => {
     signedInAs("member");
-    const m = await mount(
-      <AddFloorDialogHost api={createFloorsApi({ fetch: fakeFetch({}).fetch })} />,
-    );
+    await mount(<AddFloorDialogHost api={createFloorsApi({ fetch: fakeFetch({}).fetch })} />);
     await act(async () => useUiStore.getState().openOverlay(ADD_FLOOR_OVERLAY));
     expect(document.querySelector("[role=dialog]")).toBeNull();
-    await m.unmount();
   });
 
   test("an admin creates a floor with a token, then sees clone status", async () => {
@@ -79,7 +94,7 @@ describe("Add floor dialog", () => {
     const f = fakeFetch({
       "POST /api/floors": ({ body }) => ({ status: 201, body: created(body as { name: string }) }),
     });
-    const m = await mount(<AddFloorDialogHost api={createFloorsApi({ fetch: f.fetch })} />);
+    await mount(<AddFloorDialogHost api={createFloorsApi({ fetch: f.fetch })} />);
     await act(async () => useUiStore.getState().openOverlay(ADD_FLOOR_OVERLAY));
     expect(text()).toContain("Add floor");
 
@@ -108,7 +123,6 @@ describe("Add floor dialog", () => {
     const done = button("Done");
     if (done) await click(done);
     expect(useUiStore.getState().overlay).toBeNull();
-    await m.unmount();
   });
 
   test("server errors are explained", async () => {
@@ -116,7 +130,7 @@ describe("Add floor dialog", () => {
     const f = fakeFetch({
       "POST /api/floors": { status: 400, body: { error: "unsupported_host", repo: 0 } },
     });
-    const m = await mount(<AddFloorDialogHost api={createFloorsApi({ fetch: f.fetch })} />);
+    await mount(<AddFloorDialogHost api={createFloorsApi({ fetch: f.fetch })} />);
     await act(async () => useUiStore.getState().openOverlay(ADD_FLOOR_OVERLAY));
     const nameId = Array.from(document.querySelectorAll("label"))
       .find((l) => l.textContent === "Floor name")
@@ -129,6 +143,5 @@ describe("Add floor dialog", () => {
     });
     await settle();
     expect(text()).toContain("repo 1 is not on github.com");
-    await m.unmount();
   });
 });
