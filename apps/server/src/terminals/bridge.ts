@@ -24,6 +24,7 @@ import type { Logger } from "../logging.ts";
 import { UPGRADED } from "../rooms/transport.ts";
 import type { TtySize } from "../runners/types.ts";
 import { decideTerminalAccess, type FloorVisibility, type TerminalUser } from "./acl.ts";
+import { isLoginTerminalId, mayUseLoginTerminal } from "./login-sessions.ts";
 import type { ScrollbackRecorder } from "./scrollback.ts";
 import { AGENT_ID_PATTERN, type TerminalTarget, type TerminalTargets } from "./targets.ts";
 import { TerminalViewer } from "./viewer.ts";
@@ -38,6 +39,8 @@ export interface TerminalSessionLookup {
 
 export interface TerminalBridgeOptions {
   targets: TerminalTargets;
+  /** Login sessions (`/ws/term/login-<id>`, #32): owner-only, outside the D12 agent ACL. */
+  logins?: TerminalTargets;
   sessions: TerminalSessionLookup;
   canViewFloor: FloorVisibility;
   originPolicy: OriginPolicy;
@@ -116,9 +119,21 @@ export class TerminalBridge implements WsRoute {
     if (!user) return reject(401, "unauthenticated");
     if (!AGENT_ID_PATTERN.test(agentId)) return reject(404, "not_found");
 
-    const target = await this.#opts.targets.resolve(agentId);
+    const login = isLoginTerminalId(agentId);
+    const target = login
+      ? ((await this.#opts.logins?.resolve(agentId)) ?? null)
+      : await this.#opts.targets.resolve(agentId);
     if (!target) return reject(404, "not_found");
-    const decision = decideTerminalAccess(user, target, mode, this.#opts.canViewFloor);
+    if (login) {
+      // A login terminal is its owner's alone (admins too are refused), and its existence is not revealed.
+      if (target.kind !== "login" || !mayUseLoginTerminal(user, target.ownerUserId)) {
+        log.info({ userId: user.id, mode }, "login terminal denied");
+        return reject(404, "not_found");
+      }
+    }
+    const decision = login
+      ? ({ ok: true } as const)
+      : decideTerminalAccess(user, target, mode, this.#opts.canViewFloor);
     if (!decision.ok) {
       log.info({ agentId, userId: user.id, mode, reason: decision.reason }, "terminal denied");
       return decision.reason === "forbidden" ? reject(403, "forbidden") : reject(404, "not_found");
@@ -135,7 +150,7 @@ export class TerminalBridge implements WsRoute {
     const name = (user.displayName ?? user.id).slice(0, 64);
     const data: TermSocketData = { target, mode, userId: user.id, name };
     if (!server.upgrade(request, { data })) return reject(400, "upgrade_failed");
-    log.info({ agentId, userId: user.id, mode }, "terminal attached");
+    log.info({ agentId: login ? "login" : agentId, userId: user.id, mode }, "terminal attached");
     return UPGRADED;
   };
 
@@ -160,7 +175,8 @@ export class TerminalBridge implements WsRoute {
       onInput: () => this.#typing(ws),
     });
     ws.data.viewer = viewer;
-    ws.data.releaseScrollback = this.#opts.scrollback?.track(target);
+    // Login terminals show the human's own sign-in: never snapshotted to disk.
+    if (target.kind !== "login") ws.data.releaseScrollback = this.#opts.scrollback?.track(target);
     let sockets = this.#viewers.get(target.agentId);
     if (!sockets) {
       sockets = new Set();

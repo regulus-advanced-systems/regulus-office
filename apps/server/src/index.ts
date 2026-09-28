@@ -15,6 +15,7 @@ import {
   originPolicyFor,
 } from "./auth/index.ts";
 import { ConfigError, loadConfig, redactConfig } from "./config.ts";
+import { mountCredentialPanel } from "./credentials/panel.ts";
 import { closeDatabase, databasePathFor, openDatabase, runMigrations } from "./db/index.ts";
 import { createFloors, mountFloorRoutes } from "./floors/index.ts";
 import { createOfficeServer } from "./http/server.ts";
@@ -173,6 +174,17 @@ async function main(): Promise<void> {
       openPullRequest: (agentId, options) => worktrees.openPullRequest(agentId, options),
     },
   });
+  // "Connect providers" (#32): key profiles and CLI logins in the human's own runner (SPEC §8).
+  const credentialPanel = mountCredentialPanel(server.router, {
+    db,
+    auth,
+    keyring,
+    runner,
+    adapters: agents.adapters,
+    logins: terminals.logins,
+    officeUrl: config.publicUrl,
+    logger,
+  });
   server.health.register("db", () => {
     db.run(sql`select 1`);
     return true;
@@ -185,6 +197,7 @@ async function main(): Promise<void> {
   floors.cloner.resumePending().catch((err) => logger.error({ err }, "resuming clones failed"));
   shutdown.register("rooms", () => rooms.transport.shutdown());
   shutdown.register("terminals", () => terminals.shutdown());
+  shutdown.register("provider-logins", () => credentialPanel.shutdown());
   // Detach only: agents keep running in their runners' tmux (SPEC §11).
   shutdown.register("agents", () => agents.close());
   installSignalHandlers(shutdown, (code) => {

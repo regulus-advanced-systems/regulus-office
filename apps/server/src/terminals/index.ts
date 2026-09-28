@@ -14,6 +14,7 @@ import type { Db } from "../db/index.ts";
 import type { Logger } from "../logging.ts";
 import { dbFloorVisibility } from "./acl.ts";
 import { TerminalBridge, type TerminalSessionLookup } from "./bridge.ts";
+import { LoginSessionTargets } from "./login-sessions.ts";
 import { ScreenFeed } from "./screens.ts";
 import { ScrollbackRecorder } from "./scrollback.ts";
 import { DbTerminalTargets, RunnerRegistry } from "./targets.ts";
@@ -32,6 +33,13 @@ export {
   type TerminalBridgeOptions,
   type TerminalSessionLookup,
 } from "./bridge.ts";
+export {
+  isLoginTerminalId,
+  LOGIN_TERMINAL_ID_PATTERN,
+  type LoginSession,
+  LoginSessionTargets,
+  mayUseLoginTerminal,
+} from "./login-sessions.ts";
 export { hasBunPty, openPipe, PtyUnavailableError, type TerminalPipe } from "./pipe.ts";
 export { ScreenPoller, type ScreenSubscriber } from "./screen-poller.ts";
 export { SCREENS_ROUTE, ScreenFeed, type ScreenFeedOptions } from "./screens.ts";
@@ -61,6 +69,8 @@ export interface Terminals {
   bridge: TerminalBridge;
   screens: ScreenFeed;
   runners: RunnerRegistry;
+  /** Login sessions reachable as `/ws/term/login-<id>` (#32). */
+  logins: LoginSessionTargets;
   scrollback: ScrollbackRecorder;
   shutdown(): Promise<void>;
 }
@@ -74,8 +84,10 @@ export function createTerminals(options: TerminalsOptions): Terminals {
   });
   const targets = new DbTerminalTargets(options.db, runners);
   const canViewFloor = dbFloorVisibility(options.db);
+  const logins = new LoginSessionTargets();
   const bridge = new TerminalBridge({
     targets,
+    logins,
     sessions: options.sessions,
     canViewFloor,
     originPolicy: options.originPolicy,
@@ -93,6 +105,7 @@ export function createTerminals(options: TerminalsOptions): Terminals {
     bridge,
     screens,
     runners,
+    logins,
     scrollback,
     async shutdown() {
       bridge.shutdown();
