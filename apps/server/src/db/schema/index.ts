@@ -3,6 +3,7 @@
  * `@regulus/protocol`; nothing here redefines them.
  */
 export * from "./agents.ts";
+export * from "./auth.ts";
 export * from "./chat.ts";
 export * from "./desks.ts";
 export * from "./floors.ts";

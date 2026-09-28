@@ -22,6 +22,15 @@ describe("Router", () => {
     expect(r.match("GET", "/api/floors/f1")).toBeUndefined();
   });
 
+  test("a trailing * swallows one or more remaining segments", () => {
+    const r = new Router().get("/api/auth/*", ok).get("/api/auth/fixed", ok);
+    expect(r.match("GET", "/api/auth/sign-in/email")?.params).toEqual({ "*": "sign-in/email" });
+    expect(r.match("GET", "/api/auth/ok")?.pattern).toBe("/api/auth/*");
+    expect(r.match("GET", "/api/auth")).toBeUndefined();
+    expect(r.match("POST", "/api/auth/x")).toBeUndefined();
+    expect(r.hasPath("/api/auth/anything/at/all")).toBe(true);
+  });
+
   test("rejects patterns without a leading slash", () => {
     expect(() => new Router().get("healthz", ok)).toThrow();
   });

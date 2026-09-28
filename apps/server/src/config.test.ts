@@ -3,6 +3,7 @@ import { inspect } from "node:util";
 import { ConfigError, DEFAULT_PORT, loadConfig, redactConfig, SecretValue } from "./config.ts";
 
 const KEY = Buffer.alloc(32, 7).toString("base64");
+const AUTH_SECRET = Buffer.alloc(32, 9).toString("base64");
 
 describe("loadConfig", () => {
   test("applies defaults when the environment is empty", () => {
@@ -15,6 +16,33 @@ describe("loadConfig", () => {
     expect(c.logLevel).toBe("info");
     expect(c.webDist).toMatch(/apps\/web\/dist$/);
     expect(c.shutdownTimeoutMs).toBe(10_000);
+    expect(c.betterAuthSecret).toBeUndefined();
+    expect(c.githubOAuth).toBeUndefined();
+  });
+
+  test("reads the auth variables and wraps secrets", () => {
+    const c = loadConfig({
+      BETTER_AUTH_SECRET: AUTH_SECRET,
+      GITHUB_CLIENT_ID: "Iv1.abc",
+      GITHUB_CLIENT_SECRET: "gh-secret-value",
+    });
+    expect(c.betterAuthSecret?.expose()).toBe(AUTH_SECRET);
+    expect(String(c.betterAuthSecret)).toBe("[redacted]");
+    expect(c.githubOAuth?.clientId).toBe("Iv1.abc");
+    expect(c.githubOAuth?.clientSecret.expose()).toBe("gh-secret-value");
+    expect(JSON.stringify(c)).not.toContain("gh-secret-value");
+  });
+
+  test("rejects a short BETTER_AUTH_SECRET without echoing it", () => {
+    const bad = () => loadConfig({ BETTER_AUTH_SECRET: "tooshort" });
+    expect(bad).toThrow(ConfigError);
+    expect(bad).toThrow(/BETTER_AUTH_SECRET/);
+    expect(bad).not.toThrow(/tooshort/);
+  });
+
+  test("requires GitHub client id and secret together", () => {
+    expect(() => loadConfig({ GITHUB_CLIENT_ID: "Iv1.abc" })).toThrow(/GITHUB_CLIENT_SECRET/);
+    expect(() => loadConfig({ GITHUB_CLIENT_SECRET: "s" })).toThrow(/GITHUB_CLIENT_ID/);
   });
 
   test("reads every OFFICE_* variable", () => {
@@ -97,5 +125,20 @@ describe("redactConfig", () => {
     expect(dump.masterKeySet).toBe(true);
     expect(JSON.stringify(dump)).not.toContain(KEY);
     expect(redactConfig(loadConfig({})).masterKeySet).toBe(false);
+  });
+
+  test("drops auth secrets and keeps only the GitHub client id", () => {
+    const dump = redactConfig(
+      loadConfig({
+        BETTER_AUTH_SECRET: AUTH_SECRET,
+        GITHUB_CLIENT_ID: "Iv1.abc",
+        GITHUB_CLIENT_SECRET: "gh-secret-value",
+      }),
+    );
+    const text = JSON.stringify(dump);
+    expect(dump.betterAuthSecretSet).toBe(true);
+    expect(dump.githubOAuth).toEqual({ clientId: "Iv1.abc" });
+    expect(text).not.toContain(AUTH_SECRET);
+    expect(text).not.toContain("gh-secret-value");
   });
 });
