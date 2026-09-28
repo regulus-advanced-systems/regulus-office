@@ -39,6 +39,16 @@ describe("loadConfig", () => {
     );
   });
 
+  test("worktrees dir and GitHub API base have production and dev defaults", () => {
+    expect(loadConfig({ NODE_ENV: "production" }).worktreesDir).toBe("/srv/office/worktrees");
+    expect(loadConfig({ OFFICE_DATA_DIR: "/tmp/od" }).worktreesDir).toBe("/tmp/od/worktrees");
+    expect(loadConfig({ OFFICE_WORKTREES_DIR: "/var/w" }).worktreesDir).toBe("/var/w");
+    expect(loadConfig({}).githubApiBase).toBe("https://api.github.com");
+    expect(loadConfig({ OFFICE_GITHUB_API_BASE: "http://127.0.0.1:9/" }).githubApiBase).toBe(
+      "http://127.0.0.1:9",
+    );
+  });
+
   test("parses OFFICE_OPEN_SIGNUP as a boolean", () => {
     expect(loadConfig({ OFFICE_OPEN_SIGNUP: "true" }).openSignup).toBe(true);
     expect(loadConfig({ OFFICE_OPEN_SIGNUP: "1" }).openSignup).toBe(true);

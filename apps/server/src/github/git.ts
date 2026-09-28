@@ -23,11 +23,15 @@ export function basicAuthHeader(token: string): string {
  * Env that makes git send the token as an extra HTTP header for this one
  * command. Merge into {@link gitBaseEnv}; never put it into an agent's env.
  */
-export function gitAuthEnv(token: string | null | undefined): Record<string, string> {
+export function gitAuthEnv(
+  token: string | null | undefined,
+  /** Send the header only to URLs under this prefix (`http.<url>.extraHeader`). */
+  scopeUrl?: string,
+): Record<string, string> {
   if (!token) return {};
   return {
     GIT_CONFIG_COUNT: "1",
-    GIT_CONFIG_KEY_0: "http.extraHeader",
+    GIT_CONFIG_KEY_0: scopeUrl ? `http.${scopeUrl}.extraHeader` : "http.extraHeader",
     GIT_CONFIG_VALUE_0: basicAuthHeader(token),
   };
 }
@@ -85,6 +89,8 @@ export interface GitRunOptions {
   cwd?: string;
   /** PAT for this one command; sent as an http.extraHeader, redacted from output. */
   token?: string | null;
+  /** Limit the token header to this URL prefix (e.g. the repo's remote URL). */
+  tokenScope?: string;
   timeoutMs?: number;
   /** Override the binary (tests). */
   gitBinary?: string;
@@ -112,7 +118,7 @@ export const runGit: GitRunner = async (args, options = {}) => {
   const token = options.token ?? null;
   const proc = Bun.spawn([options.gitBinary ?? "git", ...args], {
     cwd: options.cwd,
-    env: { ...gitBaseEnv(), ...gitAuthEnv(token) },
+    env: { ...gitBaseEnv(), ...gitAuthEnv(token, options.tokenScope) },
     stdin: "ignore",
     stdout: "pipe",
     stderr: "pipe",

@@ -1,7 +1,7 @@
 /**
  * GitHub integration (SPEC §4.3 `github/`, D14). M1: repo references, the
- * floor repo project credential (fine-grained PAT fallback) and server-side
- * git. The GitHub App, sync and webhooks arrive in M2.
+ * floor repo project credential (fine-grained PAT fallback), server-side
+ * git, and the pull request REST client for the one-click PR. The GitHub App, sync and webhooks arrive in M2.
  */
 export {
   REPO_CREDENTIAL_SECRET_NAME,
@@ -21,6 +21,15 @@ export {
   runGit,
   summarizeGitError,
 } from "./git.ts";
+export {
+  type CreatePullInput,
+  type CreatePullResult,
+  createPullRequestClient,
+  GITHUB_API_VERSION,
+  GitHubApiError,
+  type PullRequestClient,
+  type PullRequestRef,
+} from "./pulls.ts";
 export {
   createRepoAccess,
   type RepoAccess,

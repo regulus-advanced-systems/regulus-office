@@ -19,6 +19,8 @@ export const AUDIT_ACTIONS = {
   floorMemberSet: "floor.member_set",
   floorMemberRemove: "floor.member_remove",
   floorRepoClone: "floor_repo.clone",
+  agentPullRequest: "agent.pull_request",
+  worktreesPrune: "worktrees.prune",
 } as const;
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];
 
@@ -26,7 +28,7 @@ export interface AuditEntry {
   /** Acting user, or null for system-initiated actions. */
   userId: string | null;
   action: AuditAction;
-  targetKind: "user" | "invite" | "floor" | "floor_repo";
+  targetKind: "user" | "invite" | "floor" | "floor_repo" | "agent" | "worktrees";
   targetId: string | null;
   meta?: Record<string, unknown>;
 }
