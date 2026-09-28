@@ -9,7 +9,7 @@
   ],
   "scripts": {
     "dev": "bun run --filter '@regulus/server' --filter '@regulus/web' dev",
-    "typecheck": "bun run --filter '*' typecheck",
+    "typecheck": "bun scripts/typecheck/run.ts",
     "test": "bun test",
     "lint": "bunx biome check .",
     "format": "bunx biome format --write ."
