@@ -4,7 +4,9 @@
  * and the rest to the same process.
  */
 import { mkdir } from "node:fs/promises";
+import { sql } from "drizzle-orm";
 import { ConfigError, loadConfig, redactConfig } from "./config.ts";
+import { closeDatabase, databasePathFor, openDatabase, runMigrations } from "./db/index.ts";
 import { createOfficeServer } from "./http/server.ts";
 import { createShutdownController, installSignalHandlers } from "./lifecycle.ts";
 import { createLogger } from "./logging.ts";
@@ -43,8 +45,19 @@ async function main(): Promise<void> {
 
   await mkdir(config.dataDir, { recursive: true });
 
+  const dbPath = databasePathFor(config.dataDir);
+  const db = openDatabase({ path: dbPath });
+  runMigrations(db);
+  logger.info({ path: dbPath }, "database ready");
+
   const shutdown = createShutdownController({ logger, timeoutMs: config.shutdownTimeoutMs });
+  // Hooks run last-registered-first: the database closes after HTTP has drained.
+  shutdown.register("db", () => closeDatabase(db));
   const server = createOfficeServer({ config, logger, version });
+  server.health.register("db", () => {
+    db.run(sql`select 1`);
+    return true;
+  });
   shutdown.register("http", async () => {
     await server.stop(false);
   });
