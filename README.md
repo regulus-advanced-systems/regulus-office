@@ -34,6 +34,8 @@ It prints a generated password once (pass `--password` to choose one) and the in
 
 For a real server set `OFFICE_DOMAIN` in `deploy/.env` to a hostname pointing at the machine; Caddy then gets a Let's Encrypt certificate and the office is served at `https://<domain>`. Tagged releases publish images to `ghcr.io/regulus-advanced-systems/regulus-office` and `…/regulus-office-runner`; `docker compose pull && docker compose up -d` without `--build` uses them.
 
+**Docker access.** Agents run in one runner container per human, which the office creates through the Docker Engine API. Only the `docker-proxy` service mounts `/var/run/docker.sock`; it forwards an allowlist of container, exec, image, volume and network-read calls to the office alone and answers 403 to everything else (build, swarm, secrets, system info, network changes, bind mounts outside `/srv/office`). The office runs as a non-root user without the socket, and runners never get the socket (SPEC §8). The allowlist and the reason for each entry are in `deploy/docker-compose.yml`; `docker compose exec -T office bun run - < docker-proxy-check.ts` checks it. The proxy narrows what a compromised office process could do but is not a sandbox: the office can still create containers. For rootless Docker set `DOCKER_SOCKET` in `deploy/.env`.
+
 Developing instead? See [CONTRIBUTING.md](CONTRIBUTING.md): `bun install && bun run dev`. The browser smoke test runs with `bun run e2e` (needs `bunx playwright install chromium` once).
 
 ## Principles

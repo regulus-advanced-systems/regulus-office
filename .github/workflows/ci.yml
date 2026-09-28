@@ -87,6 +87,17 @@ jobs:
           curl -fsSk https://localhost/login | grep -q '<div id="root">'
       - name: Office image runs as a non-root user
         run: test "$(docker compose exec -T office id -u)" != "0"
+      # SPEC §8: only docker-proxy mounts the socket; the office reaches a filtered Engine API.
+      - name: Docker API only through the filtered proxy
+        run: |
+          if docker compose exec -T office test -e /var/run/docker.sock; then
+            echo "office has the Docker socket" >&2; exit 1
+          fi
+          docker compose exec -T office bun -e '
+            const r = await fetch(process.env.DOCKER_HOST.replace("tcp:", "http:") + "/build", { method: "POST" });
+            console.log("POST /build ->", r.status);
+            process.exit(r.status === 403 ? 0 : 1);'
+          docker compose exec -T -e CHECK_IMAGE=busybox:1.37 office bun run - < docker-proxy-check.ts
       - run: bun install --frozen-lockfile
         working-directory: .
       - name: Seed owner and invite over HTTPS
