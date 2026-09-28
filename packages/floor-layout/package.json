@@ -1,0 +1,12 @@
+{
+  "name": "@regulus/floor-layout",
+  "version": "0.0.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "description": "Data-driven floor templates, seats, wall anchors and nav grid",
+  "main": "src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "name": "@regulus/agent-adapters",
+  "version": "0.0.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "description": "One adapter per AI coding agent provider (pure TS, testable without the server)",
+  "main": "src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@regulus/protocol": "workspace:*"
+  }
+}

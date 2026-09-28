@@ -1,0 +1,19 @@
+{
+  "name": "@regulus/web",
+  "version": "0.0.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "description": "Regulus Office browser client: React + Three.js scene, HUD, terminals",
+  "main": "src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "vite": "^8.3.1"
+  },
+  "dependencies": {
+    "@regulus/protocol": "workspace:*",
+    "@regulus/floor-layout": "workspace:*"
+  }
+}

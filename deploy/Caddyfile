@@ -1,0 +1,4 @@
+{$OFFICE_DOMAIN} {
+	encode zstd gzip
+	reverse_proxy office:4600
+}

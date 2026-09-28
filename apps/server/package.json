@@ -1,0 +1,17 @@
+{
+  "name": "@regulus/server",
+  "version": "0.0.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "description": "Regulus Office server: HTTP, multiplayer rooms, PTY bridge, agents, GitHub, PM bridge",
+  "main": "src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@regulus/protocol": "workspace:*",
+    "@regulus/agent-adapters": "workspace:*",
+    "@regulus/floor-layout": "workspace:*"
+  }
+}

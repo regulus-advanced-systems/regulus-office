@@ -1,0 +1,12 @@
+{
+  "name": "@regulus/protocol",
+  "version": "0.0.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "description": "Shared wire types, Colyseus schemas and zod validators",
+  "main": "src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  }
+}

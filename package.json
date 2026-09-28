@@ -1,13 +1,25 @@
 {
   "name": "regulus-office",
-  "module": "index.ts",
-  "type": "module",
   "private": true,
   "license": "MIT",
-  "devDependencies": {
-    "@types/bun": "latest"
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "bun run --filter '*' dev",
+    "typecheck": "bun run --filter '*' typecheck",
+    "test": "bun test",
+    "lint": "bunx biome check .",
+    "format": "bunx biome format --write ."
   },
-  "peerDependencies": {
+  "devDependencies": {
+    "@biomejs/biome": "^2",
+    "@types/bun": "latest",
     "typescript": "^7"
+  },
+  "dependencies": {
+    "@regulus/protocol": "workspace:*"
   }
 }

@@ -1,0 +1,62 @@
+# Regulus Office deployment (docs/SPEC.md §4.2, §8).
+# Base: office server + Caddy. Profiles: media (LiveKit), pg (Postgres).
+services:
+  office:
+    build:
+      context: ..
+      dockerfile: deploy/office.Dockerfile
+    image: ghcr.io/regulus-advanced-systems/regulus-office:latest
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      OFFICE_PORT: "4600"
+      OFFICE_DATA_DIR: /data
+      OFFICE_RUNNER_BACKEND: docker
+    volumes:
+      - office-data:/data
+      - projects:/srv/office/projects
+      # The office creates and manages runner containers; runners never get this socket.
+      - /var/run/docker.sock:/var/run/docker.sock
+    expose: ["4600"]
+
+  runner-image:
+    build:
+      context: ../runner
+    image: ghcr.io/regulus-advanced-systems/regulus-office-runner:latest
+    profiles: ["build-only"]
+    command: ["true"]
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports: ["80:80", "443:443", "443:443/udp"]
+    environment:
+      OFFICE_DOMAIN: ${OFFICE_DOMAIN:-localhost}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+  livekit:
+    image: livekit/livekit-server:latest
+    profiles: ["media"]
+    restart: unless-stopped
+    command: --config /etc/livekit.yaml
+    network_mode: host
+    volumes:
+      - ./livekit.yaml:/etc/livekit.yaml:ro
+
+  postgres:
+    image: postgres:17
+    profiles: ["pg"]
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+
+volumes:
+  office-data:
+  projects:
+  caddy-data:
+  caddy-config:
+  pg-data:
