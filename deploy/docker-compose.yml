@@ -1,35 +1,56 @@
-# Regulus Office deployment (docs/SPEC.md §4.2, §8).
-# Base: office server + Caddy. Profiles: media (LiveKit), pg (Postgres).
+# Regulus Office deployment (docs/SPEC.md §4.2 Packaging, §8).
+# Base: office server + Caddy. Profiles: media (LiveKit), pg (Postgres), build-only (runner image).
+#
+#   cp .env.example .env   # then fill BETTER_AUTH_SECRET and OFFICE_MASTER_KEY
+#   docker compose up -d --build
+#
+# With the defaults the office is served at https://localhost by Caddy's internal CA.
+# Secrets are never defaulted: Compose refuses to start until the operator sets them.
 services:
   office:
     build:
       context: ..
       dockerfile: deploy/office.Dockerfile
-    image: ghcr.io/regulus-advanced-systems/regulus-office:latest
+    image: ghcr.io/regulus-advanced-systems/regulus-office:${OFFICE_IMAGE_TAG:-latest}
     restart: unless-stopped
-    env_file: .env
+    env_file:
+      - path: .env
+        required: false
     environment:
+      NODE_ENV: production
       OFFICE_PORT: "4600"
+      OFFICE_HOST: 0.0.0.0
       OFFICE_DATA_DIR: /data
       OFFICE_RUNNER_BACKEND: docker
+      # Must equal the origin browsers use, or Origin checks and invite links break.
+      OFFICE_PUBLIC_URL: ${OFFICE_PUBLIC_URL:-https://${OFFICE_DOMAIN:-localhost}}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?set BETTER_AUTH_SECRET in deploy/.env (generate with openssl rand -base64 32; see deploy/.env.example)}
+      OFFICE_MASTER_KEY: ${OFFICE_MASTER_KEY:?set OFFICE_MASTER_KEY in deploy/.env (generate with openssl rand -base64 32; see deploy/.env.example)}
     volumes:
       - office-data:/data
       - projects:/srv/office/projects
-      # The office creates and manages runner containers; runners never get this socket.
+      # For the docker runner backend (M1): the office creates and manages runner containers.
+      # Runners never get this socket (SPEC §8). Nothing in M0 uses it.
       - /var/run/docker.sock:/var/run/docker.sock
     expose: ["4600"]
 
   runner-image:
     build:
       context: ../runner
-    image: ghcr.io/regulus-advanced-systems/regulus-office-runner:latest
+    image: ghcr.io/regulus-advanced-systems/regulus-office-runner:${OFFICE_IMAGE_TAG:-latest}
     profiles: ["build-only"]
     command: ["true"]
 
   caddy:
     image: caddy:2
     restart: unless-stopped
-    ports: ["80:80", "443:443", "443:443/udp"]
+    depends_on:
+      office:
+        condition: service_healthy
+    ports:
+      - "${OFFICE_HTTP_PORT:-80}:80"
+      - "${OFFICE_HTTPS_PORT:-443}:443"
+      - "${OFFICE_HTTPS_PORT:-443}:443/udp"
     environment:
       OFFICE_DOMAIN: ${OFFICE_DOMAIN:-localhost}
     volumes:
@@ -50,7 +71,9 @@ services:
     image: postgres:17
     profiles: ["pg"]
     restart: unless-stopped
-    env_file: .env
+    env_file:
+      - path: .env
+        required: false
     volumes:
       - pg-data:/var/lib/postgresql/data
 
