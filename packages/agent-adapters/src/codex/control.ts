@@ -219,6 +219,7 @@ export class CodexControl implements AgentControl {
 
   #finish(code: number | null | undefined, why: string): void {
     if (this.#queue.ended) return;
+    this.#closing = true;
     this.#pending.clear();
     this.#emit({
       kind: "exit",
