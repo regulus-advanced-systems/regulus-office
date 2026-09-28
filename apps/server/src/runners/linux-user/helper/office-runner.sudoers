@@ -1,0 +1,21 @@
+# /etc/sudoers.d/office-runner (root:root 0440; check with `visudo -cf`).
+# Lets the office-server user run the linux-user runner helper as root, one
+# rule per verb. Why each is needed: docs/deploy/linux-user-runner.md.
+Cmnd_Alias OFFICE_RUNNER_HELPER = /usr/local/lib/office/office-runner-helper
+Defaults!OFFICE_RUNNER_HELPER !use_pty
+office ALL=(root) NOPASSWD: /usr/local/lib/office/office-runner-helper provision *
+office ALL=(root) NOPASSWD: /usr/local/lib/office/office-runner-helper deprovision *
+office ALL=(root) NOPASSWD: /usr/local/lib/office/office-runner-helper mount-project *
+office ALL=(root) NOPASSWD: /usr/local/lib/office/office-runner-helper exec *
+office ALL=(root) NOPASSWD: /usr/local/lib/office/office-runner-helper spawn-piped *
+office ALL=(root) NOPASSWD: /usr/local/lib/office/office-runner-helper kill *
+office ALL=(root) NOPASSWD: /usr/local/lib/office/office-runner-helper sockets *
+office ALL=(root) NOPASSWD: /usr/local/lib/office/office-runner-helper capture *
+office ALL=(root) NOPASSWD: /usr/local/lib/office/office-runner-helper pane-title *
+office ALL=(root) NOPASSWD: /usr/local/lib/office/office-runner-helper send-keys *
+office ALL=(root) NOPASSWD: /usr/local/lib/office/office-runner-helper has-session *
+office ALL=(root) NOPASSWD: /usr/local/lib/office/office-runner-helper list-sessions *
+office ALL=(root) NOPASSWD: /usr/local/lib/office/office-runner-helper attach *
+office ALL=(root) NOPASSWD: /usr/local/lib/office/office-runner-helper write-file *
+office ALL=(root) NOPASSWD: /usr/local/lib/office/office-runner-helper read-file *
+office ALL=(root) NOPASSWD: /usr/local/lib/office/office-runner-helper list-dir *

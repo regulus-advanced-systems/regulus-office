@@ -149,3 +149,38 @@ jobs:
       - name: Tear down
         if: always()
         run: docker rm -f regulus-ci-proxy || true
+
+  # linux-user runner backend (SPEC §8): installs the helper and sudoers rules
+  # like docs/deploy/linux-user-runner.md, then runs the real integration test
+  # (accounts, systemd scopes, tmux) as the unprivileged runner user via sudo -n.
+  linux-user:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - name: Install tmux and acl
+        run: sudo apt-get update -q && sudo apt-get install -y -q tmux acl
+      - run: shellcheck apps/server/src/runners/linux-user/helper/office-runner-helper
+      - name: Install the helper and sudoers rules
+        run: |
+          helper=apps/server/src/runners/linux-user/helper
+          sudo install -d -m 0755 /usr/local/lib/office /etc/office /srv/office
+          sudo install -m 0755 -o root -g root "$helper/office-runner-helper" /usr/local/lib/office/
+          echo "OFFICE_SERVER_USER=$USER" | sudo tee /etc/office/runner-helper.conf
+          sed "s/^office /$USER /" "$helper/office-runner.sudoers" > "$RUNNER_TEMP/office-runner"
+          sudo visudo -cf "$RUNNER_TEMP/office-runner"
+          sudo install -m 0440 -o root -g root "$RUNNER_TEMP/office-runner" /etc/sudoers.d/office-runner
+          sudo install -d -m 0750 -o "$USER" -g "$USER" /srv/office/projects /srv/office/worktrees
+      - name: Integration test
+        env:
+          OFFICE_TEST_LINUX_USER: "1"
+        run: bun test apps/server/src/runners/linux-user/linux-user-runner.integration.test.ts
+      - name: Leftover accounts and scopes
+        if: always()
+        run: |
+          getent passwd | grep '^office-u-' || true
+          systemctl list-units --all --plain --no-legend 'agent-*' 'office-tmux-*' || true
