@@ -6,7 +6,6 @@ import {
   DECAL_BEHIND,
   decalPlacement,
   laptopOrigin,
-  MODEL_YAW,
   robotPlacement,
   SCREEN_TOP,
   SIT_LIFT,
@@ -25,7 +24,7 @@ describe("robot seat placement", () => {
     expect(sitting.position[1]).toBe(SIT_LIFT);
     // Pushed back toward the chair's back (south, +z) and turned to face north.
     expect(sitting.position[2]).toBeGreaterThan(6);
-    expect(sitting.rotationY).toBeCloseTo(HEADING.north + MODEL_YAW, 6);
+    expect(sitting.rotationY).toBeCloseTo(HEADING.north, 6);
     expect(robotPlacement(s, false).position).toEqual([4, 0, 6]);
   });
 

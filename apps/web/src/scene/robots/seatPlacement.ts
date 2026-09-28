@@ -18,12 +18,6 @@ export const SCREEN_TOP = 0.24;
 /** Decal centre: behind the chair, in the aisle. */
 export const DECAL_BEHIND = 1.0;
 
-/**
- * robot.glb faces +z at rotation 0, while a heading of 0 faces -z (north);
- * turn the model half way round so it faces the desk.
- */
-export const MODEL_YAW = Math.PI;
-
 export interface RobotPlacement {
   position: [number, number, number];
   rotationY: number;
@@ -34,7 +28,7 @@ export function robotPlacement(seat: Seat, seated: boolean): RobotPlacement {
   const back = seated ? SIT_BACK : 0;
   return {
     position: [seat.pose.x - f.x * back, seated ? SIT_LIFT : 0, seat.pose.z - f.z * back],
-    rotationY: seat.pose.heading + MODEL_YAW,
+    rotationY: seat.pose.heading,
   };
 }
 

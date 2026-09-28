@@ -21,6 +21,7 @@ export { HUMAN_PLATE_STYLE, type NamePlateStyle } from "./namePlateTexture.ts";
 export { avatarAnimationFor, presenceAnimation } from "./presence.ts";
 export {
   MODEL_SCALE,
+  MODEL_YAW,
   preloadRobotModel,
   ROBOT_HEIGHT,
   RobotAvatar,

@@ -42,7 +42,7 @@ function DepartingRobot({ override }: { override: RobotOverride }) {
         handRaised={false}
       />
       {override.carrying && (
-        <group position={[0, ROBOT_HEIGHT * 0.5, 0.32]}>
+        <group position={[0, ROBOT_HEIGHT * 0.5, -0.32]}>
           <mesh castShadow>
             <boxGeometry args={[0.42, 0.3, 0.32]} />
             <meshToonMaterial color={BOX_COLOR} />
