@@ -42,6 +42,7 @@ export function structuralProblems(t: FloorTemplate): string[] {
     ["seat", t.seats.map((s) => s.id)],
     ["wallAnchor", t.wallAnchors.map((a) => a.id)],
     ["obstacle", t.obstacles.map((o) => o.id)],
+    ["rug", t.rugs.map((r) => r.id)],
   ] as const) {
     for (const id of duplicates([...ids])) problems.push(`duplicate ${what} id "${id}"`);
   }
@@ -119,6 +120,9 @@ export function structuralProblems(t: FloorTemplate): string[] {
     if (obstacle.standAt && !rectContains(bounds, obstacle.standAt)) {
       problems.push(`obstacle "${obstacle.id}" standAt is outside the room`);
     }
+  }
+  for (const rug of t.rugs) {
+    if (!rectInside(rug.rect, bounds)) problems.push(`rug "${rug.id}" leaves the room`);
   }
   for (const seat of t.seats) {
     if (!rectContains(bounds, seat.pose)) problems.push(`seat "${seat.id}" is outside the room`);

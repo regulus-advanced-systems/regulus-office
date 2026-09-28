@@ -13,6 +13,9 @@ import {
 } from "./roomPieces.ts";
 
 const pieces = roomPieces(lobbyTemplate);
+/** Lobby footprint; the tests follow the template rather than fixed numbers. */
+const W = lobbyTemplate.size.width;
+const D = lobbyTemplate.size.depth;
 
 describe("roomPieces(lobby, { frontWalls: 'full' })", () => {
   const fpv = roomPieces(lobbyTemplate, { frontWalls: "full" });
@@ -21,10 +24,10 @@ describe("roomPieces(lobby, { frontWalls: 'full' })", () => {
     expect(fpv.walls.every((w) => w.height === "full")).toBe(true);
     expect(fpv.caps).toEqual([]);
     const south = fpv.walls.find((w) => w.id === "south");
-    expect(south?.center).toEqual([7, 1.5, 11]);
-    expect(south?.size).toEqual([14 + WALL_THICKNESS, 3, WALL_THICKNESS]);
+    expect(south?.center).toEqual([W / 2, 1.5, D]);
+    expect(south?.size).toEqual([W + WALL_THICKNESS, 3, WALL_THICKNESS]);
     const east = fpv.walls.find((w) => w.id === "east");
-    expect(east?.size).toEqual([WALL_THICKNESS, 3, 11 + WALL_THICKNESS]);
+    expect(east?.size).toEqual([WALL_THICKNESS, 3, D + WALL_THICKNESS]);
   });
 
   test("the back walls, windows and floor are unchanged", () => {
@@ -48,7 +51,7 @@ describe("roomPieces(lobby, { frontWalls: 'full' })", () => {
 
 describe("roomPieces(lobby)", () => {
   test("floor covers the template footprint, centred", () => {
-    expect(pieces.floor).toEqual({ center: [7, 0, 5.5], width: 14, depth: 11 });
+    expect(pieces.floor).toEqual({ center: [W / 2, 0, D / 2], width: W, depth: D });
   });
 
   test("north and west are full back walls, south and east are stubs with caps", () => {
@@ -62,13 +65,13 @@ describe("roomPieces(lobby)", () => {
 
   test("wall boxes sit on the segment with the nav thickness and the right height", () => {
     const north = pieces.walls.find((w) => w.id === "north");
-    expect(north?.center).toEqual([7, 1.5, 0]);
-    expect(north?.size).toEqual([14 + WALL_THICKNESS, 3, WALL_THICKNESS]);
+    expect(north?.center).toEqual([W / 2, 1.5, 0]);
+    expect(north?.size).toEqual([W + WALL_THICKNESS, 3, WALL_THICKNESS]);
     expect(north?.facing).toBe("south");
     expect(north?.exterior).toBe("north");
     const east = pieces.walls.find((w) => w.id === "east");
-    expect(east?.center).toEqual([14, 0.2, 5.5]);
-    expect(east?.size).toEqual([WALL_THICKNESS, 0.4, 11 + WALL_THICKNESS]);
+    expect(east?.center).toEqual([W, 0.2, D / 2]);
+    expect(east?.size).toEqual([WALL_THICKNESS, 0.4, D + WALL_THICKNESS]);
   });
 
   test("caps sit on top of the stubs and overhang them", () => {
@@ -84,7 +87,9 @@ describe("roomPieces(lobby)", () => {
     expect(pieces.windows).toHaveLength(3);
     const first = pieces.windows.find((w) => w.id === "north-window-0");
     if (!first) throw new Error("no north window");
-    expect(first.center[0]).toBeCloseTo(9.2 + 0.6, 9);
+    const opening = lobbyTemplate.walls.find((w) => w.id === "north")?.openings[0];
+    if (!opening) throw new Error("no north opening");
+    expect(first.center[0]).toBeCloseTo(opening.t + opening.w / 2, 9);
     expect(first.center[1]).toBeCloseTo(WINDOW_SILL + WINDOW_HEIGHT / 2, 9);
     expect(first.center[2]).toBeCloseTo(WALL_THICKNESS / 2 + WALL_SURFACE_GAP, 9);
     expect(first.yaw).toBeCloseTo(0, 9);
@@ -97,9 +102,9 @@ describe("roomPieces(lobby)", () => {
     const name = pieces.name;
     if (!name) throw new Error("no name plate");
     expect(name.wallId).toBe("south");
-    expect(name.center[2]).toBeCloseTo(11 + WALL_THICKNESS / 2 + WALL_SURFACE_GAP, 9);
+    expect(name.center[2]).toBeCloseTo(D + WALL_THICKNESS / 2 + WALL_SURFACE_GAP, 9);
     expect(name.center[1]).toBeCloseTo(0.2, 9);
-    expect(name.width).toBe(14);
+    expect(name.width).toBe(W);
     expect(name.height).toBe(0.4);
     expect(name.yaw).toBeCloseTo(0, 9);
   });

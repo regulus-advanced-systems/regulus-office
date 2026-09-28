@@ -59,6 +59,13 @@ export type WallOpeningKind = (typeof WALL_OPENING_KINDS)[number];
 
 export const COMPASS_DIRECTIONS = ["north", "south", "east", "west"] as const;
 
+/**
+ * Rug colour, resolved against the floor's palette: `warm` takes the second
+ * wall colour (cream, orange or crimson), `alt` the second floor colour.
+ */
+export const RUG_TONES = ["warm", "alt"] as const;
+export type RugTone = (typeof RUG_TONES)[number];
+
 // ---- Primitives --------------------------------------------------------------
 
 const Metres = z.number().finite();
@@ -141,6 +148,17 @@ export const ElevatorSchema = z.object({
 });
 export type Elevator = z.infer<typeof ElevatorSchema>;
 
+/**
+ * A flat rug that anchors a zone (lounge, meeting nook, kitchen) visually.
+ * Pure decoration: it never blocks navigation.
+ */
+export const RugSchema = z.object({
+  id: Id,
+  rect: RectSchema,
+  tone: z.enum(RUG_TONES).default("warm"),
+});
+export type Rug = z.infer<typeof RugSchema>;
+
 // ---- Template ------------------------------------------------------------------
 
 export const FloorTemplateSchema = z.object({
@@ -157,6 +175,8 @@ export const FloorTemplateSchema = z.object({
   seats: z.array(SeatSchema),
   wallAnchors: z.array(WallAnchorSchema),
   obstacles: z.array(ObstacleSchema),
+  /** Zone rugs (decoration only); optional so older templates still parse. */
+  rugs: z.array(RugSchema).default([]),
   elevator: ElevatorSchema,
   spawn: PoseSchema,
 });

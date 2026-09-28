@@ -49,12 +49,12 @@ export function IsoCamera({ room, enabled = true }: { room: RoomExtent; enabled?
     const el = gl.domElement;
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
-      factor.current = zoomFactorAfterWheel(factor.current, e.deltaY);
+      factor.current = zoomFactorAfterWheel(factor.current, e.deltaY, undefined, room);
       applyZoom();
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
-  }, [active, gl, applyZoom]);
+  }, [active, gl, applyZoom, room]);
 
   return null;
 }

@@ -11,7 +11,13 @@ import {
 import { chairForSeat, FURNITURE_MODELS, PLACEHOLDER_HEIGHTS } from "./catalog.ts";
 import { GltfProp } from "./GltfProp.tsx";
 import { ElevatorBank, Jukebox, PlaceholderBox } from "./Procedural.tsx";
-import { furnitureHeading, restingHeight, SEAT_FOOTPRINT, visualFootprint } from "./placement.ts";
+import {
+  furnitureHeading,
+  propTargetHeight,
+  restingHeight,
+  SEAT_FOOTPRINT,
+  visualFootprint,
+} from "./placement.ts";
 
 export interface FurnitureProps {
   template: FloorTemplate;
@@ -35,6 +41,7 @@ export function Furniture({ template, palette }: FurnitureProps) {
             <GltfProp
               key={o.id}
               spec={spec}
+              targetHeight={propTargetHeight(o.kind, rect, spec.targetHeight)}
               rect={rect}
               heading={heading}
               palette={palette}

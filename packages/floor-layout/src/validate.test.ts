@@ -159,3 +159,26 @@ describe("loadTemplate", () => {
     expect(structuralProblems(parseFloorTemplate(officeL2TemplateInput))).toEqual([]);
   });
 });
+
+describe("rugs", () => {
+  test("default to none and never block navigation", () => {
+    expect(loadTemplate(tinyRoom()).rugs).toEqual([]);
+    const withRug = loadTemplate(
+      tinyRoom({ rugs: [{ id: "rug", rect: { x: 0.5, z: 0.5, w: 3, d: 3 } }] }),
+    );
+    expect(withRug.rugs[0]?.tone).toBe("warm");
+  });
+
+  test("must stay inside the room and have unique ids", () => {
+    const problems = problemsOf(
+      tinyRoom({
+        rugs: [
+          { id: "rug", rect: { x: 3, z: 3, w: 2, d: 2 } },
+          { id: "rug", rect: { x: 0.5, z: 0.5, w: 1, d: 1 }, tone: "alt" },
+        ],
+      }),
+    );
+    expect(problems).toContain('duplicate rug id "rug"');
+    expect(problems).toContain('rug "rug" leaves the room');
+  });
+});

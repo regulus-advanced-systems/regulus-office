@@ -4,7 +4,7 @@
  * plausible metric furniture, not measurements from the game.
  */
 import { HEADING } from "../geometry.ts";
-import type { Obstacle, Seat, Wall, WallOpening } from "../types.ts";
+import type { Obstacle, Rug, RugTone, Seat, Wall, WallOpening } from "../types.ts";
 
 /** Standard window width, metres. */
 export const WINDOW_W = 1.2;
@@ -116,8 +116,23 @@ export function ceoDesk(id: string, x: number, z: number): Group {
   };
 }
 
-export function plant(id: string, x: number, z: number): Obstacle {
-  return { id, kind: "plant", rect: { x, z, w: 0.5, d: 0.5 } };
+/** Potted plant; `size` is the pot's square footprint (the scene grows the plant with it). */
+export function plant(id: string, x: number, z: number, size = 0.5): Obstacle {
+  return { id, kind: "plant", rect: { x, z, w: size, d: size } };
+}
+
+/** Footprint of a large floor plant, metres. The templates use a few of these rather than many small pots. */
+export const BIG_PLANT = 0.8;
+
+export function rug(
+  id: string,
+  x: number,
+  z: number,
+  w: number,
+  d: number,
+  tone: RugTone = "warm",
+): Rug {
+  return { id, rect: { x, z, w, d }, tone };
 }
 
 export function cabinets(id: string, x: number, z: number, w: number, d: number): Obstacle {

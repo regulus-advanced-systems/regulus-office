@@ -95,6 +95,17 @@ describe("every template", () => {
     },
   );
 
+  test.each(all.map((t) => [t.id, t] as const))(
+    "%s: seats and stand points sit on nav cell centres (paths end exactly there)",
+    (_id, t) => {
+      const grid = buildNavGrid(t);
+      const points = [...t.seats.map((s) => s.pose), ...interactables(t).map((i) => i.standAt)];
+      for (const p of points) {
+        expect(grid.cellToWorld(grid.worldToCell(p.x, p.z))).toEqual({ x: p.x, z: p.z });
+      }
+    },
+  );
+
   test.each(all.map((t) => [t.id, t] as const))("%s: spawn is at the elevator doors", (_id, t) => {
     expect(t.spawn).toEqual(t.elevator.door);
     expect(t.nameWallId).toBe("south");
@@ -161,9 +172,12 @@ describe("tiers", () => {
 
   test("large office has two pods split by a partition", () => {
     const t = templateForTier("large");
-    expect(t.walls.find((w) => w.id === "partition")?.height).toBe("full");
-    const west = deskSeats(t).filter((s) => s.pose.x < 11);
-    const east = deskSeats(t).filter((s) => s.pose.x > 11);
+    const partition = t.walls.find((w) => w.id === "partition");
+    expect(partition?.height).toBe("full");
+    const splitX = partition?.from.x ?? 0;
+    expect(partition?.to.x).toBe(splitX);
+    const west = deskSeats(t).filter((s) => s.pose.x < splitX);
+    const east = deskSeats(t).filter((s) => s.pose.x > splitX);
     expect(west).toHaveLength(10);
     expect(east).toHaveLength(10);
   });

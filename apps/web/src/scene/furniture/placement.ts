@@ -57,6 +57,22 @@ export function centreBottomOffset(b: BoxBounds): Vec3Tuple {
   return [-(b.min.x + b.max.x) / 2, -b.min.y, -(b.min.z + b.max.z) / 2];
 }
 
+/** Pot footprint the plant model's target height is authored for, metres. */
+export const PLANT_BASE_FOOTPRINT = 0.5;
+/** Tallest a plant grows relative to its base height (a big palm, not a tree). */
+export const PLANT_MAX_GROWTH = 1.8;
+
+/**
+ * Target height for a prop: plants grow with their pot, so the few large
+ * plants in the templates (#118) read as big palms rather than small pots
+ * with wide shadows. Everything else keeps its catalog height.
+ */
+export function propTargetHeight(kind: ObstacleKind, rect: Rect, base: number): number {
+  if (kind !== "plant") return base;
+  const growth = Math.min(rect.w, rect.d) / PLANT_BASE_FOOTPRINT;
+  return base * Math.min(PLANT_MAX_GROWTH, Math.max(1, growth));
+}
+
 /** Half-metre square footprint used for seats when a couch spans its cushions. */
 export const SEAT_FOOTPRINT = 0.5;
 

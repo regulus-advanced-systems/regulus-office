@@ -1,6 +1,7 @@
 /**
  * The dollhouse room (SPEC §12): floor, two full back walls, front stubs
- * with a dark cap, window panes, and the floor name on the exterior stub.
+ * with a dark cap, window panes, zone rugs, and the floor name on the
+ * exterior stub.
  * In first-person view (SPEC §9.2) `frontWalls="full"` raises the stubs to
  * full walls without remounting anything else. Geometry comes from
  * `roomPieces`, colours from the palette, grime from a procedural multiply
@@ -12,6 +13,7 @@ import { type DataTexture, MeshBasicMaterial, type MeshToonMaterial } from "thre
 import { createGrimeTexture } from "../materials/grime.ts";
 import { createToonMaterial } from "../materials/toon.ts";
 import { createNameTexture } from "./nameTexture.ts";
+import { Rugs } from "./Rugs.tsx";
 import {
   type FrontWallMode,
   roomColors,
@@ -118,6 +120,7 @@ export function Room({ template, palette, floorName, frontWalls = "stub" }: Room
       <mesh position={pieces.floor.center} rotation-x={-Math.PI / 2} material={mats.floor}>
         <planeGeometry args={[pieces.floor.width, pieces.floor.depth]} />
       </mesh>
+      <Rugs template={template} palette={palette} />
       {pieces.walls.map((w) => (
         <mesh
           key={w.id}

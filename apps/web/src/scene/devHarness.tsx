@@ -1,12 +1,21 @@
 /**
  * Dev-only page (`/scene.html` on the Vite dev server) that mounts the scene
  * without the HUD or networking, for eyeballing the room and measuring fps
- * (`/scene.html?stats`). The local robot walks with click-to-walk / WASD
+ * (`/scene.html?stats`). `?template=<id>` picks the floor template
+ * (`lobby`, `office-small`, `office-l2`, `office-large`; default lobby) and
+ * `?palette=<id>` its palette (default: the lobby palette for the lobby,
+ * the first floor palette otherwise). The local robot walks with click-to-walk / WASD
  * (moves are not sent anywhere); `V` (through the shared hotkey registry)
  * or the corner button toggles first person. Not part of the production
  * build (only index.html is an entry).
  */
-import { lobbyTemplate } from "@regulus/floor-layout";
+import {
+  LOBBY_PALETTE_ID,
+  lobbyTemplate,
+  paletteById,
+  paletteForFloor,
+  templateById,
+} from "@regulus/floor-layout";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { useViewStore } from "../state/view.ts";
@@ -17,6 +26,12 @@ import { OfficeCanvas } from "./OfficeCanvas.tsx";
 
 const noSend = () => {};
 
+const params = new URLSearchParams(window.location.search);
+const template = templateById(params.get("template") ?? "") ?? lobbyTemplate;
+const palette =
+  paletteById(params.get("palette") ?? "") ??
+  (template.kind === "lobby" ? paletteById(LOBBY_PALETTE_ID) : paletteForFloor(0));
+
 function Harness() {
   useGlobalHotkeys();
   const mode = useViewStore((s) => s.mode);
@@ -24,8 +39,8 @@ function Harness() {
   const toggle = useViewStore((s) => s.toggle);
   return (
     <div style={{ position: "fixed", inset: 0 }}>
-      <OfficeCanvas template={lobbyTemplate} avatars={<AvatarLayer />}>
-        <MovementController template={lobbyTemplate} send={noSend} />
+      <OfficeCanvas template={template} palette={palette} avatars={<AvatarLayer />}>
+        <MovementController template={template} send={noSend} />
       </OfficeCanvas>
       <button
         type="button"
