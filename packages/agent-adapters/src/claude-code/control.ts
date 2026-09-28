@@ -1,0 +1,85 @@
+/**
+ * `AgentControl` for a TUI-primary Claude Code session in tmux (SPEC §7:
+ * "tmux TUI is primary with hooks + statusline forwarder").
+ *
+ * Status, tool calls and permission requests arrive out of band through the
+ * hook and statusline routes (`ClaudeCodeAdapter.ingest`), which publish
+ * straight into the server's `AgentEventSink`. This control's own `events`
+ * therefore carries only what it causes itself: `starting` on connect, the
+ * `working` that follows an office approval, and `exit` on close.
+ *
+ * - `prompt` types into the pane (attachments as `@path` mentions).
+ * - `respondPermission` answers a held `PermissionRequest` hook (see
+ *   permissions.ts); it throws when the hook already expired, in which case
+ *   the request must be answered in the terminal.
+ * - `interrupt` sends Escape, Claude Code's documented interrupt key.
+ * - `close` detaches: it releases held hooks and ends `events`; stopping the
+ *   process is the runner's job (tmux session kill).
+ */
+import type { AgentEvent, PermissionDecision } from "@regulus/protocol";
+import { AsyncQueue } from "../async-queue.ts";
+import type { AgentControl, PromptAttachment, RunnerContext, SpawnPlan } from "../types.ts";
+import type { PermissionBroker } from "./permissions.ts";
+
+const ESCAPE = "\u001b";
+
+export class ClaudeControl implements AgentControl {
+  readonly #queue = new AsyncQueue<AgentEvent>();
+  #closed = false;
+
+  constructor(
+    private readonly plan: SpawnPlan,
+    private readonly ctx: RunnerContext,
+    private readonly broker: PermissionBroker,
+    private readonly observedSessionId: () => string | undefined,
+  ) {
+    this.#queue.push({ kind: "status", ts: ctx.now(), status: "starting" });
+  }
+
+  get events(): AsyncIterable<AgentEvent> {
+    return this.#queue;
+  }
+
+  async prompt(text: string, attachments: readonly PromptAttachment[] = []): Promise<void> {
+    this.#assertOpen();
+    const mentions = attachments.map((a) => `@${a.path}`);
+    const line = [text.replace(/\r?\n/g, " "), ...mentions].join(" ").trim();
+    if (!line) return;
+    await this.ctx.runner.sendKeys(this.plan.tmuxSession, line, { enter: true });
+  }
+
+  async respondPermission(id: string, decision: PermissionDecision): Promise<void> {
+    this.#assertOpen();
+    if (!this.broker.resolve(this.plan.agentId, id, decision)) {
+      throw new Error(
+        `Permission request ${id} is no longer pending; answer it in the agent's terminal`,
+      );
+    }
+    this.#queue.push({
+      kind: "status",
+      ts: this.ctx.now(),
+      status: "working",
+      reason: decision === "reject" ? "permission rejected" : "permission granted",
+    });
+  }
+
+  async interrupt(): Promise<void> {
+    this.#assertOpen();
+    await this.ctx.runner.sendKeys(this.plan.tmuxSession, ESCAPE);
+  }
+
+  async close(): Promise<void> {
+    if (this.#closed) return;
+    this.#closed = true;
+    this.broker.cancelAgent(this.plan.agentId);
+    this.#queue.end();
+  }
+
+  providerSessionId(): string | undefined {
+    return this.observedSessionId() ?? this.plan.providerSessionId;
+  }
+
+  #assertOpen(): void {
+    if (this.#closed) throw new Error("Agent control is closed");
+  }
+}

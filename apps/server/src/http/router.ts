@@ -11,6 +11,12 @@ export interface RouteContext {
   request: Request;
   url: URL;
   params: Record<string, string>;
+  /**
+   * Per-request controls of the underlying Bun server, for handlers that hold
+   * a request open longer than the idle timeout (Claude PermissionRequest
+   * hooks). Absent when a handler is invoked outside Bun.serve (tests).
+   */
+  server?: Pick<Bun.Server<unknown>, "timeout">;
 }
 
 export type RouteHandler = (ctx: RouteContext) => Response | Promise<Response>;
