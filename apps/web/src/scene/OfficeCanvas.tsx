@@ -1,45 +1,95 @@
 /**
- * Placeholder scene: true-isometric orthographic camera (yaw 45°, pitch
- * 35.264°, SPEC §12), hemisphere + key light from the upper left, a lit
- * ground plane and one box so the lighting is visible. The real floor scene
- * is issue #14.
+ * The office scene (SPEC §9.2, §12): true-isometric orthographic camera over
+ * a dollhouse room rendered from a floor template with toon shading, on a
+ * cream vignette, with baked blob shadows under the furniture. Pixel ratio
+ * 1, no tone mapping, render loop paused while the tab is hidden (SPEC §11).
+ *
+ * Avatars are not rendered here: pass them through `avatars` (they mount in
+ * a `<group name="avatars">`) or as `children`, so the avatar issues need
+ * not touch this file.
  */
-import { OrbitControls } from "@react-three/drei";
 import { Canvas } from "@react-three/fiber";
-import { colors } from "../ui/theme.ts";
+import {
+  type FloorTemplate,
+  LOBBY_PALETTE_ID,
+  lobbyTemplate,
+  type Palette,
+  paletteById,
+} from "@regulus/floor-layout";
+import { type ReactNode, Suspense, useMemo } from "react";
+import { vignetteBackground } from "./backdrop.ts";
+import { IsoCamera } from "./camera/IsoCamera.tsx";
+import { CAMERA_FAR, CAMERA_NEAR, cameraPosition, roomTarget } from "./camera/isoCamera.ts";
+import { Furniture } from "./furniture/Furniture.tsx";
+import { WallAnchors } from "./furniture/WallAnchors.tsx";
+import { useDocumentHidden } from "./hooks/useDocumentHidden.ts";
+import { Lighting } from "./lights/Lighting.tsx";
+import { StatsOverlay } from "./perf/StatsOverlay.tsx";
+import { statsEnabled } from "./perf/stats.ts";
+import { Room } from "./room/Room.tsx";
+import { BlobShadows } from "./shadows/BlobShadows.tsx";
 
-/** Camera direction for a true isometric view. */
-const ISO_DISTANCE = 20;
-const ISO_POSITION: [number, number, number] = [
-  ISO_DISTANCE * Math.SQRT1_2,
-  ISO_DISTANCE * Math.tan((35.264 * Math.PI) / 180) * Math.SQRT2 * Math.SQRT1_2,
-  ISO_DISTANCE * Math.SQRT1_2,
-];
+export interface OfficeCanvasProps {
+  /** Floor to draw; the lobby until floor switching lands. */
+  template?: FloorTemplate;
+  palette?: Palette;
+  /** Name painted on the exterior stub wall; defaults to the template name. */
+  floorName?: string;
+  /** Robots and humans, mounted in `<group name="avatars">` after the room. */
+  avatars?: ReactNode;
+  /** Anything else to add to the scene (bubbles, decals, debug helpers). */
+  children?: ReactNode;
+}
 
-export function OfficeCanvas() {
+function requirePalette(id: string): Palette {
+  const p = paletteById(id);
+  if (!p) throw new Error(`palette ${id} missing`);
+  return p;
+}
+const DEFAULT_PALETTE = requirePalette(LOBBY_PALETTE_ID);
+
+export function OfficeCanvas({
+  template = lobbyTemplate,
+  palette = DEFAULT_PALETTE,
+  floorName,
+  avatars,
+  children,
+}: OfficeCanvasProps) {
+  const hidden = useDocumentHidden();
+  const showStats = useMemo(() => statsEnabled(window.location.search), []);
+  const room = useMemo(
+    () => ({ width: template.size.width, depth: template.size.depth, height: template.wallHeight }),
+    [template],
+  );
+  const initialPosition = useMemo(() => {
+    const p = cameraPosition(roomTarget(room));
+    return [p.x, p.y, p.z] as [number, number, number];
+  }, [room]);
+
   return (
-    <Canvas
-      orthographic
-      shadows
-      camera={{ position: ISO_POSITION, zoom: 40, near: 0.1, far: 200 }}
-      style={{ position: "absolute", inset: 0 }}
-    >
-      <hemisphereLight args={["#ffffff", colors.cream, 0.9]} />
-      <directionalLight
-        position={[-8, 12, 6]}
-        intensity={1.4}
-        castShadow
-        shadow-mapSize={[1024, 1024]}
-      />
-      <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <planeGeometry args={[16, 12]} />
-        <meshToonMaterial color="#D8C79A" />
-      </mesh>
-      <mesh position={[0, 0.5, 0]} castShadow>
-        <boxGeometry args={[1, 1, 1]} />
-        <meshToonMaterial color={colors.cyan} />
-      </mesh>
-      <OrbitControls enableRotate={false} makeDefault />
-    </Canvas>
+    <div style={{ position: "absolute", inset: 0, background: vignetteBackground() }}>
+      <Canvas
+        orthographic
+        flat
+        dpr={1}
+        frameloop={hidden ? "never" : "always"}
+        gl={{ alpha: true, antialias: true, powerPreference: "high-performance" }}
+        camera={{ position: initialPosition, zoom: 50, near: CAMERA_NEAR, far: CAMERA_FAR }}
+        style={{ position: "absolute", inset: 0 }}
+        onCreated={showStats ? (state) => (window.__regulusR3F = state) : undefined}
+      >
+        <IsoCamera room={room} />
+        <Lighting />
+        <Room template={template} palette={palette} floorName={floorName} />
+        <Suspense fallback={null}>
+          <Furniture template={template} palette={palette} />
+          <WallAnchors template={template} palette={palette} />
+          <BlobShadows template={template} />
+        </Suspense>
+        <group name="avatars">{avatars}</group>
+        {children}
+        {showStats && <StatsOverlay />}
+      </Canvas>
+    </div>
   );
 }
