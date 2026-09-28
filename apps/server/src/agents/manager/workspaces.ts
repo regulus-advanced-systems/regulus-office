@@ -1,11 +1,12 @@
 /**
- * Where an agent works (SPEC §8: the floor repo checkout, or a per-agent git
- * worktree under `/srv/office/worktrees/<floor>/<agent>/`).
+ * Where an agent works (SPEC §8 as amended in #114: a per-agent git worktree
+ * of its owner's own clone, `<worktrees>/<floor>/<rid>/<agent>`, or that
+ * clone itself when a spawn opts out of a worktree).
  *
- * The interface lives in apps/server/src/worktrees/types.ts (#31, git
- * worktrees). {@link RepoWorkspaces} is used when a spawn opts out of a
- * worktree (`autoWorktree: false`): the floor repo checkout on its default
- * branch.
+ * The interfaces live in apps/server/src/worktrees/types.ts (#31, #114):
+ * `Workspaces` and `HumanClones`, both implemented by the worktrees module.
+ * {@link RepoWorkspaces} is only the fallback when no `HumanClones` is wired
+ * (tests): the floor repo checkout on its default branch.
  */
 import { eq } from "drizzle-orm";
 import type { Db } from "../../db/index.ts";

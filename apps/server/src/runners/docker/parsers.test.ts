@@ -162,7 +162,8 @@ describe("engine plumbing", () => {
 
 describe("docker backend config", () => {
   test("defaults", () => {
-    expect(loadConfig({}).docker).toEqual({
+    const config = loadConfig({});
+    expect(config.docker).toEqual({
       dockerHost: "unix:///var/run/docker.sock",
       image: "ghcr.io/regulus-advanced-systems/regulus-office-runner:latest",
       prefix: "office",
@@ -172,7 +173,7 @@ describe("docker backend config", () => {
       memoryBytes: undefined,
       cpus: undefined,
       pidsLimit: 4096,
-      floorRoots: ["/srv/office/worktrees"],
+      floorRoots: [config.worktreesDir],
       volumeMap: [],
     });
   });
