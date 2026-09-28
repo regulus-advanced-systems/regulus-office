@@ -10,6 +10,7 @@
  * - commands/          client→server command union (zod, discriminated on `type`)
  * - agent-events.ts    adapter→server AgentEvent union (zod, discriminated on `kind`)
  * - schema/            @colyseus/schema classes mirroring the state shapes
+ * - terminal.ts        terminal WebSocket control messages and constants
  */
 export * from "./agent-events.ts";
 export * from "./building-state.ts";
@@ -20,3 +21,4 @@ export * from "./floor-state.ts";
 export * from "./floors-api.ts";
 export * from "./rooms.ts";
 export * from "./schema/index.ts";
+export * from "./terminal.ts";

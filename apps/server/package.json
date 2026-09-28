@@ -12,7 +12,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "bun run src/db/migrate.ts",
-    "loadtest:building": "bun run scripts/loadtest-building.ts"
+    "loadtest:building": "bun run scripts/loadtest-building.ts",
+    "loadtest:terminal": "bun run scripts/loadtest-terminal.ts"
   },
   "dependencies": {
     "@colyseus/bun-websockets": "0.18.3",

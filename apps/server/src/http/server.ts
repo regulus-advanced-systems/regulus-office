@@ -4,19 +4,24 @@
  */
 import type { OfficeConfig } from "../config.ts";
 import type { Logger } from "../logging.ts";
-import { type HttpAttachment, UPGRADED } from "../rooms/transport.ts";
+import { UPGRADED } from "../rooms/transport.ts";
 import { Health } from "./health.ts";
 import { safeLogPath } from "./log-path.ts";
 import { MetricsRegistry, PROMETHEUS_CONTENT_TYPE } from "./metrics.ts";
 import { json, Router } from "./router.ts";
 import { createStaticHandler } from "./static.ts";
+import type { WsRoute } from "./ws-router.ts";
 
 export interface OfficeServerOptions {
   config: Pick<OfficeConfig, "port" | "host" | "webDist">;
   logger: Logger;
   version: string;
-  /** Room transport hooks (matchmaking routes + WebSocket upgrade); see rooms/transport.ts. */
-  attach?: HttpAttachment;
+  /**
+   * WebSocket endpoints and their HTTP hooks (room matchmaking + upgrades, the
+   * terminal bridge); see rooms/transport.ts. Several are combined with a
+   * `WsRouter` (./ws-router.ts) because Bun takes one `websocket` handler.
+   */
+  attach?: WsRoute;
 }
 
 export interface OfficeServer {
@@ -67,8 +72,12 @@ export function createOfficeServer(options: OfficeServerOptions): OfficeServer {
   ): Promise<[Response | undefined, string]> => {
     if (attach) {
       const handled = await attach.fetch(request, url, bun);
-      if (handled === UPGRADED) return [undefined, "ws"];
-      if (handled) return [handled, "rooms"];
+      if (handled !== undefined) {
+        // A bounded pattern when the attachment names one (never ids from the path, #90).
+        const label = attach.routeOf?.(url);
+        if (handled === UPGRADED) return [undefined, label ?? "ws"];
+        return [handled, label ?? "rooms"];
+      }
     }
     const match = router.match(request.method, url.pathname);
     if (match) {
