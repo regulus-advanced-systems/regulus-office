@@ -9,6 +9,7 @@ import { selectReducedMotion, useUiStore } from "../../state/ui.ts";
 import { AccountSection } from "../auth/AccountSection.tsx";
 import { Button } from "../components/Button.tsx";
 import { Switch } from "../components/Switch.tsx";
+import { openProvidersPanel } from "../providers/providersStore.ts";
 import { DEFAULT_SETTINGS } from "./settingsStorage.ts";
 
 export function SettingsForm() {
@@ -21,6 +22,18 @@ export function SettingsForm() {
   return (
     <div>
       <AccountSection />
+
+      <div className="rg-field">
+        <div className="rg-field__label">AI providers</div>
+        <div>
+          <Button variant="secondary" size="sm" onClick={() => openProvidersPanel()}>
+            Connect providers
+          </Button>
+        </div>
+        <div className="rg-field__hint">
+          Sign in to Claude Code or Codex in your own runner, or add API and plan keys.
+        </div>
+      </div>
 
       <div className="rg-field">
         <Switch
