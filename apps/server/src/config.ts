@@ -253,6 +253,7 @@ export interface OfficeConfig {
    * production.
    */
   runnerBackend: RunnerBackendChoice;
+  /**
    * `OFFICE_RUNNER_OFFICE_URL`: the office's base URL as reachable from inside a runner, fed to
    * adapters as `RunnerContext.officeUrl` for Claude hooks and the statusline forwarder. Compose
    * sets `http://office:4600` (the office's alias on the runners network); the default,
