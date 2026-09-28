@@ -204,6 +204,18 @@ jobs:
           sudo visudo -cf "$RUNNER_TEMP/office-runner"
           sudo install -m 0440 -o root -g root "$RUNNER_TEMP/office-runner" /etc/sudoers.d/office-runner
           sudo install -d -m 0750 -o "$USER" -g "$USER" /srv/office/projects /srv/office/worktrees
+      - name: Diagnose (temporary)
+        run: |
+          sudo apt-get install -y -q strace >/dev/null
+          t() { local s=$(date +%s.%N); "$@"; echo "TIMING $(echo "$(date +%s.%N) - $s" | bc) s: $*"; }
+          t sudo strace -f -tt -T -o "$RUNNER_TEMP/ua.strace" useradd --create-home --shell /bin/bash --comment probe --user-group office-probe1
+          echo "--- slowest syscalls of the first useradd"
+          sudo awk '{ if (match($0, /<([0-9.]+)>$/, m) && m[1] > 0.5) print }' "$RUNNER_TEMP/ua.strace" | head -40
+          sudo grep -c . "$RUNNER_TEMP/ua.strace"
+          t sudo systemd-run --quiet --collect --scope --uid=office-probe1 -- true
+          t sudo userdel --remove office-probe1
+          t sudo useradd --create-home --shell /bin/bash --comment probe --user-group office-probe2
+          t sudo userdel --remove office-probe2
       - name: Integration test
         env:
           OFFICE_TEST_LINUX_USER: "1"
