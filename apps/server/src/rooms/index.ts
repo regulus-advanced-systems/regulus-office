@@ -1,7 +1,7 @@
 /**
  * Room wiring for the office server: builds the transport, defines the
  * BuildingRoom on top of the database, and hands back what boot needs.
- * FloorRoom (SPEC §6 channel 2) is defined here in M1/M2.
+ * and the FloorRoom (SPEC §6 channel 2, one instance per floor).
  */
 import { ROOM_NAMES } from "@regulus/protocol";
 import { originPolicyFor } from "../auth/origin.ts";
@@ -12,6 +12,8 @@ import { DrizzleFloorSource } from "./building/floors.ts";
 import { type BuildingRoom, createBuildingRoom } from "./building/room.ts";
 import { DrizzleChatStore } from "./chat/store.ts";
 import { ColyseusRoomTransport } from "./colyseus/transport.ts";
+import { createFloorRooms, type FloorRooms } from "./floor/room.ts";
+import { DrizzleFloorRoomSource } from "./floor/source.ts";
 import type { RoomTransport } from "./transport.ts";
 
 export type { RoomAuth, RoomAuthUser } from "./auth.ts";
@@ -22,6 +24,7 @@ export {
   DEV_USER_HEADER,
   denyAllAuth,
 } from "./auth.ts";
+export { FLOOR_CLOSED_CODE, type FloorRooms } from "./floor/room.ts";
 export type {
   HttpAttachment,
   RoomClient,
@@ -42,8 +45,12 @@ export interface RoomsOptions {
 export interface Rooms {
   transport: RoomTransport;
   building: BuildingRoom;
+  /** FloorRoom registry: `publishRobot` / `removeRobot` for the AgentManager (#26). */
+  floors: FloorRooms;
   /** Re-read floors and robot counters into the building room (call after floor/agent changes). */
   refreshFloors(): Promise<void>;
+  /** A floor changed (created, archived, repo cloned): refresh the building list and its room. */
+  floorChanged(floorId: string): Promise<void>;
 }
 
 export function createRooms(options: RoomsOptions): Rooms {
@@ -53,11 +60,27 @@ export function createRooms(options: RoomsOptions): Rooms {
     logger,
     originPolicy: originPolicyFor(publicUrl, production),
   });
+  const floorSource = new DrizzleFloorRoomSource(db);
   const building = createBuildingRoom({
     chat: new DrizzleChatStore(db),
     floors: new DrizzleFloorSource(db),
     logger: logger.child({ room: ROOM_NAMES.building }),
+    canVisit: (user, floorId) => floorSource.canEnter(user, floorId),
+  });
+  const floors = createFloorRooms({
+    source: floorSource,
+    logger: logger.child({ room: ROOM_NAMES.floor }),
   });
   transport.defineRoom(ROOM_NAMES.building, building);
-  return { transport, building, refreshFloors: () => building.refreshFloors() };
+  transport.defineRoom(ROOM_NAMES.floor, floors.definition);
+  return {
+    transport,
+    building,
+    floors,
+    refreshFloors: () => building.refreshFloors(),
+    async floorChanged(floorId) {
+      floors.refreshFloor(floorId);
+      await building.refreshFloors();
+    },
+  };
 }

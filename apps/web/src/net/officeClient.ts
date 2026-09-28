@@ -4,12 +4,13 @@
  * re-joins with exponential backoff when a room is lost for a reason we did
  * not consent to. Talks to the server only through `RoomTransport`.
  */
-import type {
-  BuildingState,
-  ClientCommandPayload,
-  ClientCommandType,
-  CommandRejected,
-  FloorState,
+import {
+  type BuildingState,
+  type ClientCommandPayload,
+  type ClientCommandType,
+  type CommandRejected,
+  type FloorState,
+  LOBBY_FLOOR_ID,
 } from "@regulus/protocol";
 import { useBuildingStore } from "../state/building.ts";
 import { useConnectionStore } from "../state/connection.ts";
@@ -22,6 +23,12 @@ import {
   type RoomTransport,
   type Unsubscribe,
 } from "./transport.ts";
+
+/** Matchmaking refused the join for authorisation reasons (Colyseus `ServerError.code`). */
+function isDenied(err: unknown): boolean {
+  const code = (err as { code?: unknown } | null)?.code;
+  return code === 401 || code === 403;
+}
 
 export type RejectionListener = (notice: CommandRejected) => void;
 
@@ -144,6 +151,17 @@ export class OfficeClient {
     await this.dropFloor(true);
   }
 
+  /**
+   * Take the elevator (SPEC §9.1): tell the BuildingRoom where we are
+   * (`floor.go`, so presence and counters follow) and switch FloorRoom. The
+   * lobby is not a FloorRoom; going there just leaves the current floor.
+   */
+  async rideTo(floorId: string, mode: "ride" | "teleport" = "ride"): Promise<void> {
+    if (this.building) this.building.send("floor.go", { floorId, mode });
+    if (floorId === LOBBY_FLOOR_ID) await this.leaveFloor();
+    else await this.goToFloor(floorId);
+  }
+
   /** Send a typed command to the room that owns it. Throws when that room is not joined. */
   send<T extends ClientCommandType>(type: T, payload: ClientCommandPayload<T>): void {
     const target = roomForCommand(type) === "building" ? this.building : this.floor;
@@ -248,6 +266,13 @@ export class OfficeClient {
   private scheduleFloorRetry(floorId: string, err: unknown) {
     if (this.closed || this.desiredFloorId !== floorId) return;
     const message = err instanceof Error ? err.message : String(err);
+    if (isDenied(err)) {
+      // No access (or the floor is gone): retrying cannot help.
+      this.desiredFloorId = null;
+      this.stores.floor.getState().clear();
+      this.stores.connection.getState().set({ lastError: message });
+      return;
+    }
     if (this.floorAttempt >= this.maxAttempts) {
       this.stores.connection.getState().set({ lastError: message });
       return;

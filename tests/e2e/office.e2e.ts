@@ -2,15 +2,18 @@
  * M0 smoke test (docs/SPEC.md §10 M0 exit criteria): the owner registers,
  * mints an invite in the UI, a second browser joins through the link, both
  * reach /office and see each other, one walks and the other sees it move,
- * chat crosses between them, and the first-person view toggles on V and back.
+ * chat crosses between them, the first-person view toggles on V and back,
+ * and the owner adds a floor bound to a (local) repo and rides to it.
  *
  * Runs against office-server in production mode (see playwright.config.ts),
  * so room joins are authorised by the Better Auth session cookie only.
  */
 import { type BrowserContext, expect, type Page, test } from "@playwright/test";
+import { createRemoteRepo } from "./gitRemote.ts";
 import {
   cameraType,
   distance,
+  floorSize,
   humans,
   OFFICE_PROBE_PATH,
   remoteHumans,
@@ -167,4 +170,36 @@ test("V toggles the first-person view and back", async () => {
   await ownerPage.keyboard.press("v");
   await expect(toggle).toHaveAttribute("aria-pressed", "false");
   await expect.poll(() => cameraType(ownerPage)).toBe("OrthographicCamera");
+});
+
+test("the owner adds a floor from a repo and rides the elevator to it and back", async () => {
+  test.skip(!process.env.E2E_DATA_DIR, "needs the locally started server (local git remotes)");
+  createRemoteRepo(process.env.E2E_DATA_DIR ?? "", "octo", "hello");
+  await ownerPage.bringToFront();
+  const lobbySize = await floorSize(ownerPage);
+  const elevator = ownerPage.getByRole("navigation", { name: "Elevator" });
+  await elevator.getByRole("button", { name: "Add floor…" }).click();
+  const dialog = ownerPage.getByRole("dialog", { name: "Add floor" });
+  await dialog.getByLabel("Floor name").fill("Apollo");
+  await dialog.getByLabel("Repo 1", { exact: true }).fill("octo/hello");
+  await dialog.getByRole("button", { name: "Create floor" }).click();
+  const added = ownerPage.getByRole("dialog", { name: "Floor added" });
+  await expect(added.getByText("Ready on trunk")).toBeVisible();
+  await added.getByRole("button", { name: "Go to floor" }).click();
+
+  await expect(ownerPage.locator(".rg-topbar__floor")).toHaveText("Apollo");
+  await expect(elevator.getByRole("button", { name: /1\. Apollo/ })).toHaveAttribute(
+    "aria-current",
+    "true",
+  );
+  await expect.poll(() => floorSize(ownerPage)).not.toBe(lobbySize);
+  // The member has no access to the new floor and no longer sees the owner.
+  const memberElevator = memberPage.getByRole("navigation", { name: "Elevator" });
+  await expect(memberElevator.getByRole("button", { name: /Apollo/ })).toHaveCount(0);
+  await expect.poll(() => remoteHumans(memberPage)).toHaveLength(0);
+
+  await elevator.getByRole("button", { name: /0\. Lobby/ }).click();
+  await expect(ownerPage.locator(".rg-topbar__floor")).toHaveText("Lobby");
+  await expect.poll(() => floorSize(ownerPage)).toBe(lobbySize);
+  await expect.poll(() => remoteHumans(memberPage)).toHaveLength(1);
 });

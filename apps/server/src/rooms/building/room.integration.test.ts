@@ -209,7 +209,8 @@ describe("BuildingRoom over the wire", () => {
   });
 
   test("floors list the lobby and database floors; floor.go moves presence", async () => {
-    const ada = await joinAs(user("u-ada4", "Ada"));
+    // Admins may enter every floor; members need floor_members access (#30).
+    const ada = await joinAs(user("u-ada4", "Ada", "admin"));
     await waitFor(() => ada.state.floors.size === 2, "floors synced");
     expect(ada.state.floors.get(floorId)).toMatchObject({
       name: "Regulus",

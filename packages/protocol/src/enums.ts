@@ -65,6 +65,14 @@ export type UserRole = (typeof USER_ROLES)[number];
 export const FLOOR_ACCESSES = ["manage", "spawn", "view"] as const;
 export type FloorAccess = (typeof FLOOR_ACCESSES)[number];
 
+/** Clone state of a floor repo on the host (`floor_repos.cloneStatus`). */
+export const REPO_CLONE_STATUSES = ["cloning", "ready", "error"] as const;
+export type RepoCloneStatus = (typeof REPO_CLONE_STATUSES)[number];
+
+/** Floor layout size tiers (SPEC §9.1, D8); mirrors `FLOOR_TIERS` in @regulus/floor-layout. */
+export const FLOOR_TEMPLATE_TIERS = ["small", "medium", "large"] as const;
+export type FloorTemplateTier = (typeof FLOOR_TEMPLATE_TIERS)[number];
+
 export const CREDENTIAL_AUTH_KINDS = ["cli_login", "api_key", "base_url_key"] as const;
 export type CredentialAuthKind = (typeof CREDENTIAL_AUTH_KINDS)[number];
 
@@ -153,5 +161,6 @@ export const isProviderId = isOneOf(PROVIDER_IDS);
 export const isBackendId = isOneOf(BACKEND_IDS);
 export const isUserRole = isOneOf(USER_ROLES);
 export const isFloorAccess = isOneOf(FLOOR_ACCESSES);
+export const isRepoCloneStatus = isOneOf(REPO_CLONE_STATUSES);
 export const isCredentialAuthKind = isOneOf(CREDENTIAL_AUTH_KINDS);
 export const isPmPrivilege = isOneOf(PM_PRIVILEGES);

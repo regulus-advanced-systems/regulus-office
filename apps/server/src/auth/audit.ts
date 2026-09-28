@@ -14,6 +14,11 @@ export const AUDIT_ACTIONS = {
   roleChange: "user.role_change",
   inviteCreate: "invite.create",
   inviteConsume: "invite.consume",
+  floorCreate: "floor.create",
+  floorArchive: "floor.archive",
+  floorMemberSet: "floor.member_set",
+  floorMemberRemove: "floor.member_remove",
+  floorRepoClone: "floor_repo.clone",
 } as const;
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];
 
@@ -21,7 +26,7 @@ export interface AuditEntry {
   /** Acting user, or null for system-initiated actions. */
   userId: string | null;
   action: AuditAction;
-  targetKind: "user" | "invite";
+  targetKind: "user" | "invite" | "floor" | "floor_repo";
   targetId: string | null;
   meta?: Record<string, unknown>;
 }

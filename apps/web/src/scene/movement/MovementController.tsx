@@ -25,6 +25,11 @@ const MAX_FRAME_SECONDS = 0.1;
 
 export interface MovementControllerProps {
   template: FloorTemplate;
+  /**
+   * Identity of the floor being walked; when it changes (elevator ride) the
+   * player respawns at the new template's spawn point. Defaults to the template id.
+   */
+  floorKey?: string;
   /** Where poses go; defaults to the shared office client. */
   send?: (pose: Pose) => void;
 }
@@ -37,7 +42,11 @@ function sendMove(pose: Pose): void {
   }
 }
 
-export function MovementController({ template, send = sendMove }: MovementControllerProps) {
+export function MovementController({
+  template,
+  floorKey = template.id,
+  send = sendMove,
+}: MovementControllerProps) {
   const grid = useMemo(() => navGridFor(template), [template]);
   const keys = useWasdInput();
   const throttle = useMemo(() => createMoveThrottle({ send }), [send]);
@@ -49,9 +58,9 @@ export function MovementController({ template, send = sendMove }: MovementContro
       walkable: (x, z) => grid.isWalkable(x, z),
       plan: (from, to) => planPath(grid, from, to),
     });
-    if (!store.spawned) store.spawnAt(template.spawn);
+    if (!store.spawned || store.spawnKey !== floorKey) store.spawnAt(template.spawn, floorKey);
     return () => usePlayerStore.getState().setNavigation(null);
-  }, [grid, template]);
+  }, [grid, template, floorKey]);
 
   // After a (re)connect the server holds no pose for us: re-send the current one.
   useEffect(() => {

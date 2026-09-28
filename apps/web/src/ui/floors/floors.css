@@ -1,0 +1,42 @@
+.rg-floor-form__pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.rg-floor-form__repos {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+.rg-floor-form__repo {
+  display: grid;
+  grid-template-columns: 3fr 2fr auto;
+  gap: 8px;
+  align-items: center;
+}
+.rg-floor-repo {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 8px;
+  align-items: center;
+  padding: 6px 8px;
+  border: 1px solid var(--rg-color-panel-border);
+  border-radius: 6px;
+  background: #fff;
+}
+.rg-floor-repo__status {
+  font-size: 12px;
+}
+.rg-floor-repo[data-status="error"] .rg-floor-repo__status {
+  color: var(--rg-color-crimson);
+  grid-column: 1 / -1;
+}
+.rg-floor-badge {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.rg-floor-badge[data-kind="error"] {
+  color: var(--rg-color-crimson);
+}

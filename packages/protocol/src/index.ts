@@ -6,6 +6,7 @@
  * - common.ts          shared zod primitives (ids, timestamps, positions)
  * - building-state.ts  BuildingRoom state shapes (zod + inferred types)
  * - floor-state.ts     FloorRoom state shapes (zod + inferred types)
+ * - floors-api.ts      REST shapes for floors, repos and floor members
  * - commands/          client→server command union (zod, discriminated on `type`)
  * - agent-events.ts    adapter→server AgentEvent union (zod, discriminated on `kind`)
  * - schema/            @colyseus/schema classes mirroring the state shapes
@@ -16,5 +17,6 @@ export * from "./commands/index.ts";
 export * from "./common.ts";
 export * from "./enums.ts";
 export * from "./floor-state.ts";
+export * from "./floors-api.ts";
 export * from "./rooms.ts";
 export * from "./schema/index.ts";
