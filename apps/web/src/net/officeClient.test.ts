@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test } from "bun:test";
-import type { BuildingState, FloorState } from "@regulus/protocol";
+import type { BuildingState, CommandRejected, FloorState } from "@regulus/protocol";
 import { useBuildingStore } from "../state/building.ts";
 import { useConnectionStore } from "../state/connection.ts";
 import { useFloorStore } from "../state/floor.ts";
@@ -83,6 +83,7 @@ class FakeRoom<S> implements RoomHandle<S> {
   private leaveCbs = new Set<(code: number, reason?: string) => void>();
   private dropCbs = new Set<(code: number, reason?: string) => void>();
   private reconnectCbs = new Set<() => void>();
+  private rejectedCbs = new Set<(notice: CommandRejected) => void>();
 
   constructor(initial: S) {
     this.state = initial;
@@ -109,6 +110,10 @@ class FakeRoom<S> implements RoomHandle<S> {
   onError() {
     return () => undefined;
   }
+  onRejected(cb: (notice: CommandRejected) => void) {
+    this.rejectedCbs.add(cb);
+    return () => this.rejectedCbs.delete(cb);
+  }
   send(type: string, payload: unknown) {
     this.sent.push({ type, payload });
   }
@@ -129,6 +134,9 @@ class FakeRoom<S> implements RoomHandle<S> {
   }
   reconnect() {
     for (const cb of this.reconnectCbs) cb();
+  }
+  reject(notice: CommandRejected) {
+    for (const cb of this.rejectedCbs) cb(notice);
   }
 }
 
@@ -268,6 +276,20 @@ describe("OfficeClient", () => {
     await client.goToFloor("f1");
     client.send("agent.stop", { agentId: "a1" });
     expect(transport.floor.sent).toEqual([{ type: "agent.stop", payload: { agentId: "a1" } }]);
+  });
+
+  test("forwards command.rejected notices from both rooms until unsubscribed", async () => {
+    const { transport, client } = setup();
+    const seen: CommandRejected[] = [];
+    const off = client.onRejected((n) => seen.push(n));
+    await client.connect();
+    await client.goToFloor("f1");
+    transport.building.reject({ type: "chat", reason: "invalid chat: text: too long" });
+    transport.floor.reject({ type: "agent.spawn", reason: "forbidden" });
+    expect(seen.map((n) => n.type)).toEqual(["chat", "agent.spawn"]);
+    off();
+    transport.building.reject({ type: "chat", reason: "again" });
+    expect(seen).toHaveLength(2);
   });
 
   test("re-joins with exponential backoff when the building room is lost", async () => {

@@ -6,6 +6,8 @@ import {
   BuildingStateSchema,
   type ClientCommandPayload,
   type ClientCommandType,
+  COMMAND_REJECTED_MESSAGE,
+  CommandRejected,
   type FloorState,
   FloorStateSchema,
 } from "@regulus/protocol";
@@ -59,6 +61,13 @@ class ColyseusRoomHandle<S, T extends DecodedState> implements RoomHandle<S> {
   onError(cb: (code: number, message?: string) => void): Unsubscribe {
     this.room.onError(cb);
     return () => this.room.onError.remove(cb);
+  }
+
+  onRejected(cb: (notice: CommandRejected) => void): Unsubscribe {
+    return this.room.onMessage(COMMAND_REJECTED_MESSAGE, (payload: unknown) => {
+      const notice = CommandRejected.safeParse(payload);
+      if (notice.success) cb(notice.data);
+    });
   }
 
   send<K extends ClientCommandType>(type: K, payload: ClientCommandPayload<K>): void {

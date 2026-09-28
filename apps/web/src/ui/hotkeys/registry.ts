@@ -1,6 +1,6 @@
 /**
  * Keyboard shortcut registry (SPEC §9.2: F floor quick menu, V view toggle,
- * E interact). The registry is pure: it maps a key press to a binding id and
+ * E interact; T / Enter focus the lobby chat). The registry is pure: it maps a key press to a binding id and
  * `dispatchHotkey` publishes a `regulus:hotkey` CustomEvent on `window`. The
  * elevator (#15) and camera/interaction work (#17) consume those events; the
  * HUD itself only handles the help overlay.
@@ -15,6 +15,11 @@ export interface HotkeyBinding {
   description: string;
   /** Grouping for the help overlay. */
   group: string;
+  /**
+   * Only fire when no control has keyboard focus (focus on the page body or
+   * the canvas), so e.g. Enter still activates a focused button.
+   */
+  idleOnly?: boolean;
 }
 
 export const HOTKEY_EVENT = "regulus:hotkey";
@@ -33,8 +38,19 @@ export const DEFAULT_HOTKEYS: readonly HotkeyBinding[] = [
     group: "Camera",
   },
   { id: "interact", key: "e", description: "Interact with the nearest object", group: "World" },
+  { id: "focusChat", key: "t", description: "Focus the chat input", group: "Chat" },
+  {
+    id: "focusChatEnter",
+    key: "Enter",
+    description: "Focus the chat input (when nothing else is focused)",
+    group: "Chat",
+    idleOnly: true,
+  },
   { id: "help", key: "?", description: "Show keyboard shortcuts", group: "Help" },
 ];
+
+/** Binding ids that move keyboard focus to the chat input (ui/chat). */
+export const FOCUS_CHAT_HOTKEYS: ReadonlySet<string> = new Set(["focusChat", "focusChatEnter"]);
 
 export interface HotkeyInput {
   key: string;
@@ -45,6 +61,8 @@ export interface HotkeyInput {
   editable?: boolean;
   /** True while a modal/overlay owns the keyboard. */
   overlayOpen?: boolean;
+  /** True when a control (button, link, ...) other than the body or canvas has focus. */
+  focused?: boolean;
 }
 
 export function normalizeKey(key: string): string {
@@ -76,7 +94,9 @@ export function createHotkeyRegistry(initial: readonly HotkeyBinding[] = []): Ho
     resolve: (input) => {
       if (input.ctrlKey || input.metaKey || input.altKey) return null;
       if (input.editable || input.overlayOpen) return null;
-      return bindings.get(normalizeKey(input.key)) ?? null;
+      const binding = bindings.get(normalizeKey(input.key)) ?? null;
+      if (binding?.idleOnly && input.focused) return null;
+      return binding;
     },
   };
 }
@@ -87,6 +107,13 @@ export function isEditableTarget(target: EventTarget | null): boolean {
   if (target.isContentEditable) return true;
   const tag = target.tagName;
   return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+}
+
+/** Whether a control holds keyboard focus, i.e. the target is not the page body or the canvas. */
+export function isFocusedControl(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  const tag = target.tagName;
+  return tag !== "BODY" && tag !== "HTML" && tag !== "CANVAS";
 }
 
 export function dispatchHotkey(binding: HotkeyBinding, target: EventTarget = window): void {

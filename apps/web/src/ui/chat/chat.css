@@ -1,0 +1,118 @@
+/* Lobby chat panel (issue #91): bottom-left, above the settings/help corner. */
+
+.rg-chat {
+  position: absolute;
+  left: 12px;
+  bottom: 60px;
+  width: 340px;
+  max-width: calc(100vw - 24px);
+  display: grid;
+  overflow: hidden;
+}
+.rg-chat__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px 6px 14px;
+  border-bottom: 1px solid var(--rg-color-panel-border);
+}
+.rg-chat__body[hidden] {
+  display: none;
+}
+.rg-chat__title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  flex: 1;
+}
+.rg-chat__badge {
+  min-width: 20px;
+  padding: 0 6px;
+  border-radius: var(--rg-radius-chip);
+  background: var(--rg-color-orange-red);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+}
+.rg-chat__toggle {
+  border: 0;
+  background: transparent;
+  color: var(--rg-color-blue);
+  font-weight: 600;
+  padding: 4px 6px;
+  border-radius: var(--rg-radius-button);
+  cursor: pointer;
+}
+.rg-chat__toggle:hover {
+  background: #eaf2ff;
+}
+.rg-chat__log {
+  list-style: none;
+  margin: 0;
+  padding: 8px 14px;
+  max-height: 220px;
+  min-height: 72px;
+  overflow-y: auto;
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  scroll-behavior: smooth;
+}
+.rg-chat__log:focus-visible {
+  outline: 2px solid var(--rg-color-blue);
+  outline-offset: -2px;
+}
+.rg-chat__line {
+  display: grid;
+  gap: 1px;
+  padding: 3px 8px;
+  border-left: 3px solid var(--rg-color-panel-border);
+  overflow-wrap: anywhere;
+}
+.rg-chat__line--own {
+  border-left-color: var(--rg-color-amber);
+  background: var(--rg-color-modal-surface);
+  border-radius: 0 6px 6px 0;
+}
+.rg-chat__meta {
+  font-size: 12px;
+}
+.rg-chat__author {
+  font-weight: 700;
+  color: var(--rg-color-navy);
+}
+.rg-chat__line--own .rg-chat__author {
+  color: var(--rg-color-orange-red);
+}
+.rg-chat__time {
+  color: var(--rg-color-ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+.rg-chat__text {
+  white-space: pre-wrap;
+}
+.rg-chat__empty {
+  color: var(--rg-color-ink-muted);
+  font-size: 13px;
+}
+.rg-chat__form {
+  display: flex;
+  gap: 6px;
+  padding: 8px;
+  border-top: 1px solid var(--rg-color-panel-border);
+}
+.rg-chat__input {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  color: var(--rg-color-ink);
+  background: var(--rg-color-panel-surface);
+  border: 1px solid var(--rg-color-panel-border);
+  border-radius: var(--rg-radius-button);
+  padding: 6px 10px;
+}
+.rg-chat__input:focus-visible {
+  outline: 2px solid var(--rg-color-cyan);
+  border-color: var(--rg-color-blue);
+}
