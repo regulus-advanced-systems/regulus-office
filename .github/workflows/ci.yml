@@ -48,10 +48,11 @@ jobs:
             test-results/
           retention-days: 14
 
-  # `docker compose up` serves the office behind Caddy (SPEC §4.2 Packaging, §13).
+  # `docker compose up` serves the office behind Caddy (SPEC §4.2 Packaging, §13), and the office
+  # provisions a runner from the real runner image and runs the fake agent in it (#104).
   compose:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     env:
       COMPOSE_PROJECT_NAME: regulus-ci
     defaults:
@@ -99,6 +100,30 @@ jobs:
             console.log("POST /build ->", r.status);
             process.exit(r.status === 403 ? 0 : 1);'
           docker compose exec -T -e CHECK_IMAGE=busybox:1.37 office bun run - < docker-proxy-check.ts
+      # The runner image is large (Node, the agent CLIs), so it is built with the GHA layer cache
+      # rather than `docker compose --profile build-only build runner-image` (same Dockerfile and
+      # tag). Only master pushes write the cache; pull requests read it.
+      - uses: docker/setup-buildx-action@v3
+      - name: Build the runner image
+        uses: docker/build-push-action@v6
+        with:
+          context: runner
+          load: true
+          tags: ghcr.io/regulus-advanced-systems/regulus-office-runner:latest
+          cache-from: type=gha,scope=runner-image
+          cache-to: ${{ github.event_name == 'push' && 'type=gha,mode=max,scope=runner-image' || '' }}
+      - name: Runner image works for uid 1001
+        run: |
+          docker run --rm ghcr.io/regulus-advanced-systems/regulus-office-runner:latest sh -c '
+            set -e; id; test "$(id -u):$(id -g)" = 1001:1001
+            bun --version; uv --version; node --version; gh --version | head -1; tmux -V; git --version
+            curl --version | head -1
+            for cli in claude codex gemini kimi opencode; do printf "%s " "$cli"; command -v "$cli"; done'
+      # SPEC §8: the office provisions a runner through docker-proxy, mounts a floor from the shared
+      # volumes, runs the fake agent in tmux, reaches the office over the runners network and
+      # cannot reach docker-proxy or Caddy; then removes everything it created.
+      - name: Runner end to end through the office
+        run: timeout 300 docker compose exec -T office bun run - < runner-e2e.ts
       - run: bun install --frozen-lockfile
         working-directory: .
       - name: Seed owner and invite over HTTPS
@@ -114,7 +139,11 @@ jobs:
         run: docker compose logs --no-color
       - name: Tear down
         if: always()
-        run: docker compose down -v --remove-orphans
+        run: |
+          # Runners are created by the office, not Compose; remove them so the network can go.
+          docker ps -aq --filter label=org.regulus.office.prefix=regulus-ci | xargs -r docker rm -f
+          docker volume ls -q --filter label=org.regulus.office.prefix=regulus-ci | xargs -r docker volume rm
+          docker compose down -v --remove-orphans
 
   # Docker runner backend (#23) against the real daemon: builds a tiny fixture image, then drives
   # a runner through a socket proxy started with the deploy/ allowlist (#95), as the office does

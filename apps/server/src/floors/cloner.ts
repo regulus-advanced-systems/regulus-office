@@ -111,7 +111,20 @@ export class RepoCloner {
           await mkdir(dirname(workdir), { recursive: true });
           const partial = `${workdir}.partial-${randomUUID().slice(0, 8)}`;
           log.info({ workdir }, "cloning floor repo");
-          const result = await this.#git(["clone", "--quiet", "--", remoteUrl, partial], { token });
+          // Group-shared git dir: runners (another uid in the office's group, SPEC §8) commit
+          // into this repo from their worktrees, whatever their umask.
+          const result = await this.#git(
+            [
+              "clone",
+              "--quiet",
+              "--config",
+              "core.sharedRepository=group",
+              "--",
+              remoteUrl,
+              partial,
+            ],
+            { token },
+          );
           if (result.code !== 0) {
             await rm(partial, { recursive: true, force: true });
             throw new CloneFailure(summarizeGitError(result.stderr, [token]));

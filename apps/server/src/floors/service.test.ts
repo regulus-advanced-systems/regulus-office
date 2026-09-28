@@ -98,7 +98,10 @@ describe("FloorService", () => {
     ]);
     const workdir = join(t.projectsDir, "apollo-moon", "hello");
     expect((await stat(join(workdir, "README.md"))).isFile()).toBe(true);
-    expect(await readFile(join(workdir, ".git", "config"), "utf8")).not.toContain(FAKE_PAT);
+    const gitConfig = await readFile(join(workdir, ".git", "config"), "utf8");
+    expect(gitConfig).not.toContain(FAKE_PAT);
+    // Shared with runner uids through the office's group (deploy/office.Dockerfile).
+    expect(gitConfig).toMatch(/sharedRepository = group/i);
 
     const deskSeats = t.db.select().from(desks).where(eq(desks.floorId, floor.floorId)).all();
     const expected = smallTemplate.seats.filter((s) => s.kind === "desk").map((s) => s.id);

@@ -36,6 +36,13 @@ For a real server set `OFFICE_DOMAIN` in `deploy/.env` to a hostname pointing at
 
 **Docker access.** Agents run in one runner container per human, which the office creates through the Docker Engine API. Only the `docker-proxy` service mounts `/var/run/docker.sock`; it forwards an allowlist of container, exec, image, volume and network-read calls to the office alone and answers 403 to everything else (build, swarm, secrets, system info, network changes, bind mounts outside `/srv/office`). The office runs as a non-root user without the socket, and runners never get the socket (SPEC §8). The allowlist and the reason for each entry are in `deploy/docker-compose.yml`; `docker compose exec -T office bun run - < docker-proxy-check.ts` checks it. The proxy narrows what a compromised office process could do but is not a sandbox: the office can still create containers. For rootless Docker set `DOCKER_SOCKET` in `deploy/.env`.
 
+**Runners.** Build the runner image once (it is large: Node, Bun, Python, uv, gh and the pinned agent CLIs) with `docker compose --profile build-only build runner-image`, or let the office pull the release tag on first use. Each human gets one runner container, `<project>-runner-<user>`, running as uid 1001 with a `<project>-home-<user>` volume as HOME for their CLI logins. Runners share only two things with the office:
+
+- the `projects` and `worktrees` volumes (`/srv/office/{projects,worktrees}`); a runner mounts just the floor directories it needs, at the same paths. The office user is in group 1001, the roots are setgid, and the office runs with umask 0002, so floor checkouts are group-writable for runners. Git repos the office creates for floors should use `core.sharedRepository=group` so objects a runner commits stay writable for both sides.
+- the `runners` network, where they reach the office at `OFFICE_RUNNER_OFFICE_URL` (default `http://office:4600`) for agent hooks and the statusline. docker-proxy and Caddy are not on it.
+
+`docker compose exec -T office bun run - < runner-e2e.ts` runs the fake agent in a throwaway runner end to end. Runner containers and HOME volumes are created by the office, so `docker compose down -v` does not remove them; remove them first (this also frees the `runners` network): `docker rm -f $(docker ps -aq --filter label=org.regulus.office.prefix=<project>)`, then `docker volume rm $(docker volume ls -q --filter label=org.regulus.office.prefix=<project>)` if you also want to delete the logins. `<project>` is the Compose project name (`deploy` unless you pass `-p`).
+
 Developing instead? See [CONTRIBUTING.md](CONTRIBUTING.md): `bun install && bun run dev`. The browser smoke test runs with `bun run e2e` (needs `bunx playwright install chromium` once).
 
 ## Principles
