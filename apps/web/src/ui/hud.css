@@ -56,6 +56,15 @@
   color: var(--rg-color-green);
   font-weight: 700;
 }
+.rg-viewtoggle {
+  display: grid;
+  gap: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--rg-color-panel-border);
+}
+.rg-viewtoggle__hint {
+  font-size: 12px;
+}
 .rg-chip {
   display: inline-flex;
   align-items: center;

@@ -4,6 +4,10 @@
  * cream vignette, with baked blob shadows under the furniture. Pixel ratio
  * 1, no tone mapping, render loop paused while the tab is hidden (SPEC §11).
  *
+ * The view store (`state/view.ts`) switches between third person and the
+ * first-person rig (`fpv/`), with a cream crossfade drawn above the canvas
+ * and full-height front walls while in first person.
+ *
  * Avatars are not rendered here: pass them through `avatars` (they mount in
  * a `<group name="avatars">`) or as `children`, so the avatar issues need
  * not touch this file.
@@ -17,9 +21,15 @@ import {
   paletteById,
 } from "@regulus/floor-layout";
 import { type ReactNode, Suspense, useMemo } from "react";
+import { usePlayerStore } from "../state/player.ts";
+import { useViewStore } from "../state/view.ts";
+import { useViewHotkey } from "../ui/hud/ViewToggle.tsx";
 import { vignetteBackground } from "./backdrop.ts";
 import { IsoCamera } from "./camera/IsoCamera.tsx";
 import { CAMERA_FAR, CAMERA_NEAR, cameraPosition, roomTarget } from "./camera/isoCamera.ts";
+import { ViewCrossfade } from "./camera/ViewCrossfade.tsx";
+import { FirstPersonRig } from "./fpv/FirstPersonRig.tsx";
+import { createPlayerBinding } from "./fpv/playerBinding.ts";
 import { Furniture } from "./furniture/Furniture.tsx";
 import { WallAnchors } from "./furniture/WallAnchors.tsx";
 import { useDocumentHidden } from "./hooks/useDocumentHidden.ts";
@@ -40,6 +50,9 @@ export interface OfficeCanvasProps {
   /** Anything else to add to the scene (bubbles, decals, debug helpers). */
   children?: ReactNode;
 }
+
+/** First-person rig <-> player store (#15); only once MovementController has spawned us. */
+const playerBinding = createPlayerBinding(usePlayerStore);
 
 function requirePalette(id: string): Palette {
   const p = paletteById(id);
@@ -66,6 +79,15 @@ export function OfficeCanvas({
     return [p.x, p.y, p.z] as [number, number, number];
   }, [room]);
 
+  useViewHotkey();
+  const mode = useViewStore((s) => s.mode);
+  const cameraMode = useViewStore((s) => s.cameraMode);
+  const firstPerson = cameraMode === "first_person";
+  /** The rig mounts on request (to grab pointer lock early) and stays until the camera swaps back. */
+  const rigMounted = firstPerson || mode === "first_person";
+  /** Without a spawned player (e.g. the dev harness) the rig walks a local pose. */
+  const spawned = usePlayerStore((s) => s.spawned);
+
   return (
     <div style={{ position: "absolute", inset: 0, background: vignetteBackground() }}>
       <Canvas
@@ -78,9 +100,22 @@ export function OfficeCanvas({
         style={{ position: "absolute", inset: 0 }}
         onCreated={showStats ? (state) => (window.__regulusR3F = state) : undefined}
       >
-        <IsoCamera room={room} />
+        <IsoCamera room={room} enabled={!firstPerson} />
+        {rigMounted && (
+          <FirstPersonRig
+            template={template}
+            active={firstPerson}
+            getPose={spawned ? playerBinding.getPose : undefined}
+            onMove={spawned ? playerBinding.onMove : undefined}
+          />
+        )}
         <Lighting />
-        <Room template={template} palette={palette} floorName={floorName} />
+        <Room
+          template={template}
+          palette={palette}
+          floorName={floorName}
+          frontWalls={firstPerson ? "full" : "stub"}
+        />
         <Suspense fallback={null}>
           <Furniture template={template} palette={palette} />
           <WallAnchors template={template} palette={palette} />
@@ -90,6 +125,7 @@ export function OfficeCanvas({
         {children}
         {showStats && <StatsOverlay />}
       </Canvas>
+      <ViewCrossfade />
     </div>
   );
 }

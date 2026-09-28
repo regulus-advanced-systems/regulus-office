@@ -1,8 +1,10 @@
 /**
  * The dollhouse room (SPEC §12): floor, two full back walls, front stubs
  * with a dark cap, window panes, and the floor name on the exterior stub.
- * Geometry comes from `roomPieces`, colours from the palette, grime from a
- * procedural multiply map.
+ * In first-person view (SPEC §9.2) `frontWalls="full"` raises the stubs to
+ * full walls without remounting anything else. Geometry comes from
+ * `roomPieces`, colours from the palette, grime from a procedural multiply
+ * map.
  */
 import type { FloorTemplate, Palette } from "@regulus/floor-layout";
 import { useEffect, useMemo } from "react";
@@ -11,6 +13,7 @@ import { createGrimeTexture } from "../materials/grime.ts";
 import { createToonMaterial } from "../materials/toon.ts";
 import { createNameTexture } from "./nameTexture.ts";
 import {
+  type FrontWallMode,
   roomColors,
   roomPieces,
   WALL_SURFACE_GAP,
@@ -24,6 +27,8 @@ export interface RoomProps {
   palette: Palette;
   /** Painted on the exterior stub; defaults to the template name. */
   floorName?: string;
+  /** Dollhouse stubs (default) or full-height front walls for first person. */
+  frontWalls?: FrontWallMode;
 }
 
 /** Metres of wall/floor covered by one repeat of the grime map. */
@@ -73,17 +78,34 @@ function buildMaterials(
   return mats;
 }
 
+/** Release GPU resources when a material set is replaced (template, palette or wall mode change). */
+function disposeMaterials(mats: RoomMaterials): void {
+  const all = [
+    mats.floor,
+    mats.exterior,
+    mats.cap,
+    mats.frame,
+    mats.pane,
+    ...mats.interior.values(),
+  ];
+  for (const m of all) {
+    m.map?.dispose();
+    m.dispose();
+  }
+}
+
 function wallMaterials(piece: WallPiece, mats: RoomMaterials): MeshToonMaterial[] {
   const interior = mats.interior.get(piece.id) ?? mats.exterior;
   return wallFaces(piece).map((face) => (face === "exterior" ? mats.exterior : interior));
 }
 
-export function Room({ template, palette, floorName }: RoomProps) {
-  const pieces = useMemo(() => roomPieces(template), [template]);
+export function Room({ template, palette, floorName, frontWalls = "stub" }: RoomProps) {
+  const pieces = useMemo(() => roomPieces(template, { frontWalls }), [template, frontWalls]);
   const mats = useMemo(
     () => buildMaterials(template, palette, pieces),
     [template, palette, pieces],
   );
+  useEffect(() => () => disposeMaterials(mats), [mats]);
   const name = pieces.name;
   const nameTex = useMemo(
     () => (name ? createNameTexture(floorName ?? template.name, name.width / name.height) : null),

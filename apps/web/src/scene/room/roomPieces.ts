@@ -2,7 +2,9 @@
  * Turns a floor template's walls into renderable boxes and planes (SPEC §12,
  * research 03 §1, §8): two full back walls, front stub walls with a dark
  * grey cap, window panes on the interior of full walls, and the floor name
- * plate on the exterior face of `nameWallId`. Pure; `Room.tsx` draws it.
+ * plate on the exterior face of `nameWallId`. In first-person view
+ * (SPEC §9.2) the front stubs are drawn at full height instead, without
+ * caps (`frontWalls: "full"`). Pure; `Room.tsx` draws it.
  */
 import {
   type CompassDirection,
@@ -62,6 +64,13 @@ export interface NamePlate {
   yaw: number;
 }
 
+/** How the front (stub) walls are drawn: dollhouse stubs, or full height in first person. */
+export type FrontWallMode = "stub" | "full";
+
+export interface RoomPiecesOptions {
+  frontWalls?: FrontWallMode;
+}
+
 export interface RoomPieces {
   floor: { center: Vec3Tuple; width: number; depth: number };
   walls: WallPiece[];
@@ -111,7 +120,8 @@ export function wallFaces(piece: Pick<WallPiece, "facing" | "exterior">): WallFa
   return faces;
 }
 
-export function roomPieces(template: FloorTemplate): RoomPieces {
+export function roomPieces(template: FloorTemplate, options: RoomPiecesOptions = {}): RoomPieces {
+  const promoteStubs = options.frontWalls === "full";
   const walls: WallPiece[] = [];
   const caps: CapPiece[] = [];
   const windows: WindowPiece[] = [];
@@ -121,7 +131,8 @@ export function roomPieces(template: FloorTemplate): RoomPieces {
     const len = wallLength(wall);
     const dir = wallDirection(wall);
     const alongX = Math.abs(dir.x) > Math.abs(dir.z);
-    const h = wall.height === "full" ? template.wallHeight : template.stubHeight;
+    const height: Wall["height"] = promoteStubs ? "full" : wall.height;
+    const h = height === "full" ? template.wallHeight : template.stubHeight;
     const mid = wallPoint(wall, len / 2);
     const size: Vec3Tuple = alongX
       ? [len + WALL_THICKNESS, h, WALL_THICKNESS]
@@ -129,14 +140,14 @@ export function roomPieces(template: FloorTemplate): RoomPieces {
     const exterior = OPPOSITE[wall.facing];
     walls.push({
       id: wall.id,
-      height: wall.height,
+      height,
       center: [mid.x, h / 2, mid.z],
       size,
       facing: wall.facing,
       exterior,
     });
 
-    if (wall.height === "stub") {
+    if (height === "stub") {
       const o = CAP_OVERHANG * 2;
       caps.push({
         id: `${wall.id}-cap`,
@@ -147,7 +158,7 @@ export function roomPieces(template: FloorTemplate): RoomPieces {
 
     const f = DIRECTION[wall.facing];
     for (const [i, opening] of wall.openings.entries()) {
-      if (opening.kind !== "window" || wall.height !== "full") continue;
+      if (opening.kind !== "window" || height !== "full") continue;
       const p = wallPoint(wall, opening.t + opening.w / 2);
       const off = WALL_THICKNESS / 2 + WALL_SURFACE_GAP;
       windows.push({

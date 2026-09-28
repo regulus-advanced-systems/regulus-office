@@ -1,7 +1,8 @@
 /**
  * Top-right status box (research 03 §5): connection status from the
- * connection store and a usage summary (office totals from BuildingState;
- * placeholders until the server publishes them, SPEC §9.4).
+ * connection store, a usage summary (office totals from BuildingState;
+ * placeholders until the server publishes them, SPEC §9.4) and the
+ * first-person view toggle (SPEC §9.2).
  */
 import type { UsageSummary } from "@regulus/protocol";
 import { getOfficeClient } from "../../net/index.ts";
@@ -11,6 +12,7 @@ import { Button } from "../components/Button.tsx";
 import { Panel } from "../Panel.tsx";
 import { colors } from "../theme.ts";
 import { formatCompact, formatUsd } from "./format.ts";
+import { ViewToggle } from "./ViewToggle.tsx";
 
 export const STATUS_COLOR: Readonly<Record<ConnectionStatus, string>> = {
   idle: colors.inkMuted,
@@ -91,6 +93,7 @@ export function StatusBox({
         <div style={{ color: colors.crimson, fontSize: 12 }}>{lastError}</div>
       )}
       <UsageRows usage={usage} />
+      <ViewToggle />
     </Panel>
   );
 }
