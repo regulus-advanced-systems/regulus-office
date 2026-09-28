@@ -68,3 +68,38 @@ export function floorSize(page: Page): Promise<string | null> {
 }
 
 export const distance = (a: Pos, b: Pos) => Math.hypot(a.x - b.x, a.z - b.z);
+
+/**
+ * Viewport point of the free-desk click target nearest the middle of the
+ * canvas (scene/robots `desk-hotspot-<seatId>` meshes), or null.
+ */
+export function freeDeskPoint(
+  page: Page,
+): Promise<{ x: number; y: number; seatId: string } | null> {
+  return page.evaluate(() => {
+    type V = { x: number; y: number; z: number; clone(): V; project(c: unknown): V };
+    type Obj = { name: string; getWorldPosition(v: V): V; position: V };
+    const r3f = (
+      window as unknown as {
+        __regulusR3F?: {
+          scene: { traverse(f: (o: Obj) => void): void };
+          get(): { camera: unknown; gl: { domElement: HTMLCanvasElement } };
+        };
+      }
+    ).__regulusR3F;
+    if (!r3f) return null;
+    const { camera, gl } = r3f.get();
+    const rect = gl.domElement.getBoundingClientRect();
+    let best: { x: number; y: number; seatId: string; d: number } | null = null;
+    r3f.scene.traverse((o) => {
+      if (!o.name.startsWith("desk-hotspot-")) return;
+      const p = o.getWorldPosition(o.position.clone()).project(camera);
+      const x = rect.left + ((p.x + 1) / 2) * rect.width;
+      const y = rect.top + ((1 - p.y) / 2) * rect.height;
+      const d = Math.hypot(x - (rect.left + rect.width / 2), y - (rect.top + rect.height / 2));
+      if (!best || d < best.d) best = { x, y, seatId: o.name.slice("desk-hotspot-".length), d };
+    });
+    const found = best as { x: number; y: number; seatId: string } | null;
+    return found ? { x: found.x, y: found.y, seatId: found.seatId } : null;
+  });
+}

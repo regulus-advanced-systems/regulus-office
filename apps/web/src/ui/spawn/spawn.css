@@ -1,0 +1,49 @@
+/* Spawn dialog (SPEC §12 GDT modal; fields share the auth form styles). */
+.rg-spawn__fields {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+.rg-spawn__fields:disabled {
+  opacity: 0.75;
+}
+.rg-spawn__pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.rg-spawn__pair--title {
+  grid-template-columns: 1fr 96px;
+}
+.rg-spawn__prompt {
+  resize: vertical;
+  min-height: 84px;
+  font-family: inherit;
+  line-height: 1.4;
+}
+.rg-spawn__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}
+.rg-spawn__desk {
+  margin: -4px 0 4px;
+  color: var(--rg-color-ink-muted);
+  font-size: 13px;
+}
+@media (max-width: 560px) {
+  .rg-spawn__pair {
+    grid-template-columns: 1fr;
+  }
+}
+.rg-spawn__link {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: var(--rg-color-blue);
+  text-decoration: underline;
+  cursor: pointer;
+}

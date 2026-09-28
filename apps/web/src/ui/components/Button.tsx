@@ -1,5 +1,5 @@
 /** Buttons per SPEC §12: orange gradient primary, red destructive, plus secondary and ghost. */
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import type { ButtonHTMLAttributes, ReactNode, Ref } from "react";
 
 export type ButtonVariant = "primary" | "destructive" | "secondary" | "ghost";
 export type ButtonSize = "sm" | "md" | "lg";
@@ -9,6 +9,8 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   size?: ButtonSize;
   block?: boolean;
   icon?: ReactNode;
+  /** React 19 passes `ref` as a prop; it reaches the <button>. */
+  ref?: Ref<HTMLButtonElement>;
 }
 
 export function buttonClassName({

@@ -12,6 +12,7 @@ import { useShallow } from "zustand/react/shallow";
 import { type RobotOverride, useRobotOverrides } from "../../../state/robotOverrides.ts";
 import { RobotAvatar } from "../../avatar/index.ts";
 import { ROBOT_HEIGHT } from "../../avatar/RobotAvatar.tsx";
+import { robotAvatarLook } from "../robotLook.ts";
 import {
   resetSendHome,
   setSendHomeTemplate,
@@ -35,6 +36,7 @@ function DepartingRobot({ override }: { override: RobotOverride }) {
   return (
     <group ref={group} name={`departing-${override.agentId}`}>
       <RobotAvatar
+        {...robotAvatarLook(override.robot)}
         animation={override.animation}
         status={override.robot.status}
         handRaised={false}
