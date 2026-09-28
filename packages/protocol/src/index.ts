@@ -9,11 +9,15 @@
  * - floors-api.ts      REST shapes for floors, repos and floor members
  * - commands/          client→server command union (zod, discriminated on `type`)
  * - agent-events.ts    adapter→server AgentEvent union (zod, discriminated on `kind`)
+ * - agent-messages.ts  FloorRoom server→client robot messages (permissions, results)
+ * - acl.ts             who may control a robot (D12)
  * - schema/            @colyseus/schema classes mirroring the state shapes
  * - terminal.ts        terminal WebSocket control messages and constants
  * - terminal-screens.ts laptop screen feed (plain-text screens per floor)
  */
+export * from "./acl.ts";
 export * from "./agent-events.ts";
+export * from "./agent-messages.ts";
 export * from "./building-state.ts";
 export * from "./commands/index.ts";
 export * from "./common.ts";

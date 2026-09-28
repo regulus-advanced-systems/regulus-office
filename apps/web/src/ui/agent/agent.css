@@ -1,0 +1,88 @@
+/* Robot panel and dialogs (#33). */
+.rg-agent-panel {
+  position: absolute;
+  top: 150px;
+  right: 12px;
+  width: 320px;
+  max-width: calc(100vw - 24px);
+  max-height: calc(100vh - 170px);
+  overflow-y: auto;
+  display: grid;
+  gap: 10px;
+}
+.rg-agent-panel__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+.rg-agent-panel__head .rg-panel__title {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.rg-agent-facts {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  font-size: 13px;
+}
+.rg-agent-facts__row {
+  display: grid;
+  grid-template-columns: 90px 1fr;
+  gap: 8px;
+}
+.rg-agent-facts dt {
+  color: var(--rg-color-ink-muted);
+}
+.rg-agent-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.rg-agent-prompt {
+  display: grid;
+  gap: 4px;
+}
+.rg-agent-textarea {
+  resize: vertical;
+  min-height: 60px;
+}
+.rg-agent-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+.rg-agent-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.rg-agent-permission__lead {
+  margin: 0 0 8px;
+}
+.rg-agent-permission__what {
+  margin: 0 0 8px;
+  padding: 10px 12px;
+  max-height: 240px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  background: #fff;
+  border: 1px solid var(--rg-color-panel-border);
+  border-left: 4px solid var(--rg-color-orange-red);
+  border-radius: 6px;
+}
+.rg-agent-choice {
+  border: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.rg-agent-files {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  max-height: 160px;
+  overflow: auto;
+  font-size: 12px;
+}

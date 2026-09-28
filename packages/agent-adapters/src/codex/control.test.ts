@@ -4,6 +4,18 @@ import { createFakeRunnerContext, createFakeRunnerOps } from "../testing/fake-ru
 import { CodexAdapter } from "./adapter.ts";
 import type { CodexControl } from "./control.ts";
 import {
+  ask,
+  CWD,
+  fail,
+  handshake,
+  note,
+  out,
+  reply,
+  TURN_ID,
+  threadResponse,
+  turn,
+} from "./fixtures/builders.ts";
+import {
   failuresAndServerRequests,
   resumeAndInterrupt,
   THREAD_ID,
@@ -123,6 +135,58 @@ describe("CodexControl against documented traces", () => {
     expect(kinds(events)[0]).toBe("status");
     expect(events.at(-1)).toMatchObject({ kind: "exit", reason: "closed" });
     expect(server().signals).toEqual(["SIGTERM"]);
+  });
+
+  test("parallel approvals resolve one by one: answered here, or cleared by the server", async () => {
+    const approval = (id: number, cmd: string) =>
+      ask({
+        method: "item/commandExecution/requestApproval",
+        id,
+        params: {
+          kind: "command",
+          threadId: THREAD_ID,
+          turnId: TURN_ID,
+          itemId: `item_${id}`,
+          startedAtMs: 3,
+          environmentId: null,
+          reason: "Run it",
+          command: cmd,
+          cwd: CWD,
+        },
+      });
+    const { control, events, pump, server } = setup([
+      ...handshake(),
+      out({ method: "thread/start", id: 1 }),
+      reply("thread/start", 1, threadResponse),
+      out({ method: "account/rateLimits/read", id: 2 }),
+      fail(2, -32600, "not signed in"),
+      out({ method: "turn/start", id: 3 }),
+      reply("turn/start", 3, { turn: turn("inProgress") }),
+      approval(7, "bun test"),
+      approval(9, "bun run lint"),
+      out({ id: 7, result: { decision: "accept" } }),
+      note({ method: "serverRequest/resolved", params: { threadId: THREAD_ID, requestId: 7 } }),
+      note({ method: "serverRequest/resolved", params: { threadId: THREAD_ID, requestId: 9 } }),
+    ]);
+    const resolved: string[] = [];
+    const off = control.onPermissionResolved?.((id) => resolved.push(id));
+    await (control as CodexControl).ready();
+    await control.prompt("check");
+    await until(() => permission(events, 1) !== undefined);
+    expect((control as CodexControl).pendingPermissions()).toEqual(["7", "9"]);
+
+    await control.respondPermission("7", "allow_once");
+    expect(resolved).toEqual(["7"]);
+    expect((control as CodexControl).pendingPermissions()).toEqual(["9"]);
+
+    await until(() => server().replayer.done);
+    await until(() => resolved.length === 2);
+    expect(resolved).toEqual(["7", "9"]);
+    expect((control as CodexControl).pendingPermissions()).toEqual([]);
+    off?.();
+    await control.close();
+    await pump;
+    expect(server().replayer.errors).toEqual([]);
   });
 
   test("resume, steer while running, interrupt", async () => {

@@ -187,7 +187,18 @@ export interface AgentControl {
   close(): Promise<void>;
   /** Provider session id once known (Codex thread id, Claude session id). */
   providerSessionId(): string | undefined;
+  /**
+   * Per-request resolution signal (optional): `listener` gets the id of each
+   * permission request that stops being pending, whether it was answered,
+   * cancelled by the provider (turn ended, interrupted) or expired. Adapters
+   * that implement it let the office keep parallel requests apart; without
+   * it the office drops every request once the agent stops waiting.
+   * Returns an unsubscribe function.
+   */
+  onPermissionResolved?(listener: PermissionResolvedListener): () => void;
 }
+
+export type PermissionResolvedListener = (requestId: string) => void;
 
 /**
  * Input that reaches the office outside the control channel: Claude Code

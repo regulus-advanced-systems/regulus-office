@@ -150,8 +150,8 @@ async function main(): Promise<void> {
   mountFloorRoutes(server.router, { auth, floors: floors.service });
   logger.info({ projectsDir: config.projectsDir }, "floor repos clone here");
   // Per-agent worktrees + one-click PR (#31). The AgentManager (#26) takes
-  // `worktrees.workspaces`, the runner does mountProject; #33 wires
-  // `agent.pr` to `worktrees.openPullRequest`.
+  // `worktrees.workspaces`, the runner does mountProject; `agent.pr` and
+  // `agent.worktree` (#33) reach `worktrees` through the manager.
   // Runner backend from OFFICE_RUNNER_BACKEND (SPEC §8): agents run only in their human's runner.
   const runner = await createRunner(config, production);
   logger.info({ backend: config.runnerBackend }, "agent runner backend selected");
@@ -168,6 +168,10 @@ async function main(): Promise<void> {
     keyring,
     runner,
     workspaces: worktrees.workspaces,
+    worktreeTools: {
+      status: (agentId) => worktrees.workspaces.status(agentId),
+      openPullRequest: (agentId, options) => worktrees.openPullRequest(agentId, options),
+    },
   });
   server.health.register("db", () => {
     db.run(sql`select 1`);

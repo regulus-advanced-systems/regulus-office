@@ -41,6 +41,8 @@ export interface RoomHandle<S> {
   onError(cb: (code: number, message?: string) => void): Unsubscribe;
   /** Fires when the server dropped one of our commands (`command.rejected`). */
   onRejected(cb: (notice: CommandRejected) => void): Unsubscribe;
+  /** Fires for every server→client message of `type` (payload unvalidated). */
+  onMessage(type: string, cb: (payload: unknown) => void): Unsubscribe;
   send<T extends ClientCommandType>(type: T, payload: ClientCommandPayload<T>): void;
   leave(consented?: boolean): Promise<void>;
 }

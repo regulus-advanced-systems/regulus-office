@@ -31,6 +31,21 @@ interface Pending {
  */
 export class PermissionBroker {
   readonly #pending = new Map<string, Map<string, Pending>>();
+  readonly #listeners = new Map<string, Set<(requestId: string) => void>>();
+
+  /**
+   * Called with each request of `agentId` that stops being pending: answered,
+   * expired, abandoned by Claude Code, or cancelled at a turn boundary.
+   */
+  onResolved(agentId: string, listener: (requestId: string) => void): () => void {
+    const set = this.#listeners.get(agentId) ?? new Set();
+    this.#listeners.set(agentId, set);
+    set.add(listener);
+    return () => {
+      set.delete(listener);
+      if (set.size === 0 && this.#listeners.get(agentId) === set) this.#listeners.delete(agentId);
+    };
+  }
 
   /**
    * Waits for the office's decision; resolves null when `timeoutMs` passes,
@@ -55,6 +70,7 @@ export class PermissionBroker {
         if (forAgent.size === 0) this.#pending.delete(agentId);
         signal?.removeEventListener("abort", onAbort);
         resolve(decision);
+        for (const listener of [...(this.#listeners.get(agentId) ?? [])]) listener(requestId);
       };
       const onAbort = () => finish(null);
       const timer = setTimeout(() => finish(null), Math.max(0, timeoutMs));

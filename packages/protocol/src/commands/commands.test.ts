@@ -38,6 +38,13 @@ const SPEC_COMMANDS = [
   "pm.ask",
 ] as const;
 
+/**
+ * Commands beyond the SPEC §6 list, each with its source: `agent.interrupt`
+ * is SPEC §7 `AgentControl.interrupt`; `agent.sendHome` and `agent.worktree`
+ * are the send-home and PR dialogs of issue #33.
+ */
+const EXTENSION_COMMANDS = ["agent.interrupt", "agent.sendHome", "agent.worktree"] as const;
+
 const valid: Record<ClientCommandType, Record<string, unknown>> = {
   move: { x: 1, z: -2, heading: 0.5 },
   sit: { seatId: "couch-1" },
@@ -57,6 +64,9 @@ const valid: Record<ClientCommandType, Record<string, unknown>> = {
   "agent.stop": { agentId: "a1" },
   "agent.resume": { agentId: "a1" },
   "agent.pr": { agentId: "a1", title: "Fix #8" },
+  "agent.interrupt": { agentId: "a1" },
+  "agent.sendHome": { agentId: "a1", keepBranch: true },
+  "agent.worktree": { agentId: "a1" },
   "queue.add": {
     floorId: "f1",
     repoId: "r1",
@@ -84,8 +94,10 @@ const valid: Record<ClientCommandType, Record<string, unknown>> = {
 };
 
 describe("ClientCommand", () => {
-  test("covers exactly the SPEC §6 command list", () => {
-    expect([...CLIENT_COMMAND_TYPES].sort()).toEqual([...SPEC_COMMANDS].sort());
+  test("covers exactly the SPEC §6 command list plus the documented extensions", () => {
+    expect([...CLIENT_COMMAND_TYPES].sort()).toEqual(
+      [...SPEC_COMMANDS, ...EXTENSION_COMMANDS].sort(),
+    );
   });
 
   test.each(CLIENT_COMMAND_TYPES)("accepts a valid %s payload", (type) => {
@@ -121,6 +133,7 @@ describe("ClientCommand", () => {
       parseClientCommand("agent.approve", { ...valid["agent.approve"], decision: "maybe" }).success,
     ).toBe(false);
     expect(parseClientCommand("jukebox.seek", { positionMs: -1 }).success).toBe(false);
+    expect(parseClientCommand("agent.sendHome", { agentId: "a1" }).success).toBe(false);
     expect(parseClientCommand("card.pick", { ...valid["card.pick"], number: 0 }).success).toBe(
       false,
     );

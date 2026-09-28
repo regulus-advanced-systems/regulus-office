@@ -21,6 +21,7 @@ import type {
   AgentRecord,
   LoginFlowPlan,
   OutOfBandInput,
+  PermissionResolvedListener,
   PlannedFile,
   PromptAttachment,
   RunnerContext,
@@ -40,6 +41,11 @@ export interface FakeAdapterOptions {
   login?: LoginFlowPlan;
   usage?: readonly (UsageSample | LimitSample)[];
   providerSessionId?: string;
+  /**
+   * Offer `onPermissionResolved` like the Codex and Claude controls (default
+   * false: the office falls back to clearing requests on status changes).
+   */
+  permissionResolution?: boolean;
 }
 
 const DEFAULT_CAPABILITIES: AdapterCapabilities = {
@@ -59,13 +65,29 @@ export class FakeControl implements AgentControl {
   closed = false;
   readonly #queue = new AsyncQueue<AgentEvent>();
   readonly #pending = new Set<string>();
+  readonly #resolvedListeners = new Set<PermissionResolvedListener>();
+  readonly onPermissionResolved?: (listener: PermissionResolvedListener) => () => void;
 
   constructor(
     readonly plan: SpawnPlan,
     private readonly ctx: RunnerContext,
     private readonly onPrompt: FakeAdapterOptions["onPrompt"],
     private readonly sessionId: string | undefined,
-  ) {}
+    permissionResolution = false,
+  ) {
+    if (permissionResolution) {
+      this.onPermissionResolved = (listener) => {
+        this.#resolvedListeners.add(listener);
+        return () => this.#resolvedListeners.delete(listener);
+      };
+    }
+  }
+
+  /** The provider dropped a request on its own (turn ended, server cleared it). */
+  cancelPermission(id: string): void {
+    if (!this.#pending.delete(id)) return;
+    for (const listener of [...this.#resolvedListeners]) listener(id);
+  }
 
   get events(): AsyncIterable<AgentEvent> {
     return this.#queue;
@@ -92,6 +114,7 @@ export class FakeControl implements AgentControl {
     this.#assertOpen();
     if (!this.#pending.delete(id)) throw new Error(`Unknown permission request: ${id}`);
     this.permissionResponses.push({ id, decision });
+    for (const listener of [...this.#resolvedListeners]) listener(id);
     this.emit({ kind: "status", ts: this.ctx.now(), status: "working" });
   }
 
@@ -174,7 +197,13 @@ export class FakeAdapter implements AgentAdapter {
   }
 
   connect(plan: SpawnPlan, ctx: RunnerContext): FakeControl {
-    const control = new FakeControl(plan, ctx, this.#options.onPrompt, plan.providerSessionId);
+    const control = new FakeControl(
+      plan,
+      ctx,
+      this.#options.onPrompt,
+      plan.providerSessionId,
+      this.#options.permissionResolution,
+    );
     this.controls.push(control);
     for (const event of this.#options.script ?? []) control.emit(event);
     return control;

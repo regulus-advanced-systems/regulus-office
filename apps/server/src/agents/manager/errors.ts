@@ -17,6 +17,8 @@ export class AgentManagerError extends Error {
   constructor(
     readonly code: AgentManagerErrorCode,
     message: string,
+    /** Uncommitted files, when a PR was refused over a dirty worktree. */
+    readonly files: readonly string[] = [],
   ) {
     super(message);
   }

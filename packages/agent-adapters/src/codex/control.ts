@@ -9,7 +9,13 @@
  */
 import type { AgentEvent, PermissionDecision } from "@regulus/protocol";
 import { AsyncQueue } from "../async-queue.ts";
-import type { AgentControl, PromptAttachment, RunnerContext, SpawnPlan } from "../types.ts";
+import type {
+  AgentControl,
+  PermissionResolvedListener,
+  PromptAttachment,
+  RunnerContext,
+  SpawnPlan,
+} from "../types.ts";
 import { approvalResponse } from "./approvals.ts";
 import { type ApprovalRequest, CodexEventMapper, isApprovalRequest } from "./events.ts";
 import type { ThreadStartParams, UserInput } from "./generated/v2/index.ts";
@@ -41,6 +47,7 @@ export class CodexControl implements AgentControl {
   readonly #queue = new AsyncQueue<AgentEvent>();
   readonly #mapper = new CodexEventMapper();
   readonly #pending = new Map<string, { rpcId: string | number; req: ApprovalRequest }>();
+  readonly #resolvedListeners = new Set<PermissionResolvedListener>();
   readonly #ready: Promise<CodexRpcClient>;
   #client: CodexRpcClient | undefined;
   #closing = false;
@@ -65,6 +72,16 @@ export class CodexControl implements AgentControl {
 
   providerSessionId(): string | undefined {
     return this.#mapper.threadId ?? this.#plan.providerSessionId;
+  }
+
+  /** Each approval leaves `#pending` on its own: answered here or cleared by the server. */
+  onPermissionResolved(listener: PermissionResolvedListener): () => void {
+    this.#resolvedListeners.add(listener);
+    return () => this.#resolvedListeners.delete(listener);
+  }
+
+  #resolved(requestId: string): void {
+    for (const listener of [...this.#resolvedListeners]) listener(requestId);
   }
 
   /** Approval requests surfaced and not yet answered. */
@@ -97,6 +114,7 @@ export class CodexControl implements AgentControl {
     const pending = this.#pending.get(id);
     if (!pending) throw new Error(`Unknown permission request: ${id}`);
     this.#pending.delete(id);
+    this.#resolved(id);
     await client.respond(pending.rpcId, approvalResponse(pending.req, decision));
     this.#emit({ kind: "status", ts: this.#ctx.now(), status: "working" });
   }
@@ -184,7 +202,9 @@ export class CodexControl implements AgentControl {
     if (n.method === "serverRequest/resolved") {
       // Cleared by the server (turn finished or interrupted before we answered).
       for (const [id, p] of this.#pending) {
-        if (p.rpcId === n.params.requestId) this.#pending.delete(id);
+        if (p.rpcId !== n.params.requestId) continue;
+        this.#pending.delete(id);
+        this.#resolved(id);
       }
     }
     for (const event of this.#mapper.map(n, this.#ctx.now())) this.#emit(event);

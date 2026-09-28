@@ -1,5 +1,9 @@
 /**
- * Agent lifecycle commands: agent.spawn|prompt|approve|stop|resume|pr (SPEC §6).
+ * Agent lifecycle commands: agent.spawn|prompt|approve|stop|resume|pr (SPEC §6),
+ * plus three the spec's list does not name yet: `agent.interrupt` (SPEC §7
+ * `AgentControl.interrupt`), `agent.sendHome` (issue #33: free the desk, keep
+ * or delete the branch) and `agent.worktree` (read the worktree's uncommitted
+ * files for the send-home and PR dialogs).
  *
  * `profileId` names a credential profile; the secret itself never travels
  * over the wire (SPEC §8). `office:<provider>` selects an office-wide key.
@@ -57,6 +61,26 @@ export const AgentPrCommand = z.object({
   draft: z.boolean().default(false),
 });
 
+/** Cancel the current turn (Claude: Escape; Codex: turn/interrupt). The process keeps running. */
+export const InterruptAgentCommand = z.object({
+  type: z.literal("agent.interrupt"),
+  agentId: Id,
+});
+
+/** Stop the agent if needed, release its worktree, free the desk and walk it to the elevator. */
+export const SendHomeAgentCommand = z.object({
+  type: z.literal("agent.sendHome"),
+  agentId: Id,
+  /** False deletes the `office/*` branch locally and on the remote. */
+  keepBranch: z.boolean(),
+});
+
+/** Ask for the worktree's branch and uncommitted files (answered with `agent.result`). */
+export const AgentWorktreeCommand = z.object({
+  type: z.literal("agent.worktree"),
+  agentId: Id,
+});
+
 export const agentCommands = [
   SpawnAgentCommand,
   PromptAgentCommand,
@@ -64,4 +88,7 @@ export const agentCommands = [
   StopAgentCommand,
   ResumeAgentCommand,
   AgentPrCommand,
+  InterruptAgentCommand,
+  SendHomeAgentCommand,
+  AgentWorktreeCommand,
 ] as const;

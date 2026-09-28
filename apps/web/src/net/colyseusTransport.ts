@@ -70,6 +70,10 @@ class ColyseusRoomHandle<S, T extends DecodedState> implements RoomHandle<S> {
     });
   }
 
+  onMessage(type: string, cb: (payload: unknown) => void): Unsubscribe {
+    return this.room.onMessage(type, (payload: unknown) => cb(payload));
+  }
+
   send<K extends ClientCommandType>(type: K, payload: ClientCommandPayload<K>): void {
     this.room.send(type, payload);
   }

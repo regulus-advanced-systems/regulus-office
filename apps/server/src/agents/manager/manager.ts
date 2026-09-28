@@ -16,11 +16,11 @@
  * owner's runner: every runner call is bound to `ownerUserId`.
  */
 import type { AgentControl } from "@regulus/agent-adapters";
-import type { PermissionDecision } from "@regulus/protocol";
+import { mayControlRobot, type PermissionDecision } from "@regulus/protocol";
 import { eq } from "drizzle-orm";
 import { AUDIT_ACTIONS } from "../../auth/audit.ts";
 import { floorRepos } from "../../db/schema/index.ts";
-import { type FloorActor, isOfficeManager } from "../../floors/access.ts";
+import type { FloorActor } from "../../floors/access.ts";
 import type { Workspaces } from "../../worktrees/types.ts";
 import { adoptAll } from "./adopt.ts";
 import { AgentManagerError } from "./errors.ts";
@@ -29,7 +29,9 @@ import { setStatus } from "./robot.ts";
 import {
   type AgentManagerOptions,
   AgentRuntime,
+  type AgentWorktreeTools,
   asManagerError,
+  errorSummary,
   type LiveAgent,
 } from "./runtime.ts";
 import { admitSpawn, type SpawnInput } from "./spawn.ts";
@@ -39,6 +41,7 @@ import { RepoWorkspaces, taskSlug } from "./workspaces.ts";
 
 export type {
   AgentManagerOptions,
+  AgentWorktreeTools,
   LiveAgent,
   RobotPublisher,
   ScrollbackTracker,
@@ -112,21 +115,78 @@ export class AgentManager extends AgentRuntime {
   // ---- Controls for #33 ----------------------------------------------------
 
   async prompt(actor: FloorActor, agentId: string, text: string): Promise<void> {
-    await this.#controlFor(actor, agentId).prompt(text);
+    const control = this.#controlFor(actor, agentId);
+    await this.#adapterCall(agentId, "prompt", () => control.prompt(text));
   }
 
+  /**
+   * Answer a pending permission request. One the adapter no longer holds
+   * (expired, or already answered in the terminal) is refused with a hint
+   * and dropped from the controllers' list.
+   */
   async respondPermission(
     actor: FloorActor,
     agentId: string,
     requestId: string,
     decision: PermissionDecision,
   ): Promise<void> {
-    await this.#controlFor(actor, agentId).respondPermission(requestId, decision);
+    const control = this.#controlFor(actor, agentId);
+    try {
+      await control.respondPermission(requestId, decision);
+    } catch (err) {
+      this.permissions.remove(agentId, requestId);
+      this.logger.info({ agentId, requestId, err: errorSummary(err) }, "permission answer refused");
+      throw new AgentManagerError(
+        "conflict",
+        "that request is no longer pending; answer it in the robot's terminal",
+      );
+    }
+    this.permissions.remove(agentId, requestId);
     this.store.audit(actor.id, AUDIT_ACTIONS.agentApprove, agentId, { requestId, decision });
   }
 
   async interrupt(actor: FloorActor, agentId: string): Promise<void> {
-    await this.#controlFor(actor, agentId).interrupt();
+    const control = this.#controlFor(actor, agentId);
+    await this.#adapterCall(agentId, "interrupt", () => control.interrupt());
+  }
+
+  /** Uncommitted files of the agent's worktree (send-home and PR dialogs). */
+  async worktreeStatus(
+    actor: FloorActor,
+    agentId: string,
+  ): Promise<{ branch: string; uncommitted: string[] }> {
+    this.#authorize(actor, agentId);
+    const tools = this.#worktreeTools();
+    try {
+      const status = await tools.status(agentId);
+      return { branch: status.branch, uncommitted: status.uncommitted };
+    } catch (err) {
+      throw asManagerError(err, "the worktree could not be read");
+    }
+  }
+
+  /**
+   * One-click PR from the agent's branch (#31). A dirty worktree is refused
+   * with its files; an already open PR is returned. The robot shows the number.
+   */
+  async openPullRequest(
+    actor: FloorActor,
+    agentId: string,
+    opts: { draft: boolean; title?: string; body?: string },
+  ) {
+    const live = this.#authorize(actor, agentId);
+    const tools = this.#worktreeTools();
+    let pr: Awaited<ReturnType<AgentWorktreeTools["openPullRequest"]>>;
+    try {
+      pr = await tools.openPullRequest(agentId, { ...opts, actorUserId: actor.id });
+    } catch (err) {
+      throw asManagerError(err, "the pull request could not be opened");
+    }
+    if (live.view.prNumber !== pr.number) {
+      live.view.prNumber = pr.number;
+      this.publishLive(live);
+    }
+    return pr;
   }
 
   /** Stop the process (kill its session and processes). The robot stays at its desk. */
@@ -208,7 +268,7 @@ export class AgentManager extends AgentRuntime {
   #authorize(actor: FloorActor, agentId: string): LiveAgent {
     const live = this.agents.get(agentId);
     if (!live) throw new AgentManagerError("not_found", "no such agent");
-    if (live.view.ownerUserId !== actor.id && !isOfficeManager(actor.role)) {
+    if (!mayControlRobot(actor, live.view.ownerUserId)) {
       throw new AgentManagerError("forbidden", "only the robot's owner or an admin may control it");
     }
     return live;
@@ -220,6 +280,22 @@ export class AgentManager extends AgentRuntime {
       throw new AgentManagerError("conflict", "the agent is not running");
     }
     return live.control;
+  }
+
+  #worktreeTools(): AgentWorktreeTools {
+    const tools = this.opts.worktreeTools;
+    if (!tools) throw new AgentManagerError("unavailable", "worktrees are not available");
+    return tools;
+  }
+
+  /** Adapter failures become a safe message; the details stay in the server log. */
+  async #adapterCall(agentId: string, what: string, call: () => Promise<void>): Promise<void> {
+    try {
+      await call();
+    } catch (err) {
+      this.logger.warn({ agentId, err: errorSummary(err) }, `agent ${what} failed`);
+      throw new AgentManagerError("failed", `the agent did not accept the ${what}`);
+    }
   }
 
   #workspaces(): Workspaces {

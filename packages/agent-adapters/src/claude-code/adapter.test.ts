@@ -194,6 +194,26 @@ describe("ClaudeCodeAdapter", () => {
 });
 
 describe("PermissionBroker", () => {
+  test("reports each request's resolution: answered, expired, turn end", async () => {
+    const broker = new PermissionBroker();
+    const seen: string[] = [];
+    const off = broker.onResolved("a", (id) => seen.push(id));
+    broker.onResolved("b", () => seen.push("other agent"));
+    const answered = broker.wait("a", "r1", [], 5_000);
+    const held = broker.wait("a", "r2", [], 5_000);
+    expect(broker.resolve("a", "r1", "allow_once")).toBe(true);
+    expect(await answered).toBe("allow_once");
+    expect(seen).toEqual(["r1"]);
+    expect(await broker.wait("a", "r3", [], 5)).toBeNull();
+    expect(seen).toEqual(["r1", "r3"]);
+    broker.cancelAgent("a");
+    expect(await held).toBeNull();
+    expect(seen).toEqual(["r1", "r3", "r2"]);
+    off();
+    await broker.wait("a", "r4", [], 1);
+    expect(seen).toHaveLength(3);
+  });
+
   test("expires to null and honours abort", async () => {
     const broker = new PermissionBroker();
     expect(await broker.wait("a", "r", [], 10)).toBeNull();
