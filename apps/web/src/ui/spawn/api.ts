@@ -1,13 +1,16 @@
 /**
- * Browser client for `GET /api/credential-profiles` (read-only; ids and
- * labels, never a key). The spawn dialog lists the human's own profiles and
- * the office keys for the chosen provider.
+ * What the spawn dialog reads about credentials: `GET /api/credential-profiles`
+ * (read-only; ids and labels, never a key) for the human's own profiles and
+ * the office keys of the chosen provider, and `GET /api/provider-logins`
+ * (#32) for whether their CLI login in the runner is connected.
  */
 import {
   CREDENTIAL_PROFILES_API_PATH,
   CredentialProfileListResponse,
   type CredentialProfileSummary,
+  PROVIDER_LOGINS_API_PATH,
   type ProviderId,
+  ProviderLoginStatusResponse,
 } from "@regulus/protocol";
 
 export type ProfilesResult =
@@ -16,12 +19,33 @@ export type ProfilesResult =
 
 export interface CredentialProfilesApi {
   list(provider: ProviderId): Promise<ProfilesResult>;
+  /** The human's CLI login for a provider: true / false, null when unknown. */
+  loginConnected(provider: ProviderId): Promise<boolean | null>;
 }
 
 export function createCredentialProfilesApi(
   options: { fetch?: typeof fetch; baseUrl?: string } = {},
 ): CredentialProfilesApi {
+  const getJson = async (url: string): Promise<unknown> => {
+    const doFetch = options.fetch ?? fetch;
+    try {
+      const res = await doFetch(url, {
+        credentials: "same-origin",
+        headers: { accept: "application/json" },
+      });
+      return res.ok ? await res.json() : null;
+    } catch {
+      return null;
+    }
+  };
   return {
+    async loginConnected(provider) {
+      const parsed = ProviderLoginStatusResponse.safeParse(
+        await getJson(`${options.baseUrl ?? ""}${PROVIDER_LOGINS_API_PATH}`),
+      );
+      if (!parsed.success) return null;
+      return parsed.data.providers.find((p) => p.provider === provider)?.connected ?? null;
+    },
     async list(provider) {
       const doFetch = options.fetch ?? fetch;
       const url = `${options.baseUrl ?? ""}${CREDENTIAL_PROFILES_API_PATH}?provider=${encodeURIComponent(provider)}`;

@@ -7,7 +7,6 @@
  */
 import type { CredentialProfileSummary } from "@regulus/protocol";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { useProvidersPanel } from "../../state/providersPanel.ts";
 import type { SpawnPrefill } from "../../state/spawn.ts";
 import { FormAlert } from "../auth/AuthCard.tsx";
 import { Button } from "../components/Button.tsx";
@@ -39,6 +38,8 @@ export interface SpawnFormProps {
   serverError: string | null;
   onSubmit: (payload: SpawnPayload) => void;
   onCancel: () => void;
+  /** "Connect <provider>": open the providers panel (#32) on that provider. */
+  onConnect: (provider: SpawnFormValues["provider"]) => void;
 }
 
 function useProfiles(api: CredentialProfilesApi, provider: SpawnFormValues["provider"]) {
@@ -64,6 +65,24 @@ function useProfiles(api: CredentialProfilesApi, provider: SpawnFormValues["prov
   return state.provider === provider ? state : { provider, profiles: [], error: null };
 }
 
+/** Whether the CLI login for `provider` is connected (null: unknown or still loading). */
+function useLoginConnected(api: CredentialProfilesApi, provider: SpawnFormValues["provider"]) {
+  const [state, setState] = useState<{ provider: string; connected: boolean | null }>({
+    provider: "",
+    connected: null,
+  });
+  useEffect(() => {
+    let live = true;
+    void api.loginConnected(provider).then((connected) => {
+      if (live) setState({ provider, connected });
+    });
+    return () => {
+      live = false;
+    };
+  }, [api, provider]);
+  return state.provider === provider ? state.connected : null;
+}
+
 export function SpawnForm(props: SpawnFormProps) {
   const { repos, prefill, api, pending, serverError } = props;
   const [values, setValues] = useState<SpawnFormValues>(() => initialSpawnValues(repos, prefill));
@@ -84,8 +103,9 @@ export function SpawnForm(props: SpawnFormProps) {
   const f = (name: keyof SpawnFormValues) => `${id}-${name}`;
   const presets = presetsFor(values.provider);
   const profiles = useProfiles(api, values.provider);
-  const openProvidersPanel = useProvidersPanel((s) => s.openProvidersPanel);
-  const hasOwnProfile = profiles.profiles.some((p) => p.owner === "me");
+  const loginConnected = useLoginConnected(api, values.provider);
+  // Nothing of their own to spawn with: no connected CLI login and no profile.
+  const needsConnect = loginConnected !== true && !profiles.profiles.some((p) => p.owner === "me");
   const credentialOptions = useMemo(
     () => profileOptions(values.provider, providerLabel(values.provider), profiles.profiles),
     [values.provider, profiles.profiles],
@@ -189,13 +209,13 @@ export function SpawnForm(props: SpawnFormProps) {
             {profiles.error
               ? "Could not load your saved profiles; your own login still works."
               : "Your login lives in your own runner; keys stay on the server."}
-            {!hasOwnProfile && (
+            {needsConnect && (
               <>
                 {" "}
                 <button
                   type="button"
                   className="rg-spawn__link"
-                  onClick={() => openProvidersPanel(values.provider)}
+                  onClick={() => props.onConnect(values.provider)}
                 >
                   Connect {providerLabel(values.provider)}
                 </button>

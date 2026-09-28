@@ -14,6 +14,7 @@ import { useSessionStore } from "../../state/session.ts";
 import { useSpawnStore } from "../../state/spawn.ts";
 import { useUiStore } from "../../state/ui.ts";
 import { Modal } from "../components/Modal.tsx";
+import { openProvidersPanel } from "../providers/providersStore.ts";
 import { type CredentialProfilesApi, createCredentialProfilesApi } from "./api.ts";
 import { SpawnForm } from "./SpawnForm.tsx";
 import type { SpawnPayload, SpawnRepoOption } from "./spawnForm.ts";
@@ -155,6 +156,10 @@ export function SpawnDialogHost({
         serverError={serverError}
         onSubmit={submit}
         onCancel={closeSpawn}
+        onConnect={(provider) => {
+          closeSpawn();
+          openProvidersPanel(provider);
+        }}
       />
     </Modal>
   );

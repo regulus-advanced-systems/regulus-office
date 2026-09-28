@@ -3,12 +3,13 @@ import type { CommandRejected, FloorState, RobotState } from "@regulus/protocol"
 import { act } from "react";
 import { useFloorStore } from "../../state/floor.ts";
 import { useFloorsStore } from "../../state/floors.ts";
-import { useProvidersPanel } from "../../state/providersPanel.ts";
+
 import { useSessionStore } from "../../state/session.ts";
 import { useSpawnStore } from "../../state/spawn.ts";
 import { useUiStore } from "../../state/ui.ts";
 import { click, type Mounted, mount, useDom } from "../a11y/dom.ts";
 import { button, settle, text } from "../auth/testDom.tsx";
+import { PROVIDERS_OVERLAY, useProvidersPanel } from "../providers/providersStore.ts";
 import type { CredentialProfilesApi } from "./api.ts";
 import { SPAWN_OVERLAY, type SpawnClient, SpawnDialogHost } from "./SpawnDialog.tsx";
 import type { SpawnPayload } from "./spawnForm.ts";
@@ -70,6 +71,7 @@ function fakeClient() {
 }
 
 const api: CredentialProfilesApi = {
+  loginConnected: async () => false,
   list: async (provider) => ({
     ok: true,
     profiles: [
@@ -183,7 +185,7 @@ describe("spawn dialog", () => {
     expect(useUiStore.getState().toastQueue.toasts.map((t) => t.title)).toContain("Robot spawned");
   });
 
-  test("offers Connect <provider> when the human has no profile of their own", async () => {
+  test("offers Connect <provider> when nothing of their own is connected", async () => {
     const { client } = fakeClient();
     mounted = await mount(<SpawnDialogHost api={api} client={client} />);
     await act(async () => useSpawnStore.getState().openSpawn("desk-1-seat"));
@@ -191,7 +193,19 @@ describe("spawn dialog", () => {
     const connect = button("Connect Claude Code");
     if (!connect) throw new Error("no connect link");
     await click(connect);
-    expect(useProvidersPanel.getState().provider).toBe("claude-code");
+    await settle();
+    expect(useProvidersPanel.getState().focus).toBe("claude-code");
+    expect(useUiStore.getState().overlay).toBe(PROVIDERS_OVERLAY);
+    expect(useSpawnStore.getState().request).toBeNull();
+  });
+
+  test("no Connect link once the CLI login is connected", async () => {
+    const { client } = fakeClient();
+    const connected: CredentialProfilesApi = { ...api, loginConnected: async () => true };
+    mounted = await mount(<SpawnDialogHost api={connected} client={client} />);
+    await act(async () => useSpawnStore.getState().openSpawn("desk-1-seat"));
+    await settle();
+    expect(button("Connect Claude Code")).toBeUndefined();
   });
 
   test("closing with Cancel clears the request", async () => {
