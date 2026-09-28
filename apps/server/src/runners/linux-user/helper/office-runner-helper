@@ -13,6 +13,8 @@
 # may hold secrets.
 #
 # Exit codes: 0 ok, 1 failure, 2 invalid arguments, 3 not found.
+# Single-quoted scripts below are run by /bin/sh as the runner user, on purpose.
+# shellcheck disable=SC2016
 set -euo pipefail
 umask 022
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
@@ -33,7 +35,6 @@ SERVER_USER=office
 # Runs inside the agent's tmux pane or piped scope, as the runner user. Waits
 # until the process sits in its own scope (exec adopts the pane pid after tmux
 # forked it), then sources and deletes the 0600 env file and execs the agent.
-# shellcheck disable=SC2016
 readonly WRAPPER='unit=$1 envfile=$2 cwd=$3
 shift 3
 in_unit() {
@@ -162,7 +163,7 @@ tmux_u() {
 }
 
 ensure_tmux_dir() {
-  mkdir -p -m 0755 -- "$(dirname -- "$TMUX_DIR")"
+  install -d -m 0755 -- "$(dirname -- "$TMUX_DIR")"
   # Sticky and not listable, like /tmp: runners create their own socket, can
   # neither list nor remove the others'. Socket ownership is checked on use.
   install -d -m 1733 -o root -g root -- "$TMUX_DIR"
@@ -188,7 +189,6 @@ ensure_server() {
 write_env_file() {
   local script f
   IFS= read -r -d '' script || die "stdin must start with a NUL-terminated env script" 2
-  # shellcheck disable=SC2016
   f=$(printf '%s' "$script" | as_user /bin/sh -c \
     'umask 077; d="$HOME/.office/env"; mkdir -p "$d" && f=$(mktemp "$d/env.XXXXXXXXXX") && cat >"$f" && printf %s "$f"') ||
     die "could not write the env file"
@@ -246,8 +246,7 @@ cmd_deprovision() {
   fi
   load_user
   systemctl stop "office-tmux-$RID.scope" >/dev/null 2>&1 || true
-  local i
-  for i in $(seq 1 50); do
+  for _ in $(seq 1 50); do
     pkill -KILL -U "$R_UID" 2>/dev/null || break
     sleep 0.1
   done
@@ -283,7 +282,7 @@ cmd_mount_project() {
 cmd_exec() {
   load_user
   ensure_server
-  local session="agent-$AID" unit="agent-$AID.scope" envfile pid i
+  local session="agent-$AID" unit="agent-$AID.scope" envfile pid
   if as_user tmux -S "$SOCK" has-session -t "=$session" 2>/dev/null; then
     die "session $session already exists"
   fi
@@ -303,7 +302,7 @@ cmd_exec() {
     rm -f -- "$envfile"
     die "could not place the agent in $unit"
   fi
-  for i in $(seq 1 100); do
+  for _ in $(seq 1 100); do
     grep -qs "/$unit\$" "/proc/$pid/cgroup" && break
     sleep 0.05
   done
@@ -328,12 +327,12 @@ cmd_kill() {
   getent passwd "$U" >/dev/null || return 0
   load_user
   if server_alive; then as_user tmux -S "$SOCK" kill-session -t "=agent-$AID" 2>/dev/null || true; fi
-  local unit i
+  local unit
   for unit in $(agent_units); do
     unit_owned "$unit" || die "$unit has processes of another account"
     systemctl kill --signal=SIGKILL -- "$unit" 2>/dev/null || true
   done
-  for i in $(seq 1 100); do
+  for _ in $(seq 1 100); do
     [[ -z $(agent_units) ]] && break
     sleep 0.05
   done
@@ -376,7 +375,6 @@ cmd_attach() {
 
 cmd_write_file() {
   load_user
-  # shellcheck disable=SC2016
   as_user /bin/sh -c 'umask 077; d=$(dirname -- "$1"); mkdir -p -- "$d" &&
     t=$(mktemp "$d/.office-write.XXXXXXXX") && cat >"$t" && chmod "$2" -- "$t" && mv -f -- "$t" "$1" ||
     { rm -f -- "$t"; exit 1; }' office-write "$FPATH" "$FMODE" || die "write-file failed"
