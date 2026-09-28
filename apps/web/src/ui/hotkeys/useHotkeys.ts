@@ -12,6 +12,7 @@ import {
   type HotkeyEventDetail,
   hotkeys,
   isEditableTarget,
+  isFocusedControl,
 } from "./registry.ts";
 
 export function useGlobalHotkeys(target: Window = window): void {
@@ -26,6 +27,7 @@ export function useGlobalHotkeys(target: Window = window): void {
         metaKey: event.metaKey,
         altKey: event.altKey,
         editable: isEditableTarget(event.target),
+        focused: isFocusedControl(event.target),
         overlayOpen: overlay !== null,
       });
       if (!binding) return;

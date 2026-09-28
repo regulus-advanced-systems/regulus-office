@@ -7,6 +7,7 @@ import type {
   BuildingState,
   ClientCommandPayload,
   ClientCommandType,
+  CommandRejected,
   FloorState,
 } from "@regulus/protocol";
 
@@ -38,6 +39,8 @@ export interface RoomHandle<S> {
   /** Fires once the room is gone for good (consented leave, kick, or retries exhausted). */
   onLeave(cb: (code: number, reason?: string) => void): Unsubscribe;
   onError(cb: (code: number, message?: string) => void): Unsubscribe;
+  /** Fires when the server dropped one of our commands (`command.rejected`). */
+  onRejected(cb: (notice: CommandRejected) => void): Unsubscribe;
   send<T extends ClientCommandType>(type: T, payload: ClientCommandPayload<T>): void;
   leave(consented?: boolean): Promise<void>;
 }

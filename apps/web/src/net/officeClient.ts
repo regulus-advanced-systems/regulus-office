@@ -8,6 +8,7 @@ import type {
   BuildingState,
   ClientCommandPayload,
   ClientCommandType,
+  CommandRejected,
   FloorState,
 } from "@regulus/protocol";
 import { useBuildingStore } from "../state/building.ts";
@@ -21,6 +22,8 @@ import {
   type RoomTransport,
   type Unsubscribe,
 } from "./transport.ts";
+
+export type RejectionListener = (notice: CommandRejected) => void;
 
 export type Scheduler = (fn: () => void, delayMs: number) => () => void;
 
@@ -62,6 +65,10 @@ export class OfficeClient {
   private cancelFloorRetry: (() => void) | null = null;
   private buildingSubs: Unsubscribe[] = [];
   private floorSubs: Unsubscribe[] = [];
+  private readonly rejectionListeners = new Set<RejectionListener>();
+  private readonly emitRejected: RejectionListener = (notice) => {
+    for (const listener of this.rejectionListeners) listener(notice);
+  };
 
   constructor(options: OfficeClientOptions) {
     this.transport = options.transport;
@@ -144,6 +151,12 @@ export class OfficeClient {
     target.send(type, payload);
   }
 
+  /** Listen for commands the server rejected, from whichever room we are in. */
+  onRejected(listener: RejectionListener): Unsubscribe {
+    this.rejectionListeners.add(listener);
+    return () => this.rejectionListeners.delete(listener);
+  }
+
   private bindBuilding(handle: RoomHandle<BuildingState>) {
     this.building = handle;
     this.attempt = 0;
@@ -160,6 +173,7 @@ export class OfficeClient {
       handle.onReconnect(() => connection.set({ status: "connected", lastError: null })),
       handle.onError((code, message) => connection.set({ lastError: message ?? `error ${code}` })),
       handle.onLeave((code, reason) => this.onBuildingLeft(code, reason)),
+      handle.onRejected(this.emitRejected),
     ];
   }
 
@@ -220,6 +234,7 @@ export class OfficeClient {
     this.floorSubs = [
       handle.onState((state) => floor.apply(state)),
       handle.onLeave((code, reason) => this.onFloorLeft(floorId, code, reason)),
+      handle.onRejected(this.emitRejected),
     ];
   }
 

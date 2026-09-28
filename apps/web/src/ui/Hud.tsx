@@ -1,10 +1,11 @@
 /**
  * HUD layered over the office canvas: top bar, status box, elevator,
- * corner buttons for settings and shortcut help, dialogs and toasts.
+ * lobby chat, corner buttons for settings and shortcut help, dialogs and toasts.
  * The container ignores pointer events so the scene stays clickable
  * between panels.
  */
 import { useUiStore } from "../state/ui.ts";
+import { ChatPanel } from "./chat/ChatPanel.tsx";
 import { Button } from "./components/Button.tsx";
 import { GearIcon, QuestionIcon } from "./components/icons.tsx";
 import { Modal } from "./components/Modal.tsx";
@@ -56,6 +57,7 @@ export function Hud() {
       <div className="rg-hud__left">
         <ElevatorPanel />
       </div>
+      <ChatPanel />
       <div className="rg-hud__corner">
         <Button
           variant="secondary"
