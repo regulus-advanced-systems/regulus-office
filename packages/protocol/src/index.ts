@@ -16,4 +16,5 @@ export * from "./commands/index.ts";
 export * from "./common.ts";
 export * from "./enums.ts";
 export * from "./floor-state.ts";
+export * from "./rooms.ts";
 export * from "./schema/index.ts";

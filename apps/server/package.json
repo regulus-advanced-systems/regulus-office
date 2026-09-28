@@ -11,9 +11,12 @@
     "start": "bun src/index.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "bun run src/db/migrate.ts"
+    "db:migrate": "bun run src/db/migrate.ts",
+    "loadtest:building": "bun run scripts/loadtest-building.ts"
   },
   "dependencies": {
+    "@colyseus/bun-websockets": "0.18.3",
+    "@colyseus/core": "0.18.17",
     "@regulus/agent-adapters": "workspace:*",
     "@regulus/floor-layout": "workspace:*",
     "@regulus/protocol": "workspace:*",
@@ -22,6 +25,7 @@
     "zod": "4.6.5"
   },
   "devDependencies": {
+    "@colyseus/sdk": "0.18.4",
     "drizzle-kit": "0.31.11"
   }
 }

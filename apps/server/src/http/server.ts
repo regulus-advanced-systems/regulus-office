@@ -4,6 +4,7 @@
  */
 import type { OfficeConfig } from "../config.ts";
 import type { Logger } from "../logging.ts";
+import { type HttpAttachment, UPGRADED } from "../rooms/transport.ts";
 import { Health } from "./health.ts";
 import { MetricsRegistry, PROMETHEUS_CONTENT_TYPE } from "./metrics.ts";
 import { json, Router } from "./router.ts";
@@ -13,6 +14,8 @@ export interface OfficeServerOptions {
   config: Pick<OfficeConfig, "port" | "host" | "webDist">;
   logger: Logger;
   version: string;
+  /** Room transport hooks (matchmaking routes + WebSocket upgrade); see rooms/transport.ts. */
+  attach?: HttpAttachment;
 }
 
 export interface OfficeServer {
@@ -25,11 +28,16 @@ export interface OfficeServer {
   stop(force?: boolean): Promise<void>;
 }
 
+/** Bun requires a handler even when nothing ever upgrades. */
+const NO_WEBSOCKETS: Bun.WebSocketHandler<unknown> = {
+  message: (ws) => ws.close(1003, "unsupported"),
+};
+
 /** Paths that probes hit constantly; logged at debug instead of info. */
 const QUIET_PATHS = new Set(["/healthz", "/metrics"]);
 
 export function createOfficeServer(options: OfficeServerOptions): OfficeServer {
-  const { config, logger, version } = options;
+  const { config, logger, version, attach } = options;
   const router = new Router();
   const metrics = new MetricsRegistry();
   const health = new Health({ version });
@@ -51,7 +59,16 @@ export function createOfficeServer(options: OfficeServerOptions): OfficeServer {
     return new Response(metrics.expose(), { headers: { "content-type": PROMETHEUS_CONTENT_TYPE } });
   });
 
-  const dispatch = async (request: Request, url: URL): Promise<[Response, string]> => {
+  const dispatch = async (
+    request: Request,
+    url: URL,
+    bun: Bun.Server<unknown>,
+  ): Promise<[Response | undefined, string]> => {
+    if (attach) {
+      const handled = await attach.fetch(request, url, bun);
+      if (handled === UPGRADED) return [undefined, "ws"];
+      if (handled) return [handled, "rooms"];
+    }
     const match = router.match(request.method, url.pathname);
     if (match) {
       const ctx = { request, url, params: match.params };
@@ -67,14 +84,15 @@ export function createOfficeServer(options: OfficeServerOptions): OfficeServer {
     port: config.port,
     hostname: config.host,
     development: false,
-    async fetch(request) {
+    websocket: attach?.websocket ?? NO_WEBSOCKETS,
+    async fetch(request, bun) {
       const url = new URL(request.url);
       const start = performance.now();
       inFlight.inc();
       let route = "error";
-      let response: Response;
+      let response: Response | undefined;
       try {
-        [response, route] = await dispatch(request, url);
+        [response, route] = await dispatch(request, url, bun);
       } catch (err) {
         logger.error(
           { err, method: request.method, path: url.pathname },
@@ -86,12 +104,14 @@ export function createOfficeServer(options: OfficeServerOptions): OfficeServer {
       }
       const seconds = (performance.now() - start) / 1000;
       const labels = { method: request.method, route };
-      requestsTotal.inc({ ...labels, status: String(response.status) });
+      // An upgraded WebSocket has no Response; report it as 101.
+      const status = response?.status ?? 101;
+      requestsTotal.inc({ ...labels, status: String(status) });
       requestDuration.observe(seconds, labels);
       const entry = {
         method: request.method,
         path: url.pathname,
-        status: response.status,
+        status,
         ms: Math.round(seconds * 1000),
       };
       if (QUIET_PATHS.has(url.pathname)) logger.debug(entry, "request");

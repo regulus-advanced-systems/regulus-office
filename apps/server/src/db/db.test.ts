@@ -40,6 +40,9 @@ const SPEC_TABLES = [
   "audit_log",
 ] as const;
 
+/** Tables outside SPEC §5 that the server adds for its own bookkeeping. */
+const EXTRA_TABLES = ["chat_messages"] as const;
+
 const opened: Db[] = [];
 const tempDirs: string[] = [];
 
@@ -141,13 +144,14 @@ describe("runMigrations", () => {
   test("creates every SPEC §5 table from an empty database", () => {
     const names = tableNames(openMigrated());
     for (const table of SPEC_TABLES) expect(names).toContain(table);
+    for (const table of EXTRA_TABLES) expect(names).toContain(table);
     expect(names).toContain("__drizzle_migrations");
   });
 
   test("is idempotent", () => {
     const db = openMigrated();
     runMigrations(db);
-    expect(tableNames(db).length).toBe(SPEC_TABLES.length + 1);
+    expect(tableNames(db).length).toBe(SPEC_TABLES.length + EXTRA_TABLES.length + 1);
   });
 
   test("works on a file database and survives reopen", () => {
