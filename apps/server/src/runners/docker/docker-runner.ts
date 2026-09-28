@@ -21,6 +21,7 @@ import {
   tmuxSessionName,
 } from "@regulus/agent-adapters";
 import type { TerminalMode } from "@regulus/protocol";
+import { PASTE_SCRIPT, pasteBufferName, pasteMode } from "../keys.ts";
 import type {
   AgentRef,
   AttachStream,
@@ -232,10 +233,19 @@ export class DockerRunner implements Runner {
     return res.code === 0 ? res.stdout.trim() : "";
   }
 
+  /** Buffer paste in one exec, input on its stdin; works while a watcher is attached (keys.ts). */
   async sendKeys(session: TmuxSessionRef, keys: string, opts?: { enter?: boolean }): Promise<void> {
-    const res = await this.#tmuxOn(session, ["send-keys", "-t", paneTarget(session), "-l", keys]);
-    if (res.code !== 0) throw new Error(`send-keys failed: ${res.stderr.trim()}`);
-    if (opts?.enter) await this.#tmuxOn(session, ["send-keys", "-t", paneTarget(session), "Enter"]);
+    if (keys.length === 0 && !opts?.enter) return;
+    const bytes = new TextEncoder().encode(keys);
+    const socket = this.containers.tmuxSocket(session.userId);
+    const args = [socket, pasteBufferName(), paneTarget(session), `${bytes.byteLength}`];
+    const cmd = ["sh", "-c", PASTE_SCRIPT, "sh", ...args, pasteMode(keys), opts?.enter ? "1" : "0"];
+    const res = await this.engine.execWithInput(
+      await this.#require(session.userId),
+      { cmd },
+      bytes,
+    );
+    if (res.code !== 0) throw new Error(`paste into ${session.name} failed: ${res.stderr.trim()}`);
   }
 
   async sessionExists(session: TmuxSessionRef): Promise<boolean> {

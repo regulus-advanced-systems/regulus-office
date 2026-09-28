@@ -59,3 +59,26 @@ export function pasteBufferArgs(
 export function isUnknownFlag(stderr: string): boolean {
   return /unknown flag|usage: paste-buffer/i.test(stderr);
 }
+
+/**
+ * `sh -c PASTE_SCRIPT sh <socket> <buffer> <target> <bytes> <text|raw> <0|1>`
+ * for backends that run tmux through a shell (docker): pastes the first
+ * `<bytes>` bytes of stdin (read with `head -c`, since the exec's stdin is not
+ * closed), then Enter when the last argument is 1. Input never touches argv.
+ */
+export const PASTE_SCRIPT = `sock=$1 buf=$2 target=$3 bytes=$4 mode=$5 enter=$6
+paste() {
+  tmux -S "$sock" load-buffer -b "$buf" - || return 1
+  if [ "$1" = text ]; then flag=-p; else flag=-S; fi
+  err=$(tmux -S "$sock" paste-buffer -d "$flag" -b "$buf" -t "$target" 2>&1) && return 0
+  case $flag:$err in
+    -S:*"unknown flag"* | -S:*"usage: paste-buffer"*)
+      err=$(tmux -S "$sock" paste-buffer -d -b "$buf" -t "$target" 2>&1) && return 0 ;;
+  esac
+  tmux -S "$sock" delete-buffer -b "$buf" 2>/dev/null
+  printf '%s\\n' "$err" >&2
+  return 1
+}
+if [ "$bytes" -gt 0 ]; then head -c "$bytes" | paste "$mode" || exit 1; fi
+if [ "$enter" = 1 ]; then printf '\\r' | paste raw || exit 1; fi
+exit 0`;

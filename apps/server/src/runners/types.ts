@@ -135,6 +135,15 @@ export interface Runner {
   attach(session: TmuxSessionRef, mode: TerminalMode): AttachCommand;
   capturePane(session: TmuxSessionRef, lines: number): Promise<string>;
   paneTitle(session: TmuxSessionRef): Promise<string>;
+  /**
+   * Type into the session's active pane. `keys` is literal text, not tmux key
+   * names: plain text (tabs and newlines allowed) arrives as one bracketed
+   * paste when the application enabled bracketed paste; text with other control
+   * characters (Escape "\x1b", Ctrl-C "\x03", escape sequences) arrives as raw
+   * keystrokes. `enter` then presses Enter ("\r"). Must work while read-only
+   * watchers are attached, and `keys` must stay off argv and logs (it may hold
+   * secrets); backends paste via uniquely named tmux buffers (see keys.ts).
+   */
   sendKeys(session: TmuxSessionRef, keys: string, opts?: { enter?: boolean }): Promise<void>;
   sessionExists(session: TmuxSessionRef): Promise<boolean>;
   /** Session names on the human's tmux server (for re-adoption on boot). */
