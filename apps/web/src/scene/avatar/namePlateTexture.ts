@@ -19,7 +19,7 @@ export const PLATE_FONT_PX = 30;
 export const PLATE_PAD_PX = 18;
 export const PLATE_MAX_CHARS = 24;
 /** World-unit height of the plate sprite; width follows the texture aspect. */
-export const PLATE_WORLD_HEIGHT = 0.28;
+export const PLATE_WORLD_HEIGHT = 0.34;
 
 export function plateLabel(name: string): string {
   const trimmed = name.trim() || "?";

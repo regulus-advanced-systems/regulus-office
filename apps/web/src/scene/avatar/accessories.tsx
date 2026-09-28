@@ -9,36 +9,36 @@ import type { Accessory, ColorSet } from "./colorSets.ts";
 import { toonMaterialFor, unlitMaterialFor } from "./toonMaterial.ts";
 
 /**
- * Head-bone-local geometry of the model (armature units, i.e. the x100 armature
- * scale already applied by the parent). Measured on robot.glb: the head is a
- * rounded cube of about HEAD_RADIUS around the bone origin, the face on +Z.
+ * Geometry in armature units (bone-local x100; the portal group applies the
+ * 0.01). Measured on robot.glb: the head is a rounded cube 2.6 wide from the
+ * head bone origin up to HEAD_TOP, face on +z; the torso sits on the Body bone
+ * with its front panel at z ~0.6.
  */
-export const HEAD_RADIUS = 0.62;
-export const HEAD_TOP = 0.9;
-export const HEAD_FRONT = 0.62;
-export const EYE_HEIGHT = 0.18;
-/** Body-bone-local chest point (in front of the torso panel). */
-export const CHEST = { x: 0, y: 0.55, z: 0.42 } as const;
+export const HEAD_RADIUS = 1.3;
+export const HEAD_TOP = 1.5;
+export const EYE_HEIGHT = 0.72;
+/** Body-bone-local chest point (just in front of the torso panel). */
+export const CHEST = { x: 0, y: 1.0, z: 0.68 } as const;
 
-const ANTENNA_HEIGHT = 0.42;
-const BULB_RADIUS = 0.14;
-const ANTENNA_GEOMETRY = new CylinderGeometry(0.035, 0.035, ANTENNA_HEIGHT, 6);
+const ANTENNA_HEIGHT = 0.9;
+const BULB_RADIUS = 0.3;
+const ANTENNA_GEOMETRY = new CylinderGeometry(0.07, 0.07, ANTENNA_HEIGHT, 6);
 const BULB_GEOMETRY = new SphereGeometry(BULB_RADIUS, 12, 8);
 const VISOR_GEOMETRY = new CylinderGeometry(
-  HEAD_RADIUS + 0.04,
-  HEAD_RADIUS + 0.04,
-  0.22,
+  HEAD_RADIUS + 0.08,
+  HEAD_RADIUS + 0.08,
+  0.45,
   20,
   1,
   true,
   -Math.PI * 0.42,
   Math.PI * 0.84,
 );
-const CAP_GEOMETRY = new CylinderGeometry(HEAD_RADIUS * 0.78, HEAD_RADIUS * 0.92, 0.2, 16);
-const BRIM_GEOMETRY = new BoxGeometry(0.7, 0.05, 0.36);
-const BADGE_GEOMETRY = new BoxGeometry(0.28, 0.36, 0.05);
-const BADGE_STRIPE_GEOMETRY = new BoxGeometry(0.2, 0.08, 0.06);
-const CHEST_LIGHT_GEOMETRY = new SphereGeometry(0.11, 12, 8);
+const CAP_GEOMETRY = new CylinderGeometry(HEAD_RADIUS * 0.8, HEAD_RADIUS * 0.95, 0.42, 16);
+const BRIM_GEOMETRY = new BoxGeometry(1.5, 0.1, 0.8);
+const BADGE_GEOMETRY = new BoxGeometry(0.55, 0.7, 0.1);
+const BADGE_STRIPE_GEOMETRY = new BoxGeometry(0.4, 0.16, 0.12);
+const CHEST_LIGHT_GEOMETRY = new SphereGeometry(0.22, 12, 8);
 const DARK = "#3A3A40";
 
 export type AntennaProps = { bulbColor: string; lit: boolean; colors: ColorSet };
@@ -53,7 +53,7 @@ export function Antenna({ bulbColor, lit, colors }: AntennaProps) {
         name="bulb"
         geometry={BULB_GEOMETRY}
         material={lit ? unlitMaterialFor(bulbColor) : toonMaterialFor(bulbColor)}
-        position={[0, HEAD_TOP + ANTENNA_HEIGHT + BULB_RADIUS * 0.6, 0]}
+        position={[0, HEAD_TOP + ANTENNA_HEIGHT + BULB_RADIUS * 0.7, 0]}
         userData={{ accent: colors.accent }}
       />
     </group>
@@ -72,12 +72,12 @@ export function Visor({ colors }: { colors: ColorSet }) {
 
 export function Cap({ colors }: { colors: ColorSet }) {
   return (
-    <group position={[0, HEAD_TOP + 0.06, 0]}>
+    <group position={[0, HEAD_TOP + 0.12, 0]}>
       <mesh geometry={CAP_GEOMETRY} material={toonMaterialFor(colors.accent)} />
       <mesh
         geometry={BRIM_GEOMETRY}
         material={toonMaterialFor(colors.secondary)}
-        position={[0, -0.08, HEAD_RADIUS * 0.6]}
+        position={[0, -0.16, HEAD_RADIUS * 0.75]}
       />
     </group>
   );
@@ -92,12 +92,12 @@ export function HeadAccessory({ accessory, colors }: { accessory: Accessory; col
 /** Lanyard badge that marks a human (SPEC §9.3 "badge mesh"). */
 export function Badge({ colors }: { colors: ColorSet }) {
   return (
-    <group position={[CHEST.x + 0.22, CHEST.y - 0.05, CHEST.z]} name="badge">
+    <group position={[CHEST.x - 0.45, CHEST.y - 0.1, CHEST.z - 0.05]} name="badge">
       <mesh geometry={BADGE_GEOMETRY} material={toonMaterialFor("#FFFFFF")} />
       <mesh
         geometry={BADGE_STRIPE_GEOMETRY}
         material={toonMaterialFor(colors.accent)}
-        position={[0, 0.1, 0.01]}
+        position={[0, 0.2, 0.02]}
       />
     </group>
   );

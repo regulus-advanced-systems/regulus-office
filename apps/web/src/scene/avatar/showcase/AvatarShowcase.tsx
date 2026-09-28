@@ -7,6 +7,13 @@
  */
 import { OrbitControls } from "@react-three/drei";
 import { Canvas } from "@react-three/fiber";
+import {
+  type AgentStatus,
+  AVATAR_ANIMATIONS,
+  type AvatarAnimation,
+  isAgentStatus,
+  isOneOf,
+} from "@regulus/protocol";
 import { Suspense } from "react";
 import { colors } from "../../../ui/theme.ts";
 import { RobotAvatar } from "../RobotAvatar.tsx";
@@ -21,7 +28,17 @@ const ISO_POSITION: [number, number, number] = [
   ISO_DISTANCE * Math.SQRT1_2,
 ];
 
-export type ShowcaseOptions = { count: number; zoom: number; shadows: boolean; probe: boolean };
+export type ShowcaseOptions = {
+  count: number;
+  zoom: number;
+  shadows: boolean;
+  probe: boolean;
+  /** Force one animation / status on every robot (query `anim=`, `status=`). */
+  animation?: AvatarAnimation;
+  status?: AgentStatus;
+};
+
+const isAvatarAnimation = isOneOf(AVATAR_ANIMATIONS);
 
 export function showcaseOptionsFrom(search: string): ShowcaseOptions {
   const params = new URLSearchParams(search);
@@ -34,11 +51,13 @@ export function showcaseOptionsFrom(search: string): ShowcaseOptions {
     zoom: num("zoom", 40),
     shadows: params.get("shadows") !== "0",
     probe: params.get("probe") === "1",
-  };
+    animation: isAvatarAnimation(params.get("anim")) ? params.get("anim") : undefined,
+    status: isAgentStatus(params.get("status")) ? params.get("status") : undefined,
+  } as ShowcaseOptions;
 }
 
 export function AvatarShowcase({ options }: { options: ShowcaseOptions }) {
-  const robots = showcaseRobots(options.count);
+  const robots = showcaseRobots(options.count, options);
   return (
     <Canvas
       orthographic

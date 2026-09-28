@@ -15,7 +15,7 @@ CC0 needs no row in `packages/assets/ATTRIBUTION.md`; this file records provenan
 - 3237 triangles, 14 meshes rigidly parented to bones plus two skinned hands, no textures.
 - Materials: `Main` (body colour), `Grey` (joints, feet), `Black` (face). The web client swaps
   these for `MeshToonMaterial` per user colour set (`apps/web/src/scene/avatar`).
-- The armature node is scaled x100 with a -90 deg X rotation (FBX Y-up fix); the model is ~2.6 units tall.
+- The armature node is scaled x100 with a -90 deg X rotation (FBX Y-up fix); the model is ~4.45 units tall (feet to head top), faces +Z, right hand at -X.
 - Animation clips (all named `RobotArmature|Robot_<Name>`): Dance, Death, Idle, Jump, No, Punch,
   Running, Sitting, Standing, ThumbsUp, Walking, WalkJump, Wave, Yes.
 

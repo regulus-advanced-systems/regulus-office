@@ -1,5 +1,11 @@
 /** Deterministic roster of showcase robots cycling through every look, status and animation. */
-import { AGENT_STATUSES, AVATAR_ANIMATIONS, PROVIDER_IDS } from "@regulus/protocol";
+import {
+  AGENT_STATUSES,
+  type AgentStatus,
+  AVATAR_ANIMATIONS,
+  type AvatarAnimation,
+  PROVIDER_IDS,
+} from "@regulus/protocol";
 import { ACCESSORIES, COLOR_SET_IDS, providerLightColor } from "../colorSets.ts";
 import type { RobotAvatarProps } from "../RobotAvatar.tsx";
 
@@ -18,7 +24,9 @@ const NAMES = [
 
 export type ShowcaseRobot = { key: string; props: RobotAvatarProps };
 
-export function showcaseRobots(count: number): ShowcaseRobot[] {
+export type RosterOverrides = { animation?: AvatarAnimation; status?: AgentStatus };
+
+export function showcaseRobots(count: number, overrides: RosterOverrides = {}): ShowcaseRobot[] {
   const columns = Math.ceil(Math.sqrt(count));
   const spacing = 2.4;
   const robots: ShowcaseRobot[] = [];
@@ -32,7 +40,8 @@ export function showcaseRobots(count: number): ShowcaseRobot[] {
       colorSet: COLOR_SET_IDS[i % COLOR_SET_IDS.length] ?? "teal",
       accessory: ACCESSORIES[i % ACCESSORIES.length] ?? "antenna",
     };
-    const animation = AVATAR_ANIMATIONS[i % AVATAR_ANIMATIONS.length] ?? "idle";
+    const animation =
+      overrides.animation ?? AVATAR_ANIMATIONS[i % AVATAR_ANIMATIONS.length] ?? "idle";
     const base: RobotAvatarProps = {
       look,
       animation,
@@ -45,7 +54,7 @@ export function showcaseRobots(count: number): ShowcaseRobot[] {
         ? { ...base, name: NAMES[i % NAMES.length] ?? "Human", badge: true }
         : {
             ...base,
-            status: AGENT_STATUSES[i % AGENT_STATUSES.length] ?? "idle",
+            status: overrides.status ?? AGENT_STATUSES[i % AGENT_STATUSES.length] ?? "idle",
             chestLight: providerLightColor(PROVIDER_IDS[i % PROVIDER_IDS.length] ?? "custom"),
           },
     });

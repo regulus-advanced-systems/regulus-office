@@ -2,16 +2,28 @@
  * `<RobotAvatar>`: the Quaternius LowPoly Robot (packages/assets/models/robot)
  * as a toon-shaded, per-user coloured avatar with status antenna bulb, chest
  * light, badge and name plate (SPEC §9.3, §12). One GLB is loaded and cached
- * by drei `useGLTF`; each instance is a drei `<Clone>` (SkeletonUtils clone,
- * shared geometry) driven by its own `AnimationMixer`.
+ * by drei `useGLTF`; each instance is a `SkeletonUtils.clone` of it (own bones,
+ * shared geometry and cached materials) driven by its own `AnimationMixer`.
+ * drei `<Clone>` is not used: with fiber 9 / drei 10.7 it rebuilds the graph
+ * as elements and the `<primitive>` it emits for the root bone never attaches,
+ * so every rigid body part (all parented to bones in this GLB) disappears.
  */
-import { Clone, useAnimations, useGLTF } from "@react-three/drei";
+import { useAnimations, useGLTF } from "@react-three/drei";
 import { createPortal, type ThreeElements, useFrame } from "@react-three/fiber";
 import type { AgentStatus, AvatarAnimation, AvatarLook } from "@regulus/protocol";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { type AnimationAction, type Bone, type Group, Mesh, type Object3D } from "three";
+import { clone as cloneSkeleton } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { Antenna, Badge, ChestLight, HeadAccessory } from "./accessories.tsx";
-import { ARM_CLIP_NAME, armOnlyClip, findBone, HEAD_TILT, ROBOT_MODEL_URL } from "./avatarRig.ts";
+import {
+  ARM_CLIP_NAME,
+  applyPose,
+  armOnlyClip,
+  createPoseMemo,
+  findBone,
+  HEAD_TILT,
+  ROBOT_MODEL_URL,
+} from "./avatarRig.ts";
 import { CROSSFADE_SECONDS, PROCEDURAL_HEAD_TILT, ROBOT_CLIPS, resolveClip } from "./clips.ts";
 import { colorForRole, materialRoleFor, resolveLook } from "./colorSets.ts";
 import { NamePlate } from "./NamePlate.tsx";
@@ -21,9 +33,11 @@ import { toonMaterialFor } from "./toonMaterial.ts";
 
 /** Height of the model in world units after `MODEL_SCALE` (SPEC §12: ~4.5 heads tall). */
 export const ROBOT_HEIGHT = 1.6;
-/** robot.glb is ~2.6 armature units tall; scale it to ROBOT_HEIGHT. */
-export const MODEL_SCALE = ROBOT_HEIGHT / 2.6;
-const PLATE_HEIGHT = ROBOT_HEIGHT + 0.55;
+/** robot.glb is ~4.45 armature units tall (feet to head top); scale it to ROBOT_HEIGHT. */
+export const MODEL_SCALE = ROBOT_HEIGHT / 4.45;
+const PLATE_HEIGHT = ROBOT_HEIGHT + 0.45;
+/** Bone-local space is 1/100 of armature units (the armature node carries a x100 scale). */
+const BONE_SCALE = 0.01;
 
 export type RobotAvatarProps = Omit<ThreeElements["group"], "ref" | "children"> & {
   /** Colour set and accessory; unknown values fall back (see colorSets.ts). */
@@ -55,6 +69,8 @@ export function RobotAvatar({
   ...groupProps
 }: RobotAvatarProps) {
   const gltf = useGLTF(ROBOT_MODEL_URL);
+  /** Per-instance scene graph with its own bones; geometry stays shared with the cached GLB. */
+  const instance = useMemo(() => cloneSkeleton(gltf.scene) as Group, [gltf.scene]);
   const root = useRef<Group>(null);
   const clips = useMemo(() => {
     const wave = gltf.animations.find((c) => c.name === ROBOT_CLIPS.wave);
@@ -80,7 +96,7 @@ export function RobotAvatar({
     const head = findBone(group, "Head");
     const body = findBone(group, "Body");
     setBones((prev) => (prev?.head === head ? prev : head && body ? { head, body } : null));
-  }, [resolved.colors]);
+  }, [resolved.colors, instance]);
 
   // Animation: crossfade to the resolved clip whenever the animation changes.
   const clip = resolveClip(animation, names);
@@ -101,25 +117,33 @@ export function RobotAvatar({
   useEffect(() => {
     const arm = actions[ARM_CLIP_NAME];
     if (!arm) return;
-    if (raised) arm.reset().fadeIn(CROSSFADE_SECONDS).play();
-    else arm.fadeOut(CROSSFADE_SECONDS);
+    if (raised) {
+      arm.reset().fadeIn(CROSSFADE_SECONDS).play();
+      return;
+    }
+    if (!arm.isRunning()) return;
+    arm.fadeOut(CROSSFADE_SECONDS);
+    // A faded-out action keeps evaluating at weight 0; stop it once the fade is over.
+    const timer = setTimeout(() => arm.stop(), CROSSFADE_SECONDS * 1000 + 50);
+    return () => clearTimeout(timer);
   }, [actions, raised]);
 
   // Procedural head tilt for "think" (runs after useAnimations' mixer update).
   const tilt = PROCEDURAL_HEAD_TILT.has(animation);
+  const tiltMemo = useRef(createPoseMemo());
   useFrame(() => {
-    if (tilt && bones) bones.head.quaternion.multiply(HEAD_TILT);
+    if (bones) applyPose(bones.head, HEAD_TILT, tiltMemo.current, tilt);
   });
 
   const showAntenna = status !== undefined || resolved.accessory === "antenna";
   return (
     <group {...groupProps}>
       <group scale={MODEL_SCALE}>
-        <Clone ref={root} object={gltf.scene} castShadow receiveShadow />
+        <primitive ref={root} object={instance} />
       </group>
       {bones &&
         createPortal(
-          <group>
+          <group scale={BONE_SCALE}>
             {showAntenna && (
               <Antenna
                 bulbColor={bulbColorFor(status)}
@@ -133,7 +157,7 @@ export function RobotAvatar({
         )}
       {bones &&
         createPortal(
-          <group>
+          <group scale={BONE_SCALE}>
             {chestLight && <ChestLight color={chestLight} />}
             {badge && <Badge colors={resolved.colors} />}
           </group>,
