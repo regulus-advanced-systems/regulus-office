@@ -30,6 +30,7 @@ import {
 } from "./rooms/index.ts";
 import { loadMasterKeyring, type MasterKeyring } from "./secrets/index.ts";
 import { createTerminals } from "./terminals/index.ts";
+import { createWorktrees, mountWorktreeRoutes } from "./worktrees/index.ts";
 
 async function readVersion(): Promise<string> {
   try {
@@ -154,6 +155,11 @@ async function main(): Promise<void> {
   });
   mountFloorRoutes(server.router, { auth, floors: floors.service });
   logger.info({ projectsDir: config.projectsDir }, "floor repos clone here");
+  // Per-agent worktrees + one-click PR (#31). The AgentManager (#26) takes
+  // `worktrees.workspaces` and passes its runner for mountProject; #33 wires
+  // `agent.pr` to `worktrees.openPullRequest`.
+  const worktrees = createWorktrees({ db, logger, config, repos: floors.repos });
+  mountWorktreeRoutes(server.router, { auth, db, prune: worktrees.prune });
   server.health.register("db", () => {
     db.run(sql`select 1`);
     return true;

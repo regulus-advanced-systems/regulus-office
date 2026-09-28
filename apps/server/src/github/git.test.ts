@@ -30,6 +30,11 @@ describe("git credentials", () => {
     expect(gitAuthEnv(null)).toEqual({});
   });
 
+  test("the header can be scoped to one remote URL", () => {
+    const env = gitAuthEnv(FAKE_PAT, "https://github.com/o/r.git");
+    expect(env.GIT_CONFIG_KEY_0).toBe("http.https://github.com/o/r.git.extraHeader");
+  });
+
   test("the base env isolates git from the office process and user config", () => {
     const env = gitBaseEnv({ PATH: "/bin", HOME: "/h", OFFICE_MASTER_KEY: "x", GH_TOKEN: "y" });
     expect(env).toMatchObject({

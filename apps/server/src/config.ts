@@ -14,6 +14,9 @@ export const DEFAULT_PORT = 4600;
 /** Production clone root for floor repos (SPEC §8). */
 export const DEFAULT_PROJECTS_DIR = "/srv/office/projects";
 export const DEFAULT_GITHUB_REMOTE_BASE = "https://github.com";
+/** Production root for per-agent git worktrees (SPEC §8). */
+export const DEFAULT_WORKTREES_DIR = "/srv/office/worktrees";
+export const DEFAULT_GITHUB_API_BASE = "https://api.github.com";
 export const LOG_LEVELS = ["fatal", "error", "warn", "info", "debug", "trace", "silent"] as const;
 export type LogLevel = (typeof LOG_LEVELS)[number];
 
@@ -131,6 +134,8 @@ export const envSchema = z.object({
   OFFICE_DATA_DIR: z.preprocess(emptyToUndefined, str().default("./data")),
   OFFICE_PROJECTS_DIR: z.preprocess(emptyToUndefined, str().optional()),
   OFFICE_GITHUB_REMOTE_BASE: z.preprocess(emptyToUndefined, z.url().optional()),
+  OFFICE_WORKTREES_DIR: z.preprocess(emptyToUndefined, str().optional()),
+  OFFICE_GITHUB_API_BASE: z.preprocess(emptyToUndefined, z.url().optional()),
   OFFICE_MASTER_KEY: z.preprocess(emptyToUndefined, masterKeySchema.optional()),
   OFFICE_PUBLIC_URL: z.preprocess(emptyToUndefined, z.url().optional()),
   OFFICE_LOG_LEVEL: z.preprocess(emptyToUndefined, z.enum(LOG_LEVELS).default("info")),
@@ -207,6 +212,13 @@ export interface OfficeConfig {
    * Default `https://github.com`; tests point it at local bare repos.
    */
   githubRemoteBase: string;
+  /**
+   * Per-agent git worktrees: `<worktreesDir>/<floor-slug>/<agentId>` (SPEC §8).
+   * Default `/srv/office/worktrees` in production, `<dataDir>/worktrees` otherwise.
+   */
+  worktreesDir: string;
+  /** GitHub REST base for pull requests. Default `https://api.github.com`; tests use a fake. */
+  githubApiBase: string;
   /** Envelope-encryption root key (SPEC §8 rule 2). Absent means secrets cannot be stored. */
   masterKey: SecretValue<Uint8Array> | undefined;
   /** Externally reachable origin, used for links and OAuth callbacks. */
@@ -292,6 +304,10 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
       /\/+$/,
       "",
     ),
+    worktreesDir: resolve(
+      e.OFFICE_WORKTREES_DIR ?? (production ? DEFAULT_WORKTREES_DIR : join(dataDir, "worktrees")),
+    ),
+    githubApiBase: (e.OFFICE_GITHUB_API_BASE ?? DEFAULT_GITHUB_API_BASE).replace(/\/+$/, ""),
     masterKey: e.OFFICE_MASTER_KEY,
     publicUrl: e.OFFICE_PUBLIC_URL ?? `http://localhost:${e.OFFICE_PORT}`,
     logLevel: e.OFFICE_LOG_LEVEL,
