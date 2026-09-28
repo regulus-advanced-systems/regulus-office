@@ -1,0 +1,124 @@
+/* HUD layout: top bar, status box, corners, lists (SPEC §12, research 03 §5). */
+
+.rg-hud {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.rg-hud > * {
+  pointer-events: auto;
+}
+.rg-topbar {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  min-width: 320px;
+  max-width: calc(100vw - 32px);
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 18px;
+  padding: 8px 18px;
+}
+.rg-topbar__office {
+  font-size: 26px;
+  font-weight: 300;
+  line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rg-topbar__floor {
+  font-size: 14px;
+  color: var(--rg-color-ink-muted);
+}
+.rg-topbar__clock {
+  font-size: 22px;
+  font-weight: 300;
+  font-variant-numeric: tabular-nums;
+}
+.rg-statusbox {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  min-width: 220px;
+  display: grid;
+  gap: 4px;
+}
+.rg-statusbox__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: baseline;
+}
+.rg-statusbox__cash {
+  color: var(--rg-color-green);
+  font-weight: 700;
+}
+.rg-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+}
+.rg-chip__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+  border: 2px solid rgba(0, 0, 0, 0.6);
+}
+.rg-hud__left {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  width: 260px;
+  display: grid;
+  gap: 8px;
+}
+.rg-hud__corner {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  display: flex;
+  gap: 8px;
+}
+.rg-list {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.rg-list__item {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  padding: 6px 8px;
+  border: 1px solid var(--rg-color-panel-border);
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+}
+.rg-list__item[aria-current="true"] {
+  border-color: var(--rg-color-blue);
+  background: #eaf2ff;
+}
+.rg-kbd {
+  display: inline-block;
+  min-width: 26px;
+  padding: 1px 6px;
+  border: 1px solid #bdbdbd;
+  border-bottom-width: 3px;
+  border-radius: 6px;
+  background: #fff;
+  font-weight: 700;
+  text-align: center;
+  font-size: 12px;
+}
+.rg-muted {
+  color: var(--rg-color-ink-muted);
+}

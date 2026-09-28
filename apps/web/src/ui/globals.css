@@ -1,8 +1,17 @@
+/*
+ * Base styles. Design tokens (--rg-*) are declared at runtime by App.tsx
+ * from theme.ts (themeCssText); the fallbacks below only cover the moment
+ * before React mounts. Component classes live in components.css.
+ */
+@import "./components.css";
+@import "./hud.css";
+
 :root {
-  --cream: #fff6d9;
-  --ink: #1f1f1f;
-  font-family: "Open Sans", "Segoe UI", system-ui, sans-serif;
-  color: var(--ink);
+  font-family: var(--rg-font-ui, "Open Sans", "Segoe UI", system-ui, sans-serif);
+  color: var(--rg-color-ink, #333333);
+  font-size: 14px;
+  line-height: 1.4;
+  -webkit-font-smoothing: antialiased;
 }
 
 html,
@@ -13,7 +22,28 @@ body,
 }
 
 body {
-  background: radial-gradient(ellipse at center, var(--cream) 55%, #f0e3bd 100%);
+  background: radial-gradient(ellipse at center, var(--rg-color-cream, #fff6d9) 55%, #f0e3bd 100%);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+/* One visible focus ring everywhere; panels are keyboard-navigable (SPEC §11). */
+:focus-visible {
+  outline: 3px solid var(--rg-color-blue, #1e6fe0);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 .centered {
@@ -21,5 +51,29 @@ body {
   display: grid;
   place-items: center;
   padding: 16px;
-  box-sizing: border-box;
+}
+
+.rg-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/*
+ * Reduced motion (SPEC §11): the setting is mirrored to <html data-reduced-motion>
+ * by the ui store; the OS preference is the default when nothing is stored.
+ */
+html[data-reduced-motion="true"] *,
+html[data-reduced-motion="true"] *::before,
+html[data-reduced-motion="true"] *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
 }

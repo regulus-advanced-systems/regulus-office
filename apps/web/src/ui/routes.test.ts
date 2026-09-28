@@ -2,9 +2,9 @@ import { describe, expect, test } from "bun:test";
 import { joinPath, matchOfficeRoute, ROUTE_PATHS, ROUTE_TABLE } from "./routes.ts";
 
 describe("route table", () => {
-  test("exposes the three app routes plus home", () => {
+  test("exposes the app routes, the ui-kit gallery and home", () => {
     expect(ROUTE_TABLE.map((r) => r.path).sort()).toEqual(
-      ["/", "/join/:token", "/login", "/office"].sort(),
+      ["/", "/join/:token", "/login", "/office", "/ui-kit"].sort(),
     );
   });
 
@@ -12,6 +12,7 @@ describe("route table", () => {
     expect(matchOfficeRoute("/login")?.id).toBe("login");
     expect(matchOfficeRoute("/office")?.id).toBe("office");
     expect(matchOfficeRoute("/")?.id).toBe("home");
+    expect(matchOfficeRoute("/ui-kit")?.id).toBe("uiKit");
     const join = matchOfficeRoute("/join/abc-123");
     expect(join?.id).toBe("join");
     expect(join?.params.token).toBe("abc-123");

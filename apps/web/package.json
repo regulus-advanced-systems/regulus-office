@@ -13,6 +13,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "devDependencies": {
+    "@happy-dom/global-registrator": "^20.14.5",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/three": "^0.186",
