@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { eq } from "drizzle-orm";
 import { auditLog } from "../db/schema/index.ts";
 import { AUDIT_ACTIONS } from "./audit.ts";
-import { AuthConfigError, createAuth } from "./auth.ts";
+import { AuthConfigError, createAuth, SIGNUP_CLOSED_CODE } from "./auth.ts";
 import { claimInvite, INVITE_TTL_MS } from "./invites.ts";
 import { type Office, PASSWORD, startOffice, TEST_SECRET } from "./test-helpers.ts";
 
@@ -218,6 +218,74 @@ describe("role changes", () => {
   });
 });
 
+describe("sign-up policy", () => {
+  const signUpBody = (n: number) => ({
+    email: `person${n}@example.com`,
+    password: PASSWORD,
+    name: `Person ${n}`,
+  });
+
+  test("default: first registration is open, later ones need an invite", async () => {
+    const closed = startOffice({ openSignup: false });
+    try {
+      expect(closed.auth.openSignup).toBe(false);
+      const first = await closed.post("/api/auth/sign-up/email", signUpBody(1));
+      expect(first.status).toBe(200);
+      const ownerCookie = first.headers
+        .getSetCookie()
+        .map((c) => c.split(";")[0])
+        .join("; ");
+      expect(await (await closed.me(ownerCookie)).json()).toMatchObject({ role: "owner" });
+
+      const second = await closed.post("/api/auth/sign-up/email", signUpBody(2));
+      expect(second.status).toBe(403);
+      expect(await second.json()).toMatchObject({ code: SIGNUP_CLOSED_CODE });
+      // Forging the internal marker header does not help.
+      const forged = await closed.request("/api/auth/sign-up/email", {
+        method: "POST",
+        body: JSON.stringify(signUpBody(2)),
+        headers: { "x-office-join": "guess" },
+      });
+      expect(forged.status).toBe(403);
+      expect(closed.db.$client.query("SELECT count(*) AS n FROM users").get()).toEqual({ n: 1 });
+
+      const created = await closed.post(
+        "/api/invites",
+        { role: "member" },
+        { cookie: ownerCookie },
+      );
+      const { token } = (await created.json()) as { token: string };
+      const joined = await closed.post(`/api/join/${token}`, signUpBody(2));
+      expect(joined.status).toBe(201);
+      expect(await joined.json()).toMatchObject({ displayName: "Person 2", role: "member" });
+      // Existing accounts still sign in.
+      const login = await closed.post("/api/auth/sign-in/email", {
+        email: signUpBody(2).email,
+        password: PASSWORD,
+      });
+      expect(login.status).toBe(200);
+    } finally {
+      await closed.stop();
+    }
+  });
+
+  test("OFFICE_OPEN_SIGNUP=true lets anyone register as member", async () => {
+    const open = startOffice({ openSignup: true });
+    try {
+      expect((await open.post("/api/auth/sign-up/email", signUpBody(1))).status).toBe(200);
+      const second = await open.post("/api/auth/sign-up/email", signUpBody(2));
+      expect(second.status).toBe(200);
+      const cookie = second.headers
+        .getSetCookie()
+        .map((c) => c.split(";")[0])
+        .join("; ");
+      expect(await (await open.me(cookie)).json()).toMatchObject({ role: "member" });
+    } finally {
+      await open.stop();
+    }
+  });
+});
+
 describe("rate limiting", () => {
   test("login attempts beyond the burst get 429 with retry-after", async () => {
     const small = startOffice({ limits: { login: { capacity: 2, refillPerSecond: 1 } } });
@@ -272,6 +340,7 @@ describe("createAuth", () => {
           betterAuthSecret: undefined,
           publicUrl: "http://localhost:1",
           githubOAuth: undefined,
+          openSignup: false,
         },
       }),
     ).toThrow(AuthConfigError);
@@ -285,6 +354,7 @@ describe("createAuth", () => {
         betterAuthSecret: TEST_SECRET,
         publicUrl: "http://localhost:1",
         githubOAuth: undefined,
+        openSignup: false,
       },
     });
     const on = createAuth({
@@ -293,6 +363,7 @@ describe("createAuth", () => {
         betterAuthSecret: TEST_SECRET,
         publicUrl: "http://localhost:1",
         githubOAuth: { clientId: "Iv1.x", clientSecret: TEST_SECRET },
+        openSignup: false,
       },
     });
     expect(off.githubEnabled).toBe(false);

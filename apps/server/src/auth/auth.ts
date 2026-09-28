@@ -11,9 +11,12 @@
 import type { UserRole } from "@regulus/protocol";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { APIError } from "better-auth/api";
+import { count } from "drizzle-orm";
 import type { OfficeConfig } from "../config.ts";
 import type { Db } from "../db/index.ts";
 import * as schema from "../db/schema/index.ts";
+import { users } from "../db/schema/index.ts";
 import type { Logger } from "../logging.ts";
 import { ensureProfile } from "./roles.ts";
 
@@ -24,7 +27,7 @@ const SESSION_TTL_SECONDS = 7 * 24 * 60 * 60;
 export interface AuthDeps {
   db: Db;
   logger: Logger;
-  config: Pick<OfficeConfig, "betterAuthSecret" | "publicUrl" | "githubOAuth">;
+  config: Pick<OfficeConfig, "betterAuthSecret" | "publicUrl" | "githubOAuth" | "openSignup">;
   /** Extra origins allowed to call the auth API and upgrade WebSockets (dev servers). */
   allowedOrigins?: readonly string[];
   /** Clock, overridable in tests (invite expiry, rate limits). */
@@ -45,6 +48,16 @@ export class AuthConfigError extends Error {
   override name = "AuthConfigError";
 }
 
+/** Error code returned when registration is invite-only and no invite was presented. */
+export const SIGNUP_CLOSED_CODE = "SIGNUP_CLOSED";
+
+/**
+ * Header the invite route adds when it calls Better Auth's sign-up on behalf
+ * of a client. Its value is a random per-process nonce, so a client posting
+ * to /api/auth/sign-up/email directly cannot forge it.
+ */
+const JOIN_HEADER = "x-office-join";
+
 type BetterAuthInstance = ReturnType<typeof betterAuth>;
 
 export interface OfficeAuth {
@@ -56,7 +69,10 @@ export interface OfficeAuth {
   readonly publicUrl: string;
   readonly allowedOrigins: readonly string[];
   readonly githubEnabled: boolean;
+  readonly openSignup: boolean;
   readonly now: () => number;
+  /** Copy of `headers` marked as coming through the invite route (see {@link SIGNUP_CLOSED_CODE}). */
+  markJoinRequest(headers: Headers): Headers;
   /** Resolve the session cookie on any request (HTTP or WebSocket upgrade) to its user, or null. */
   getSessionFromRequest(request: Request): Promise<SessionUser | null>;
 }
@@ -72,6 +88,12 @@ export function createAuth(deps: AuthDeps): OfficeAuth {
   const publicUrl = new URL(config.publicUrl).origin;
   const allowedOrigins = deps.allowedOrigins ?? [];
   const github = config.githubOAuth;
+  const joinNonce = crypto.randomUUID();
+
+  const anyUserExists = (): boolean => {
+    const [row] = db.select({ n: count() }).from(users).all();
+    return (row?.n ?? 0) > 0;
+  };
 
   const instance = betterAuth({
     appName: "Regulus Office",
@@ -92,6 +114,21 @@ export function createAuth(deps: AuthDeps): OfficeAuth {
     databaseHooks: {
       user: {
         create: {
+          /**
+           * Invite-only after bootstrap: the first registration (any method)
+           * is open so the owner can be created; later ones must come through
+           * POST /api/join/:token unless OFFICE_OPEN_SIGNUP is set. Applies to
+           * email and GitHub sign-ups alike since both create a user here.
+           */
+          before: async (_user, ctx) => {
+            if (config.openSignup || !anyUserExists()) return;
+            const headers = ctx?.headers ?? ctx?.request?.headers;
+            if (headers?.get(JOIN_HEADER) === joinNonce) return;
+            throw new APIError("FORBIDDEN", {
+              code: SIGNUP_CLOSED_CODE,
+              message: "Registration is by invite only; ask an owner or admin for an invite link",
+            });
+          },
           after: async (user) => {
             const { profile, created } = ensureProfile(db, user);
             if (created) logger.info({ userId: user.id, role: profile.role }, "user registered");
@@ -130,7 +167,13 @@ export function createAuth(deps: AuthDeps): OfficeAuth {
     publicUrl,
     allowedOrigins,
     githubEnabled: Boolean(github),
+    openSignup: config.openSignup,
     now,
+    markJoinRequest(headers) {
+      const copy = new Headers(headers);
+      copy.set(JOIN_HEADER, joinNonce);
+      return copy;
+    },
     getSessionFromRequest,
   };
 }

@@ -18,6 +18,15 @@ describe("loadConfig", () => {
     expect(c.shutdownTimeoutMs).toBe(10_000);
     expect(c.betterAuthSecret).toBeUndefined();
     expect(c.githubOAuth).toBeUndefined();
+    expect(c.openSignup).toBe(false);
+  });
+
+  test("parses OFFICE_OPEN_SIGNUP as a boolean", () => {
+    expect(loadConfig({ OFFICE_OPEN_SIGNUP: "true" }).openSignup).toBe(true);
+    expect(loadConfig({ OFFICE_OPEN_SIGNUP: "1" }).openSignup).toBe(true);
+    expect(loadConfig({ OFFICE_OPEN_SIGNUP: "No" }).openSignup).toBe(false);
+    expect(loadConfig({ OFFICE_OPEN_SIGNUP: "" }).openSignup).toBe(false);
+    expect(() => loadConfig({ OFFICE_OPEN_SIGNUP: "maybe" })).toThrow(/OFFICE_OPEN_SIGNUP/);
   });
 
   test("reads the auth variables and wraps secrets", () => {

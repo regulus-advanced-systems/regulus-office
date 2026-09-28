@@ -63,6 +63,19 @@ const emptyToUndefined = (v: unknown) => (typeof v === "string" && v.trim() === 
 
 const str = () => z.string().trim().min(1);
 
+/** "true"/"1"/"yes"/"on" and "false"/"0"/"no"/"off", case-insensitive. */
+const bool = (fallback: boolean) =>
+  z.preprocess(
+    emptyToUndefined,
+    z
+      .string()
+      .trim()
+      .toLowerCase()
+      .pipe(z.enum(["true", "1", "yes", "on", "false", "0", "no", "off"]))
+      .transform((v) => ["true", "1", "yes", "on"].includes(v))
+      .default(fallback),
+  );
+
 /** A non-empty string wrapped in {@link SecretValue} at parse time. */
 const secretStr = (min = 1) =>
   z
@@ -92,6 +105,7 @@ export const envSchema = z.object({
   BETTER_AUTH_SECRET: z.preprocess(emptyToUndefined, secretStr(MIN_AUTH_SECRET_LENGTH).optional()),
   GITHUB_CLIENT_ID: z.preprocess(emptyToUndefined, str().optional()),
   GITHUB_CLIENT_SECRET: z.preprocess(emptyToUndefined, secretStr().optional()),
+  OFFICE_OPEN_SIGNUP: bool(false),
 });
 
 /** GitHub OAuth app used for human sign-in (SPEC §4.2 Auth); unrelated to agent credentials. */
@@ -120,6 +134,11 @@ export interface OfficeConfig {
   betterAuthSecret: SecretValue<string> | undefined;
   /** GitHub social login for humans; undefined disables the provider. */
   githubOAuth: GithubOAuthConfig | undefined;
+  /**
+   * Allow anyone to register as `member` once the office has an owner.
+   * Default false: after the first user, sign-up needs an invite link.
+   */
+  openSignup: boolean;
 }
 
 export class ConfigError extends Error {
@@ -159,6 +178,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
       e.GITHUB_CLIENT_ID && e.GITHUB_CLIENT_SECRET
         ? { clientId: e.GITHUB_CLIENT_ID, clientSecret: e.GITHUB_CLIENT_SECRET }
         : undefined,
+    openSignup: e.OFFICE_OPEN_SIGNUP,
   };
 }
 

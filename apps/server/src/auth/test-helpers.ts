@@ -10,7 +10,12 @@ import { cookieHeaderFrom, type MountAuthRoutesOptions, mountAuthRoutes } from "
 export const TEST_SECRET = new SecretValue(Buffer.alloc(32, 5).toString("base64"));
 export const PASSWORD = "correct horse battery staple";
 
-export function startOffice(options: MountAuthRoutesOptions = {}) {
+export interface StartOfficeOptions extends MountAuthRoutesOptions {
+  /** Default true so tests can register fixtures directly; the policy tests set false. */
+  openSignup?: boolean;
+}
+
+export function startOffice(options: StartOfficeOptions = {}) {
   const logger = createLogger({ level: "silent" });
   const db = openDatabase({ path: MEMORY_DB_PATH });
   runMigrations(db);
@@ -27,10 +32,12 @@ export function startOffice(options: MountAuthRoutesOptions = {}) {
       betterAuthSecret: TEST_SECRET,
       publicUrl: String(server.url),
       githubOAuth: undefined,
+      openSignup: options.openSignup ?? true,
     },
     now: () => clock.now,
   });
-  const mounted = mountAuthRoutes(server.router, auth, options);
+  const { openSignup: _openSignup, ...mountOptions } = options;
+  const mounted = mountAuthRoutes(server.router, auth, mountOptions);
   const origin = new URL(server.url).origin;
 
   const request = (path: string, init: RequestInit & { cookie?: string; ip?: string } = {}) => {

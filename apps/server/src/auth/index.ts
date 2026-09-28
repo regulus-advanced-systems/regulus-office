@@ -18,6 +18,7 @@ export {
   getSessionFromRequest,
   type OfficeAuth,
   type SessionUser,
+  SIGNUP_CLOSED_CODE,
 } from "./auth.ts";
 export { AuthHttpError } from "./errors.ts";
 export {

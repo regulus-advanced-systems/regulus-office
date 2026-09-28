@@ -186,7 +186,7 @@ async function joinWithInvite(auth: OfficeAuth, ctx: RouteContext): Promise<Resp
 
   const signUp = await auth.api.signUpEmail({
     body: { email: body.email, password: body.password, name: body.name },
-    headers: ctx.request.headers,
+    headers: auth.markJoinRequest(ctx.request.headers),
     asResponse: true,
   });
   if (!signUp.ok) return signUp;
