@@ -19,18 +19,37 @@ export interface ModelSpec {
   readonly modelHeading?: number;
 }
 
-const MODEL_DIR = "../../../../../packages/assets/models/furniture/";
-const href = (u: URL) => u.href;
-
+/** Plain string literals: Vite only rewrites `new URL()` it can analyse statically. */
 export const MODEL_URLS = {
-  desk: href(new URL(`${MODEL_DIR}desk.glb`, import.meta.url)),
-  chairDesk: href(new URL(`${MODEL_DIR}chairDesk.glb`, import.meta.url)),
-  kitchenCabinet: href(new URL(`${MODEL_DIR}kitchenCabinet.glb`, import.meta.url)),
-  kitchenCoffeeMachine: href(new URL(`${MODEL_DIR}kitchenCoffeeMachine.glb`, import.meta.url)),
-  loungeSofa: href(new URL(`${MODEL_DIR}loungeSofa.glb`, import.meta.url)),
-  tableCoffee: href(new URL(`${MODEL_DIR}tableCoffee.glb`, import.meta.url)),
-  pottedPlant: href(new URL(`${MODEL_DIR}pottedPlant.glb`, import.meta.url)),
-  televisionModern: href(new URL(`${MODEL_DIR}televisionModern.glb`, import.meta.url)),
+  desk: new URL("../../../../../packages/assets/models/furniture/desk.glb", import.meta.url).href,
+  chairDesk: new URL(
+    "../../../../../packages/assets/models/furniture/chairDesk.glb",
+    import.meta.url,
+  ).href,
+  kitchenCabinet: new URL(
+    "../../../../../packages/assets/models/furniture/kitchenCabinet.glb",
+    import.meta.url,
+  ).href,
+  kitchenCoffeeMachine: new URL(
+    "../../../../../packages/assets/models/furniture/kitchenCoffeeMachine.glb",
+    import.meta.url,
+  ).href,
+  loungeSofa: new URL(
+    "../../../../../packages/assets/models/furniture/loungeSofa.glb",
+    import.meta.url,
+  ).href,
+  tableCoffee: new URL(
+    "../../../../../packages/assets/models/furniture/tableCoffee.glb",
+    import.meta.url,
+  ).href,
+  pottedPlant: new URL(
+    "../../../../../packages/assets/models/furniture/pottedPlant.glb",
+    import.meta.url,
+  ).href,
+  televisionModern: new URL(
+    "../../../../../packages/assets/models/furniture/televisionModern.glb",
+    import.meta.url,
+  ).href,
 } as const;
 
 /** Kenney's kit is exported facing -z; our default "front" is +z (toward the camera). */

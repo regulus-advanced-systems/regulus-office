@@ -15,17 +15,17 @@ describe("FpsCounter", () => {
     const c = new FpsCounter(1000);
     let t = 0;
     c.tick(t);
-    for (let i = 0; i < 60; i++) {
-      t += 1000 / 60;
+    for (let i = 0; i < 50; i++) {
+      t += 20;
       c.tick(t);
     }
-    expect(c.fps).toBeCloseTo(60, 0);
+    expect(c.fps).toBe(50);
     // A slower second updates the value.
-    for (let i = 0; i < 30; i++) {
-      t += 1000 / 30;
+    for (let i = 0; i < 25; i++) {
+      t += 40;
       c.tick(t);
     }
-    expect(c.fps).toBeCloseTo(30, 0);
+    expect(c.fps).toBe(25);
   });
 
   test("is zero before the first window completes", () => {

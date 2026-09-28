@@ -18,8 +18,12 @@ export class FpsCounter {
 
   constructor(private readonly windowMs = 1000) {}
 
+  /** Record a frame at time `now` (ms). The first call only opens the window. */
   tick(now: number): number {
-    if (this.windowStart === null) this.windowStart = now;
+    if (this.windowStart === null) {
+      this.windowStart = now;
+      return this.fps;
+    }
     this.frames += 1;
     const elapsed = now - this.windowStart;
     if (elapsed >= this.windowMs) {
