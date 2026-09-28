@@ -10,8 +10,8 @@
 import { BunWebSockets, type TransportOptions } from "@colyseus/bun-websockets";
 import { type AuthContext, createAuthContext, matchMaker, type Router } from "@colyseus/core";
 import type { Server, ServerWebSocket, WebSocketHandler } from "bun";
+import { checkOrigin, type OriginPolicy } from "../../auth/origin.ts";
 import type { Logger } from "../../logging.ts";
-import { isOriginAllowed } from "../origin.ts";
 import { type HttpAttachment, UPGRADED } from "../transport.ts";
 
 /** Shape `BunWebSockets.onConnection` expects on `ws.data` (not exported upstream). */
@@ -25,8 +25,8 @@ interface WebSocketData {
 
 export interface EmbeddedTransportOptions {
   logger: Logger;
-  /** Origins allowed to matchmake and upgrade; see ../origin.ts. */
-  allowedOrigins: readonly string[];
+  /** Which origins may matchmake and upgrade; see ../../auth/origin.ts. */
+  originPolicy: OriginPolicy;
   /** Largest inbound WebSocket frame in bytes. */
   maxPayloadLength?: number;
 }
@@ -36,7 +36,7 @@ const ROOM_PATH = /^\/[a-zA-Z0-9_-]+\/[a-zA-Z0-9_-]+$/;
 
 export class EmbeddedBunWebSockets extends BunWebSockets {
   readonly #logger: Logger;
-  readonly #allowedOrigins: readonly string[];
+  readonly #originPolicy: OriginPolicy;
   #router: Router | undefined;
   #listening = false;
 
@@ -44,7 +44,7 @@ export class EmbeddedBunWebSockets extends BunWebSockets {
     const wsOptions: TransportOptions = { maxPayloadLength: options.maxPayloadLength ?? 16 * 1024 };
     super(wsOptions);
     this.#logger = options.logger;
-    this.#allowedOrigins = options.allowedOrigins;
+    this.#originPolicy = options.originPolicy;
   }
 
   /** Called by `Server.listen()`; the office server already owns the socket. */
@@ -87,7 +87,7 @@ export class EmbeddedBunWebSockets extends BunWebSockets {
     if (!isUpgrade && !isMatchmake) return undefined;
 
     const origin = request.headers.get("origin");
-    if (!isOriginAllowed(origin, this.#allowedOrigins)) {
+    if (!checkOrigin(request, this.#originPolicy.publicUrl, this.#originPolicy).ok) {
       this.#logger.warn({ origin, path: url.pathname }, "rejected cross-origin room request");
       return new Response(null, { status: 403 });
     }

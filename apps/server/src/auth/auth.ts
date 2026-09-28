@@ -8,7 +8,7 @@
  * ./roles.ts) and {@link OfficeAuth.getSessionFromRequest} joins it back in.
  */
 
-import type { UserRole } from "@regulus/protocol";
+import type { AvatarLook, UserRole } from "@regulus/protocol";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError } from "better-auth/api";
@@ -40,6 +40,7 @@ export interface SessionUser {
   email: string;
   displayName: string;
   role: UserRole;
+  avatar: AvatarLook;
   sessionId: string;
   sessionExpiresAt: Date;
 }
@@ -154,6 +155,7 @@ export function createAuth(deps: AuthDeps): OfficeAuth {
       email: result.user.email,
       displayName: profile.displayName,
       role: profile.role,
+      avatar: profile.avatar,
       sessionId: result.session.id,
       sessionExpiresAt: result.session.expiresAt,
     };

@@ -4,6 +4,7 @@
  * module-global.
  */
 import { Server } from "@colyseus/core";
+import type { OriginPolicy } from "../../auth/origin.ts";
 import type { Logger } from "../../logging.ts";
 import type { RoomAuth } from "../auth.ts";
 import type { HttpAttachment, RoomDefinition, RoomHandle, RoomTransport } from "../transport.ts";
@@ -13,7 +14,7 @@ import { createColyseusRoomClass } from "./room-adapter.ts";
 export interface ColyseusTransportOptions {
   auth: RoomAuth;
   logger: Logger;
-  allowedOrigins: readonly string[];
+  originPolicy: OriginPolicy;
   maxPayloadLength?: number;
 }
 
@@ -31,7 +32,7 @@ export class ColyseusRoomTransport implements RoomTransport {
     this.#logger = options.logger.child({ module: "rooms" });
     this.#transport = new EmbeddedBunWebSockets({
       logger: this.#logger,
-      allowedOrigins: options.allowedOrigins,
+      originPolicy: options.originPolicy,
       maxPayloadLength: options.maxPayloadLength,
     });
     this.#server = new Server({

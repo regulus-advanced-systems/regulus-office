@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { checkOrigin } from "./origin.ts";
+import { checkOrigin, originPolicyFor } from "./origin.ts";
 
 const PUBLIC = "https://office.example.com/";
 const req = (origin?: string) =>
@@ -39,6 +39,18 @@ describe("checkOrigin", () => {
       ok: false,
       reason: "missing",
     });
+  });
+
+  test("local dev origins match any port only when allowed", () => {
+    const dev = originPolicyFor("http://localhost:4600", false);
+    const prod = originPolicyFor("http://localhost:4600", true);
+    expect(checkOrigin(req("http://localhost:5173"), dev.publicUrl, dev).ok).toBe(true);
+    expect(checkOrigin(req("http://127.0.0.1:4600"), dev.publicUrl, dev).ok).toBe(true);
+    expect(checkOrigin(req("https://localhost:5173"), dev.publicUrl, dev).ok).toBe(false);
+    expect(checkOrigin(req("http://localhost.evil.com"), dev.publicUrl, dev).ok).toBe(false);
+    expect(checkOrigin(req("http://localhost:5173"), prod.publicUrl, prod).ok).toBe(false);
+    expect(checkOrigin(req("http://localhost:4600"), prod.publicUrl, prod).ok).toBe(true);
+    expect(checkOrigin(req("not a url"), "nonsense", dev)).toMatchObject({ reason: "malformed" });
   });
 
   test("extra allowed origins (dev servers) are honoured", () => {

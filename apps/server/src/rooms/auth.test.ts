@@ -1,7 +1,9 @@
 import { describe, expect, test } from "bun:test";
+import type { SessionUser } from "../auth/auth.ts";
 import {
   composeRoomAuth,
   createDevHeaderAuth,
+  createSessionRoomAuth,
   DEV_USER_HEADER,
   denyAllAuth,
   type RoomAuthUser,
@@ -70,5 +72,38 @@ describe("composeRoomAuth", () => {
     const composed = composeRoomAuth([denyAllAuth, { authenticate: async () => fixed }]);
     expect(await composed.authenticate(request())).toEqual(fixed);
     expect(await composeRoomAuth([denyAllAuth]).authenticate(request())).toBeNull();
+  });
+});
+
+describe("session room auth", () => {
+  const session: SessionUser = {
+    id: "u-1",
+    email: "ada@example.com",
+    displayName: "Ada",
+    role: "owner",
+    avatar: { colorSet: "teal", accessory: "visor" },
+    sessionId: "s-1",
+    sessionExpiresAt: new Date(0),
+  };
+
+  test("maps a session to the room user and passes cookies through untouched", async () => {
+    const seen: Request[] = [];
+    const auth = createSessionRoomAuth({
+      getSessionFromRequest: async (req) => {
+        seen.push(req);
+        return req.headers.get("cookie") === "office.session_token=abc" ? session : null;
+      },
+    });
+    const withCookie = new Request("http://office.test/matchmake/joinOrCreate/building", {
+      headers: { cookie: "office.session_token=abc" },
+    });
+    expect(await auth.authenticate(withCookie)).toEqual({
+      userId: "u-1",
+      displayName: "Ada",
+      role: "owner",
+      avatar: { colorSet: "teal", accessory: "visor" },
+    });
+    expect(await auth.authenticate(request())).toBeNull();
+    expect(seen).toHaveLength(2);
   });
 });

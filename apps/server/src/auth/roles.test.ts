@@ -10,6 +10,7 @@ import {
   setUserRole,
 } from "./roles.ts";
 
+const DEFAULT_AVATAR = { colorSet: "default", accessory: "none" };
 const opened: Db[] = [];
 const freshDb = () => {
   const db = openDatabase({ path: MEMORY_DB_PATH });
@@ -40,16 +41,17 @@ describe("ensureProfile", () => {
     const a = insertUser(db, "A", "a@example.com");
     const b = insertUser(db, "", "b.long@example.com");
     expect(ensureProfile(db, { ...a, name: "A", email: "a@example.com" })).toEqual({
-      profile: { userId: a.id, displayName: "A", role: "owner" },
+      profile: { userId: a.id, displayName: "A", role: "owner", avatar: DEFAULT_AVATAR },
       created: true,
     });
     expect(ensureProfile(db, { ...b, name: "", email: "b.long@example.com" }).profile).toEqual({
       userId: b.id,
       displayName: "b.long",
       role: "member",
+      avatar: DEFAULT_AVATAR,
     });
     expect(ensureProfile(db, { ...a, name: "Renamed", email: "a@example.com" })).toEqual({
-      profile: { userId: a.id, displayName: "A", role: "owner" },
+      profile: { userId: a.id, displayName: "A", role: "owner", avatar: DEFAULT_AVATAR },
       created: false,
     });
     expect(getProfileByUserId(db, "nope")).toBeUndefined();

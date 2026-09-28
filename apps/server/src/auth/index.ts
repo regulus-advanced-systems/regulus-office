@@ -31,7 +31,13 @@ export {
   joinPathFor,
   peekInvite,
 } from "./invites.ts";
-export { checkOrigin, type OriginCheck, type OriginCheckOptions } from "./origin.ts";
+export {
+  checkOrigin,
+  type OriginCheck,
+  type OriginCheckOptions,
+  type OriginPolicy,
+  originPolicyFor,
+} from "./origin.ts";
 export {
   clientIp,
   type RateLimitDecision,

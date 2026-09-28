@@ -4,7 +4,7 @@
  * starts as member unless an invite says otherwise. Role changes are
  * authorised here and written to the audit log.
  */
-import { isUserRole, type UserRole } from "@regulus/protocol";
+import { type AvatarLook, isUserRole, type UserRole } from "@regulus/protocol";
 import { count, eq } from "drizzle-orm";
 import type { Db } from "../db/index.ts";
 import { userProfiles } from "../db/schema/index.ts";
@@ -20,7 +20,11 @@ export interface Profile {
   userId: string;
   displayName: string;
   role: UserRole;
+  /** Robot colour set and accessory for the human's avatar (SPEC §5 `user_profiles.avatar`). */
+  avatar: AvatarLook;
 }
+
+const DEFAULT_AVATAR: AvatarLook = { colorSet: "default", accessory: "none" };
 
 export const isAdminOrOwner = (role: UserRole): boolean => role === "owner" || role === "admin";
 
@@ -36,11 +40,19 @@ export function getProfileByUserId(db: DbOrTx, userId: string): Profile | undefi
       userId: userProfiles.userId,
       displayName: userProfiles.displayName,
       role: userProfiles.role,
+      colorSet: userProfiles.avatarColorSet,
+      accessory: userProfiles.avatarAccessory,
     })
     .from(userProfiles)
     .where(eq(userProfiles.userId, userId))
     .get();
-  return row && isUserRole(row.role) ? { ...row, role: row.role } : undefined;
+  if (!row || !isUserRole(row.role)) return undefined;
+  return {
+    userId: row.userId,
+    displayName: row.displayName,
+    role: row.role,
+    avatar: { colorSet: row.colorSet, accessory: row.accessory },
+  };
 }
 
 /**
@@ -70,7 +82,10 @@ export function ensureProfile(
           meta: { role },
         });
       }
-      return { profile: { userId: user.id, displayName, role }, created: true };
+      return {
+        profile: { userId: user.id, displayName, role, avatar: DEFAULT_AVATAR },
+        created: true,
+      };
     },
     { behavior: "immediate" },
   );
