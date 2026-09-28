@@ -7,10 +7,12 @@
  * - session.ts   tmux session naming (`agent-<agentId>`)
  * - async-queue.ts  push queue backing `AgentControl.events`
  * - claude-code/ Claude Code adapter (tmux TUI + http hooks + statusline forwarder)
+ * - codex/       Codex adapter (app-server JSON-RPC)
  * - testing/     FakeAdapter and an in-memory RunnerContext for tests
  */
 export * from "./async-queue.ts";
 export * from "./claude-code/index.ts";
+export * from "./codex/index.ts";
 export * from "./registry.ts";
 export * from "./secret.ts";
 export * from "./session.ts";
