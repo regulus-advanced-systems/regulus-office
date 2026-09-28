@@ -139,9 +139,10 @@ export function FirstPersonRig({
     const onPointerDown = () => {
       if (!controls.isLocked && view().mode === "first_person") requestPointerLock(el);
     };
+    // Browsers exit pointer lock on Escape themselves (which lands in onUnlock);
+    // handling the key too covers engines that deliver it without unlocking.
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== "Escape" || controls.isLocked) return;
-      if (useUiStore.getState().overlay !== null) return;
+      if (e.key !== "Escape" || useUiStore.getState().overlay !== null) return;
       view().setMode("third_person");
     };
     controls.addEventListener("lock", onLock);

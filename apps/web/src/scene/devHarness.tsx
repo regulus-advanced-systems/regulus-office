@@ -26,7 +26,7 @@ function Harness() {
         data-testid="harness-view-toggle"
         data-mode={mode}
         data-locked={locked}
-        style={{ position: "absolute", left: 12, bottom: 12, zIndex: 2, font: "14px sans-serif" }}
+        style={{ position: "absolute", right: 12, bottom: 12, zIndex: 2, font: "14px sans-serif" }}
       >
         {mode === "first_person" ? "Third person" : "First person"} (V)
       </button>
