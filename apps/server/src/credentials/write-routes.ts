@@ -8,7 +8,7 @@
  *   POST   /api/credential-profiles/:id/verify    re-enter the key, verify, replace
  *   DELETE /api/credential-profiles/:id           delete (own; office keys: owner/admin)
  *
- * The spawn dialog's read-only list (`GET /api/credential-profiles`) is #29's.
+ * The spawn dialog's read-only list (`GET /api/credential-profiles`) is list.ts.
  * Keys are accepted in bodies and never returned.
  */
 import {

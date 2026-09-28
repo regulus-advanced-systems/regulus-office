@@ -1,6 +1,7 @@
 /**
- * Boot wiring for the "Connect providers" panel (#32, SPEC §8): key profiles
- * (write-routes.ts) and CLI logins (login-routes.ts).
+ * Boot wiring for credential profiles (SPEC §8): the spawn dialog's list
+ * (list.ts), the "Connect providers" panel's key profiles (write-routes.ts)
+ * and CLI logins (login-routes.ts).
  *
  *   const panel = mountCredentialPanel(server.router, {
  *     db, auth, keyring, runner, adapters: agents.adapters,
@@ -18,6 +19,7 @@ import type { MasterKeyring } from "../secrets/index.ts";
 import type { LoginSessionTargets } from "../terminals/login-sessions.ts";
 import type { CliCommands } from "./cli-status.ts";
 import type { CredentialAuth } from "./http.ts";
+import { mountCredentialProfileRoutes } from "./list.ts";
 import { LoginFlows } from "./login-flows.ts";
 import { mountLoginRoutes } from "./login-routes.ts";
 import { KeyProfileService } from "./profiles.ts";
@@ -64,6 +66,8 @@ export function mountCredentialPanel(router: Router, deps: CredentialPanelDeps):
     commands: deps.commands,
     now: deps.now,
   });
+  // The spawn dialog's read-only list (#29's contract): GET /api/credential-profiles.
+  mountCredentialProfileRoutes(router, { auth: deps.auth, db: deps.db });
   mountKeyProfileRoutes(router, {
     auth: deps.auth,
     profiles,

@@ -7,6 +7,7 @@
  * - building-state.ts  BuildingRoom state shapes (zod + inferred types)
  * - floor-state.ts     FloorRoom state shapes (zod + inferred types)
  * - floors-api.ts      REST shapes for floors, repos and floor members
+ * - credentials-api.ts read-only credential profile list (ids and labels only)
  * - provider-connect.ts "Connect providers": key profiles, key presets, CLI login flows
  * - commands/          client→server command union (zod, discriminated on `type`)
  * - agent-events.ts    adapter→server AgentEvent union (zod, discriminated on `kind`)
@@ -22,6 +23,7 @@ export * from "./agent-messages.ts";
 export * from "./building-state.ts";
 export * from "./commands/index.ts";
 export * from "./common.ts";
+export * from "./credentials-api.ts";
 export * from "./enums.ts";
 export * from "./floor-state.ts";
 export * from "./floors-api.ts";

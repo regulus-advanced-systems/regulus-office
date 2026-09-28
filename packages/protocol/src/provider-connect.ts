@@ -19,10 +19,11 @@
  */
 import { z } from "zod";
 import { TimestampMs } from "./common.ts";
+import { CREDENTIAL_PROFILE_OWNERS, CREDENTIAL_PROFILES_API_PATH } from "./credentials-api.ts";
 import { CREDENTIAL_AUTH_KINDS, PROVIDER_IDS, type ProviderId } from "./enums.ts";
 
-/** Base path of the credential profile REST resource (the list is GET on it). */
-export const CREDENTIAL_PROFILE_WRITE_PATH = "/api/credential-profiles";
+/** Base path of the credential profile REST resource (the spawn dialog's list is GET on it). */
+export const CREDENTIAL_PROFILE_WRITE_PATH = CREDENTIAL_PROFILES_API_PATH;
 /** CLI login status and flows. */
 export const PROVIDER_LOGINS_API_PATH = "/api/provider-logins";
 /** Terminal ids (`/ws/term/<id>`) of login sessions start with this; agent ids never do. */
@@ -190,8 +191,6 @@ export const ProviderBaseUrl = z
     }
   }, "must be an https URL without credentials, query or fragment");
 
-export const CREDENTIAL_PROFILE_OWNERS_WRITE = ["me", "office"] as const;
-
 export const CreateKeyProfileRequest = z
   .object({
     preset: z.enum(KEY_PRESET_IDS),
@@ -200,7 +199,7 @@ export const CreateKeyProfileRequest = z
     /** Only for the `custom-*` presets. */
     baseUrl: ProviderBaseUrl.optional(),
     /** `office`: an office-wide key (owner/admin only, metered presets only). */
-    owner: z.enum(CREDENTIAL_PROFILE_OWNERS_WRITE).default("me"),
+    owner: z.enum(CREDENTIAL_PROFILE_OWNERS).default("me"),
   })
   .strict();
 export type CreateKeyProfileRequest = z.input<typeof CreateKeyProfileRequest>;
@@ -229,7 +228,7 @@ export const KeyProfileInfo = z
     provider: z.enum(PROVIDER_IDS),
     authKind: z.enum(CREDENTIAL_AUTH_KINDS),
     preset: z.enum(KEY_PRESET_IDS).nullable(),
-    owner: z.enum(CREDENTIAL_PROFILE_OWNERS_WRITE),
+    owner: z.enum(CREDENTIAL_PROFILE_OWNERS),
     /** Host of the base URL (base-URL profiles), for telling custom endpoints apart. */
     baseUrlHost: z.string().max(300).nullable(),
     verifiedAt: TimestampMs.nullable(),
