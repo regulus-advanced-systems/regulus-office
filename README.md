@@ -4,7 +4,37 @@ A self-hosted, multiplayer office simulator where the employees are real AI codi
 
 Walk around an isometric office drawn in the spirit of Game Dev Tycoon. Each floor is a project. Sit a cute robot down at a free desk, pick a provider (Claude Code, Codex, Gemini CLI, OpenCode, Kimi Code, or DeepSeek / Z.AI / Kimi through them), give it an issue, and watch it type. Open its terminal any time. Teammates log in, bring their own provider logins, share a whiteboard, a jukebox and their screens, and a project-manager robot walks the floor and hands you a daily brief.
 
-Status: **specification phase**. Nothing runs yet. Read [`docs/SPEC.md`](docs/SPEC.md) for the full design and [`docs/research/`](docs/research/) for the research behind it.
+Status: **M0 Foundations**. Humans can sign in, walk around the lobby together, chat and switch to first person; no agents yet. Read [`docs/SPEC.md`](docs/SPEC.md) for the full design and [`docs/research/`](docs/research/) for the research behind it.
+
+## Quickstart (Docker Compose)
+
+Needs Docker with Compose v2 and free ports 80 and 443.
+
+```sh
+git clone https://github.com/regulus-advanced-systems/regulus-office.git
+cd regulus-office/deploy
+cp .env.example .env
+# Fill in the two required secrets (Compose refuses to start without them):
+sed -i "s|^BETTER_AUTH_SECRET=.*|BETTER_AUTH_SECRET=$(openssl rand -base64 32)|" .env
+sed -i "s|^OFFICE_MASTER_KEY=.*|OFFICE_MASTER_KEY=$(openssl rand -base64 32)|" .env
+docker compose up -d --build
+curl -k https://localhost/healthz
+```
+
+Open <https://localhost>. Caddy serves `localhost` with its own internal CA, so the browser asks you to accept the certificate once (or run `docker compose exec caddy caddy trust`). The first account you register becomes the **owner**; invite everyone else from Settings → *Invite someone…*.
+
+To script the setup instead, create the owner and a first invite link from the repo root:
+
+```sh
+bun install
+bun run seed --url https://localhost --email you@example.com --name "Your Name"
+```
+
+It prints a generated password once (pass `--password` to choose one) and the invite URL. Run again with `--password` to mint more invites (`--role admin|member|viewer`); it never creates a second owner.
+
+For a real server set `OFFICE_DOMAIN` in `deploy/.env` to a hostname pointing at the machine; Caddy then gets a Let's Encrypt certificate and the office is served at `https://<domain>`. Tagged releases publish images to `ghcr.io/regulus-advanced-systems/regulus-office` and `…/regulus-office-runner`; `docker compose pull && docker compose up -d` without `--build` uses them.
+
+Developing instead? See [CONTRIBUTING.md](CONTRIBUTING.md): `bun install && bun run dev`. The browser smoke test runs with `bun run e2e` (needs `bunx playwright install chromium` once).
 
 ## Principles
 

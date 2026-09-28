@@ -1,0 +1,170 @@
+/**
+ * M0 smoke test (docs/SPEC.md §10 M0 exit criteria): the owner registers,
+ * mints an invite in the UI, a second browser joins through the link, both
+ * reach /office and see each other, one walks and the other sees it move,
+ * chat crosses between them, and the first-person view toggles on V and back.
+ *
+ * Runs against office-server in production mode (see playwright.config.ts),
+ * so room joins are authorised by the Better Auth session cookie only.
+ */
+import { type BrowserContext, expect, type Page, test } from "@playwright/test";
+import {
+  cameraType,
+  distance,
+  humans,
+  OFFICE_PROBE_PATH,
+  remoteHumans,
+  waitForScene,
+} from "./probes.ts";
+
+const run = Date.now().toString(36);
+const owner = { name: "Ada Owner", email: `owner-${run}@example.com`, password: `owner-pw-${run}` };
+const member = {
+  name: "Ben Member",
+  email: `member-${run}@example.com`,
+  password: `member-pw-${run}`,
+};
+
+test.describe.configure({ mode: "serial" });
+
+let ownerCtx: BrowserContext;
+let memberCtx: BrowserContext;
+let ownerPage: Page;
+let memberPage: Page;
+let inviteUrl = "";
+
+test.beforeAll(async ({ browser }) => {
+  ownerCtx = await browser.newContext();
+  memberCtx = await browser.newContext();
+  ownerPage = await ownerCtx.newPage();
+  memberPage = await memberCtx.newPage();
+});
+
+test.afterAll(async () => {
+  await ownerCtx?.close();
+  await memberCtx?.close();
+});
+
+async function register(page: Page, who: typeof owner, submit: string): Promise<void> {
+  await page.getByLabel("Display name").fill(who.name);
+  await page.getByLabel("Email").fill(who.email);
+  await page.getByLabel("Password", { exact: true }).fill(who.password);
+  await page.getByLabel("Confirm password").fill(who.password);
+  await page.getByRole("button", { name: submit }).click();
+  await expect(page).toHaveURL(/\/office/);
+}
+
+test("the first account becomes the owner", async () => {
+  await ownerPage.goto("/login");
+  await expect(ownerPage.getByRole("heading", { name: "Set up your office" })).toBeVisible();
+  await register(ownerPage, owner, "Create the owner account");
+  const me = await ownerPage.request.get("/api/me");
+  expect(await me.json()).toMatchObject({ displayName: owner.name, role: "owner" });
+});
+
+test("the owner creates an invite link in the UI", async () => {
+  await ownerPage.getByRole("button", { name: "Settings" }).click();
+  await ownerPage.getByRole("button", { name: "Invite someone…" }).click();
+  const dialog = ownerPage.getByRole("dialog", { name: "Invite someone" });
+  await dialog.getByRole("button", { name: "Create invite link" }).click();
+  const link = dialog.getByLabel(/Invite link for member/);
+  await expect(link).toHaveValue(/\/join\/[\w-]+$/);
+  inviteUrl = await link.inputValue();
+  expect(new URL(inviteUrl).origin).toBe(new URL(ownerPage.url()).origin);
+  await dialog.getByRole("button", { name: "Done" }).click();
+  await expect(dialog).toBeHidden();
+});
+
+test("a second browser joins through the invite", async () => {
+  await memberPage.goto(inviteUrl);
+  await expect(memberPage.getByRole("heading", { name: "You're invited" })).toBeVisible();
+  await register(memberPage, member, "Create account and join");
+  const me = await memberPage.request.get("/api/me");
+  expect(await me.json()).toMatchObject({ displayName: member.name, role: "member" });
+});
+
+test("both reach the office and see each other's avatar", async () => {
+  await ownerPage.goto(OFFICE_PROBE_PATH);
+  await memberPage.goto(OFFICE_PROBE_PATH);
+  await waitForScene(ownerPage);
+  await waitForScene(memberPage);
+  await expect.poll(() => remoteHumans(ownerPage)).toHaveLength(1);
+  await expect.poll(() => remoteHumans(memberPage)).toHaveLength(1);
+});
+
+test("the member sees the owner walk", async () => {
+  const [ownerOnMember] = await remoteHumans(memberPage);
+  if (!ownerOnMember) throw new Error("owner avatar missing on the member's page");
+  const before = (await humans(memberPage))[ownerOnMember];
+  const selfBefore = (await humans(ownerPage))["local-human"];
+  if (!before || !selfBefore) throw new Error("positions missing");
+
+  // WASD walk; D is screen-right in the isometric view, away from the spawn wall.
+  await ownerPage.bringToFront();
+  await ownerPage.locator("canvas").first().hover();
+  for (const key of ["d", "s"]) {
+    await ownerPage.keyboard.down(key);
+    await ownerPage.waitForTimeout(700);
+    await ownerPage.keyboard.up(key);
+  }
+
+  await expect
+    .poll(async () => {
+      const self = (await humans(ownerPage))["local-human"];
+      return self ? distance(self, selfBefore) : 0;
+    })
+    .toBeGreaterThan(0.5);
+  await expect
+    .poll(async () => {
+      const seen = (await humans(memberPage))[ownerOnMember];
+      return seen ? distance(seen, before) : 0;
+    })
+    .toBeGreaterThan(0.5);
+  // Once settled, the member's copy ends where the owner actually stopped.
+  await expect
+    .poll(async () => {
+      const self = (await humans(ownerPage))["local-human"];
+      const seen = (await humans(memberPage))[ownerOnMember];
+      return self && seen ? distance(self, seen) : Number.POSITIVE_INFINITY;
+    })
+    .toBeLessThan(0.3);
+});
+
+test("chat from one browser arrives in the other", async () => {
+  const text = `hello from the owner ${run}`;
+  const input = ownerPage.getByTestId("chat-input");
+  await input.fill(text);
+  await input.press("Enter");
+  await expect(input).toHaveValue("");
+  await expect(
+    ownerPage.getByTestId("chat-log").locator("li.rg-chat__line--own", { hasText: text }),
+  ).toBeVisible();
+  await expect(
+    memberPage.getByTestId("chat-log").locator("li.rg-chat__line", { hasText: text }),
+  ).toBeVisible();
+
+  const reply = `hi back ${run}`;
+  const memberInput = memberPage.getByTestId("chat-input");
+  await memberInput.fill(reply);
+  await memberInput.press("Enter");
+  await expect(
+    ownerPage.getByTestId("chat-log").locator("li.rg-chat__line", { hasText: reply }),
+  ).toBeVisible();
+  await input.press("Escape");
+  await memberInput.press("Escape");
+});
+
+test("V toggles the first-person view and back", async () => {
+  await ownerPage.bringToFront();
+  const toggle = ownerPage.getByRole("button", { name: /First person/ });
+  await expect(toggle).toHaveAttribute("aria-pressed", "false");
+  expect(await cameraType(ownerPage)).toBe("OrthographicCamera");
+
+  await ownerPage.keyboard.press("v");
+  await expect(toggle).toHaveAttribute("aria-pressed", "true");
+  await expect.poll(() => cameraType(ownerPage)).toBe("PerspectiveCamera");
+
+  await ownerPage.keyboard.press("v");
+  await expect(toggle).toHaveAttribute("aria-pressed", "false");
+  await expect.poll(() => cameraType(ownerPage)).toBe("OrthographicCamera");
+});

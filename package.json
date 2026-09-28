@@ -9,13 +9,18 @@
   ],
   "scripts": {
     "dev": "bun run --filter '@regulus/server' --filter '@regulus/web' dev",
+    "build:web": "bun run --filter '@regulus/web' build",
     "typecheck": "bun scripts/typecheck/run.ts",
+    "typecheck:e2e": "tsc --noEmit -p tests/e2e/tsconfig.json",
     "test": "bun test",
+    "e2e": "bun run build:web && playwright test",
+    "seed": "bun scripts/seed.ts",
     "lint": "bunx biome check .",
     "format": "bunx biome format --write ."
   },
   "devDependencies": {
     "@biomejs/biome": "^2",
+    "@playwright/test": "1.63.0",
     "@types/bun": "latest",
     "typescript": "^7"
   },

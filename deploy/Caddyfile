@@ -1,4 +1,9 @@
+# TLS in front of office-server (docs/SPEC.md §4.2 Packaging).
+# OFFICE_DOMAIN=localhost (the default) uses Caddy's internal CA: https://localhost works
+# after accepting the certificate once (or `docker compose exec caddy caddy trust`).
+# A public hostname gets a Let's Encrypt certificate automatically.
 {$OFFICE_DOMAIN} {
 	encode zstd gzip
+	# WebSocket upgrades (rooms) pass through reverse_proxy unchanged.
 	reverse_proxy office:4600
 }

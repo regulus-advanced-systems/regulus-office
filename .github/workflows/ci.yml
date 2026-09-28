@@ -17,3 +17,89 @@ jobs:
       - run: bun run lint
       - run: bun run typecheck
       - run: bun test
+
+  # Playwright smoke test (SPEC §10 M0): Playwright starts office-server in production mode
+  # on a fresh data dir and drives two browsers through register, invite, join, walk, chat, FPV.
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - run: bun run typecheck:e2e
+      - name: Throwaway secrets for this run
+        run: |
+          for name in BETTER_AUTH_SECRET OFFICE_MASTER_KEY; do
+            value="$(openssl rand -base64 32)"
+            echo "::add-mask::$value"
+            echo "$name=$value" >> "$GITHUB_ENV"
+          done
+      - run: bunx playwright install --with-deps chromium
+      - run: bun run e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 14
+
+  # `docker compose up` serves the office behind Caddy (SPEC §4.2 Packaging, §13).
+  compose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      COMPOSE_PROJECT_NAME: regulus-ci
+    defaults:
+      run:
+        working-directory: deploy
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: Missing secrets fail with a clear message
+        run: |
+          if docker compose config > /dev/null 2> err.txt; then
+            echo "compose accepted a config without secrets" >&2; exit 1
+          fi
+          cat err.txt
+          grep -q "set BETTER_AUTH_SECRET in deploy/.env" err.txt
+      - name: deploy/.env with throwaway secrets
+        run: |
+          auth="$(openssl rand -base64 32)"; key="$(openssl rand -base64 32)"
+          echo "::add-mask::$auth"; echo "::add-mask::$key"
+          sed -e "s|^BETTER_AUTH_SECRET=.*|BETTER_AUTH_SECRET=$auth|" \
+              -e "s|^OFFICE_MASTER_KEY=.*|OFFICE_MASTER_KEY=$key|" .env.example > .env
+      - run: docker compose build
+      - run: docker compose up -d --wait --wait-timeout 120
+      - name: /healthz through Caddy
+        run: |
+          for i in $(seq 1 60); do
+            if curl -fsSk https://localhost/healthz; then echo; break; fi
+            [ "$i" = 60 ] && exit 1; sleep 2
+          done
+          curl -fsS -o /dev/null -w "http -> %{http_code} %{redirect_url}\n" http://localhost/healthz || true
+          curl -fsSk https://localhost/login | grep -q '<div id="root">'
+      - name: Office image runs as a non-root user
+        run: test "$(docker compose exec -T office id -u)" != "0"
+      - run: bun install --frozen-lockfile
+        working-directory: .
+      - name: Seed owner and invite over HTTPS
+        working-directory: .
+        run: |
+          bun run seed --url https://localhost --email ci-owner@example.com --name "CI Owner" --json \
+            | grep -v '"generatedPassword"'
+          if bun run seed --url https://localhost --email ci-owner@example.com; then
+            echo "seed created a second owner" >&2; exit 1
+          fi
+      - name: Compose logs
+        if: failure()
+        run: docker compose logs --no-color
+      - name: Tear down
+        if: always()
+        run: docker compose down -v --remove-orphans
