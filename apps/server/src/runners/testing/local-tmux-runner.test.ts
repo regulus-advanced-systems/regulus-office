@@ -126,11 +126,9 @@ describe.skipIf(!hasTmux())("LocalTmuxRunner (tmux)", () => {
     const tmux = (...args: string[]) =>
       Bun.$`tmux -S ${runner.socket} ${args}`.env({ PATH: process.env.PATH ?? "/usr/bin:/bin" });
     try {
-      // The regression needs a read-only client on the session.
+      // The regression needs a read-only client on the session. (Plain
+      // `send-keys` then fails on tmux 3.7c; tmux 3.4, as on CI, still allows it.)
       expect(await tmux("list-clients", "-F", "#{client_flags}").text()).toContain("read-only");
-      expect(
-        (await tmux("send-keys", "-t", "=agent-a1:", "x").nothrow().quiet()).exitCode,
-      ).not.toBe(0);
 
       await runner.sendKeys(session, "first line\nsecond line", { enter: true });
       const echoed = await waitFor(
