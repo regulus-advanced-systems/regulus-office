@@ -1,5 +1,5 @@
 # Regulus Office deployment (docs/SPEC.md §4.2 Packaging, §8).
-# Base: office server + Caddy. Profiles: media (LiveKit), pg (Postgres), build-only (runner image).
+# Base: office server + Caddy + a filtered Docker API proxy. Profiles: media (LiveKit), pg (Postgres), build-only (runner image).
 #
 #   cp .env.example .env   # then fill BETTER_AUTH_SECRET and OFFICE_MASTER_KEY
 #   docker compose up -d --build
@@ -26,13 +26,83 @@ services:
       OFFICE_PUBLIC_URL: ${OFFICE_PUBLIC_URL:-https://${OFFICE_DOMAIN:-localhost}}
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?set BETTER_AUTH_SECRET in deploy/.env (generate with openssl rand -base64 32; see deploy/.env.example)}
       OFFICE_MASTER_KEY: ${OFFICE_MASTER_KEY:?set OFFICE_MASTER_KEY in deploy/.env (generate with openssl rand -base64 32; see deploy/.env.example)}
+      # The docker runner backend (SPEC §8, D6) talks to the Engine API through docker-proxy,
+      # never to the socket itself: the office runs as the non-root `bun` user and has no socket.
+      DOCKER_HOST: tcp://docker-proxy:2375
     volumes:
       - office-data:/data
       - projects:/srv/office/projects
-      # For the docker runner backend (M1): the office creates and manages runner containers.
-      # Runners never get this socket (SPEC §8). Nothing in M0 uses it.
-      - /var/run/docker.sock:/var/run/docker.sock
+    networks: [default, docker-api]
+    depends_on:
+      docker-proxy:
+        condition: service_healthy
     expose: ["4600"]
+
+  # The only service that mounts the Docker socket. It forwards an allowlist of Engine API
+  # calls, enough for the docker runner backend and nothing else, and only to `office`, over
+  # an internal network no other service joins. Runners never get the socket or this network
+  # (SPEC §8). `:ro` does not make the API read-only; the allowlist below does.
+  #
+  # Allowed, and why (every other method/path, e.g. /build, /swarm, /secrets, /info, /system,
+  # /plugins, /networks/create, /containers/*/archive, /commit, answers 403):
+  #   GET/HEAD /_ping, GET /version   API version negotiation by the client.
+  #   containers: list, inspect, top  find a human's runner, read its state and processes.
+  #               create, start, stop, restart, wait, remove
+  #                                   one long-lived runner container per human.
+  #   exec: create, start (hijacked stream), resize, inspect
+  #                                   tmux sessions and one-off commands run via `docker exec`;
+  #                                   resize keeps the PTY in step with the viewer's terminal.
+  #   images: inspect, pull           check the runner image is present, pull it if not.
+  #   volumes: list, inspect, create, remove
+  #                                   one named credential volume per human, mounted at HOME.
+  #   networks: list, inspect         read-only; runners join a network, the office never
+  #                                   creates or connects networks.
+  # Bind mounts in create requests are limited to OFFICE_RUNNER_BIND_ROOT, so the office cannot
+  # hand a runner the socket or the host filesystem; named volumes are unaffected. The filter
+  # cannot see privileged/host-namespace/device options in a create body, so the proxy narrows
+  # what a compromised office can do but is not a sandbox (see README, Deploy notes).
+  docker-proxy:
+    image: wollomatic/socket-proxy:1.13.1@sha256:3935b709275e4ec35d6ed5a5c4a1f0d01ed31eec5e7234efc3357ecd47689002
+    restart: unless-stopped
+    # Root (with no capabilities) so it can open the root:docker 0660 socket on any host
+    # without knowing the docker group id. Set DOCKER_PROXY_USER=65534:<docker gid> to avoid it.
+    user: ${DOCKER_PROXY_USER:-0:0}
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 64m
+    command:
+      - -listenip=0.0.0.0
+      - -allowfrom=office
+      - -allowhealthcheck
+      - -watchdoginterval=60
+      - -stoponwatchdog
+      - -shutdowngracetime=5
+      - -allowbindmountfrom=${OFFICE_RUNNER_BIND_ROOT:-/srv/office}
+      # `^…$` are implied. Optional /v1.NN prefix; ids, names and volume names are single
+      # path segments, so a pattern can never reach a different endpoint.
+      - -allowHEAD=(/v1\.[0-9]+)?/_ping
+      - -allowGET=(/v1\.[0-9]+)?/(_ping|version)
+      - -allowGET=(/v1\.[0-9]+)?/containers/json
+      - -allowGET=(/v1\.[0-9]+)?/containers/[a-zA-Z0-9][a-zA-Z0-9_.-]*/(json|top)
+      - -allowGET=(/v1\.[0-9]+)?/exec/[a-zA-Z0-9]+/json
+      - -allowGET=(/v1\.[0-9]+)?/images/[a-zA-Z0-9][a-zA-Z0-9_./:@-]*/json
+      - -allowGET=(/v1\.[0-9]+)?/volumes(/[a-zA-Z0-9][a-zA-Z0-9_.-]*)?
+      - -allowGET=(/v1\.[0-9]+)?/networks(/[a-zA-Z0-9][a-zA-Z0-9_.-]*)?
+      - -allowPOST=(/v1\.[0-9]+)?/containers/create
+      - -allowPOST=(/v1\.[0-9]+)?/containers/[a-zA-Z0-9][a-zA-Z0-9_.-]*/(start|stop|restart|wait|exec)
+      - -allowPOST=(/v1\.[0-9]+)?/exec/[a-zA-Z0-9]+/(start|resize)
+      - -allowPOST=(/v1\.[0-9]+)?/images/create
+      - -allowPOST=(/v1\.[0-9]+)?/volumes/create
+      - -allowDELETE=(/v1\.[0-9]+)?/(containers|volumes)/[a-zA-Z0-9][a-zA-Z0-9_.-]*
+    volumes:
+      - ${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock:ro
+    networks: [docker-api]
+    healthcheck:
+      test: ["CMD", "./healthcheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
   runner-image:
     build:
@@ -76,6 +146,12 @@ services:
         required: false
     volumes:
       - pg-data:/var/lib/postgresql/data
+
+networks:
+  default:
+  # Office <-> docker-proxy only. Internal: no route out, and no other service joins it.
+  docker-api:
+    internal: true
 
 volumes:
   office-data:
