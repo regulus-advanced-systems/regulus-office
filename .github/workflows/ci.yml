@@ -175,15 +175,6 @@ jobs:
           sudo visudo -cf "$RUNNER_TEMP/office-runner"
           sudo install -m 0440 -o root -g root "$RUNNER_TEMP/office-runner" /etc/sudoers.d/office-runner
           sudo install -d -m 0750 -o "$USER" -g "$USER" /srv/office/projects /srv/office/worktrees
-      - name: Diag provision timing
-        run: |
-          date +%T.%N; time sudo useradd -m -U diagx; date +%T.%N
-          time sudo systemd-run --scope --quiet --uid=diagx tmux -S /tmp/diagx.sock -f /dev/null start-server \; set -g exit-empty off
-          date +%T.%N
-          time sudo -n /usr/local/lib/office/office-runner-helper provision diag > /dev/null
-          time sudo -n /usr/local/lib/office/office-runner-helper provision diag2 > /dev/null
-          time sudo -n /usr/local/lib/office/office-runner-helper deprovision diag
-          time sudo -n /usr/local/lib/office/office-runner-helper deprovision diag2
       - name: Integration test
         env:
           OFFICE_TEST_LINUX_USER: "1"

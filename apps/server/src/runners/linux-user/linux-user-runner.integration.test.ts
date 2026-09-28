@@ -90,7 +90,8 @@ describe.skipIf(!enabled)("LinuxUserRunner (real accounts, systemd, tmux)", () =
     expect((await stat(handle.tmuxSocket)).uid).toBe(handle.uid ?? -1);
     // The office user cannot read the human's HOME directly.
     await expect(readFile(join(handle.home, ".bashrc"), "utf8")).rejects.toThrow();
-  }, 30_000);
+    // The first useradd on a fresh GitHub runner takes ~25 s (image quirk); later ones < 1 s.
+  }, 120_000);
 
   test("mountProject makes the workdir writable by the human and readable back", async () => {
     await runner.mountProject(user, { floorId: "f", repoId: "r", workdir });
