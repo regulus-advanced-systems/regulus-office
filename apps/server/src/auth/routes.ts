@@ -4,7 +4,7 @@
  * Boot wiring is one call: `mountAuthRoutes(server.router, createAuth(deps))`.
  */
 import { USER_ROLES } from "@regulus/protocol";
-import { eq } from "drizzle-orm";
+import { count, eq } from "drizzle-orm";
 import { z } from "zod";
 import { users } from "../db/schema/index.ts";
 import { json, type RouteContext, type RouteHandler, type Router } from "../http/router.ts";
@@ -73,6 +73,9 @@ const guarded =
     }
   };
 
+/** Public, unauthenticated: `{ hasUsers, githubEnabled, openSignup }` for the login page. */
+export const AUTH_CONFIG_PATH = "/api/auth-config";
+
 const LOGIN_PREFIXES = ["sign-in/", "sign-up/"];
 
 export function mountAuthRoutes(
@@ -110,6 +113,24 @@ export function mountAuthRoutes(
   };
   router.get(`${AUTH_BASE_PATH}/*`, betterAuthRoute);
   router.post(`${AUTH_BASE_PATH}/*`, betterAuthRoute);
+
+  // ---- Public sign-in configuration ---------------------------------------
+  /**
+   * What the login page needs to render itself: whether the owner account
+   * still has to be created, and which sign-in options exist. No secrets and
+   * nothing per-user; `hasUsers` only says whether the office is bootstrapped.
+   */
+  router.get(
+    AUTH_CONFIG_PATH,
+    guarded(() => {
+      const [row] = auth.db.select({ n: count() }).from(users).all();
+      return json({
+        hasUsers: (row?.n ?? 0) > 0,
+        githubEnabled: auth.githubEnabled,
+        openSignup: auth.openSignup,
+      });
+    }),
+  );
 
   // ---- Who am I ----------------------------------------------------------
   router.get(

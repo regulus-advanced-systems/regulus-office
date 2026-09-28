@@ -1,6 +1,8 @@
 import { lazy, Suspense, useEffect } from "react";
 import { createBrowserRouter, Navigate, RouterProvider } from "react-router";
 import { watchReducedMotion } from "../state/ui.ts";
+import { InviteDialogHost } from "./auth/InviteDialog.tsx";
+import { RequireSession } from "./auth/RequireSession.tsx";
 import { JoinPage } from "./pages/JoinPage.tsx";
 import { LoginPage } from "./pages/LoginPage.tsx";
 import { ROUTE_PATHS } from "./routes.ts";
@@ -20,10 +22,14 @@ const router = createBrowserRouter([
   { path: ROUTE_PATHS.join, Component: JoinPage },
   {
     path: ROUTE_PATHS.office,
+    // The guard holds the office (and its room join) back until /api/me confirms the session.
     element: (
-      <Suspense fallback={<main className="centered">Loading the office…</main>}>
-        <OfficePage />
-      </Suspense>
+      <RequireSession>
+        <Suspense fallback={<main className="centered">Loading the office…</main>}>
+          <OfficePage />
+        </Suspense>
+        <InviteDialogHost />
+      </RequireSession>
     ),
   },
   {

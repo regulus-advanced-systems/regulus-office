@@ -1,10 +1,12 @@
 /**
- * Settings skeleton (SPEC §11): reduced-motion toggle persisted in
- * localStorage, a volume placeholder the jukebox work will wire up, and the
- * clock format. Rendered inside a Modal by the HUD.
+ * Settings skeleton (SPEC §11): the signed-in account (invites, sign-out),
+ * reduced-motion toggle persisted in localStorage, a volume placeholder the
+ * jukebox work will wire up, and the clock format. Rendered inside a Modal
+ * by the HUD.
  */
 import { useId } from "react";
 import { selectReducedMotion, useUiStore } from "../../state/ui.ts";
+import { AccountSection } from "../auth/AccountSection.tsx";
 import { Button } from "../components/Button.tsx";
 import { Switch } from "../components/Switch.tsx";
 import { DEFAULT_SETTINGS } from "./settingsStorage.ts";
@@ -18,6 +20,8 @@ export function SettingsForm() {
 
   return (
     <div>
+      <AccountSection />
+
       <div className="rg-field">
         <Switch
           checked={reducedMotion}

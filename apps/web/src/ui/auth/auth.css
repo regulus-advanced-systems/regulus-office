@@ -1,0 +1,90 @@
+/* Auth pages and the invite dialog: GDT-styled form controls on the modal card (SPEC §12). */
+.rg-auth {
+  min-height: 100vh;
+  background: radial-gradient(ellipse at center, var(--rg-color-cream) 55%, #f0e3bd 100%);
+}
+.rg-auth__card {
+  --rg-modal-width: 400px;
+}
+.rg-auth__lead {
+  margin: 0 0 8px;
+  color: var(--rg-color-ink-muted);
+}
+.rg-auth__alt {
+  margin-top: 14px;
+  text-align: center;
+  font-size: 13px;
+}
+.rg-auth__divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 14px 0 10px;
+  color: var(--rg-color-ink-muted);
+  font-size: 12px;
+}
+.rg-auth__divider::before,
+.rg-auth__divider::after {
+  content: "";
+  flex: 1;
+  border-top: 1px solid var(--rg-color-panel-border);
+}
+.rg-link {
+  color: var(--rg-color-blue);
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.rg-input,
+.rg-select {
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+  font-size: 14px;
+  color: var(--rg-color-ink);
+  background: var(--rg-color-panel-surface);
+  border: 1px solid var(--rg-color-panel-border);
+  border-radius: var(--rg-radius-button);
+  padding: 8px 10px;
+}
+.rg-input:focus-visible,
+.rg-select:focus-visible {
+  border-color: var(--rg-color-blue);
+}
+.rg-input[aria-invalid="true"] {
+  border-color: var(--rg-color-crimson);
+}
+.rg-input[readonly] {
+  background: var(--rg-color-modal-surface);
+}
+.rg-field__error {
+  color: var(--rg-color-crimson);
+  font-size: 12px;
+}
+.rg-form-alert {
+  margin: 8px 0;
+  padding: 8px 10px;
+  border-radius: var(--rg-radius-button);
+  border: 1px solid var(--rg-color-crimson);
+  background: #fbeef2;
+  color: var(--rg-color-crimson);
+  font-size: 13px;
+}
+.rg-form-alert--info {
+  border-color: var(--rg-color-cyan);
+  background: #eaf8fd;
+  color: var(--rg-color-ink);
+}
+.rg-copy-row {
+  display: flex;
+  gap: 8px;
+}
+.rg-copy-row .rg-input {
+  flex: 1;
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+}
