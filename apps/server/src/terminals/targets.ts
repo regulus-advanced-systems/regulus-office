@@ -15,6 +15,12 @@ export const AGENT_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
 
 /** Everything the bridge needs to authorise and attach one agent's terminal. */
 export interface TerminalTarget {
+  /**
+   * `login`: a login session (login-sessions.ts), owner-only and never
+   * recorded; absent or `agent` for robots, under the D12 ACL.
+   */
+  kind?: "agent" | "login";
+  /** The agent id, or the `login-…` terminal id of a login session. */
   agentId: string;
   /** The human whose runner the agent runs in (SPEC §8 rule 4). */
   ownerUserId: string;

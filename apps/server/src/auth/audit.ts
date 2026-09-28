@@ -26,6 +26,11 @@ export const AUDIT_ACTIONS = {
   agentApprove: "agent.approve",
   agentResume: "agent.resume",
   agentSendHome: "agent.send_home",
+  credentialProfileCreate: "credential_profile.create",
+  credentialProfileVerify: "credential_profile.verify",
+  credentialProfileDelete: "credential_profile.delete",
+  providerLoginStart: "provider_login.start",
+  providerLoginFinish: "provider_login.finish",
 } as const;
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];
 
@@ -33,7 +38,15 @@ export interface AuditEntry {
   /** Acting user, or null for system-initiated actions. */
   userId: string | null;
   action: AuditAction;
-  targetKind: "user" | "invite" | "floor" | "floor_repo" | "agent" | "worktrees";
+  targetKind:
+    | "user"
+    | "invite"
+    | "floor"
+    | "floor_repo"
+    | "agent"
+    | "worktrees"
+    | "credential_profile"
+    | "provider_login";
   targetId: string | null;
   meta?: Record<string, unknown>;
 }

@@ -16,6 +16,7 @@ import { useGlobalHotkeys } from "./hotkeys/useHotkeys.ts";
 import { ElevatorPanel } from "./hud/ElevatorPanel.tsx";
 import { StatusBox } from "./hud/StatusBox.tsx";
 import { TopBar } from "./hud/TopBar.tsx";
+import { ProvidersPanelHost } from "./providers/ProvidersPanel.tsx";
 import { SettingsForm } from "./settings/SettingsPanel.tsx";
 import { TerminalModalHost } from "./terminal/TerminalModal.tsx";
 import { Toaster } from "./toast/Toaster.tsx";
@@ -47,6 +48,7 @@ export function HudDialogs() {
         <HotkeyList />
       </Modal>
       <AddFloorDialogHost />
+      <ProvidersPanelHost />
       <TerminalModalHost />
     </>
   );
