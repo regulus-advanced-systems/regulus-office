@@ -11,8 +11,13 @@ export const ISO_PITCH_DEG = 35.264;
 
 /** Distance from the look-at target to the camera, metres. Only depth precision depends on it. */
 export const CAMERA_DISTANCE = 60;
-export const CAMERA_NEAR = 0.1;
-export const CAMERA_FAR = 200;
+/**
+ * Near/far hug the room (nothing is more than ~25 m from the target) so the
+ * depth buffer keeps millimetre precision even at 16 bits; the contact-shadow
+ * plane sits only centimetres above the floor.
+ */
+export const CAMERA_NEAR = CAMERA_DISTANCE - 30;
+export const CAMERA_FAR = CAMERA_DISTANCE + 30;
 
 /** Fraction of the viewport width the room's projected footprint fills at zoom factor 1. */
 export const ROOM_FILL_WIDTH = 0.57;

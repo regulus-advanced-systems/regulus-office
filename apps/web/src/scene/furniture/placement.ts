@@ -9,7 +9,9 @@ import {
   HEADING,
   headingFacing,
   type Obstacle,
+  type ObstacleKind,
   type Rect,
+  rectInside,
   type Seat,
   WALL_THICKNESS,
   type Wall,
@@ -91,6 +93,37 @@ export function headingAwayFromNearestWall(rect: Rect, size: FloorTemplate["size
   ];
   candidates.sort((a, b) => a[0] - b[0]);
   return candidates[0]?.[1] ?? HEADING.south;
+}
+
+/** Kinds whose top surface other pieces can rest on. */
+export const SUPPORT_KINDS: ReadonlySet<ObstacleKind> = new Set([
+  "counter",
+  "desk",
+  "reception_desk",
+  "shared_table",
+  "ceo_desk",
+  "meeting_table",
+  "bistro_table",
+  "coffee_table",
+  "cabinet",
+]);
+
+/**
+ * Height a piece rests at: on top of a supporting piece whose footprint
+ * contains it (a coffee machine on the counter), else the floor.
+ */
+export function restingHeight(
+  obstacle: Obstacle,
+  obstacles: readonly Obstacle[],
+  heightOf: (kind: ObstacleKind) => number,
+): number {
+  let y = 0;
+  for (const other of obstacles) {
+    if (other.id === obstacle.id || !SUPPORT_KINDS.has(other.kind)) continue;
+    if (SUPPORT_KINDS.has(obstacle.kind)) continue;
+    if (rectInside(obstacle.rect, other.rect)) y = Math.max(y, heightOf(other.kind));
+  }
+  return y;
 }
 
 /** Round a heading to the nearest quarter turn; template furniture is axis-aligned. */

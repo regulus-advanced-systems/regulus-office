@@ -1,14 +1,13 @@
 /**
  * The office scene (SPEC §9.2, §12): true-isometric orthographic camera over
  * a dollhouse room rendered from a floor template with toon shading, on a
- * cream vignette. Pixel ratio 1, no tone mapping, render loop paused while
- * the tab is hidden (SPEC §11).
+ * cream vignette, with baked blob shadows under the furniture. Pixel ratio
+ * 1, no tone mapping, render loop paused while the tab is hidden (SPEC §11).
  *
  * Avatars are not rendered here: pass them through `avatars` (they mount in
  * a `<group name="avatars">`) or as `children`, so the avatar issues need
  * not touch this file.
  */
-import { ContactShadows } from "@react-three/drei";
 import { Canvas } from "@react-three/fiber";
 import {
   type FloorTemplate,
@@ -28,6 +27,7 @@ import { Lighting } from "./lights/Lighting.tsx";
 import { StatsOverlay } from "./perf/StatsOverlay.tsx";
 import { statsEnabled } from "./perf/stats.ts";
 import { Room } from "./room/Room.tsx";
+import { BlobShadows } from "./shadows/BlobShadows.tsx";
 
 export interface OfficeCanvasProps {
   /** Floor to draw; the lobby until floor switching lands. */
@@ -76,6 +76,7 @@ export function OfficeCanvas({
         gl={{ alpha: true, antialias: true, powerPreference: "high-performance" }}
         camera={{ position: initialPosition, zoom: 50, near: CAMERA_NEAR, far: CAMERA_FAR }}
         style={{ position: "absolute", inset: 0 }}
+        onCreated={showStats ? (state) => (window.__regulusR3F = state) : undefined}
       >
         <IsoCamera room={room} />
         <Lighting />
@@ -83,16 +84,7 @@ export function OfficeCanvas({
         <Suspense fallback={null}>
           <Furniture template={template} palette={palette} />
           <WallAnchors template={template} palette={palette} />
-          <ContactShadows
-            position={[room.width / 2, 0.004, room.depth / 2]}
-            scale={[room.width + 1, room.depth + 1]}
-            blur={2.4}
-            opacity={0.38}
-            far={2.6}
-            frames={1}
-            resolution={512}
-            color="#3B2F1B"
-          />
+          <BlobShadows template={template} />
         </Suspense>
         <group name="avatars">{avatars}</group>
         {children}

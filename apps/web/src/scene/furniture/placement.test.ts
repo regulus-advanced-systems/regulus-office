@@ -8,6 +8,7 @@ import {
   fitToFootprint,
   furnitureHeading,
   headingAwayFromNearestWall,
+  restingHeight,
   snapHeading,
   visualFootprint,
 } from "./placement.ts";
@@ -81,6 +82,18 @@ describe("furnitureHeading", () => {
     expect(headingAwayFromNearestWall({ x: 7, z: 10.4, w: 0.5, d: 0.5 }, t.size)).toBe(
       HEADING.north,
     );
+  });
+});
+
+describe("restingHeight", () => {
+  const heightOf = (kind: string) => (kind === "counter" ? 0.9 : 0.5);
+  test("a coffee machine inside the counter footprint sits on the counter", () => {
+    expect(restingHeight(obstacle("coffee-machine"), t.obstacles, heightOf)).toBe(0.9);
+  });
+  test("free-standing pieces and supports themselves stay on the floor", () => {
+    expect(restingHeight(obstacle("jukebox"), t.obstacles, heightOf)).toBe(0);
+    expect(restingHeight(obstacle("coffee-counter"), t.obstacles, heightOf)).toBe(0);
+    expect(restingHeight(obstacle("plant-nw"), t.obstacles, heightOf)).toBe(0);
   });
 });
 

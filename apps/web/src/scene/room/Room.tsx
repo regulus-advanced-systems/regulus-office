@@ -27,7 +27,7 @@ export interface RoomProps {
 }
 
 /** Metres of wall/floor covered by one repeat of the grime map. */
-const GRIME_TILE_M = 2.5;
+const GRIME_TILE_M = 6;
 
 function tiledGrime(base: DataTexture, w: number, h: number): DataTexture {
   const t = base.clone();

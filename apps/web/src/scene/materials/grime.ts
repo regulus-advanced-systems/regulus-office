@@ -7,7 +7,7 @@
  */
 import { DataTexture, LinearFilter, RepeatWrapping, RGBAFormat, SRGBColorSpace } from "three";
 
-export const GRIME_SIZE = 128;
+export const GRIME_SIZE = 256;
 export const GRIME_STRENGTH = 0.13;
 
 /** Deterministic 32-bit PRNG (mulberry32). */

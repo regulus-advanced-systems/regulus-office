@@ -7,6 +7,8 @@ declare global {
   interface Window {
     /** Frames per second over the last ~1 s, only when `?stats` is set. */
     __regulusFps?: number;
+    /** The R3F root state (scene, gl, camera), only when `?stats` is set (for perf/debug scripts). */
+    __regulusR3F?: unknown;
   }
 }
 
