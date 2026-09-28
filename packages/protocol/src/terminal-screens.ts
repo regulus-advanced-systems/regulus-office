@@ -61,7 +61,6 @@ export function parseScreenFeedMessage(text: string): ScreenFeedMessage | null {
  * lines, cut each to `maxCols` characters, then cap the UTF-8 size.
  */
 export function clampScreenText(text: string, limits = SCREEN_TEXT_LIMITS): string {
-  // biome-ignore lint/suspicious/noControlCharactersInRegex: stripping them is the point
   const clean = text.replace(/\r\n?/g, "\n").replace(/[\u0000-\u0009\u000b-\u001f\u007f]/g, " ");
   const lines = clean.replace(/\s+$/, "").split("\n");
   let out = lines
