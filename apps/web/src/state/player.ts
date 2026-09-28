@@ -3,12 +3,14 @@
  * and WASD, §9.3 idle/walk). Movement authority stays on the client: the
  * scene drives this store every frame and the net layer relays the pose as
  * `move`. First-person controls (#17) share it through `applyInput` /
- * `setPose`, so both views move the same avatar.
+ * `setPose`, so both views move the same avatar. In third person the
+ * standing avatar turns toward the cursor through `faceToward` (#119).
  */
 
 import type { Vec2 } from "@regulus/floor-layout";
 import type { AvatarAnimation } from "@regulus/protocol";
 import { create } from "zustand";
+import { cursorHeading } from "../scene/movement/cursorFacing.ts";
 import {
   headingOfTravel,
   type Pose,
@@ -52,6 +54,13 @@ export interface PlayerStore extends Pose {
   applyInput: (dx: number, dz: number, dt: number) => void;
   /** Follow the current path for `dt` seconds; settles to idle when there is none. */
   advance: (dt: number) => void;
+  /**
+   * Third person (#119): while standing, turn toward the floor point `(x, z)`
+   * under the cursor at TURN_RATE for `dt` seconds. Does nothing while a
+   * path is being walked (the robot faces its travel then) or when the point
+   * is inside the dead zone around the robot's feet.
+   */
+  faceToward: (x: number, z: number, dt: number) => void;
   reset: () => void;
 }
 
@@ -137,6 +146,14 @@ export function createPlayerStore() {
         animation: result.arrived ? "idle" : "walk",
         distanceWalked: s.distanceWalked + result.moved,
       });
+    },
+    faceToward: (x, z, dt) => {
+      const s = get();
+      if (!s.spawned || s.path || !(dt > 0)) return;
+      const target = cursorHeading(s, { x, z });
+      if (target === null) return;
+      const heading = turnToward(s.heading, target, TURN_RATE * dt);
+      if (heading !== s.heading) set({ heading });
     },
     reset: () => set({ ...INITIAL }),
   }));

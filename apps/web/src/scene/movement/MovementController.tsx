@@ -3,20 +3,26 @@
  * nav grid for the floor template, spawns at its spawn point, turns WASD
  * into camera-relative steps, turns floor clicks into A* paths, follows
  * them each frame and relays the pose as `move` at no more than 20 Hz.
+ * While standing in third person the robot turns toward the floor point
+ * under the mouse (#119); that heading-only change goes out as `move` too.
  * Mount as a child of <OfficeCanvas>; the avatar itself is drawn by
  * scene/avatars/AvatarLayer.tsx from the same store.
  */
 import { type ThreeEvent, useFrame } from "@react-three/fiber";
 import type { FloorTemplate } from "@regulus/floor-layout";
 import { useEffect, useMemo } from "react";
+import { Raycaster, Vector2 } from "three";
 import { useFootsteps } from "../../audio/footsteps.ts";
 import { getOfficeClient } from "../../net/index.ts";
 import { useConnectionStore } from "../../state/connection.ts";
 import { usePlayerStore } from "../../state/player.ts";
+import { useUiStore } from "../../state/ui.ts";
 import { useViewStore } from "../../state/view.ts";
+import { groundPointFromRay } from "./cursorFacing.ts";
 import type { Pose } from "./kinematics.ts";
 import { createMoveThrottle } from "./moveThrottle.ts";
 import { navGridFor, planPath } from "./navigation.ts";
+import { useCursorGround } from "./useCursorGround.ts";
 import { useWasdInput } from "./useWasdInput.ts";
 import { inputVector } from "./wasd.ts";
 
@@ -50,6 +56,8 @@ export function MovementController({
   const grid = useMemo(() => navGridFor(template), [template]);
   const keys = useWasdInput();
   const throttle = useMemo(() => createMoveThrottle({ send }), [send]);
+  const cursor = useCursorGround();
+  const ray = useMemo(() => ({ caster: new Raycaster(), ndc: new Vector2() }), []);
   useFootsteps();
 
   useEffect(() => {
@@ -70,7 +78,7 @@ export function MovementController({
     });
   }, [throttle]);
 
-  useFrame((_, delta) => {
+  useFrame(({ camera }, delta) => {
     const dt = Math.min(delta, MAX_FRAME_SECONDS);
     const store = usePlayerStore.getState();
     // In first person the FPV rig (scene/fpv) drives the store with camera-relative WASD.
@@ -78,7 +86,19 @@ export function MovementController({
     if (!firstPerson) {
       const input = inputVector(keys.current);
       if (input.x !== 0 || input.z !== 0) store.applyInput(input.x, input.z, dt);
-      else store.advance(dt);
+      else {
+        store.advance(dt);
+        // Standing still: face the floor point under the cursor.
+        const ndc = cursor.active({
+          overlayOpen: useUiStore.getState().overlay !== null,
+          firstPerson,
+        });
+        if (ndc) {
+          ray.caster.setFromCamera(ray.ndc.set(ndc.x, ndc.y), camera);
+          const point = groundPointFromRay(ray.caster.ray.origin, ray.caster.ray.direction);
+          if (point) usePlayerStore.getState().faceToward(point.x, point.z, dt);
+        }
+      }
     }
     throttle.update(usePlayerStore.getState());
     throttle.tick();

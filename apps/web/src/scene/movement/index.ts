@@ -1,3 +1,10 @@
+export {
+  CURSOR_DEADZONE,
+  createCursorTracker,
+  cursorHeading,
+  groundPointFromRay,
+  pointerToNdc,
+} from "./cursorFacing.ts";
 export { angleDelta, lerpHeading, type Pose, turnToward, wrapAngle } from "./kinematics.ts";
 export { MovementController, type MovementControllerProps } from "./MovementController.tsx";
 export { createMoveThrottle, MOVE_SEND_HZ, type MoveThrottle } from "./moveThrottle.ts";

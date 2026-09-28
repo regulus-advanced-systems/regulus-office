@@ -103,3 +103,118 @@ export function freeDeskPoint(
     return found ? { x: found.x, y: found.y, seatId: found.seatId } : null;
   });
 }
+
+export interface LocalPose extends Pos {
+  /** `rotation.y` of the `local-human` group: the heading sent in `move`. */
+  heading: number;
+}
+
+/** Our own avatar's drawn pose, or null before it spawned. */
+export function localPose(page: Page): Promise<LocalPose | null> {
+  return page.evaluate(() => {
+    type Obj = { name: string; position: { x: number; z: number }; rotation: { y: number } };
+    const r3f = (
+      window as unknown as {
+        __regulusR3F?: { scene: { getObjectByName(n: string): Obj | undefined } };
+      }
+    ).__regulusR3F;
+    const o = r3f?.scene.getObjectByName("local-human");
+    return o ? { x: o.position.x, z: o.position.z, heading: o.rotation.y } : null;
+  });
+}
+
+/**
+ * Poses of our own avatar sampled every animation frame for `ms`
+ * milliseconds, to check how it moves and faces over time.
+ */
+export function sampleLocalPoses(page: Page, ms: number): Promise<LocalPose[]> {
+  return page.evaluate(async (duration) => {
+    type Obj = { position: { x: number; z: number }; rotation: { y: number } };
+    const r3f = (
+      window as unknown as {
+        __regulusR3F?: { scene: { getObjectByName(n: string): Obj | undefined } };
+      }
+    ).__regulusR3F;
+    const out: { x: number; z: number; heading: number }[] = [];
+    const end = performance.now() + duration;
+    while (performance.now() < end) {
+      const o = r3f?.scene.getObjectByName("local-human");
+      if (o) out.push({ x: o.position.x, z: o.position.z, heading: o.rotation.y });
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+    }
+    return out;
+  }, ms);
+}
+
+/** Viewport point where the floor point `p` (y = 0) is drawn. */
+export function screenPointOf(page: Page, p: Pos): Promise<{ x: number; y: number } | null> {
+  return page.evaluate((world) => {
+    type V = {
+      set(x: number, y: number, z: number): V;
+      project(c: unknown): V;
+      x: number;
+      y: number;
+    };
+    const r3f = (
+      window as unknown as {
+        __regulusR3F?: {
+          scene: { position: { clone(): V } };
+          get(): { camera: unknown; gl: { domElement: HTMLCanvasElement } };
+        };
+      }
+    ).__regulusR3F;
+    if (!r3f) return null;
+    const { camera, gl } = r3f.get();
+    const rect = gl.domElement.getBoundingClientRect();
+    const v = r3f.scene.position.clone().set(world.x, 0, world.z).project(camera);
+    return {
+      x: rect.left + ((v.x + 1) / 2) * rect.width,
+      y: rect.top + ((1 - v.y) / 2) * rect.height,
+    };
+  }, p);
+}
+
+/** The floor point (y = 0) under viewport point `(x, y)`, by the scene camera's ray. */
+export function groundUnder(page: Page, x: number, y: number): Promise<Pos | null> {
+  return page.evaluate(
+    ({ sx, sy }) => {
+      type V = {
+        set(x: number, y: number, z: number): V;
+        unproject(c: unknown): V;
+        x: number;
+        y: number;
+        z: number;
+      };
+      const r3f = (
+        window as unknown as {
+          __regulusR3F?: {
+            scene: { position: { clone(): V } };
+            get(): { camera: unknown; gl: { domElement: HTMLCanvasElement } };
+          };
+        }
+      ).__regulusR3F;
+      if (!r3f) return null;
+      const { camera, gl } = r3f.get();
+      const rect = gl.domElement.getBoundingClientRect();
+      const nx = ((sx - rect.left) / rect.width) * 2 - 1;
+      const ny = -((sy - rect.top) / rect.height) * 2 + 1;
+      const near = r3f.scene.position.clone().set(nx, ny, -1).unproject(camera);
+      const far = r3f.scene.position.clone().set(nx, ny, 1).unproject(camera);
+      const dy = far.y - near.y;
+      if (Math.abs(dy) < 1e-9) return null;
+      const t = -near.y / dy;
+      return { x: near.x + (far.x - near.x) * t, z: near.z + (far.z - near.z) * t };
+    },
+    { sx: x, sy: y },
+  );
+}
+
+/** Heading (three.js `rotation.y`) that faces from `from` toward `to`, as the app computes it. */
+export const headingToward = (from: Pos, to: Pos) =>
+  Math.atan2(0 - (to.x - from.x), 0 - (to.z - from.z));
+
+/** Unsigned smallest angle between two headings, radians. */
+export function angleBetween(a: number, b: number): number {
+  const d = Math.abs(a - b) % (Math.PI * 2);
+  return d > Math.PI ? Math.PI * 2 - d : d;
+}

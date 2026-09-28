@@ -60,4 +60,14 @@ describe("remote pose buffer", () => {
     expect(INTERP_DELAY_MS).toBe(100);
     expect(MAX_EXTRAPOLATION_MS).toBeGreaterThan(0);
   });
+
+  test("a standing turn (cursor facing, #119) interpolates on the shortest arc without walking", () => {
+    const b = createPoseBuffer({ delayMs: 0 });
+    b.push({ t: 0, x: 4, z: 4, heading: 3 });
+    b.push({ t: 50, x: 4, z: 4, heading: -3 }); // across +-pi: 0.28 rad, not 6 rad
+    const mid = b.sampleAt(25);
+    expect(Math.abs(mid?.heading ?? 0)).toBeGreaterThan(3);
+    expect(mid?.moving).toBe(false);
+    expect(mid).toMatchObject({ x: 4, z: 4 });
+  });
 });
