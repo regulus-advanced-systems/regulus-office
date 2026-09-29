@@ -10,6 +10,7 @@ import { AccountSection } from "../auth/AccountSection.tsx";
 import { Button } from "../components/Button.tsx";
 import { Switch } from "../components/Switch.tsx";
 import { openProvidersPanel } from "../providers/providersStore.ts";
+import { FirstPersonSettings } from "./FirstPersonSettings.tsx";
 import { DEFAULT_SETTINGS } from "./settingsStorage.ts";
 
 export function SettingsForm() {
@@ -82,6 +83,8 @@ export function SettingsForm() {
           hint="Top bar clock format."
         />
       </div>
+
+      <FirstPersonSettings />
 
       <div className="rg-field">
         <div>

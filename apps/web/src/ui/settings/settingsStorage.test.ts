@@ -31,17 +31,46 @@ describe("settings storage", () => {
       reducedMotion: true,
       volume: 1,
       hour12: false,
+      fpvFov: DEFAULT_SETTINGS.fpvFov,
+      mouseSensitivity: DEFAULT_SETTINGS.mouseSensitivity,
     });
     expect(parseSettings('{"reducedMotion":"no","volume":-1}')).toEqual({
       reducedMotion: null,
       volume: 0,
       hour12: false,
+      fpvFov: DEFAULT_SETTINGS.fpvFov,
+      mouseSensitivity: DEFAULT_SETTINGS.mouseSensitivity,
+    });
+  });
+
+  test("first-person FOV and mouse sensitivity default, persist and clamp", () => {
+    expect(DEFAULT_SETTINGS.fpvFov).toBe(60);
+    expect(DEFAULT_SETTINGS.mouseSensitivity).toBe(1);
+    // Settings saved before #144 have neither field.
+    const old = parseSettings('{"reducedMotion":true,"volume":0.5,"hour12":true}');
+    expect(old.fpvFov).toBe(60);
+    expect(old.mouseSensitivity).toBe(1);
+    const wild = parseSettings('{"fpvFov":170,"mouseSensitivity":-3}');
+    expect(wild.fpvFov).toBe(75);
+    expect(wild.mouseSensitivity).toBe(0.25);
+    const bad = parseSettings('{"fpvFov":"wide","mouseSensitivity":null}');
+    expect(bad.fpvFov).toBe(60);
+    expect(bad.mouseSensitivity).toBe(1);
+    expect(parseSettings('{"fpvFov":66,"mouseSensitivity":2}')).toMatchObject({
+      fpvFov: 66,
+      mouseSensitivity: 2,
     });
   });
 
   test("round-trips through a storage", () => {
     const storage = memoryStorage();
-    const settings = { reducedMotion: false, volume: 0.25, hour12: true };
+    const settings = {
+      reducedMotion: false,
+      volume: 0.25,
+      hour12: true,
+      fpvFov: 68,
+      mouseSensitivity: 1.5,
+    };
     saveSettings(storage, settings);
     expect(storage.map.get(SETTINGS_STORAGE_KEY)).toBe(serializeSettings(settings));
     expect(loadSettings(storage)).toEqual(settings);
