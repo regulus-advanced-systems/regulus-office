@@ -63,7 +63,7 @@ const furniture = furnish(
   ],
   [
     cabinets("cabinets", 0.1, 0.1, 1.2, 0.5),
-    { id: "meeting-table", kind: "meeting_table", rect: { x: 3.5, z: 4.5, w: 1, d: 2.4 } },
+    { id: "meeting-table", kind: "meeting_table", rect: { x: 3.5, z: 4.3, w: 1, d: 2.9 } },
     { id: "water-cooler", kind: "water_cooler", rect: { x: 16.9, z: 0.1, w: 0.4, d: 0.4 } },
     { id: "kitchen-counter", kind: "counter", rect: { x: 17.5, z: 0.1, w: 2.6, d: 0.6 } },
     {

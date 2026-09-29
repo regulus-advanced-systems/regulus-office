@@ -13,6 +13,7 @@ import {
   propTargetHeight,
   restingHeight,
   snapHeading,
+  turnAround,
   visualFootprint,
 } from "./placement.ts";
 
@@ -60,9 +61,25 @@ describe("visualFootprint", () => {
 });
 
 describe("furnitureHeading", () => {
-  test("a desk faces the way its sitter faces", () => {
-    expect(furnitureHeading(obstacle("reception-desk"), t.seats, t.size)).toBe(HEADING.south);
+  test("a desk or table faces its sitter; a couch faces the way its sitter does", () => {
+    // The receptionist sits north of the desk facing south, so the desk faces north.
+    expect(furnitureHeading(obstacle("reception-desk"), t.seats, t.size)).toBeCloseTo(
+      HEADING.north,
+      9,
+    );
+    expect(furnitureHeading(obstacle("bistro-table"), t.seats, t.size)).toBeCloseTo(
+      HEADING.west,
+      9,
+    );
     expect(furnitureHeading(obstacle("couch"), t.seats, t.size)).toBe(HEADING.west);
+    expect(furnitureHeading(obstacle("armchair-n"), t.seats, t.size)).toBe(HEADING.south);
+  });
+
+  test("turnAround flips a heading and stays in (-pi, pi]", () => {
+    expect(turnAround(HEADING.north)).toBeCloseTo(HEADING.south, 9);
+    expect(turnAround(HEADING.south)).toBeCloseTo(HEADING.north, 9);
+    expect(turnAround(HEADING.east)).toBeCloseTo(HEADING.west, 9);
+    expect(turnAround(HEADING.west)).toBeCloseTo(HEADING.east, 9);
   });
 
   test("an interactable faces its standAt pose", () => {

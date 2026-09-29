@@ -3,6 +3,7 @@
  * grid (SPEC §9.1). Templates are validated when this module loads.
  *
  * - types.ts        zod schemas + inferred types (FloorTemplate, Seat, WallAnchor, ...)
+ * - facing.ts       what each seat should face (its table, a coffee table, a TV)
  * - geometry.ts     axis / heading conventions and rect helpers
  * - palettes.ts     ordered GDT-style palettes that floors cycle through
  * - query.ts        read helpers: walls, anchor stand poses, interactables
@@ -12,6 +13,7 @@
  * - templates/      lobby, small, office-l2 (medium), large, tier registry
  */
 export * from "./astar.ts";
+export * from "./facing.ts";
 export * from "./geometry.ts";
 export * from "./nav-grid.ts";
 export * from "./palettes.ts";

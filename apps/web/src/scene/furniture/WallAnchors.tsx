@@ -4,9 +4,7 @@
  * content for each is its own issue; this only reserves the space.
  */
 import {
-  DIRECTION,
   type FloorTemplate,
-  headingFacing,
   type Palette,
   type Wall,
   type WallAnchor,
@@ -17,7 +15,7 @@ import type { MeshToonMaterial } from "three";
 import { createToonMaterial } from "../materials/toon.ts";
 import { TV_MODEL } from "./catalog.ts";
 import { GltfProp } from "./GltfProp.tsx";
-import { anchorPlacement } from "./placement.ts";
+import { anchorPlacement, wallPropPlacement } from "./placement.ts";
 
 type Vec3 = readonly [number, number, number];
 
@@ -101,27 +99,20 @@ function Anchor({
   palette: Palette;
   m: Mats;
 }) {
-  const p = anchorPlacement(wall, anchor);
   if (anchor.kind === "tv") {
-    const f = DIRECTION[wall.facing];
-    const depth = 0.25;
-    const rect = {
-      x: p.position[0] - anchor.w / 2 + (f.x * depth) / 2,
-      z: p.position[2] - depth / 2 + (f.z * depth) / 2,
-      w: anchor.w,
-      d: depth,
-    };
+    const tv = wallPropPlacement(wall, anchor);
     return (
       <GltfProp
         spec={TV_MODEL}
-        rect={rect}
-        heading={headingFacing(f)}
+        rect={tv.rect}
+        heading={tv.heading}
         palette={palette}
         targetHeight={anchor.h}
-        y={anchor.y - anchor.h / 2}
+        y={tv.y}
       />
     );
   }
+  const p = anchorPlacement(wall, anchor);
   return (
     <group position={p.position} rotation-y={p.rotationY} name={anchor.id}>
       {anchor.kind === "whiteboard" && <Whiteboard w={anchor.w} h={anchor.h} m={m} />}

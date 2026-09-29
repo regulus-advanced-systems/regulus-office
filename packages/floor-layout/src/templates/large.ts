@@ -78,7 +78,7 @@ const furniture = furnish(
   ],
   [
     cabinets("a-cabinets", 0.1, 0.1, 1.2, 0.5),
-    { id: "meeting-table", kind: "meeting_table", rect: { x: 2.5, z: 12.5, w: 2.4, d: 1 } },
+    { id: "meeting-table", kind: "meeting_table", rect: { x: 2.3, z: 12.5, w: 2.9, d: 1 } },
     { id: "kitchen-counter", kind: "counter", rect: { x: 27.3, z: 13.5, w: 0.6, d: 2.5 } },
     {
       id: "coffee-machine",

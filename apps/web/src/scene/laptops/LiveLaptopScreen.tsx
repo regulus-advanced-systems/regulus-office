@@ -10,12 +10,15 @@ import { useThree } from "@react-three/fiber";
 import { useLayoutEffect, useState } from "react";
 import { defaultTerminalDeps, type TerminalDeps } from "../../ui/terminal/host.ts";
 import { useTerminal } from "../../ui/terminal/useTerminal.ts";
-import { LAPTOP_DIMENSIONS } from "./Laptop.tsx";
+import { LAPTOP_DIMENSIONS, LAPTOP_SCALE } from "./dimensions.ts";
+
+/** CSS width of the live panel; grows with the laptop so the text keeps its density. */
+const LIVE_PANEL_WIDTH = Math.round(640 * LAPTOP_SCALE);
 
 /** CSS size of the live panel; drei maps it onto the screen plane. */
 export const LIVE_PANEL_PX = {
-  width: 640,
-  height: Math.round((640 * LAPTOP_DIMENSIONS.screenH) / LAPTOP_DIMENSIONS.screenW),
+  width: LIVE_PANEL_WIDTH,
+  height: Math.round((LIVE_PANEL_WIDTH * LAPTOP_DIMENSIONS.screenH) / LAPTOP_DIMENSIONS.screenW),
 } as const;
 
 /** drei transform mode: 1 CSS px = distanceFactor / 400 world units. */

@@ -50,6 +50,9 @@ export const JUKEBOX_COLORS = {
   crimson: "#B83159",
 } as const;
 
+/** Start angle of the jukebox's half-cylinder arch (see `Jukebox`). */
+export const JUKEBOX_ARCH_START = Math.PI / 2;
+
 export interface JukeboxProps {
   rect: Rect;
   heading: number;
@@ -70,8 +73,10 @@ export function Jukebox({ rect, heading }: JukeboxProps) {
       name="jukebox"
     >
       <ToonBox size={[w, bodyH, d]} position={[0, bodyH / 2, 0]} material={m.body} />
+      {/* Half cylinder laid along z: theta pi/2..3pi/2 is the -z half, which the
+          quarter turn about x stands up as the arch over the body (#143). */}
       <mesh position={[0, bodyH, 0]} rotation-x={Math.PI / 2} material={m.body}>
-        <cylinderGeometry args={[w / 2, w / 2, d, 24, 1, false, 0, Math.PI]} />
+        <cylinderGeometry args={[w / 2, w / 2, d, 24, 1, false, JUKEBOX_ARCH_START, Math.PI]} />
       </mesh>
       <ToonBox
         size={[w * 0.8, bodyH * 0.35, 0.02]}

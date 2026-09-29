@@ -5,6 +5,7 @@
  * printed on the floor next to the seat, along the iso axis). Pure maths.
  */
 import type { FloorTemplate, Seat } from "@regulus/floor-layout";
+import { LAPTOP_TOP } from "../laptops/dimensions.ts";
 import { facing, laptopPlacement } from "../laptops/placement.ts";
 
 export { facing };
@@ -14,7 +15,7 @@ export const SIT_BACK = 0.12;
 /** Lift so the sitting clip (which squats to the ground) rests on the chair seat. */
 export const SIT_LIFT = 0.28;
 /** Bubbles pop out of the top of the laptop screen, this far above its base. */
-export const SCREEN_TOP = 0.24;
+export const SCREEN_TOP = LAPTOP_TOP + 0.01;
 /** Decal centre: behind the chair, in the aisle. */
 export const DECAL_BEHIND = 1.0;
 

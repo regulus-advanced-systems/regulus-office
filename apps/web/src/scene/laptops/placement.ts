@@ -5,6 +5,7 @@
  */
 import type { FloorTemplate, ObstacleKind, Rect, Seat } from "@regulus/floor-layout";
 import { FURNITURE_MODELS, PLACEHOLDER_HEIGHTS } from "../furniture/catalog.ts";
+import { LAPTOP_DIMENSIONS } from "./dimensions.ts";
 
 export interface LaptopPlacement {
   seatId: string;
@@ -15,8 +16,10 @@ export interface LaptopPlacement {
 }
 
 /** Laptop footprint and how far in from the desk edge its centre sits. */
-export const LAPTOP_SIZE = { w: 0.34, d: 0.24 } as const;
-const EDGE_INSET = LAPTOP_SIZE.d / 2 + 0.08;
+export const LAPTOP_SIZE = { w: LAPTOP_DIMENSIONS.w, d: LAPTOP_DIMENSIONS.d } as const;
+/** Gap between the desk edge nearest the chair and the laptop's front edge, metres. */
+export const EDGE_GAP = 0.08;
+const EDGE_INSET = LAPTOP_SIZE.d / 2 + EDGE_GAP;
 /** Used when a seat names no furniture. */
 const FALLBACK_REACH = 0.7;
 const DEFAULT_DESK_HEIGHT = 0.76;
