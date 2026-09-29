@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { loadConfig } from "../../config.ts";
 import { runnerId } from "../layout.ts";
+import { EngineClient } from "./engine.ts";
 import { HijackError, hijack, parseDockerHost } from "./hijack.ts";
 import {
   humanMountTarget,
@@ -143,6 +144,23 @@ describe("engine plumbing", () => {
       ...frame(STDOUT, "!"),
     ]);
     expect(demuxAll(body)).toEqual({ stdout: "out!", stderr: "err" });
+  });
+
+  test("exec starts without a request body (#127)", async () => {
+    const fake = await FakeEngine.start();
+    try {
+      fake.containers.set("c1", { id: "c1", name: "c1", running: true, body: {} });
+      fake.onExec = (_exec, io) => {
+        io.stdout("hi\n");
+        return 3;
+      };
+      const res = await new EngineClient(fake.dockerHost).exec("c1", { cmd: ["true"] });
+      expect(res).toEqual({ code: 3, stdout: "hi\n", stderr: "" });
+      // A body here gets the output cut off now and then through docker-socket-proxy.
+      expect(fake.calls("POST", /^\/exec\/[^/]+\/start$/).map((r) => r.body)).toEqual([""]);
+    } finally {
+      await fake.stop();
+    }
   });
 
   test("hijack surfaces daemon errors", async () => {

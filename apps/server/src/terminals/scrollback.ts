@@ -53,6 +53,8 @@ export class ScrollbackRecorder {
   readonly #lines: number;
   readonly #maxBytes: number;
   readonly #tracked = new Map<string, Tracked>();
+  /** Last queued snapshot per agent: snapshots of one agent run one at a time, in order. */
+  readonly #queues = new Map<string, Promise<void>>();
   readonly #timer: ReturnType<typeof setInterval>;
   #dirReady: Promise<void> | undefined;
   #tick: Promise<void> = Promise.resolve();
@@ -80,7 +82,7 @@ export class ScrollbackRecorder {
       entry.refs -= 1;
       if (entry.refs > 0) return;
       this.#tracked.delete(target.agentId);
-      // One last snapshot so the file reflects the end of the viewing session.
+      // One last snapshot so the file reflects the end of the viewing session (stop() awaits it).
       void this.#save(entry);
     };
   }
@@ -99,14 +101,31 @@ export class ScrollbackRecorder {
     await Promise.all([...this.#tracked.values()].map((entry) => this.#save(entry)));
   }
 
+  /** Stop the timer, take a last snapshot of tracked agents and wait for every queued one. */
   async stop(): Promise<void> {
     clearInterval(this.#timer);
     await this.#tick;
     await this.flush();
     this.#tracked.clear();
+    await Promise.all(this.#queues.values());
   }
 
-  async #save(entry: Tracked): Promise<void> {
+  /**
+   * Queue a snapshot behind the agent's previous one. Unqueued, a slow periodic
+   * capture could finish after the final one of a release and overwrite the
+   * newer text, and two writes would share one temp file.
+   */
+  #save(entry: Tracked): Promise<void> {
+    const id = entry.target.agentId;
+    const next = (this.#queues.get(id) ?? Promise.resolve()).then(() => this.#snapshot(entry));
+    this.#queues.set(id, next);
+    void next.then(() => {
+      if (this.#queues.get(id) === next) this.#queues.delete(id);
+    });
+    return next;
+  }
+
+  async #snapshot(entry: Tracked): Promise<void> {
     const { target } = entry;
     try {
       const text = capTail(
