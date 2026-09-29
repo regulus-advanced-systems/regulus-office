@@ -31,7 +31,8 @@ export type WorldPos = z.infer<typeof WorldPos>;
 /** Free text shown in the world (chat lines, prompts, task titles). */
 export const ShortText = z.string().max(200);
 export const ChatText = z.string().trim().min(1).max(2000);
-export const PromptText = z.string().trim().min(1).max(20_000);
+export const PROMPT_MAX = 20_000;
+export const PromptText = z.string().trim().min(1).max(PROMPT_MAX);
 
 /** Model name as passed to the provider CLI; effort is provider-specific (e.g. `low|medium|high|max`). */
 export const ModelName = z.string().min(1).max(100);

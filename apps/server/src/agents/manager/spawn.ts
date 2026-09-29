@@ -51,7 +51,9 @@ export function admitSpawn(
   const profileId = deps.credentials.check(actor.id, input.provider, input.profileId);
 
   const agentId = crypto.randomUUID();
-  const taskTitle = (input.taskTitle ?? input.prompt.split("\n")[0] ?? "").slice(0, 200);
+  // An empty prompt is allowed: the robot starts idle and waits (#142).
+  const issueTitle = input.issueNumber ? `Issue #${input.issueNumber}` : "";
+  const taskTitle = (input.taskTitle || input.prompt.split("\n")[0] || issueTitle).slice(0, 200);
   const seatId = deps.store.insertWithDesk(
     {
       id: agentId,

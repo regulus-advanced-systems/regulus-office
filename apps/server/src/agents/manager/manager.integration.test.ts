@@ -117,6 +117,19 @@ describe.skipIf(!hasTmux())("AgentManager (tmux)", () => {
     await manager.close();
   }, 15_000);
 
+  test("spawn without a prompt starts the robot idle, titled after its issue", async () => {
+    const adapter = fakeAdapter();
+    const { manager, robots } = makeManager(office.db, runner, [adapter]);
+    const { agentId } = await manager.spawn(
+      office.member,
+      spawnInput(office.floorId, office.repoId, { prompt: "", issueNumber: 42 }),
+    );
+    const robot = await robots.waitFor(agentId, (r) => r.status === "idle");
+    expect(robot).toMatchObject({ taskTitle: "Issue #42", issueNumber: 42 });
+    expect(adapter.lastControl?.prompts ?? []).toEqual([]);
+    await manager.close();
+  }, 15_000);
+
   test("an agent whose process exits on its own becomes exited", async () => {
     const { manager, robots } = makeManager(office.db, runner, [fakeAdapter()]);
     const { agentId } = await manager.spawn(
