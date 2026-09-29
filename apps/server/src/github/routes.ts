@@ -190,8 +190,10 @@ export function mountGitHubRoutes(router: Router, deps: GitHubRoutesDeps): void 
 
   // GitHub sends `installation_id` here; nothing is trusted from it. The office
   // lists the app's installations itself with the app's own JWT.
-  router.get(GITHUB_APP_SETUP_PATH, async () => {
-    connection.reset();
+  router.get(GITHUB_APP_SETUP_PATH, async (ctx) => {
+    const user = await auth.getSessionFromRequest(ctx.request);
+    // Only a signed-in owner/admin drops the cached lists, so the new installation shows.
+    if (user && isOfficeManager(user.role)) connection.reset();
     return toOffice("installed");
   });
 }

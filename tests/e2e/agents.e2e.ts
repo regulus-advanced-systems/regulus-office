@@ -39,8 +39,11 @@ const REPO = { owner: "octo", name: "robots", branch: "trunk" };
 const FLOOR = "Hangar";
 const ISSUE = 42;
 const TASK = "Say hello in a file";
-/** The floor repo's project credential; only ever sent to the fake GitHub. */
-const REPO_TOKEN = `ghp_e2eFakeToken${run}`;
+/**
+ * The office GitHub connection's org token (#141), the floor repo's project credential; only
+ * ever sent to the fake GitHub.
+ */
+const REPO_TOKEN = `github_pat_e2eFakeOrgToken${run}`;
 
 test.describe.configure({ mode: "serial", timeout: 180_000 });
 
@@ -71,7 +74,13 @@ test.beforeAll(async ({ browser }) => {
   buildRunnerImage();
   dataDir = mkdtempSync(join(tmpdir(), "regulus-e2e-agents-"));
   prefix = `rge2e-${run}`;
-  github = await startFakeGitHub();
+  github = await startFakeGitHub({
+    orgToken: REPO_TOKEN,
+    repos: [
+      { owner: REPO.owner, name: REPO.name, defaultBranch: REPO.branch },
+      { owner: REPO.owner, name: "unused", defaultBranch: "main" },
+    ],
+  });
   office = new AgentOffice({
     dataDir,
     port: Number(process.env.E2E_AGENTS_PORT ?? 4620),
@@ -211,15 +220,30 @@ test("the owner and an invited member sign in", async () => {
   expect(await api(memberPage, "GET", "/api/me")).toMatchObject({ role: "member" });
 });
 
-test("1. the owner creates a floor from the bare repo and rides to it", async () => {
+test("1. the owner connects GitHub, picks the repo in Add floor and rides to it", async () => {
   await ownerPage.goto(OFFICE_PROBE_PATH);
   await waitForScene(ownerPage);
+  // Settings → GitHub: connect the office with an org token (#141; the App flow needs github.com).
+  await ownerPage.getByRole("button", { name: "Settings" }).click();
+  const settingsDialog = ownerPage.getByRole("dialog", { name: "Settings" });
+  const github = settingsDialog.getByRole("region", { name: "GitHub" });
+  await expect(github.getByText("Not connected")).toBeVisible();
+  await github.getByLabel("Or an organization access token").fill(REPO_TOKEN);
+  await github.getByRole("button", { name: "Connect with token" }).click();
+  await expect(github.getByText("Connected with an organization token (org-bot).")).toBeVisible();
+  await expect(github.getByLabel("Or an organization access token")).toHaveCount(0);
+  await settingsDialog.getByRole("button", { name: "Done" }).click();
+  await expect(settingsDialog).toHaveCount(0);
+
   const elevator = ownerPage.getByRole("navigation", { name: "Elevator" });
   await elevator.getByRole("button", { name: "Add floor…" }).click();
   const dialog = ownerPage.getByRole("dialog", { name: "Add floor" });
   await dialog.getByLabel("Floor name").fill(FLOOR);
-  await dialog.getByLabel("Repo 1", { exact: true }).fill(`${REPO.owner}/${REPO.name}`);
-  await dialog.getByLabel("Access token for repo 1").fill(REPO_TOKEN);
+  const picker = dialog.getByRole("list", { name: "Repos from GitHub" });
+  await dialog.getByLabel("Search repos").fill(REPO.name);
+  await expect(picker.getByRole("checkbox")).toHaveCount(1);
+  await picker.getByRole("checkbox", { name: new RegExp(`${REPO.owner}/${REPO.name}`) }).check();
+  await expect(picker.getByText(`private · ${REPO.branch}`)).toBeVisible();
   await dialog.getByRole("button", { name: "Create floor" }).click();
   const added = ownerPage.getByRole("dialog", { name: "Floor added" });
   await expect(added.getByText(`Ready on ${REPO.branch}`)).toBeVisible();
