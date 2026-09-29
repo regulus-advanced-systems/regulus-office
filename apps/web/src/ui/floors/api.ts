@@ -1,15 +1,19 @@
 /**
  * Browser client for the floors REST API (SPEC §5, §9.1): list the floors
  * the signed-in user can see, create one (owner/admin), retry a failed
- * clone. Repo tokens go out in request bodies only; responses never carry
+ * clone, and list, grant, change and revoke floor members. Repo tokens go out in request bodies only; responses never carry
  * them (the server returns `hasCredential`), and nothing is stored here.
  */
 import {
   type CreateFloorRequest,
   FLOORS_API_PATH,
+  type FloorAccess,
   FloorInfo,
   FloorListResponse,
+  FloorMembersResponse,
   FloorRepoInfo,
+  OFFICE_USERS_API_PATH,
+  OfficeUsersResponse,
 } from "@regulus/protocol";
 import type { ApiFailure, ApiResult } from "../auth/api.ts";
 
@@ -17,6 +21,9 @@ import type { ApiFailure, ApiResult } from "../auth/api.ts";
 interface Parser<T> {
   safeParse(value: unknown): { success: true; data: T } | { success: false };
 }
+
+/** For 204 responses. */
+const NO_CONTENT: Parser<void> = { safeParse: () => ({ success: true, data: undefined }) };
 
 export interface FloorsApiOptions {
   fetch?: typeof fetch;
@@ -69,6 +76,11 @@ export function createFloorsApi(options: FloorsApiOptions = {}) {
     return { ok: true, data: parsed.data };
   }
 
+  const memberPath = (floorId: string, userId?: string) =>
+    `${FLOORS_API_PATH}/${encodeURIComponent(floorId)}/members${
+      userId === undefined ? "" : `/${encodeURIComponent(userId)}`
+    }`;
+
   return {
     list: () => call<FloorListResponse>("GET", FLOORS_API_PATH, FloorListResponse),
     create: (request: CreateFloorRequest) =>
@@ -80,6 +92,14 @@ export function createFloorsApi(options: FloorsApiOptions = {}) {
         FloorRepoInfo,
         token ? { token } : {},
       ),
+    members: (floorId: string) =>
+      call<FloorMembersResponse>("GET", memberPath(floorId), FloorMembersResponse),
+    setMember: (floorId: string, userId: string, access: FloorAccess) =>
+      call<void>("PUT", memberPath(floorId, userId), NO_CONTENT, { access }),
+    removeMember: (floorId: string, userId: string) =>
+      call<void>("DELETE", memberPath(floorId, userId), NO_CONTENT),
+    /** Office people to grant (floor managers only; emails for owners and admins). */
+    people: () => call<OfficeUsersResponse>("GET", OFFICE_USERS_API_PATH, OfficeUsersResponse),
   };
 }
 
@@ -106,6 +126,14 @@ export function describeFloorError(err: ApiFailure): string {
       return "Tokens cannot be stored: the server has no OFFICE_MASTER_KEY. Use public repos or ask the operator to set one.";
     case "invalid_body":
       return `Some fields are missing or invalid${err.reason ? ` (${err.reason})` : ""}.`;
+    case "floor_manage_required":
+      return "You need manage access to this floor to change who can use it.";
+    case "floor_not_found":
+      return "That floor no longer exists or you no longer have access to it.";
+    case "user_not_found":
+      return "That person is no longer in the office.";
+    case "member_not_found":
+      return "That person no longer has access to this floor.";
     case "unauthorized":
       return "Your session has ended. Sign in again.";
     case "origin_mismatch":

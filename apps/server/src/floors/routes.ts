@@ -10,12 +10,14 @@
  *   PUT    /api/floors/:floorId/members/:userId          grant access (manage)
  *   DELETE /api/floors/:floorId/members/:userId          revoke (manage)
  *   POST   /api/floors/:floorId/repos/:repoId/clone      retry a failed clone (manage)
+ *   GET    /api/users                                    office people to grant (manage any floor)
  *
  * Repo tokens are accepted in bodies and never echoed back.
  */
 import {
   CreateFloorRequest,
   FLOORS_API_PATH,
+  OFFICE_USERS_API_PATH,
   RetryCloneRequest,
   SetFloorMemberRequest,
 } from "@regulus/protocol";
@@ -115,6 +117,11 @@ export function mountFloorRoutes(
   router.get(
     `${FLOORS_API_PATH}/:floorId/members`,
     route((ctx, actor) => json({ members: floors.members(actor, param(ctx, "floorId")) })),
+  );
+
+  router.get(
+    OFFICE_USERS_API_PATH,
+    route((_ctx, actor) => json({ users: floors.people(actor) })),
   );
 
   router.add(

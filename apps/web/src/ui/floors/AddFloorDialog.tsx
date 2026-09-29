@@ -19,6 +19,7 @@ import { Button } from "../components/Button.tsx";
 import { Modal } from "../components/Modal.tsx";
 import { createFloorsApi, describeFloorError, type FloorsApi } from "./api.ts";
 import { CloneStatusList } from "./CloneStatus.tsx";
+import { floorSettingsOverlay } from "./floorSettings.ts";
 import "./floors.css";
 
 export const ADD_FLOOR_OVERLAY = "add-floor";
@@ -170,16 +171,25 @@ export function AddFloorForm({
   );
 }
 
-/** Mounted in the HUD; managers only. Form first, then the new floor's clone status. */
+/**
+ * Mounted in the HUD; managers only. Form first, then the new floor's clone
+ * status with "Add people…", which hands over to the floor settings panel.
+ */
 export function AddFloorDialogHost({ api = defaultApi }: { api?: FloorsApi }) {
   const open = useUiStore((s) => s.overlay === ADD_FLOOR_OVERLAY);
   const close = useUiStore((s) => s.closeOverlay);
+  const openOverlay = useUiStore((s) => s.openOverlay);
   const allowed = useSessionStore((s) => canManageOffice(s.user?.role));
   const [created, setCreated] = useState<string | null>(null);
   if (!allowed) return null;
   const done = () => {
     setCreated(null);
     close(ADD_FLOOR_OVERLAY);
+  };
+  // A new floor has no one on it yet: offer to add people straight away.
+  const addPeople = (floorId: string) => {
+    setCreated(null);
+    openOverlay(floorSettingsOverlay(floorId));
   };
   return (
     <Modal
@@ -189,9 +199,14 @@ export function AddFloorDialogHost({ api = defaultApi }: { api?: FloorsApi }) {
       width={560}
       footer={
         created ? (
-          <Button variant="secondary" onClick={done}>
-            Done
-          </Button>
+          <>
+            <Button variant="secondary" aria-haspopup="dialog" onClick={() => addPeople(created)}>
+              Add people…
+            </Button>
+            <Button variant="secondary" onClick={done}>
+              Done
+            </Button>
+          </>
         ) : undefined
       }
     >

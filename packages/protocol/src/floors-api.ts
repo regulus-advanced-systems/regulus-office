@@ -8,7 +8,7 @@
  */
 import { z } from "zod";
 import { Id, TimestampMs } from "./common.ts";
-import { FLOOR_ACCESSES, FLOOR_TEMPLATE_TIERS, REPO_CLONE_STATUSES } from "./enums.ts";
+import { FLOOR_ACCESSES, FLOOR_TEMPLATE_TIERS, REPO_CLONE_STATUSES, USER_ROLES } from "./enums.ts";
 
 export const FLOORS_API_PATH = "/api/floors";
 
@@ -85,6 +85,24 @@ export type FloorMemberInfo = z.infer<typeof FloorMemberInfo>;
 
 export const FloorMembersResponse = z.object({ members: z.array(FloorMemberInfo) });
 export type FloorMembersResponse = z.infer<typeof FloorMembersResponse>;
+
+/**
+ * `GET /api/users`: the office's people, for picking whom to grant floor
+ * access. Open to anyone who can manage at least one floor; `email` is only
+ * present when the caller is an office owner or admin.
+ */
+export const OFFICE_USERS_API_PATH = "/api/users";
+
+export const OfficeUserInfo = z.object({
+  userId: Id,
+  displayName: z.string().max(64),
+  role: z.enum(USER_ROLES),
+  email: z.string().max(254).optional(),
+});
+export type OfficeUserInfo = z.infer<typeof OfficeUserInfo>;
+
+export const OfficeUsersResponse = z.object({ users: z.array(OfficeUserInfo) });
+export type OfficeUsersResponse = z.infer<typeof OfficeUsersResponse>;
 
 /** Body of `PUT /api/floors/:floorId/members/:userId`. */
 export const SetFloorMemberRequest = z.object({ access: z.enum(FLOOR_ACCESSES) });
