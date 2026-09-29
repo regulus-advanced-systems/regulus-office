@@ -104,6 +104,54 @@ jobs:
           docker ps -a --filter label=org.regulus.office.role=runner
           docker ps -aq --filter label=org.regulus.office.role=runner | xargs -r docker rm -f
 
+  # TEMPORARY (#130 stress, reverted before merge): 12 fresh runners x 3 back-to-back runs.
+  e2e-agents-stress:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - name: Throwaway secrets for this run
+        run: |
+          for name in BETTER_AUTH_SECRET OFFICE_MASTER_KEY; do
+            value="$(openssl rand -base64 32)"
+            echo "::add-mask::$value"
+            echo "$name=$value" >> "$GITHUB_ENV"
+          done
+      - name: Build the test runner image
+        run: |
+          docker build -t regulus-office-e2e-runner:local \
+            --build-arg RUNNER_UID="$(id -u)" --build-arg RUNNER_GID="$(id -g)" tests/e2e/runner
+      - run: bunx playwright install --with-deps chromium
+      - name: Loop e2e:agents
+        run: |
+          fails=0
+          for i in 1 2 3; do
+            if bun run e2e:agents > "run-$i.log" 2>&1; then
+              echo "STRESS shard ${{ matrix.shard }} run $i: pass"
+            else
+              fails=$((fails+1))
+              echo "STRESS shard ${{ matrix.shard }} run $i: FAIL"
+              tail -60 "run-$i.log"
+              mkdir -p "stress/run-$i" && cp -r test-results "run-$i.log" "stress/run-$i/"
+            fi
+          done
+          echo "STRESS shard ${{ matrix.shard }}: $fails of 3 failed"
+          [ "$fails" = 0 ]
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: stress-${{ matrix.shard }}-${{ github.run_attempt }}
+          path: stress/
+          retention-days: 14
+
   # `docker compose up` serves the office behind Caddy (SPEC §4.2 Packaging, §13), and the office
   # provisions a runner from the real runner image and runs the fake agent in it (#104).
   compose:
