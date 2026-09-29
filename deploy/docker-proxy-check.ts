@@ -123,7 +123,8 @@ try {
       "command -v tmux >/dev/null || exit 42; tmux new-session -d -s probe 'sleep 30' && tmux has-session -t probe",
     ],
   })) as { Id: string };
-  await expectStatus("POST", `${v}/exec/${tmux.Id}/start`, [200], { Detach: false, Tty: false });
+  // No body, as EngineClient.exec sends it (#127: a body races the proxy's response streaming).
+  await expectStatus("POST", `${v}/exec/${tmux.Id}/start`, [200]);
   let tmuxInfo = { Running: true, ExitCode: -1 };
   for (let i = 0; i < 50 && tmuxInfo.Running; i++) {
     const res = await api("GET", `${v}/exec/${tmux.Id}/json`);

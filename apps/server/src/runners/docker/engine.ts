@@ -117,12 +117,19 @@ export class EngineClient {
     await res.arrayBuffer();
   }
 
-  /** Run a command to completion inside a container. */
+  /**
+   * Run a command to completion inside a container.
+   *
+   * The start request has no body: an empty body means `{Detach: false, Tty: false}` to the
+   * daemon, and a body breaks this call through docker-socket-proxy now and then (#127). The
+   * proxy (Go `httputil.ReverseProxy`) closes the request body as soon as it starts streaming
+   * the daemon's answer, which can be before its transport has finished with that body; the
+   * transport then drops the daemon connection mid-output and the proxy aborts ours ("socket
+   * connection was closed unexpectedly"). Hijacked starts (`execInteractive`) are not affected.
+   */
   async exec(containerId: string, opts: ExecOptions): Promise<ExecResult> {
     const id = await this.#createExec(containerId, { ...opts, tty: false }, false);
-    const res = await this.request("POST", `/exec/${id}/start`, {
-      json: { Detach: false, Tty: false },
-    });
+    const res = await this.request("POST", `/exec/${id}/start`);
     await this.#check(res, "POST", `/exec/${id}/start`);
     const { stdout, stderr } = demuxAll(new Uint8Array(await res.arrayBuffer()));
     return { code: await this.execExitCode(id), stdout, stderr };

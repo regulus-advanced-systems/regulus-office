@@ -95,16 +95,19 @@ describe("screen feed", () => {
     await Bun.sleep(INTERVAL * 3);
     expect(client.screens("a1")).toHaveLength(1);
 
+    const started = Date.now();
     for (let i = 0; i < 20; i++) {
       panes.set("agent-a1", `tick ${i}`);
       await Bun.sleep(5);
     }
-    await Bun.sleep(INTERVAL * 2);
+    const changing = Date.now() - started;
+    // a1 went idle above, so it is captured only every `idleEvery` ticks: wait for the last
+    // change rather than a fixed time (#127: two intervals were not always enough).
+    await client.waitFor((c) => c.screens("a1").at(-1) === "tick 19", "last change");
     const updates = client.screens("a1").length - 1;
-    // 20 changes over ~100 ms + 2 intervals: bounded by the poll rate, not the change rate.
+    // 20 changes: at most one push per tick while they happened, plus the last one after.
     expect(updates).toBeGreaterThanOrEqual(1);
-    expect(updates).toBeLessThanOrEqual(6);
-    expect(client.screens("a1").at(-1)).toBe("tick 19");
+    expect(updates).toBeLessThanOrEqual(Math.floor(changing / INTERVAL) + 2);
 
     office.db.update(agents).set({ exitedAt: new Date() }).where(eq(agents.id, "a2")).run();
     await client.waitFor(

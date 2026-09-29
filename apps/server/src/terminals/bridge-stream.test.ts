@@ -152,16 +152,17 @@ describe("terminal bridge over a backend TTY stream", () => {
       ],
     });
 
-    driver.type("a");
-    driver.type("b");
-    driver.type("c");
+    // Not hex (#127): "abc" also turned up inside a random user id in the controls JSON.
+    driver.type("q");
+    driver.type("u");
+    driver.type("z");
     await watcher.waitFor((c) => c.controls.some((m) => m.type === "typing"), "typing notice");
     await Bun.sleep(50);
     const typing = watcher.controls.filter((m) => m.type === "typing");
     expect(typing).toEqual([{ type: "typing", userId: owner.id, name: "Owner" }]);
-    expect(JSON.stringify(watcher.controls)).not.toContain("abc");
+    expect(JSON.stringify(watcher.controls)).not.toContain("quz");
     expect(driver.controls.some((m) => m.type === "typing")).toBe(false);
-    expect(tty.writes.join("")).toBe("abc");
+    expect(tty.writes.join("")).toBe("quz");
 
     watcher.type("x");
     await Bun.sleep(50);

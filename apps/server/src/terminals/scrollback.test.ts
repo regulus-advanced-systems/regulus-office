@@ -63,10 +63,39 @@ describe("ScrollbackRecorder", () => {
     expect(pane.captures).toBe(2);
     pane.text = "changed\n";
     release();
-    await Bun.sleep(20);
     expect(recorder.trackedCount).toBe(0);
-    expect(await Bun.file(file).text()).toBe("changed\n");
+    // The final snapshot is written in the background; stop() waits for it (#127: a fixed
+    // sleep here raced the write on a slow runner).
     await recorder.stop();
+    expect(await Bun.file(file).text()).toBe("changed\n");
+  });
+
+  test("a release's final snapshot is never overwritten by a slower earlier one (#127)", async () => {
+    dir = await mkdtemp(join(tmpdir(), "rgo-scrollback-"));
+    const recorder = new ScrollbackRecorder({ dir, logger, intervalMs: 60_000 });
+    const gate = Promise.withResolvers<void>();
+    let calls = 0;
+    const pane = { text: "old\n", captures: 0 };
+    const target = fakeTarget("a3", pane);
+    const capture = target.runner.capturePane.bind(target.runner);
+    // The first capture (a periodic flush) reads "old" and then stalls, as a busy runner can.
+    target.runner.capturePane = async (...args) => {
+      calls += 1;
+      const text = await capture(...args);
+      if (calls === 1) await gate.promise;
+      return text;
+    };
+    const release = recorder.track(target);
+    const flushing = recorder.flush();
+    await Bun.sleep(5);
+    pane.text = "new\n";
+    release();
+    await Bun.sleep(5);
+    gate.resolve();
+    await flushing;
+    await recorder.stop();
+    expect(calls).toBe(2);
+    expect(await Bun.file(recorder.pathFor("a3")).text()).toBe("new\n");
   });
 
   test("snapshots on its interval while tracked, refcounted per agent", async () => {
