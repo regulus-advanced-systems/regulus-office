@@ -10,8 +10,10 @@
 # On "allow" it makes the edit, commits it in its worktree (the cwd) and posts PostToolUse and
 # Stop. Then it idles so the tmux session stays alive across an office restart.
 # `claude auth status` (the office's login check, credentials/cli-status.ts): report a login
-# without touching any account, so the spawn dialog offers "Your Claude Code login".
+# without touching any account, so the spawn dialog offers "Your Claude Code login". It takes
+# a moment, like the real CLI, so the check is still running when the spec spawns (#126).
 if [ "$1" = auth ]; then
+  sleep 2
   echo '{"loggedIn":true,"authMethod":"fake"}'
   exit 0
 fi

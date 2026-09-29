@@ -290,6 +290,30 @@ describe.skipIf(!enabled)("DockerRunner (real Docker)", () => {
     ).toBe("ok\n");
   }, 60_000);
 
+  test("a first mount waits for a running piped process instead of refusing it (#126)", async () => {
+    const d = { userId: "u4" };
+    const area = join(root, "worktrees", "f2", "u4");
+    const repoDir = join(area, "_clones", "repo");
+    await mkdir(repoDir, { recursive: true });
+    await runner.provision(d);
+    // Like the spawn dialog's `claude auth status`: still running when the spawn mounts.
+    const check = await runner.spawnPiped(d, {
+      ...plan("status"),
+      argv: ["sleep", "1"],
+      cwd: "/home/runner",
+    });
+    const mounted = await runner.mountProject(d, { floorId: "f2", repoId: "r1", workdir: repoDir });
+    expect(mounted).toEqual({ workdir: repoDir });
+    // It ran to completion (exit 0), rather than being killed by the recreate.
+    expect(await check.exited).toBe(0);
+    const { containerId } = await runner.provision(d);
+    const info = await engine.json<{ HostConfig: { Mounts: { Target: string }[] } }>(
+      "GET",
+      `/containers/${containerId}/json`,
+    );
+    expect(info.HostConfig.Mounts.map((m) => m.Target)).toEqual(["/home/runner", area]);
+  }, 60_000);
+
   test("whole-floor mounts from before #114 are dropped from an idle runner", async () => {
     const c = { userId: "u3" };
     const floor = join(root, "worktrees", "f1");
