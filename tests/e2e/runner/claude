@@ -1,0 +1,73 @@
+#!/bin/sh
+# Fake `claude` for the agents e2e (tests/e2e/agents.e2e.ts). It is NOT Claude Code, has no
+# network access beyond the office's hook URL, and never reads or writes any credentials.
+#
+# Like apps/server/src/agents/hooks/testing/fake-claude.sh it reads the --settings file the
+# Claude adapter generated and POSTs documented hook payloads to its http hook URL with the
+# configured Authorization header (copied into a 0600 file, never printed or put in argv):
+#   SessionStart, UserPromptSubmit, PreToolUse(Edit), then PermissionRequest(Edit), whose
+#   response is held by the office until someone answers the permission prompt.
+# On "allow" it makes the edit, commits it in its worktree (the cwd) and posts PostToolUse and
+# Stop. Then it idles so the tmux session stays alive across an office restart.
+# `claude auth status` (the office's login check, credentials/cli-status.ts): report a login
+# without touching any account, so the spawn dialog offers "Your Claude Code login".
+if [ "$1" = auth ]; then
+  echo '{"loggedIn":true,"authMethod":"fake"}'
+  exit 0
+fi
+settings=""
+session=""
+prompt=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --settings) settings="$2"; shift 2 ;;
+    --session-id|--resume) session="$2"; shift 2 ;;
+    --model|--effort) shift 2 ;;
+    -*) shift ;;
+    *) prompt="$1"; shift ;;
+  esac
+done
+echo "FAKE CLAUDE (not Claude Code) session $session"
+[ -r "$settings" ] || { echo "FAKE CLAUDE no settings"; exec sleep infinity; }
+dir=$(dirname "$settings")
+url=$(sed -n 's/.*"url": "\([^"]*\)".*/\1/p' "$settings" | head -n 1)
+headers="$dir/fake-hook.headers"
+(umask 077 && sed -n 's/.*"Authorization": "\([^"]*\)".*/Authorization: \1/p' "$settings" |
+  head -n 1 > "$headers")
+
+# hook <json> [max-seconds]: POST one hook payload, print the response body.
+hook() {
+  printf '%s' "$1" | curl -s --max-time "${2:-10}" -H 'Content-Type: application/json' \
+    -H "@$headers" --data-binary @- "$url"
+}
+json_escape() { printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' | tr '\n' ' '; }
+
+file="$PWD/FAKE_CLAUDE.md"
+base="\"session_id\":\"$session\",\"cwd\":\"$PWD\""
+edit="{\"file_path\":\"$file\",\"old_string\":\"\",\"new_string\":\"hello from the fake agent\"}"
+
+hook "{$base,\"hook_event_name\":\"SessionStart\",\"source\":\"startup\"}" > /dev/null
+echo "FAKE CLAUDE prompt: $prompt"
+sleep 1
+hook "{$base,\"hook_event_name\":\"UserPromptSubmit\",\"prompt\":\"$(json_escape "$prompt")\"}" > /dev/null
+sleep 1
+echo "FAKE CLAUDE editing $file"
+hook "{$base,\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"Edit\",\"tool_use_id\":\"toolu_fake_1\",\"tool_input\":$edit}" > /dev/null
+sleep 3
+echo "FAKE CLAUDE asking for permission"
+answer=$(hook "{$base,\"hook_event_name\":\"PermissionRequest\",\"tool_name\":\"Edit\",\"tool_input\":$edit}" 300)
+if printf '%s' "$answer" | grep -q '"behavior" *: *"allow"'; then
+  echo "FAKE CLAUDE allowed"
+  printf 'hello from the fake agent\n' > "$file"
+  git add FAKE_CLAUDE.md &&
+    git -c user.name="Fake Claude" -c user.email=fake-claude@example.invalid \
+      commit -q -m "Add FAKE_CLAUDE.md" &&
+    echo "FAKE CLAUDE committed $(git rev-parse --short HEAD)"
+  hook "{$base,\"hook_event_name\":\"PostToolUse\",\"tool_name\":\"Edit\",\"tool_use_id\":\"toolu_fake_1\",\"tool_input\":$edit,\"tool_response\":{\"filePath\":\"$file\"}}" > /dev/null
+else
+  echo "FAKE CLAUDE not allowed: $answer"
+fi
+hook "{$base,\"hook_event_name\":\"Stop\",\"stop_hook_active\":false}" > /dev/null
+rm -f "$headers"
+echo "FAKE CLAUDE DONE"
+exec sleep infinity

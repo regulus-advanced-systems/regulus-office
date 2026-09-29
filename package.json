@@ -14,6 +14,7 @@
     "typecheck:e2e": "tsc --noEmit -p tests/e2e/tsconfig.json",
     "test": "bun test",
     "e2e": "bun run build:web && playwright test",
+    "e2e:agents": "bun run build:web && E2E_AGENTS=1 playwright test",
     "seed": "bun scripts/seed.ts",
     "lint": "bunx biome check .",
     "format": "bunx biome format --write ."

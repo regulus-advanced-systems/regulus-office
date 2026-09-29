@@ -48,6 +48,48 @@ jobs:
             test-results/
           retention-days: 14
 
+  # M1 exit criteria, automated half (#120): tests/e2e/agents.e2e.ts starts office-server in
+  # production mode with the docker runner backend and a small test runner image holding a fake
+  # `claude` (never the real CLI, no account), then spawns a robot, approves its permission
+  # request, opens a PR against a fake GitHub, restarts the office and sends the robot home.
+  e2e-agents:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - run: bun run typecheck:e2e
+      - name: Throwaway secrets for this run
+        run: |
+          for name in BETTER_AUTH_SECRET OFFICE_MASTER_KEY; do
+            value="$(openssl rand -base64 32)"
+            echo "::add-mask::$value"
+            echo "$name=$value" >> "$GITHUB_ENV"
+          done
+      # Same tag and build args the spec uses (tests/e2e/agentOffice.ts); it rebuilds from cache.
+      - name: Build the test runner image
+        run: |
+          docker build -t regulus-office-e2e-runner:local \
+            --build-arg RUNNER_UID="$(id -u)" --build-arg RUNNER_GID="$(id -g)" tests/e2e/runner
+      - run: bunx playwright install --with-deps chromium
+      - run: bun run e2e:agents
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report-agents
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 14
+      - name: Leftover runners
+        if: always()
+        run: |
+          docker ps -a --filter label=org.regulus.office.role=runner
+          docker ps -aq --filter label=org.regulus.office.role=runner | xargs -r docker rm -f
+
   # `docker compose up` serves the office behind Caddy (SPEC §4.2 Packaging, §13), and the office
   # provisions a runner from the real runner image and runs the fake agent in it (#104).
   compose:
