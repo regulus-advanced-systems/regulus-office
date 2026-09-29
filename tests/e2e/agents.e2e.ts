@@ -283,15 +283,26 @@ test("2. the owner spawns Claude Code at a free desk with their login and a prom
   await ownerPage.mouse.click(desk.x, desk.y);
   const dialog = ownerPage.getByRole("dialog", { name: "Spawn a robot" });
   await expect(dialog).toBeVisible();
-  await expect(dialog.getByText(seatId)).toBeVisible();
-  await expect(dialog.getByLabel("Repo")).toHaveValue(/.+/);
-  await expect(dialog.getByLabel("Provider")).toHaveValue("claude-code");
-  // The default credential: the owner's own Claude Code login (no profile, no secret field).
-  await expect(dialog.getByLabel("Credentials")).toContainText("Your Claude Code login");
+  // The floor's only repo is preselected and named next to the desk, not asked for (#142).
+  await expect(dialog.getByText(`Desk ${seatId} · ${REPO.owner}/${REPO.name}`)).toBeVisible();
+  // The main form: model (focused, grouped by provider) and effort, with defaults.
+  const opus = dialog.getByRole("group", { name: "Claude Code" }).getByRole("radio", {
+    name: "Opus",
+  });
+  await expect(opus).toBeChecked();
+  await expect(opus).toBeFocused();
+  await expect(dialog.getByRole("radio", { name: "Medium" })).toBeChecked();
   await expect(dialog.locator('input[type="password"]')).toHaveCount(0);
+  // More options: the default credential is the owner's own Claude Code login (no secret).
+  await dialog.getByRole("button", { name: "More options" }).click();
+  await expect(dialog.getByLabel("Credentials")).toContainText("Your Claude Code login");
+  await expect(dialog.getByRole("switch", { name: /Own worktree/ })).toHaveAttribute(
+    "aria-checked",
+    "true",
+  );
   await dialog.getByLabel("Task title").fill(TASK);
   await dialog.getByLabel("Issue").fill(String(ISSUE));
-  await dialog.getByLabel("Prompt").fill("Add a FAKE_CLAUDE.md that says hello");
+  await dialog.getByLabel(/^Prompt/).fill("Add a FAKE_CLAUDE.md that says hello");
   await dialog.getByRole("button", { name: "Spawn robot" }).click();
   // The dialog stays pending until our robot sits down at that desk, then closes.
   await expect(dialog).toHaveCount(0, { timeout: 60_000 });

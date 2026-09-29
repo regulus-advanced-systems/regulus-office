@@ -17,10 +17,13 @@ export type ProfilesResult =
   | { ok: true; profiles: CredentialProfileSummary[] }
   | { ok: false; code: string };
 
+/** CLI login per provider: true / false, null when it could not be checked. */
+export type LoginStatus = Partial<Record<ProviderId, boolean | null>>;
+
 export interface CredentialProfilesApi {
   list(provider: ProviderId): Promise<ProfilesResult>;
-  /** The human's CLI login for a provider: true / false, null when unknown. */
-  loginConnected(provider: ProviderId): Promise<boolean | null>;
+  /** The human's CLI logins in their runner (one request for every provider). */
+  loginStatus(): Promise<LoginStatus>;
 }
 
 export function createCredentialProfilesApi(
@@ -39,12 +42,12 @@ export function createCredentialProfilesApi(
     }
   };
   return {
-    async loginConnected(provider) {
+    async loginStatus() {
       const parsed = ProviderLoginStatusResponse.safeParse(
         await getJson(`${options.baseUrl ?? ""}${PROVIDER_LOGINS_API_PATH}`),
       );
-      if (!parsed.success) return null;
-      return parsed.data.providers.find((p) => p.provider === provider)?.connected ?? null;
+      if (!parsed.success) return {};
+      return Object.fromEntries(parsed.data.providers.map((p) => [p.provider, p.connected]));
     },
     async list(provider) {
       const doFetch = options.fetch ?? fetch;
@@ -70,23 +73,4 @@ export function createCredentialProfilesApi(
       return { ok: true, profiles: parsed.data.profiles.filter((p) => p.provider === provider) };
     },
   };
-}
-
-/** Options for the credential select: own login first, then own profiles, then office keys. */
-export function profileOptions(
-  provider: string,
-  providerLabel: string,
-  profiles: readonly CredentialProfileSummary[],
-): { value: string; label: string }[] {
-  const kind = (p: CredentialProfileSummary) =>
-    p.authKind === "cli_login" ? "login" : p.authKind === "api_key" ? "API key" : "plan key";
-  return [
-    { value: "", label: `Your ${providerLabel} login` },
-    ...profiles
-      .filter((p) => p.provider === provider && p.owner === "me")
-      .map((p) => ({ value: p.id, label: `${p.label} (${kind(p)})` })),
-    ...profiles
-      .filter((p) => p.provider === provider && p.owner === "office")
-      .map((p) => ({ value: p.id, label: `Office key: ${p.label}` })),
-  ];
 }

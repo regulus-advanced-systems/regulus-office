@@ -9,7 +9,7 @@
  * over the wire (SPEC §8). `office:<provider>` selects an office-wide key.
  */
 import { z } from "zod";
-import { Effort, GhNumber, Id, ModelName, PromptText, ShortText } from "../common.ts";
+import { Effort, GhNumber, Id, ModelName, PROMPT_MAX, PromptText, ShortText } from "../common.ts";
 import { PERMISSION_DECISIONS, PROVIDER_IDS } from "../enums.ts";
 
 export const SpawnAgentCommand = z.object({
@@ -22,7 +22,11 @@ export const SpawnAgentCommand = z.object({
   model: ModelName,
   effort: Effort.optional(),
   profileId: Id.optional(),
-  prompt: PromptText,
+  /**
+   * First prompt; empty or omitted = the robot starts idle and waits to be
+   * prompted from its panel or terminal (#142).
+   */
+  prompt: z.string().trim().max(PROMPT_MAX).default(""),
   taskTitle: ShortText.optional(),
   issueNumber: GhNumber.optional(),
   prNumber: GhNumber.optional(),

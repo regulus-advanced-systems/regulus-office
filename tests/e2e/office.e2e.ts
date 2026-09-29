@@ -311,11 +311,9 @@ test("clicking a free desk opens the spawn dialog and the server answers agent.s
   const dialog = ownerPage.getByRole("dialog", { name: "Spawn a robot" });
   await expect(dialog).toBeVisible();
   await expect(dialog.getByText(desk.seatId)).toBeVisible();
-  await expect(dialog.getByLabel("Repo")).toHaveValue(/.+/);
-  await expect(dialog.getByLabel("Credentials")).toContainText("Your Claude Code login");
+  // Repo preselected, model and effort defaulted: Spawn right away, with no prompt (#142).
+  await expect(dialog.getByRole("radio", { name: "Opus" })).toBeChecked();
   await expect(dialog.locator('input[type="password"]')).toHaveCount(0);
-
-  await dialog.getByLabel("Prompt").fill("Say hello");
   await dialog.getByRole("button", { name: "Spawn robot" }).click();
   // Without an agent CLI in the e2e server the spawn is refused (shown in the
   // dialog), unless a runner took it, in which case the robot sits down.

@@ -1,6 +1,7 @@
 /**
- * Spawn dialog host (SPEC §9.2 `E` at a free desk): a GDT modal around the
- * spawn form, opened through `useSpawnStore.openSpawn(seatId, prefill)`.
+ * Spawn dialog host (SPEC §9.2 `E` at a free desk, #142): a GDT modal around
+ * the spawn form, opened through `useSpawnStore.openSpawn(seatId, prefill)`,
+ * with focus on the model picker.
  * Sends `agent.spawn` to the FloorRoom, stays pending until the robot shows
  * up at that desk (then closes with a toast) or the server rejects the
  * command (`command.rejected`, shown in the dialog).
@@ -77,6 +78,7 @@ export function SpawnDialogHost({
   /** Robots already at the desk when we sent, so only a new one counts as success. */
   const before = useRef<Set<string>>(new Set());
   const pendingRef = useRef(false);
+  const modelFocus = useRef<HTMLInputElement>(null);
   pendingRef.current = pending;
 
   const seatId = request?.seatId ?? null;
@@ -139,10 +141,25 @@ export function SpawnDialogHost({
     }
   };
 
+  // One repo: it is preselected and named here instead of asked for.
+  const onlyRepo = repos.length === 1 ? repos[0] : undefined;
   return (
-    <Modal open onClose={closeSpawn} title="Spawn a robot" width={600} dismissOnBackdrop={!pending}>
+    <Modal
+      open
+      onClose={closeSpawn}
+      title="Spawn a robot"
+      width={640}
+      dismissOnBackdrop={!pending}
+      initialFocus={modelFocus}
+    >
       <p className="rg-spawn__desk">
         Desk <strong>{request.seatId}</strong>
+        {onlyRepo && (
+          <>
+            {" · "}
+            <span className="rg-spawn__repo">{onlyRepo.label}</span>
+          </>
+        )}
         {pending ? " · starting the robot…" : ""}
       </p>
       <SpawnForm
@@ -152,6 +169,8 @@ export function SpawnDialogHost({
         repos={repos}
         prefill={request.prefill}
         api={api}
+        userId={userId}
+        modelFocusRef={modelFocus}
         pending={pending}
         serverError={serverError}
         onSubmit={submit}

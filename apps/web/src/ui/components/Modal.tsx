@@ -5,7 +5,7 @@
  * The scene behind dims with a cream overlay and slight blur. Focus is
  * trapped, Escape closes, and focus returns to the opener.
  */
-import { type CSSProperties, type ReactNode, useId, useRef } from "react";
+import { type CSSProperties, type ReactNode, type RefObject, useId, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useFocusTrap } from "../a11y/useFocusTrap.ts";
 import { CloseButton } from "./CloseButton.tsx";
@@ -22,6 +22,8 @@ export interface ModalProps {
   inline?: boolean;
   /** Clicking the backdrop closes the dialog (default true). */
   dismissOnBackdrop?: boolean;
+  /** Element to focus when the dialog opens (default: the first focusable one). */
+  initialFocus?: RefObject<HTMLElement | null>;
 }
 
 export function Modal({
@@ -33,10 +35,11 @@ export function Modal({
   width = 520,
   inline = false,
   dismissOnBackdrop = true,
+  initialFocus,
 }: ModalProps) {
   const ref = useRef<HTMLDivElement>(null);
   const titleId = useId();
-  useFocusTrap(ref, { active: open && !inline, onEscape: onClose });
+  useFocusTrap(ref, { active: open && !inline, onEscape: onClose, initialFocus });
   if (!open) return null;
 
   const dialog = (

@@ -113,6 +113,15 @@ describe("ClientCommand", () => {
     expect(spawn.success && spawn.data.type === "agent.spawn" && spawn.data.autoWorktree).toBe(
       true,
     );
+    // No prompt: the robot starts idle (#142); a blank one is the same.
+    for (const prompt of [undefined, "", "   "]) {
+      const idle = parseClientCommand("agent.spawn", { ...valid["agent.spawn"], prompt });
+      expect(idle.success && idle.data.type === "agent.spawn" && idle.data.prompt).toBe("");
+    }
+    expect(
+      parseClientCommand("agent.spawn", { ...valid["agent.spawn"], prompt: "x".repeat(20_001) })
+        .success,
+    ).toBe(false);
     const share = parseClientCommand("screen.share.start", {});
     expect(share.success && share.data.type === "screen.share.start" && share.data.target).toBe(
       "lounge_tv",
