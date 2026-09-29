@@ -98,7 +98,7 @@ describe("zoom limits", () => {
 });
 
 describe("larger rooms (#118)", () => {
-  const small = { width: 15, depth: 12, height: 3 };
+  const small = { width: 16, depth: 13, height: 3 };
   const large = { width: 28, depth: 18, height: 3 };
 
   test("the small office is the zoom reference and keeps the plain limit", () => {

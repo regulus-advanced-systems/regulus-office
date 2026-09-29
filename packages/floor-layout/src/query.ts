@@ -54,7 +54,7 @@ export function anchorStandPose(wall: Wall, anchor: WallAnchor): Pose {
 }
 
 /** Distance of the wall anchor's centre from the floor at both ends of its span. */
-export function anchorSpan(anchor: WallAnchor): { start: number; end: number } {
+export function anchorSpan(anchor: Pick<WallAnchor, "t" | "w">): { start: number; end: number } {
   return { start: anchor.t - anchor.w / 2, end: anchor.t + anchor.w / 2 };
 }
 

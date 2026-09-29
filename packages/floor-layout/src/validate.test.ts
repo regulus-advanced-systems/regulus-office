@@ -182,3 +182,61 @@ describe("rugs", () => {
     expect(problems).toContain('rug "rug" leaves the room');
   });
 });
+
+describe("wall decor and props", () => {
+  test("wall decor is checked like anchors: full walls, no overlaps", () => {
+    const problems = problemsOf(
+      tinyRoom({
+        wallDecor: [
+          { id: "clock", kind: "clock", wallId: "west", t: 2.25, y: 2.3, w: 0.5, h: 0.5 },
+          { id: "stub-poster", kind: "poster", wallId: "south", t: 1, y: 0.2, w: 0.3, h: 0.2 },
+        ],
+      }),
+    );
+    expect(problems).toContain('anchors "board" and "clock" overlap on wall "west"');
+    expect(problems).toContain(
+      'wall decor "stub-poster" must hang on a full wall (wall "south" is a stub)',
+    );
+  });
+
+  test("props must stand on a known obstacle, inside its footprint", () => {
+    const ok = loadTemplate(
+      tinyRoom({ decor: [{ id: "p", kind: "desk_plant", on: "desk", x: 1.2, z: 2.7 }] }),
+    );
+    expect(ok.decor[0]?.heading).toBe(0);
+    const problems = problemsOf(
+      tinyRoom({
+        decor: [
+          { id: "a", kind: "mugs", on: "nope", x: 1, z: 1 },
+          { id: "b", kind: "mugs", on: "desk", x: 3, z: 3 },
+        ],
+      }),
+    );
+    expect(problems).toContain('decor "a" stands on unknown obstacle "nope"');
+    expect(problems).toContain('decor "b" is off its "desk"');
+  });
+
+  test("rugs of the same style may not overlap (they would z-fight); a rug on a patch is fine", () => {
+    const rect = { x: 0.5, z: 0.5, w: 2, d: 2 };
+    expect(
+      problemsOf(
+        tinyRoom({
+          rugs: [
+            { id: "a", rect },
+            { id: "b", rect: { ...rect, x: 1 } },
+          ],
+        }),
+      ),
+    ).toContain('rugs "a" and "b" overlap');
+    expect(
+      problemsOf(
+        tinyRoom({
+          rugs: [
+            { id: "a", rect },
+            { id: "b", rect, style: "patch", tone: "wood" },
+          ],
+        }),
+      ),
+    ).toEqual([]);
+  });
+});

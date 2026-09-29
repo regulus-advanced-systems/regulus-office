@@ -1,6 +1,6 @@
 /**
  * Small office (6 desks): the Office L2 layout shrunk to one shared table,
- * one solo desk and the CEO L-desk. 15 x 12 m.
+ * one solo desk and the CEO L-desk. 16 x 13 m.
  *
  * Zones (#118), read from the elevator on the north wall:
  * - collaboration, west: issue board, PR board, whiteboard and queue
@@ -9,12 +9,27 @@
  *   CEO L-desk front-right;
  * - break, north-east: counter with the coffee machine, water cooler and a
  *   bistro table on a rug.
- * Every desk cluster and interactable opens onto a lane of at least 1.5 m;
- * decoration is one cabinet and three large plants.
+ * - lounge nook, south-west: two armchairs, coffee table, floor lamp and a
+ *   bookshelf against the west wall, on a lighter floor patch.
+ * Lived-in: rugs under the pod, the desk row and the meeting table, a runner
+ * from the elevator, a wood floor and a fridge in the kitchen, mugs and fruit
+ * on the bistro table, a plant on the solo desk, plant groups in the front
+ * corners, a clock, a corkboard and a shelf on the walls.
+ * Every desk cluster and interactable opens onto a lane of at least 1.5 m.
  */
 import { HEADING } from "../geometry.ts";
 import type { FloorTemplateInput } from "../types.ts";
 import { loadTemplate } from "../validate.ts";
+import {
+  bistroProps,
+  bookshelf,
+  deskPlant,
+  loungeNook,
+  patch,
+  plantGroup,
+  prop,
+  wallDecor,
+} from "./decor.ts";
 import {
   BIG_PLANT,
   cabinets,
@@ -28,26 +43,30 @@ import {
   windows,
 } from "./shared.ts";
 
-const WIDTH = 15;
-const DEPTH = 12;
+const WIDTH = 16;
+const DEPTH = 13;
+
+const nook = loungeNook("nook", 2.25, 9.75);
 
 const furniture = furnish(
-  [sharedTable("table-a", 7.5, 4.25), soloDesk("desk-1", 8.25, 8.5), ceoDesk("ceo", 11, 8.5)],
+  [sharedTable("table-a", 7.5, 4.25), soloDesk("desk-1", 8.25, 8.5), ceoDesk("ceo", 11, 8.5), nook],
   [
     cabinets("cabinets", 0.1, 0.1, 1, 0.5),
     { id: "meeting-table", kind: "meeting_table", rect: { x: 3, z: 5, w: 1.2, d: 1.2 } },
-    { id: "water-cooler", kind: "water_cooler", rect: { x: 11.85, z: 0.1, w: 0.4, d: 0.4 } },
-    { id: "kitchen-counter", kind: "counter", rect: { x: 12.4, z: 0.1, w: 2.5, d: 0.6 } },
+    { id: "fridge", kind: "fridge", rect: { x: 12.15, z: 0.1, w: 0.6, d: 0.6 } },
+    { id: "water-cooler", kind: "water_cooler", rect: { x: 12.85, z: 0.1, w: 0.4, d: 0.4 } },
+    { id: "kitchen-counter", kind: "counter", rect: { x: 13.4, z: 0.1, w: 2.5, d: 0.6 } },
     {
       id: "coffee-machine",
       kind: "coffee_machine",
-      rect: { x: 13.5, z: 0.15, w: 0.5, d: 0.5 },
-      standAt: { x: 13.75, z: 1.25, heading: HEADING.north },
+      rect: { x: 14.5, z: 0.15, w: 0.5, d: 0.5 },
+      standAt: { x: 14.75, z: 1.25, heading: HEADING.north },
     },
-    { id: "bistro-table", kind: "bistro_table", rect: { x: 13.4, z: 3.4, w: 0.8, d: 0.8 } },
+    { id: "bistro-table", kind: "bistro_table", rect: { x: 14.4, z: 3.4, w: 0.8, d: 0.8 } },
+    bookshelf("nook-bookshelf", 0.1, 10.5, 0.45, 1.4),
     plant("plant-entry", 4.4, 0.15, BIG_PLANT),
-    plant("plant-sw", 0.2, 11, BIG_PLANT),
-    plant("plant-se", 14, 11, BIG_PLANT),
+    ...plantGroup("plant-sw", 0.2, 12.8, 1, -1),
+    ...plantGroup("plant-se", 15.8, 12.8, -1, -1),
   ],
 );
 
@@ -84,7 +103,25 @@ export const smallTemplateInput: FloorTemplateInput = {
     { id: "picture-n2", kind: "picture", wallId: "north", t: 8.25, y: 1.6, w: 0.9, h: 0.6 },
   ],
   obstacles: furniture.obstacles,
-  rugs: [rug("collab-rug", 2, 4, 3.25, 3.25), rug("kitchen-rug", 12, 2.25, 2.75, 3.5, "alt")],
+  rugs: [
+    patch("kitchen-floor", 12, 0.2, 3.9, 5.8),
+    patch("nook-floor", 1.75, 8.5, 4.25, 4.4, "light"),
+    rug("collab-rug", 2, 4, 3.25, 3.25),
+    rug("entry-runner", 5.5, 0.75, 1.5, 2, "alt"),
+    rug("pod-rug", 7, 2.9, 4.2, 4.2, "alt"),
+    rug("desk-row-rug", 6.9, 8.1, 7, 3.2, "alt"),
+    rug("kitchen-rug", 13, 2.25, 2.75, 3.5),
+  ],
+  wallDecor: [
+    wallDecor("clock", "clock", "north", 9.15, 2.3, 0.5, 0.5),
+    wallDecor("kitchen-corkboard", "corkboard", "north", 12.45, 2.25, 0.8, 0.5),
+    wallDecor("kitchen-shelf", "shelf", "north", 14.65, 1.85, 1.6, 0.3),
+  ],
+  decor: [
+    deskPlant("desk-1", 8.25, 8.5),
+    prop("ceo-books", "books", "ceo-main", 12.9, 8.75),
+    ...bistroProps("bistro-table", 14.4, 3.4),
+  ],
   seats: [
     ...furniture.seats,
     {
@@ -115,13 +152,13 @@ export const smallTemplateInput: FloorTemplateInput = {
       id: "bistro-1",
       kind: "chair",
       furnitureId: "bistro-table",
-      pose: { x: 12.75, z: 3.75, heading: HEADING.east },
+      pose: { x: 13.75, z: 3.75, heading: HEADING.east },
     },
     {
       id: "bistro-2",
       kind: "chair",
       furnitureId: "bistro-table",
-      pose: { x: 13.75, z: 4.75, heading: HEADING.north },
+      pose: { x: 14.75, z: 4.75, heading: HEADING.north },
     },
   ],
 };

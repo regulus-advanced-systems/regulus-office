@@ -82,7 +82,8 @@ export const SEAT_FOOTPRINT = 0.5;
  */
 export function visualFootprint(obstacle: Obstacle, seats: readonly Seat[]): Rect {
   const own = seats.filter((s) => s.furnitureId === obstacle.id);
-  if (obstacle.kind !== "couch" || own.length === 0) return obstacle.rect;
+  if ((obstacle.kind !== "couch" && obstacle.kind !== "armchair") || own.length === 0)
+    return obstacle.rect;
   let x0 = obstacle.rect.x;
   let z0 = obstacle.rect.z;
   let x1 = obstacle.rect.x + obstacle.rect.w;
@@ -212,7 +213,11 @@ export interface AnchorPlacement {
 }
 
 /** Where a wall-anchored object hangs: on the wall's room-facing surface. */
-export function anchorPlacement(wall: Wall, anchor: WallAnchor, depth = 0): AnchorPlacement {
+export function anchorPlacement(
+  wall: Wall,
+  anchor: Pick<WallAnchor, "t" | "y" | "w" | "h">,
+  depth = 0,
+): AnchorPlacement {
   const p = wallPoint(wall, anchor.t);
   const f = DIRECTION[wall.facing];
   const off = WALL_THICKNESS / 2 + WALL_SURFACE_GAP + depth / 2;

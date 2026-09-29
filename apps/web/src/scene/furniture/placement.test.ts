@@ -40,7 +40,9 @@ describe("bounds helpers", () => {
 describe("visualFootprint", () => {
   test("couch grows over its cushion seats", () => {
     const couch = obstacle("couch").rect;
-    const cushionX = Math.min(...t.seats.filter((s) => s.kind === "couch").map((s) => s.pose.x));
+    const cushionX = Math.min(
+      ...t.seats.filter((s) => s.furnitureId === "couch").map((s) => s.pose.x),
+    );
     const r = visualFootprint(obstacle("couch"), t.seats);
     expect(r.x).toBeCloseTo(cushionX - 0.25, 9);
     expect(r.x).toBeLessThan(couch.x);
@@ -99,7 +101,7 @@ describe("restingHeight", () => {
   test("free-standing pieces and supports themselves stay on the floor", () => {
     expect(restingHeight(obstacle("jukebox"), t.obstacles, heightOf)).toBe(0);
     expect(restingHeight(obstacle("coffee-counter"), t.obstacles, heightOf)).toBe(0);
-    expect(restingHeight(obstacle("plant-se"), t.obstacles, heightOf)).toBe(0);
+    expect(restingHeight(obstacle("plant-se-big"), t.obstacles, heightOf)).toBe(0);
   });
 });
 
@@ -183,5 +185,14 @@ describe("propTargetHeight", () => {
 
   test("other props keep their catalog height", () => {
     expect(propTargetHeight("desk", rect(2), 0.76)).toBe(0.76);
+  });
+});
+
+describe("armchairs", () => {
+  test("an armchair grows over its cushion seat, like the couch", () => {
+    const chair = obstacle("armchair-n");
+    const r = visualFootprint(chair, t.seats);
+    expect(r.w * r.d).toBeGreaterThan(chair.rect.w * chair.rect.d);
+    expect(furnitureHeading(chair, t.seats, t.size)).toBe(HEADING.south);
   });
 });

@@ -1,7 +1,16 @@
 import { describe, expect, test } from "bun:test";
 import { officeL2Template, PALETTES, type Palette } from "@regulus/floor-layout";
 import { BLOB_Y } from "../shadows/blob.ts";
-import { RUG_BORDER_Y, RUG_FIELD_Y, rugColor, rugPieces } from "./rugs.ts";
+import {
+  colorDistance,
+  mix,
+  PATCH_Y,
+  RUG_BORDER_Y,
+  RUG_FIELD_Y,
+  rugColor,
+  rugPieces,
+  WOOD_TONE,
+} from "./rugs.ts";
 
 const palette = PALETTES[0] as Palette;
 
@@ -24,6 +33,23 @@ describe("rugs", () => {
     const plain: Palette = { ...palette, wallAlt: undefined, floorAlt: undefined };
     expect(rugColor("warm", plain)).toBe(plain.wall);
     expect(rugColor("alt", plain)).toBe(plain.accent);
+  });
+
+  test("light and wood tones: a lighter floor, and wood that still reads on a wood floor", () => {
+    expect(rugColor("light", palette)).toBe(mix(palette.floor, "#FFFFFF", 0.3));
+    expect(rugColor("wood", palette)).toBe(WOOD_TONE);
+    const oak = PALETTES.find((p) => p.id === "oak-sky") as Palette;
+    expect(colorDistance(rugColor("wood", oak), oak.floor)).toBeGreaterThan(
+      colorDistance(WOOD_TONE, oak.floor),
+    );
+    expect(mix("#000000", "#FFFFFF", 0.5)).toBe("#808080");
+  });
+
+  test("patches keep their style and lie flush, under the rugs", () => {
+    const pieces = rugPieces(officeL2Template.rugs, palette);
+    expect(pieces.some((p) => p.style === "patch")).toBe(true);
+    expect(PATCH_Y).toBeGreaterThan(0);
+    expect(PATCH_Y).toBeLessThan(RUG_BORDER_Y);
   });
 
   test("rugs lie above the floor and below the contact shadows", () => {

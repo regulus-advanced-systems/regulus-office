@@ -132,7 +132,7 @@ export function rug(
   d: number,
   tone: RugTone = "warm",
 ): Rug {
-  return { id, rect: { x, z, w, d }, tone };
+  return { id, rect: { x, z, w, d }, tone, style: "rug" };
 }
 
 export function cabinets(id: string, x: number, z: number, w: number, d: number): Obstacle {

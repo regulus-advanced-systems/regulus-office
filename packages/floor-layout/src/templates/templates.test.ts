@@ -214,8 +214,25 @@ describe("lobby", () => {
     );
   });
 
+  test("the atrium keeps the middle open, on a rug, with a planter island nearby", () => {
+    const centre = { x: lobby.size.width / 2, z: lobby.size.depth / 2 };
+    expect(buildNavGrid(lobby).isWalkable(centre.x, centre.z)).toBe(true);
+    const rug = lobby.rugs.find((r) => r.id === "atrium-rug");
+    expect(rug).toBeDefined();
+    if (!rug) return;
+    expect(centre.x).toBeGreaterThan(rug.rect.x);
+    expect(centre.x).toBeLessThan(rug.rect.x + rug.rect.w);
+    expect(centre.z).toBeGreaterThan(rug.rect.z);
+    expect(centre.z).toBeLessThan(rug.rect.z + rug.rect.d);
+    const island = lobby.obstacles.find((o) => o.kind === "planter");
+    expect(island).toBeDefined();
+    if (!island) return;
+    // Clear of the e2e click point (tolerance 0.75 m) by a lane width.
+    expect(island.rect.z - centre.z).toBeGreaterThanOrEqual(1.5);
+  });
+
   test("couch seats face the TV and the PM robot faces the room", () => {
-    for (const seat of lobby.seats.filter((s) => s.kind === "couch")) {
+    for (const seat of lobby.seats.filter((s) => s.furnitureId === "couch")) {
       expect(seat.pose.heading).toBe(HEADING.west);
     }
     expect(lobby.seats.find((s) => s.kind === "reception")?.pose.heading).toBe(HEADING.south);

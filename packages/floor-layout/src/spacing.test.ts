@@ -69,19 +69,56 @@ describe("bundled templates are spacious (#118)", () => {
     },
   );
 
-  test("decoration: a few large plants, one of each fixture, rugs anchoring zones", () => {
+  test("one of each fixture and no duplicate storage", () => {
     for (const t of all) {
       const of = (kind: string) => t.obstacles.filter((o) => o.kind === kind);
-      const plants = of("plant");
-      expect(plants.length).toBeGreaterThanOrEqual(2);
-      expect(plants.length).toBeLessThanOrEqual(4);
-      for (const p of plants) expect(p.rect.w).toBe(BIG_PLANT);
       expect(of("cabinet").length).toBeLessThanOrEqual(1);
       expect(of("coffee_machine")).toHaveLength(1);
       expect(of("counter")).toHaveLength(1);
-      expect(t.rugs.length).toBeGreaterThanOrEqual(2);
+      if (t.kind !== "lobby") expect(of("fridge")).toHaveLength(1);
     }
   });
+
+  test.each(all.map((t) => [t.id, t] as const))(
+    "%s: lived-in (#118 review): plant groups, lounge pieces, rugs, wall decor, props",
+    (_id, t) => {
+      const of = (kind: string) => t.obstacles.filter((o) => o.kind === kind);
+      const plants = [...of("plant"), ...of("plant_small")];
+      expect(plants.length).toBeLessThanOrEqual(12);
+      expect(of("plant").some((p) => p.rect.w === BIG_PLANT)).toBe(true);
+      // At least one grouping: a small pot within 1.5 m of a bigger plant.
+      const grouped = of("plant_small").some((s) =>
+        of("plant").some((p) => rectGap(p.rect, s.rect) <= 1.5),
+      );
+      expect(grouped).toBe(true);
+      for (const kind of ["armchair", "floor_lamp", "bookshelf"]) {
+        expect(of(kind).length).toBeGreaterThanOrEqual(1);
+      }
+      expect(t.rugs.filter((r) => r.style === "rug").length).toBeGreaterThanOrEqual(2);
+      expect(t.rugs.filter((r) => r.style === "patch").length).toBeGreaterThanOrEqual(1);
+      expect(t.wallDecor.length).toBeGreaterThanOrEqual(3);
+      expect(t.decor.length).toBeGreaterThanOrEqual(2);
+
+      const onRug = (p: { x: number; z: number }, style: "rug" | "patch") =>
+        t.rugs.some(
+          (r) =>
+            r.style === style &&
+            p.x >= r.rect.x &&
+            p.x <= r.rect.x + r.rect.w &&
+            p.z >= r.rect.z &&
+            p.z <= r.rect.z + r.rect.d,
+        );
+      // A runner leads from the elevator; the coffee corner has its own floor.
+      expect(onRug(t.elevator.door, "rug")).toBe(true);
+      const coffee = of("coffee_machine")[0]?.standAt;
+      expect(coffee && onRug(coffee, "patch")).toBe(true);
+      // Every shared table (desk pod) stands on a rug.
+      for (const table of of("shared_table")) {
+        const c = { x: table.rect.x + table.rect.w / 2, z: table.rect.z + table.rect.d / 2 };
+        expect(onRug(c, "rug")).toBe(true);
+      }
+    },
+  );
 
   test.each(all.filter((t) => t.kind !== "lobby").map((t) => [t.id, t] as const))(
     "%s: the meeting table sits in front of the boards (collaboration zone)",

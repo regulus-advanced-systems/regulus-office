@@ -48,6 +48,11 @@ export const OBSTACLE_KINDS = [
   "couch",
   "jukebox",
   "plant",
+  "plant_small",
+  "planter",
+  "armchair",
+  "floor_lamp",
+  "bench",
 ] as const;
 export type ObstacleKind = (typeof OBSTACLE_KINDS)[number];
 
@@ -61,10 +66,23 @@ export const COMPASS_DIRECTIONS = ["north", "south", "east", "west"] as const;
 
 /**
  * Rug colour, resolved against the floor's palette: `warm` takes the second
- * wall colour (cream, orange or crimson), `alt` the second floor colour.
+ * wall colour (cream, orange or crimson), `alt` the second floor colour,
+ * `light` a lighter shade of the floor, `wood` a warm oak plank tone.
  */
-export const RUG_TONES = ["warm", "alt"] as const;
+export const RUG_TONES = ["warm", "alt", "light", "wood"] as const;
 export type RugTone = (typeof RUG_TONES)[number];
+
+/** `rug`: a raised rug with a border. `patch`: a flush floor-material zone (wood, lighter tone). */
+export const RUG_STYLES = ["rug", "patch"] as const;
+export type RugStyle = (typeof RUG_STYLES)[number];
+
+/** Wall decoration that is not interactable (clock, corkboard, poster, shelf). */
+export const WALL_DECOR_KINDS = ["clock", "corkboard", "poster", "shelf"] as const;
+export type WallDecorKind = (typeof WALL_DECOR_KINDS)[number];
+
+/** Small props standing on furniture; never block navigation. */
+export const DECOR_KINDS = ["desk_plant", "mugs", "fruit_bowl", "books"] as const;
+export type DecorKind = (typeof DECOR_KINDS)[number];
 
 // ---- Primitives --------------------------------------------------------------
 
@@ -156,8 +174,34 @@ export const RugSchema = z.object({
   id: Id,
   rect: RectSchema,
   tone: z.enum(RUG_TONES).default("warm"),
+  style: z.enum(RUG_STYLES).default("rug"),
 });
 export type Rug = z.infer<typeof RugSchema>;
+
+/** Decoration hung on a full wall; checked against anchors, windows and the elevator like anchors. */
+export const WallDecorSchema = z.object({
+  id: Id,
+  kind: z.enum(WALL_DECOR_KINDS),
+  wallId: Id,
+  /** Distance along the wall from `from` to the centre, metres. */
+  t: z.number().finite().nonnegative(),
+  /** Height of the centre above the floor, metres. */
+  y: PositiveMetres,
+  w: PositiveMetres,
+  h: PositiveMetres,
+});
+export type WallDecor = z.infer<typeof WallDecorSchema>;
+
+/** A small prop on top of an obstacle (`on`), e.g. a plant on a desk or mugs on a table. */
+export const DecorSchema = z.object({
+  id: Id,
+  kind: z.enum(DECOR_KINDS),
+  on: Id,
+  x: Metres,
+  z: Metres,
+  heading: z.number().finite().default(0),
+});
+export type Decor = z.infer<typeof DecorSchema>;
 
 // ---- Template ------------------------------------------------------------------
 
@@ -177,6 +221,10 @@ export const FloorTemplateSchema = z.object({
   obstacles: z.array(ObstacleSchema),
   /** Zone rugs (decoration only); optional so older templates still parse. */
   rugs: z.array(RugSchema).default([]),
+  /** Non-interactable wall decoration (clock, corkboard, posters). */
+  wallDecor: z.array(WallDecorSchema).default([]),
+  /** Small props standing on furniture. */
+  decor: z.array(DecorSchema).default([]),
   elevator: ElevatorSchema,
   spawn: PoseSchema,
 });
