@@ -50,6 +50,9 @@ interface InspectResult {
   HostConfig: { Mounts?: MountSpec[] | null };
 }
 
+/** How long `ensure` waits for a container someone else is creating to show up. */
+const CREATE_RACE_WAIT_MS = 10_000;
+
 const USER_ID = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,62}$/;
 
 export function checkUserId(userId: string): string {
@@ -58,6 +61,9 @@ export function checkUserId(userId: string): string {
 }
 
 export class RunnerContainers {
+  /** Tail of each human's queue of container changes ({@link #serial}). */
+  readonly #changes = new Map<string, Promise<unknown>>();
+
   constructor(
     private readonly engine: EngineClient,
     readonly settings: ContainerSettings,
@@ -99,16 +105,23 @@ export class RunnerContainers {
     };
   }
 
-  /** Create (if absent) and start the human's runner container. Idempotent. */
-  async ensure(userId: string): Promise<RunnerContainer> {
+  /**
+   * Create (if absent) and start the human's runner container. Idempotent, and
+   * safe to call concurrently: see {@link #serial}.
+   */
+  ensure(userId: string): Promise<RunnerContainer> {
+    return this.#serial(userId, () => this.#ensure(userId));
+  }
+
+  async #ensure(userId: string): Promise<RunnerContainer> {
     const found = await this.lookup(userId);
     if (found) return found.running ? found : this.#start(found);
     try {
       return await this.#start(await this.#create(userId, []));
     } catch (e) {
-      // Lost a creation race with another caller: use theirs.
+      // Lost a creation race with someone outside this office process: use theirs.
       if (e instanceof DockerApiError && e.status === 409) {
-        const other = await this.lookup(userId);
+        const other = await this.#awaitCreated(userId);
         if (other) return other.running ? other : this.#start(other);
       }
       throw e;
@@ -120,10 +133,41 @@ export class RunnerContainers {
    * volume); anything running in the old container, tmux included, does not, so
    * callers only do this when the runner is idle.
    */
-  async recreate(userId: string, floorMounts: MountSpec[]): Promise<RunnerContainer> {
-    const found = await this.lookup(userId);
-    if (found) await this.#remove(found.id);
-    return this.#start(await this.#create(userId, floorMounts));
+  recreate(userId: string, floorMounts: MountSpec[]): Promise<RunnerContainer> {
+    return this.#serial(userId, async () => {
+      const found = await this.lookup(userId);
+      if (found) await this.#remove(found.id);
+      return this.#start(await this.#create(userId, floorMounts));
+    });
+  }
+
+  /**
+   * Run container changes for one human one at a time (#130). The daemon reserves
+   * a container name as soon as a create starts but answers 404 for it until the
+   * create is done, which can take seconds on a busy host. Two overlapping
+   * `ensure`s (the spawn dialog's login check and the spawn itself) used to both
+   * create: the second got 409 "name already in use", found nothing to reuse and
+   * failed the spawn. The same goes for an `ensure` between a recreate's remove
+   * and create.
+   */
+  #serial<T>(userId: string, work: () => Promise<T>): Promise<T> {
+    const run = (this.#changes.get(userId) ?? Promise.resolve()).catch(() => {}).then(work);
+    this.#changes.set(userId, run);
+    const release = () => {
+      if (this.#changes.get(userId) === run) this.#changes.delete(userId);
+    };
+    run.then(release, release);
+    return run;
+  }
+
+  /** After a 409 from create: the other creator's container, once the daemon shows it. */
+  async #awaitCreated(userId: string): Promise<RunnerContainer | null> {
+    const deadline = Date.now() + CREATE_RACE_WAIT_MS;
+    for (;;) {
+      const found = await this.lookup(userId);
+      if (found || Date.now() >= deadline) return found;
+      await Bun.sleep(100);
+    }
   }
 
   /** Runner containers created with this prefix (for recovery after an office restart). */
@@ -152,8 +196,10 @@ export class RunnerContainers {
 
   /** Remove the container and, with `removeHome`, the credential volume too. */
   async remove(userId: string, opts: { removeHome?: boolean } = {}): Promise<void> {
-    const found = await this.lookup(userId);
-    if (found) await this.#remove(found.id);
+    await this.#serial(userId, async () => {
+      const found = await this.lookup(userId);
+      if (found) await this.#remove(found.id);
+    });
     if (opts.removeHome) {
       try {
         await this.engine.call("DELETE", `/volumes/${this.volumeName(userId)}`);
