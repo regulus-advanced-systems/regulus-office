@@ -107,10 +107,13 @@ export function SpawnForm(props: SpawnFormProps) {
     setErrors((e) => (e[key] ? { ...e, [key]: undefined } : e));
   };
 
+  const moreRef = useRef<HTMLButtonElement>(null);
   const toggleMore = () => {
     const next = !moreOpen;
     setMoreOpen(next);
     saveMoreOptionsOpen(userId, next);
+    // On short screens the section opens below the fold: bring it up.
+    if (next) requestAnimationFrame(() => moreRef.current?.scrollIntoView?.({ block: "start" }));
   };
 
   const submit = (event: React.FormEvent | React.KeyboardEvent) => {
@@ -170,6 +173,7 @@ export function SpawnForm(props: SpawnFormProps) {
           />
 
           <button
+            ref={moreRef}
             type="button"
             className="rg-spawn__more-toggle"
             aria-expanded={moreOpen}
