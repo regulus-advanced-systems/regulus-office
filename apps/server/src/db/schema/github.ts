@@ -50,3 +50,30 @@ export const githubPulls = sqliteTable(
     check("github_pulls_review_state_check", inEnum("review_state", REVIEW_STATES)),
   ],
 );
+
+/**
+ * The office's GitHub connection (SPEC §4.2, §8, D14; #141): at most one row,
+ * id `office`. Either a GitHub App made with the manifest flow (id, private
+ * key, webhook secret) or an org fine-grained PAT. Every secret column is an
+ * envelope from apps/server/src/secrets with the AAD bound to the row and the
+ * column, and never leaves the server.
+ */
+export const githubConnection = sqliteTable(
+  "github_connection",
+  {
+    id: text("id").primaryKey(),
+    kind: enumText("kind", ["app", "pat"] as const).notNull(),
+    appId: integer("app_id"),
+    appClientId: text("app_client_id"),
+    appSlug: text("app_slug"),
+    appName: text("app_name"),
+    appHtmlUrl: text("app_html_url"),
+    appOwner: text("app_owner"),
+    encryptedPrivateKey: text("encrypted_private_key"),
+    encryptedWebhookSecret: text("encrypted_webhook_secret"),
+    encryptedToken: text("encrypted_token"),
+    tokenLogin: text("token_login"),
+    ...timestamps(),
+  },
+  () => [check("github_connection_kind_check", inEnum("kind", ["app", "pat"]))],
+);

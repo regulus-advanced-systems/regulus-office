@@ -18,6 +18,8 @@ import { ConfigError, loadConfig, redactConfig } from "./config.ts";
 import { mountCredentialPanel } from "./credentials/panel.ts";
 import { closeDatabase, databasePathFor, openDatabase, runMigrations } from "./db/index.ts";
 import { createFloors, mountFloorRoutes } from "./floors/index.ts";
+import { mountGitHubRoutes } from "./github/routes.ts";
+import { createGitHubConnection } from "./github/setup.ts";
 import { createOfficeServer } from "./http/server.ts";
 import { WsRouter } from "./http/ws-router.ts";
 import { createShutdownController, installSignalHandlers } from "./lifecycle.ts";
@@ -139,11 +141,21 @@ async function main(): Promise<void> {
       process.exit(2);
     }
   }
+  // Office GitHub connection (#141): App or org PAT; clones and PRs use it for repos it covers.
+  let github: ReturnType<typeof createGitHubConnection>;
+  try {
+    github = createGitHubConnection({ db, keyring, config, logger });
+  } catch (err) {
+    console.error(`Invalid GitHub App configuration: ${(err as Error).message}`);
+    process.exit(2);
+  }
+  mountGitHubRoutes(server.router, { auth, db, logger, ...github });
   const floors = createFloors({
     db,
     logger,
     config,
     keyring,
+    connection: github.connection,
     onChange: (floorId) => {
       rooms.floorChanged(floorId).catch((err) => logger.error({ err }, "floor refresh failed"));
     },

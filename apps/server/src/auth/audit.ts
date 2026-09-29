@@ -31,6 +31,8 @@ export const AUDIT_ACTIONS = {
   credentialProfileDelete: "credential_profile.delete",
   providerLoginStart: "provider_login.start",
   providerLoginFinish: "provider_login.finish",
+  githubConnect: "github.connect",
+  githubDisconnect: "github.disconnect",
 } as const;
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];
 
@@ -46,7 +48,8 @@ export interface AuditEntry {
     | "agent"
     | "worktrees"
     | "credential_profile"
-    | "provider_login";
+    | "provider_login"
+    | "github_connection";
   targetId: string | null;
   meta?: Record<string, unknown>;
 }

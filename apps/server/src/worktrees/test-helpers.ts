@@ -11,6 +11,7 @@ import { agents } from "../db/schema/index.ts";
 import { createFloors } from "../floors/index.ts";
 import { FAKE_PAT, makeBareRepo, testDb } from "../floors/test-helpers.ts";
 import { type GitRunner, gitBaseEnv, runGit } from "../github/git.ts";
+import type { ConnectionTokens } from "../github/repo-access.ts";
 import { createLogger } from "../logging.ts";
 import { humanAreaDir, humanClonePath } from "../runners/layout.ts";
 import { createWorktrees } from "./index.ts";
@@ -97,7 +98,13 @@ export function fakeGitHub(respond: (req: RecordedRequest) => Response) {
  */
 export async function setupFloor(
   root: string,
-  options: { token?: boolean; apiBase?: string; git?: GitRunner } = {},
+  options: {
+    token?: boolean;
+    apiBase?: string;
+    git?: GitRunner;
+    /** The office GitHub connection (#141). */
+    connection?: ConnectionTokens;
+  } = {},
 ) {
   const id = randomUUID().slice(0, 8);
   const remotes = join(root, `remotes-${id}`);
@@ -110,6 +117,7 @@ export async function setupFloor(
     logger,
     config: { projectsDir: join(root, `projects-${id}`), githubRemoteBase: remoteBase },
     keyring: { current: 1, keys: { 1: randomBytes(32) } },
+    connection: options.connection,
   });
   const created = floors.service.create(owner, {
     name: "WT Floor",

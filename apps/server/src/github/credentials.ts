@@ -24,7 +24,11 @@ export function repoCredentialContext(repoId: string): SecretContext {
 
 export class RepoCredentialError extends Error {
   override name = "RepoCredentialError";
-  constructor(readonly code: "master_key_missing" | "undecryptable") {
+  constructor(
+    readonly code: "master_key_missing" | "undecryptable" | "connection_failed",
+    /** Redacted detail for `connection_failed`. */
+    readonly detail?: string,
+  ) {
     super(code);
   }
 }
