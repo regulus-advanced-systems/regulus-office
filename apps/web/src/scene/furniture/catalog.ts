@@ -50,6 +50,40 @@ export const MODEL_URLS = {
     "../../../../../packages/assets/models/furniture/televisionModern.glb",
     import.meta.url,
   ).href,
+  plantSmall1: new URL(
+    "../../../../../packages/assets/models/furniture/plantSmall1.glb",
+    import.meta.url,
+  ).href,
+  plantSmall2: new URL(
+    "../../../../../packages/assets/models/furniture/plantSmall2.glb",
+    import.meta.url,
+  ).href,
+  plantSmall3: new URL(
+    "../../../../../packages/assets/models/furniture/plantSmall3.glb",
+    import.meta.url,
+  ).href,
+  loungeChair: new URL(
+    "../../../../../packages/assets/models/furniture/loungeChair.glb",
+    import.meta.url,
+  ).href,
+  lampRoundFloor: new URL(
+    "../../../../../packages/assets/models/furniture/lampRoundFloor.glb",
+    import.meta.url,
+  ).href,
+  kitchenFridge: new URL(
+    "../../../../../packages/assets/models/furniture/kitchenFridge.glb",
+    import.meta.url,
+  ).href,
+  tableRound: new URL(
+    "../../../../../packages/assets/models/furniture/tableRound.glb",
+    import.meta.url,
+  ).href,
+  table: new URL("../../../../../packages/assets/models/furniture/table.glb", import.meta.url).href,
+  benchCushion: new URL(
+    "../../../../../packages/assets/models/furniture/benchCushion.glb",
+    import.meta.url,
+  ).href,
+  books: new URL("../../../../../packages/assets/models/furniture/books.glb", import.meta.url).href,
 } as const;
 
 /** Kenney's kit is exported facing -z; our default "front" is +z (toward the camera). */
@@ -68,7 +102,33 @@ export const FURNITURE_MODELS: Partial<Record<ObstacleKind, ModelSpec>> = {
   couch: { url: MODEL_URLS.loungeSofa, targetHeight: 0.85, modelHeading: KENNEY_HEADING },
   coffee_table: { url: MODEL_URLS.tableCoffee, targetHeight: 0.45, modelHeading: KENNEY_HEADING },
   plant: { url: MODEL_URLS.pottedPlant, targetHeight: 1.2, uniform: true },
+  plant_small: { url: MODEL_URLS.plantSmall1, targetHeight: 0.6, uniform: true },
+  fridge: { url: MODEL_URLS.kitchenFridge, targetHeight: 1.8, modelHeading: KENNEY_HEADING },
+  bistro_table: { url: MODEL_URLS.tableRound, targetHeight: 0.75, modelHeading: KENNEY_HEADING },
+  meeting_table: { url: MODEL_URLS.table, targetHeight: 0.76, modelHeading: KENNEY_HEADING },
+  armchair: {
+    url: MODEL_URLS.loungeChair,
+    targetHeight: 0.8,
+    uniform: true,
+    modelHeading: KENNEY_HEADING,
+  },
+  floor_lamp: { url: MODEL_URLS.lampRoundFloor, targetHeight: 1.6, uniform: true },
+  bench: { url: MODEL_URLS.benchCushion, targetHeight: 0.45, modelHeading: KENNEY_HEADING },
 };
+
+/** Small plants rotate through the kit's three variants so a group does not look copy-pasted. */
+export const SMALL_PLANT_URLS = [
+  MODEL_URLS.plantSmall1,
+  MODEL_URLS.plantSmall2,
+  MODEL_URLS.plantSmall3,
+] as const;
+
+/** Pick a small-plant variant from an id (stable across renders). */
+export function smallPlantUrl(id: string): string {
+  let h = 0;
+  for (const ch of id) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return SMALL_PLANT_URLS[h % SMALL_PLANT_URLS.length] as string;
+}
 
 export const CHAIR_MODEL: ModelSpec = {
   url: MODEL_URLS.chairDesk,
@@ -107,4 +167,9 @@ export const PLACEHOLDER_HEIGHTS: Readonly<Record<ObstacleKind, number>> = {
   couch: 0.85,
   jukebox: 1.5,
   plant: 1.2,
+  plant_small: 0.6,
+  planter: 0.45,
+  armchair: 0.8,
+  floor_lamp: 1.6,
+  bench: 0.45,
 };

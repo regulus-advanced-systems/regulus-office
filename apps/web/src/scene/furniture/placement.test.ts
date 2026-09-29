@@ -8,6 +8,9 @@ import {
   fitToFootprint,
   furnitureHeading,
   headingAwayFromNearestWall,
+  PLANT_BASE_FOOTPRINT,
+  PLANT_MAX_GROWTH,
+  propTargetHeight,
   restingHeight,
   snapHeading,
   visualFootprint,
@@ -36,11 +39,16 @@ describe("bounds helpers", () => {
 
 describe("visualFootprint", () => {
   test("couch grows over its cushion seats", () => {
+    const couch = obstacle("couch").rect;
+    const cushionX = Math.min(
+      ...t.seats.filter((s) => s.furnitureId === "couch").map((s) => s.pose.x),
+    );
     const r = visualFootprint(obstacle("couch"), t.seats);
-    expect(r.x).toBeCloseTo(2.0, 9);
-    expect(r.x + r.w).toBeCloseTo(2.9, 9);
-    expect(r.z).toBeCloseTo(6.5, 9);
-    expect(r.z + r.d).toBeCloseTo(8.5, 9);
+    expect(r.x).toBeCloseTo(cushionX - 0.25, 9);
+    expect(r.x).toBeLessThan(couch.x);
+    expect(r.x + r.w).toBeCloseTo(couch.x + couch.w, 9);
+    expect(r.z).toBeCloseTo(couch.z, 9);
+    expect(r.z + r.d).toBeCloseTo(couch.z + couch.d, 9);
   });
 
   test("everything else keeps its template rect", () => {
@@ -93,7 +101,7 @@ describe("restingHeight", () => {
   test("free-standing pieces and supports themselves stay on the floor", () => {
     expect(restingHeight(obstacle("jukebox"), t.obstacles, heightOf)).toBe(0);
     expect(restingHeight(obstacle("coffee-counter"), t.obstacles, heightOf)).toBe(0);
-    expect(restingHeight(obstacle("plant-nw"), t.obstacles, heightOf)).toBe(0);
+    expect(restingHeight(obstacle("plant-se-big"), t.obstacles, heightOf)).toBe(0);
   });
 });
 
@@ -153,7 +161,7 @@ describe("anchorPlacement", () => {
     if (!north || !west || !whiteboard || !usage) throw new Error("lobby changed");
 
     const wb = anchorPlacement(north, whiteboard);
-    expect(wb.position[0]).toBeCloseTo(3.25, 9);
+    expect(wb.position[0]).toBeCloseTo(whiteboard.t, 9);
     expect(wb.position[1]).toBe(1.4);
     expect(wb.position[2]).toBeCloseTo(WALL_THICKNESS / 2 + WALL_SURFACE_GAP, 9);
     expect(wb.rotationY).toBeCloseTo(0, 9);
@@ -161,7 +169,30 @@ describe("anchorPlacement", () => {
 
     const uw = anchorPlacement(west, usage, 0.1);
     expect(uw.position[0]).toBeCloseTo(WALL_THICKNESS / 2 + WALL_SURFACE_GAP + 0.05, 9);
-    expect(uw.position[2]).toBeCloseTo(3.75, 9);
+    expect(uw.position[2]).toBeCloseTo(usage.t, 9);
     expect(uw.rotationY).toBeCloseTo(Math.PI / 2, 9);
+  });
+});
+
+describe("propTargetHeight", () => {
+  const rect = (size: number) => ({ x: 0, z: 0, w: size, d: size });
+  test("plants grow with their pot, within limits", () => {
+    expect(propTargetHeight("plant", rect(PLANT_BASE_FOOTPRINT), 1.2)).toBeCloseTo(1.2, 9);
+    expect(propTargetHeight("plant", rect(0.8), 1.2)).toBeCloseTo(1.2 * 1.6, 9);
+    expect(propTargetHeight("plant", rect(3), 1.2)).toBeCloseTo(1.2 * PLANT_MAX_GROWTH, 9);
+    expect(propTargetHeight("plant", rect(0.3), 1.2)).toBeCloseTo(1.2, 9);
+  });
+
+  test("other props keep their catalog height", () => {
+    expect(propTargetHeight("desk", rect(2), 0.76)).toBe(0.76);
+  });
+});
+
+describe("armchairs", () => {
+  test("an armchair grows over its cushion seat, like the couch", () => {
+    const chair = obstacle("armchair-n");
+    const r = visualFootprint(chair, t.seats);
+    expect(r.w * r.d).toBeGreaterThan(chair.rect.w * chair.rect.d);
+    expect(furnitureHeading(chair, t.seats, t.size)).toBe(HEADING.south);
   });
 });

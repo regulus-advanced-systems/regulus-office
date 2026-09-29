@@ -1,12 +1,13 @@
 /**
- * SPEC §12 lighting: one hemisphere light (warm sky, tan ground) and one
+ * SPEC §12 lighting: one hemisphere light (warm sky, tan ground; a touch
+ * warmer since #118 so the rooms read as a lived-in office) and one
  * directional key from the upper left of the screen. No cast shadow maps;
  * contact shadows are baked separately (see OfficeCanvas).
  */
 import { colors } from "../../ui/theme.ts";
 
-export const HEMI_SKY = "#FFFBF0";
-export const HEMI_GROUND = "#C9B48A";
+export const HEMI_SKY = "#FFF4E0";
+export const HEMI_GROUND = "#CDB088";
 export const HEMI_INTENSITY = 1.15;
 export const KEY_INTENSITY = 1.5;
 /**

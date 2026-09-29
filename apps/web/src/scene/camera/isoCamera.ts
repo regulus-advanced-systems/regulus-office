@@ -12,7 +12,8 @@ export const ISO_PITCH_DEG = 35.264;
 /** Distance from the look-at target to the camera, metres. Only depth precision depends on it. */
 export const CAMERA_DISTANCE = 60;
 /**
- * Near/far hug the room (nothing is more than ~25 m from the target) so the
+ * Near/far hug the room (nothing in the largest template, 28 x 18 m, is more
+ * than ~16 m from the target along the view axis) so the
  * depth buffer keeps millimetre precision even at 16 bits; the contact-shadow
  * plane sits only centimetres above the floor.
  */
@@ -27,6 +28,13 @@ export const ROOM_FILL_HEIGHT = 0.9;
 /** Scroll-zoom multipliers relative to the fitted zoom. */
 export const ZOOM_FACTOR_MIN = 0.7;
 export const ZOOM_FACTOR_MAX = 2.2;
+/**
+ * Projected floor width (metres) up to which `ZOOM_FACTOR_MAX` applies as is:
+ * the small office (16 x 13 m). Bigger rooms are fitted at fewer pixels per
+ * metre, so their zoom-in limit grows by the same ratio and a desk can be
+ * brought as close on a large floor as on a small one (#118).
+ */
+export const ZOOM_REFERENCE_WIDTH = (16 + 13) * Math.SQRT1_2;
 /** Wheel sensitivity: zoom factor multiplies by exp(-deltaY * this). */
 export const WHEEL_SENSITIVITY = 0.0012;
 
@@ -101,9 +109,15 @@ export function fitZoom(viewport: Viewport, room: RoomExtent): number {
   return Math.max(1, Math.min(byWidth, byHeight));
 }
 
-export function clampZoomFactor(factor: number): number {
+/** Zoom-in limit for a room: `ZOOM_FACTOR_MAX`, scaled up for rooms wider than the reference. */
+export function maxZoomFactor(room?: RoomExtent): number {
+  if (!room) return ZOOM_FACTOR_MAX;
+  return ZOOM_FACTOR_MAX * Math.max(1, projectedSize(room).width / ZOOM_REFERENCE_WIDTH);
+}
+
+export function clampZoomFactor(factor: number, room?: RoomExtent): number {
   if (!Number.isFinite(factor)) return 1;
-  return Math.min(ZOOM_FACTOR_MAX, Math.max(ZOOM_FACTOR_MIN, factor));
+  return Math.min(maxZoomFactor(room), Math.max(ZOOM_FACTOR_MIN, factor));
 }
 
 /** New zoom factor after a wheel event; scrolling up (negative deltaY) zooms in. */
@@ -111,11 +125,12 @@ export function zoomFactorAfterWheel(
   factor: number,
   deltaY: number,
   sensitivity = WHEEL_SENSITIVITY,
+  room?: RoomExtent,
 ): number {
-  return clampZoomFactor(factor * Math.exp(-deltaY * sensitivity));
+  return clampZoomFactor(factor * Math.exp(-deltaY * sensitivity), room);
 }
 
 /** Effective `camera.zoom` for a viewport, room and user zoom factor. */
 export function cameraZoom(viewport: Viewport, room: RoomExtent, factor: number): number {
-  return fitZoom(viewport, room) * clampZoomFactor(factor);
+  return fitZoom(viewport, room) * clampZoomFactor(factor, room);
 }

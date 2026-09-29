@@ -4,7 +4,7 @@
  * walkable cells, all reachable from the spawn point). `loadTemplate` runs all
  * three and throws, so a bad template fails at import time rather than in a room.
  */
-import { type Rect, rectContains, rectInside, spansOverlap } from "./geometry.ts";
+import { type Rect, rectContains, rectInside, rectsOverlap, spansOverlap } from "./geometry.ts";
 import { buildNavGrid, type NavGrid } from "./nav-grid.ts";
 import { anchorSpan, interactables, rectSpanOnWall, wallById, wallLength } from "./query.ts";
 import { type FloorTemplate, type FloorTemplateInput, FloorTemplateSchema } from "./types.ts";
@@ -42,6 +42,9 @@ export function structuralProblems(t: FloorTemplate): string[] {
     ["seat", t.seats.map((s) => s.id)],
     ["wallAnchor", t.wallAnchors.map((a) => a.id)],
     ["obstacle", t.obstacles.map((o) => o.id)],
+    ["rug", t.rugs.map((r) => r.id)],
+    ["wallDecor", t.wallDecor.map((d) => d.id)],
+    ["decor", t.decor.map((d) => d.id)],
   ] as const) {
     for (const id of duplicates([...ids])) problems.push(`duplicate ${what} id "${id}"`);
   }
@@ -71,45 +74,51 @@ export function structuralProblems(t: FloorTemplate): string[] {
   if (!rectInside(t.elevator.rect, bounds)) problems.push("elevator rect leaves the room bounds");
   if (!rectContains(bounds, t.spawn)) problems.push("spawn point is outside the room");
 
-  const anchorsByWall = new Map<string, { id: string; start: number; end: number }[]>();
-  for (const anchor of t.wallAnchors) {
-    const wall = wallById(t, anchor.wallId);
+  // Anchors and wall decor share the checks; decor only differs in the label.
+  const hung = [
+    ...t.wallAnchors.map((a) => ({ ...a, label: "anchor" })),
+    ...t.wallDecor.map((d) => ({ ...d, label: "wall decor" })),
+  ];
+  const spansByWall = new Map<string, { id: string; start: number; end: number }[]>();
+  for (const item of hung) {
+    const what = `${item.label} "${item.id}"`;
+    const wall = wallById(t, item.wallId);
     if (!wall) {
-      problems.push(`anchor "${anchor.id}" references unknown wall "${anchor.wallId}"`);
+      problems.push(`${what} references unknown wall "${item.wallId}"`);
       continue;
     }
     if (wall.height !== "full") {
-      problems.push(`anchor "${anchor.id}" must hang on a full wall (wall "${wall.id}" is a stub)`);
+      problems.push(`${what} must hang on a full wall (wall "${wall.id}" is a stub)`);
       continue;
     }
-    const span = anchorSpan(anchor);
+    const span = anchorSpan(item);
     const len = wallLength(wall);
     if (span.start < -1e-6 || span.end > len + 1e-6) {
-      problems.push(`anchor "${anchor.id}" hangs past the ends of wall "${wall.id}"`);
+      problems.push(`${what} hangs past the ends of wall "${wall.id}"`);
     }
-    const top = anchor.y + anchor.h / 2;
-    if (anchor.y - anchor.h / 2 < 0 || top > wallHeightOf(wall.height) + 1e-6) {
-      problems.push(`anchor "${anchor.id}" does not fit the height of wall "${wall.id}"`);
+    const top = item.y + item.h / 2;
+    if (item.y - item.h / 2 < 0 || top > wallHeightOf(wall.height) + 1e-6) {
+      problems.push(`${what} does not fit the height of wall "${wall.id}"`);
     }
     for (const opening of wall.openings) {
       if (spansOverlap(span.start, span.end, opening.t, opening.t + opening.w)) {
-        problems.push(`anchor "${anchor.id}" overlaps a ${opening.kind} on wall "${wall.id}"`);
+        problems.push(`${what} overlaps a ${opening.kind} on wall "${wall.id}"`);
       }
     }
     if (elevatorWall && wall.id === elevatorWall.id) {
       const ev = rectSpanOnWall(wall, t.elevator.rect);
       if (spansOverlap(span.start, span.end, ev.start, ev.end)) {
-        problems.push(`anchor "${anchor.id}" overlaps the elevator doors`);
+        problems.push(`${what} overlaps the elevator doors`);
       }
     }
-    const list = anchorsByWall.get(wall.id) ?? [];
+    const list = spansByWall.get(wall.id) ?? [];
     for (const other of list) {
       if (spansOverlap(span.start, span.end, other.start, other.end)) {
-        problems.push(`anchors "${other.id}" and "${anchor.id}" overlap on wall "${wall.id}"`);
+        problems.push(`anchors "${other.id}" and "${item.id}" overlap on wall "${wall.id}"`);
       }
     }
-    list.push({ id: anchor.id, ...span });
-    anchorsByWall.set(wall.id, list);
+    list.push({ id: item.id, ...span });
+    spansByWall.set(wall.id, list);
   }
 
   const obstacleIds = new Set(t.obstacles.map((o) => o.id));
@@ -119,6 +128,20 @@ export function structuralProblems(t: FloorTemplate): string[] {
     if (obstacle.standAt && !rectContains(bounds, obstacle.standAt)) {
       problems.push(`obstacle "${obstacle.id}" standAt is outside the room`);
     }
+  }
+  for (const [i, rug] of t.rugs.entries()) {
+    if (!rectInside(rug.rect, bounds)) problems.push(`rug "${rug.id}" leaves the room`);
+    // Same-style rugs lie at the same height, so an overlap would z-fight.
+    for (const other of t.rugs.slice(0, i)) {
+      if (other.style === rug.style && rectsOverlap(other.rect, rug.rect))
+        problems.push(`rugs "${other.id}" and "${rug.id}" overlap`);
+    }
+  }
+  for (const item of t.decor) {
+    const base = t.obstacles.find((o) => o.id === item.on);
+    if (!base) problems.push(`decor "${item.id}" stands on unknown obstacle "${item.on}"`);
+    else if (!rectContains(base.rect, item))
+      problems.push(`decor "${item.id}" is off its "${item.on}"`);
   }
   for (const seat of t.seats) {
     if (!rectContains(bounds, seat.pose)) problems.push(`seat "${seat.id}" is outside the room`);
