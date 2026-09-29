@@ -208,20 +208,19 @@ test("1. the owner creates a floor from the bare repo and rides to it", async ()
   await dialog.getByRole("button", { name: "Create floor" }).click();
   const added = ownerPage.getByRole("dialog", { name: "Floor added" });
   await expect(added.getByText(`Ready on ${REPO.branch}`)).toBeVisible();
-  await added.getByRole("button", { name: "Go to floor" }).click();
-  await expect(ownerPage.locator(".rg-topbar__floor")).toHaveText(FLOOR);
-  await expect(ownerPage.getByRole("list", { name: "Work on this floor" })).toBeVisible();
 
-  // No floor-member UI yet (#30): the owner grants the member view access over the API.
-  const { floors } = (await api(ownerPage, "GET", "/api/floors")) as {
-    floors: { floorId: string; name: string }[];
-  };
-  const floor = floors.find((f) => f.name === FLOOR);
-  if (!floor) throw new Error("floor missing from /api/floors");
-  const memberMe = (await api(memberPage, "GET", "/api/me")) as { id: string };
-  await api(ownerPage, "PUT", `/api/floors/${floor.floorId}/members/${memberMe.id}`, {
-    access: "view",
-  });
+  // A new floor offers "Add people" straight away: the owner lets the member watch (#131).
+  await added.getByRole("button", { name: "Add people…" }).click();
+  const settings = ownerPage.getByRole("dialog", { name: "Floor settings" });
+  await settings.getByLabel("Search people").fill("ben");
+  await settings.getByRole("checkbox", { name: new RegExp(member.name) }).check();
+  await settings.getByLabel("Access for the people you add").selectOption("view");
+  await settings.getByRole("button", { name: "Add 1 person" }).click();
+  await expect(settings.getByLabel(`Access for ${member.name}`)).toHaveValue("view");
+  await settings.getByRole("button", { name: "Done" }).click();
+  await expect(settings).toHaveCount(0);
+  await rideTo(ownerPage, FLOOR);
+
   await memberPage.goto(OFFICE_PROBE_PATH);
   await waitForScene(memberPage);
   await rideTo(memberPage, FLOOR);

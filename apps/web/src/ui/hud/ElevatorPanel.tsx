@@ -1,7 +1,8 @@
 /**
  * Elevator list (SPEC §9.1): the lobby and the floors this user may enter,
  * with name, busy counts, a palette chip and clone status; clicking rides
- * there (`floor.go` + FloorRoom switch). Owners and admins get "Add floor".
+ * there (`floor.go` + FloorRoom switch). Owners and admins get "Add floor";
+ * anyone who manages a floor gets a gear beside it for its settings (people).
  */
 import { PALETTES, paletteById } from "@regulus/floor-layout";
 import { type FloorSummary, LOBBY_FLOOR_ID } from "@regulus/protocol";
@@ -13,7 +14,9 @@ import { cloneBadge, useFloorsStore } from "../../state/floors.ts";
 import { canManageOffice, useSessionStore } from "../../state/session.ts";
 import { useUiStore } from "../../state/ui.ts";
 import { Button } from "../components/Button.tsx";
+import { GearIcon } from "../components/icons.tsx";
 import { ADD_FLOOR_OVERLAY } from "../floors/AddFloorDialog.tsx";
+import { canManageFloor, floorSettingsOverlay } from "../floors/floorSettings.ts";
 import { Panel } from "../Panel.tsx";
 
 /**
@@ -53,7 +56,7 @@ export function ElevatorPanel() {
           const color = (paletteById(floor.paletteId) ?? PALETTES[0])?.floor;
           const badge = cloneBadge(restFloors?.find((f) => f.floorId === floor.floorId));
           return (
-            <li key={floor.floorId}>
+            <li key={floor.floorId} className="rg-elevator__row">
               <button
                 type="button"
                 className="rg-list__item"
@@ -74,6 +77,18 @@ export function ElevatorPanel() {
                   )}
                 </span>
               </button>
+              {canManageFloor(restFloors, floor.floorId) && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="rg-elevator__gear"
+                  aria-haspopup="dialog"
+                  aria-label={`Floor settings: ${floor.name}`}
+                  title={`Floor settings: who can use ${floor.name}`}
+                  icon={<GearIcon />}
+                  onClick={() => openOverlay(floorSettingsOverlay(floor.floorId))}
+                />
+              )}
             </li>
           );
         })}

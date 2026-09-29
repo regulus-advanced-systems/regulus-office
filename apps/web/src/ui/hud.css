@@ -29,6 +29,15 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.rg-topbar__floorline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.rg-topbar__floorline .rg-btn--sm {
+  padding-top: 0;
+  padding-bottom: 0;
+}
 .rg-topbar__floor {
   font-size: 14px;
   color: var(--rg-color-ink-muted);
