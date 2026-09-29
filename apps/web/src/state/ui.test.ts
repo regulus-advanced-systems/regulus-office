@@ -52,7 +52,13 @@ describe("ui store", () => {
     const storage = memoryStorage();
     storage.setItem("regulus.ui.settings.v1", '{"reducedMotion":true,"volume":0.5}');
     const store = createUiStore({ storage });
-    expect(store.getState().settings).toEqual({ reducedMotion: true, volume: 0.5, hour12: false });
+    expect(store.getState().settings).toEqual({
+      reducedMotion: true,
+      volume: 0.5,
+      hour12: false,
+      fpvFov: 60,
+      mouseSensitivity: 1,
+    });
     store.getState().updateSettings({ volume: 0.1 });
     expect(createUiStore({ storage }).getState().settings.volume).toBe(0.1);
   });

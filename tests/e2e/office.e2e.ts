@@ -176,6 +176,25 @@ test("V toggles the first-person view and back", async () => {
   await ownerPage.keyboard.press("v");
   await expect(toggle).toHaveAttribute("aria-pressed", "true");
   await expect.poll(() => cameraType(ownerPage)).toBe("PerspectiveCamera");
+  // #144: the projection matches the canvas (it once stayed at aspect 1).
+  const projection = await ownerPage.evaluate(() => {
+    const r3f = (
+      window as unknown as {
+        __regulusR3F?: {
+          get(): {
+            camera: { aspect?: number; fov?: number };
+            size: { width: number; height: number };
+          };
+        };
+      }
+    ).__regulusR3F;
+    const s = r3f?.get();
+    return s
+      ? { aspect: s.camera.aspect, fov: s.camera.fov, canvas: s.size.width / s.size.height }
+      : null;
+  });
+  expect(projection?.aspect).toBeCloseTo(projection?.canvas ?? 0, 3);
+  expect(projection?.fov).toBe(60);
 
   await ownerPage.keyboard.press("v");
   await expect(toggle).toHaveAttribute("aria-pressed", "false");

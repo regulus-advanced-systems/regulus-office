@@ -13,15 +13,30 @@
  * Without them the rig keeps a local pose per template, starting at the
  * spawn point (the dev harness has no player store). While active the
  * local avatar (`local-human`) is hidden so the camera is not inside it.
+ *
+ * Projection (#144): the camera is `manual` and fitted here, from the canvas
+ * size and the FOV setting (`camera/perspective.ts`), on mount, on resize and
+ * when the setting changes. R3F only fits the default camera on a resize, not
+ * when the default camera is swapped, so a camera made with aspect 1 stayed
+ * at aspect 1 and the view was stretched sideways by the screen's aspect.
  */
 import { useFrame, useThree } from "@react-three/fiber";
 import { buildNavGrid, type FloorTemplate } from "@regulus/floor-layout";
 import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
-import { Euler, type Object3D, PerspectiveCamera } from "three";
+import { Euler, type Object3D, OrthographicCamera, PerspectiveCamera } from "three";
 import { PointerLockControls } from "three/examples/jsm/controls/PointerLockControls.js";
 import { useUiStore } from "../../state/ui.ts";
 import { useViewStore } from "../../state/view.ts";
 import { ROBOT_HEIGHT } from "../avatar/index.ts";
+import {
+  FPV_FAR,
+  FPV_NEAR,
+  fitOrthographic,
+  fitPerspective,
+  pointerSpeed,
+  polarLimits,
+  safeAspect,
+} from "../camera/perspective.ts";
 import { WALK_SPEED } from "../movement/kinematics.ts";
 import {
   clampDt,
@@ -33,16 +48,13 @@ import {
 import { exitPointerLock, requestPointerLock } from "./pointerLock.ts";
 import { useHeldKeys } from "./useHeldKeys.ts";
 
-/** Robot eye height: ~0.9 x ROBOT_HEIGHT (the head is the top ~quarter). */
+/**
+ * Robot eye height: 0.9 x ROBOT_HEIGHT = 1.44 m (the head is the top
+ * quarter), against 0.76 m desks, 0.9 m counters and 3 m walls.
+ */
 export const EYE_HEIGHT = EYE_HEIGHT_RATIO * ROBOT_HEIGHT;
-export const FPV_FOV = 70;
-export const FPV_NEAR = 0.05;
-export const FPV_FAR = 60;
 /** Group name of the local human's robot (scene/avatars/LocalAvatar.tsx). */
 export const LOCAL_AVATAR_NAME = "local-human";
-/** Keep the pitch this far off the poles so the view never flips. */
-const POLAR_MARGIN = 0.2;
-const MOUSE_SPEED = 0.8;
 
 export interface PlayerPose {
   x: number;
@@ -85,21 +97,36 @@ export function FirstPersonRig({
   const get = useThree((s) => s.get);
   const set = useThree((s) => s.set);
   const invalidate = useThree((s) => s.invalidate);
+  const size = useThree((s) => s.size);
   const mode = useViewStore((s) => s.mode);
+  const fovSetting = useUiStore((s) => s.settings.fpvFov);
+  const sensitivity = useUiStore((s) => s.settings.mouseSensitivity);
 
   const camera = useMemo(() => {
-    const c = new PerspectiveCamera(FPV_FOV, 1, FPV_NEAR, FPV_FAR);
+    const { width, height } = get().size;
+    const c = new PerspectiveCamera(50, safeAspect(width, height), FPV_NEAR, FPV_FAR);
     c.name = "fpv-camera";
     c.rotation.order = "YXZ";
+    // We fit the projection ourselves; R3F must not (see the header).
+    (c as PerspectiveCamera & { manual?: boolean }).manual = true;
     return c;
-  }, []);
+  }, [get]);
   const controls = useMemo(() => {
     const c = new PointerLockControls(camera);
-    c.minPolarAngle = POLAR_MARGIN;
-    c.maxPolarAngle = Math.PI - POLAR_MARGIN;
-    c.pointerSpeed = MOUSE_SPEED;
+    const polar = polarLimits();
+    c.minPolarAngle = polar.min;
+    c.maxPolarAngle = polar.max;
     return c;
   }, [camera]);
+
+  // Aspect and FOV follow the canvas size and the setting.
+  useLayoutEffect(() => {
+    if (fitPerspective(camera, size.width, size.height, fovSetting)) invalidate();
+  }, [camera, size.width, size.height, fovSetting, invalidate]);
+
+  useEffect(() => {
+    controls.pointerSpeed = pointerSpeed(sensitivity);
+  }, [controls, sensitivity]);
   const grid = useMemo(() => buildNavGrid(template, { cellSize: NAV_CELL_SIZE }), [template]);
   const euler = useMemo(() => new Euler(0, 0, 0, "YXZ"), []);
 
@@ -125,6 +152,12 @@ export function FirstPersonRig({
     set({ camera });
     invalidate();
     return () => {
+      // R3F only sized the default camera while it was current; a resize in
+      // first person left the iso camera's frustum at the old canvas size.
+      const { width, height } = get().size;
+      const manual = (previous as { manual?: boolean }).manual === true;
+      if (previous instanceof OrthographicCamera && !manual)
+        fitOrthographic(previous, width, height);
       set({ camera: previous });
       invalidate();
     };

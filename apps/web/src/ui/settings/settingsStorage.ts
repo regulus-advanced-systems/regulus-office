@@ -1,8 +1,15 @@
 /**
  * Client settings persisted in localStorage (SPEC §11: reduced-motion
  * setting disables bubbles/confetti). `null` for reducedMotion means "follow
- * the OS preference".
+ * the OS preference". First-person FOV and mouse sensitivity (#144) are
+ * clamped to the ranges in scene/camera/perspective.ts.
  */
+import {
+  clampFovSetting,
+  clampMouseSensitivity,
+  DEFAULT_FPV_FOV,
+  DEFAULT_MOUSE_SENSITIVITY,
+} from "../../scene/camera/perspective.ts";
 
 export interface UiSettings {
   /** null = follow prefers-reduced-motion. */
@@ -11,6 +18,10 @@ export interface UiSettings {
   volume: number;
   /** 12-hour clock in the top bar. */
   hour12: boolean;
+  /** First-person vertical field of view, degrees. */
+  fpvFov: number;
+  /** First-person mouse-look sensitivity multiplier (1 = default). */
+  mouseSensitivity: number;
 }
 
 export const SETTINGS_STORAGE_KEY = "regulus.ui.settings.v1";
@@ -19,6 +30,8 @@ export const DEFAULT_SETTINGS: Readonly<UiSettings> = {
   reducedMotion: null,
   volume: 0.8,
   hour12: false,
+  fpvFov: DEFAULT_FPV_FOV,
+  mouseSensitivity: DEFAULT_MOUSE_SENSITIVITY,
 };
 
 export interface StorageLike {
@@ -37,11 +50,18 @@ export function parseSettings(raw: string | null | undefined): UiSettings {
   }
   if (!data || typeof data !== "object") return { ...DEFAULT_SETTINGS };
   const o = data as Record<string, unknown>;
-  const volume = typeof o.volume === "number" && Number.isFinite(o.volume) ? o.volume : null;
+  const num = (v: unknown): number | null =>
+    typeof v === "number" && Number.isFinite(v) ? v : null;
+  const volume = num(o.volume);
+  const fpvFov = num(o.fpvFov);
+  const sensitivity = num(o.mouseSensitivity);
   return {
     reducedMotion: typeof o.reducedMotion === "boolean" ? o.reducedMotion : null,
     volume: volume === null ? DEFAULT_SETTINGS.volume : Math.min(1, Math.max(0, volume)),
     hour12: typeof o.hour12 === "boolean" ? o.hour12 : DEFAULT_SETTINGS.hour12,
+    fpvFov: fpvFov === null ? DEFAULT_SETTINGS.fpvFov : clampFovSetting(fpvFov),
+    mouseSensitivity:
+      sensitivity === null ? DEFAULT_SETTINGS.mouseSensitivity : clampMouseSensitivity(sensitivity),
   };
 }
 
