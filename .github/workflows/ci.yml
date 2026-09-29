@@ -246,6 +246,17 @@ jobs:
           sudo visudo -cf "$RUNNER_TEMP/office-runner"
           sudo install -m 0440 -o root -g root "$RUNNER_TEMP/office-runner" /etc/sudoers.d/office-runner
           sudo install -d -m 0750 -o "$USER" -g "$USER" /srv/office/projects /srv/office/worktrees
+      # useradd --create-home copies /etc/skel. On GitHub's image that is
+      # ~800 MB (.nvm and more) read from a cold disk, so the first copy takes
+      # 25-100 s and the second < 1 s (#117). Warm the page cache with a
+      # throwaway account so the test measures our code, not the image.
+      - name: Pre-warm useradd (/etc/skel copy)
+        run: |
+          sudo du -sh /etc/skel || true
+          start=$(date +%s%N)
+          sudo timeout 300 useradd --create-home --shell /bin/bash --comment warmup --user-group office-warmup
+          echo "first useradd took $(( ($(date +%s%N) - start) / 1000000 )) ms"
+          sudo userdel --remove office-warmup 2>/dev/null || true
       - name: Integration test
         env:
           OFFICE_TEST_LINUX_USER: "1"

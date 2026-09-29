@@ -169,6 +169,17 @@ marker, uid 0, and IDs outside `^[a-z0-9]{1,23}$` (runner), `^[A-Za-z0-9_-]{1,64
   already-running tmux server. ACLs work immediately, need no `usermod`, and
   are per human. `setfacl -R -P` never follows symlinks inside the checkout.
 
+- **Timeouts.** The office waits 60 s for a helper verb and 180 s for
+  `provision` (`HelperOptions.timeoutMs` and `verbTimeoutsMs`). `provision`
+  gets longer because `useradd --create-home` copies `/etc/skel`: a large skel
+  on a cold disk makes the first account slow (20-100 s on GitHub's runner
+  image, whose `/etc/skel` is ~800 MB with `.nvm` and more; the next account
+  takes under a second). Keep `/etc/skel` small on an office host. On timeout the office
+  sends SIGTERM, which sudo passes to the helper, then SIGKILL after 2 s, and
+  reports "<verb> timed out after N ms" without waiting for children that
+  still hold its output. An interrupted `provision` can be retried: it is
+  idempotent.
+
 ## Upgrading from the shared layout (before #114)
 
 Before #114 every human on a floor had ACLs on the floor's one clone and on
@@ -196,7 +207,13 @@ test needs the install above and passwordless sudo:
 OFFICE_TEST_LINUX_USER=1 bun test apps/server/src/runners/linux-user/linux-user-runner.integration.test.ts
 ```
 
-It is the `linux-user` job in `.github/workflows/ci.yml`.
+It is the `linux-user` job in `.github/workflows/ci.yml`. That job creates
+and deletes a throwaway account first, so the test does not pay for the
+runner image's cold `/etc/skel` copy (#117). The test logs each helper call
+with its duration (`[helper] provision 812 ms exit 0`), so a slow step shows
+in the log. Each test provisions the account it needs itself (idempotent), so
+a failure in one does not cascade. `OFFICE_TEST_HELPER_TIMEOUT_MS` and
+`OFFICE_TEST_PROVISION_TIMEOUT_MS` override the timeouts.
 
 ## Not covered yet
 
