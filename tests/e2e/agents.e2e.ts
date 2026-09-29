@@ -235,11 +235,12 @@ test("2. the owner spawns Claude Code at a free desk with their login and a prom
   const desk = await freeDeskPoint(ownerPage);
   if (!desk) throw new Error("no free desk in the scene");
   seatId = desk.seatId;
-  // The dialog asks the runner whether the CLI is logged in (`claude auth status`, answered
-  // by the fake). Wait for it: that check is a piped process in the runner, and a spawn's
-  // first mount of the floor refuses to recreate the runner while one is live.
+  // The dialog asks the runner whether the CLI is logged in (`claude auth status`, a piped
+  // process the fake answers after a pause). The spec spawns without waiting for it, so the
+  // spawn's first mount of the floor recreates the runner while the check is still running:
+  // the mount waits for the check (#126) instead of failing with RunnerBusyError.
   const loginChecked = ownerPage.waitForResponse(
-    (r) => new URL(r.url()).pathname === "/api/provider-logins" && r.ok(),
+    (r) => new URL(r.url()).pathname === "/api/provider-logins",
   );
   await ownerPage.mouse.click(desk.x, desk.y);
   const dialog = ownerPage.getByRole("dialog", { name: "Spawn a robot" });
@@ -250,15 +251,18 @@ test("2. the owner spawns Claude Code at a free desk with their login and a prom
   // The default credential: the owner's own Claude Code login (no profile, no secret field).
   await expect(dialog.getByLabel("Credentials")).toContainText("Your Claude Code login");
   await expect(dialog.locator('input[type="password"]')).toHaveCount(0);
-  await loginChecked;
-  await expect(dialog.getByRole("link", { name: /Connect Claude Code/ })).toHaveCount(0);
-  await expect(dialog.getByRole("button", { name: /Connect Claude Code/ })).toHaveCount(0);
   await dialog.getByLabel("Task title").fill(TASK);
   await dialog.getByLabel("Issue").fill(String(ISSUE));
   await dialog.getByLabel("Prompt").fill("Add a FAKE_CLAUDE.md that says hello");
   await dialog.getByRole("button", { name: "Spawn robot" }).click();
   // The dialog stays pending until our robot sits down at that desk, then closes.
   await expect(dialog).toHaveCount(0, { timeout: 60_000 });
+  // The login check ran to completion (the recreate did not kill it): Claude Code connected.
+  const logins = await loginChecked;
+  expect(logins.ok()).toBe(true);
+  expect((await logins.json()).providers).toContainEqual(
+    expect.objectContaining({ provider: "claude-code", connected: true }),
+  );
 
   await expect.poll(async () => Object.values(await robots(ownerPage)).length).toBe(1);
   const [robot] = Object.values(await robots(ownerPage));

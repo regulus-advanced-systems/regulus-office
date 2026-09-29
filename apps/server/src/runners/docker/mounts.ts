@@ -92,19 +92,34 @@ export function toMountSpec(target: string, volumeMap: readonly VolumeMapping[])
   return { Type: "bind", Source: dir, Target: dir };
 }
 
-/** `mountProject` needs a new mount but the runner has live work that a recreate would kill. */
+/**
+ * `mountProject` needs a new mount but the runner has live work that a recreate
+ * would kill: tmux sessions (agents, login sessions) and piped side processes
+ * (login checks, `codex app-server`) that did not finish within the drain bound.
+ */
 export class RunnerBusyError extends Error {
   override name = "RunnerBusyError";
   constructor(
     readonly userId: string,
     readonly sessions: readonly string[],
     readonly missing: readonly string[],
+    /** Short labels (program and subcommand) of piped processes still running. */
+    readonly piped: readonly string[] = [],
   ) {
     super(
-      `runner for ${userId} needs its mounts changed (${missing.join(", ")}) but is busy ` +
-        `(${sessions.length} tmux sessions, or piped processes); stop its agents first`,
+      `runner for ${userId} needs its mounts changed (${missing.join(", ")}) but is busy: ` +
+        busyParts(sessions, piped).join("; ") +
+        "; stop its agents first",
     );
   }
+}
+
+function busyParts(sessions: readonly string[], piped: readonly string[]): string[] {
+  const list = (items: readonly string[]) => (items.length ? ` (${items.join(", ")})` : "");
+  const parts: string[] = [];
+  if (sessions.length) parts.push(`${sessions.length} tmux session(s)${list(sessions)}`);
+  if (piped.length) parts.push(`${piped.length} piped process(es) still running${list(piped)}`);
+  return parts;
 }
 
 /** Default mount root: the worktrees dir, which holds every human's area (../layout.ts). */

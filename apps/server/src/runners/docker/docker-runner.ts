@@ -4,12 +4,11 @@
  * inside it, every operation an Engine API exec as the runner's non-root uid.
  *
  * Secrets (SPEC §8 rule 2): a spawn's `SecretEnv` goes into a 0600 file on the
- * human's HOME volume, written through exec stdin (never argv), which the tmux session sources and deletes before `exec`ing the agent.
- * Piped processes get it as exec-scoped `Env`, which Docker keeps off the
- * container config and out of `docker inspect`.
+ * human's HOME volume, written through exec stdin (never argv), which the tmux
+ * session sources and deletes before `exec`ing the agent. Piped processes get it
+ * as exec-scoped `Env`, kept off the container config and `docker inspect`.
  *
- * Mount strategy: see mounts.ts (the human's own area per floor, same paths as
- * the office) and `mountProject` (recreate only while the runner is idle).
+ * Mounts: mounts.ts (the human's own area per floor) and `mountProject`.
  */
 import { randomUUID } from "node:crypto";
 import { mkdir } from "node:fs/promises";
@@ -47,6 +46,7 @@ import {
   toMountSpec,
   type VolumeMapping,
 } from "./mounts.ts";
+import { PipedTracker } from "./piped-tracker.ts";
 import { PORT_SCRIPT, PROCESS_SCRIPT, parsePortOutput, parseProcessOutput } from "./procfs.ts";
 import { envFileContents, shellQuote, WRITE_SCRIPT } from "./shell.ts";
 
@@ -56,6 +56,8 @@ export interface DockerRunnerOptions extends ContainerSettings {
   /** Roots whose `<root>/<floor>/<runner id>` dirs are mounted as a unit (see mounts.ts). */
   floorRoots?: readonly string[];
   volumeMap?: readonly VolumeMapping[];
+  /** How long a recreate waits for piped side processes to finish (default 5 s). */
+  pipedDrainMs?: number;
 }
 
 export { DEFAULT_FLOOR_ROOTS, RunnerBusyError } from "./mounts.ts";
@@ -75,7 +77,7 @@ export class DockerRunner implements Runner {
   readonly #floorRoots: readonly string[];
   readonly #volumeMap: readonly VolumeMapping[];
   readonly #ids = new Map<string, string>();
-  readonly #piped = new Map<string, Set<Promise<unknown>>>();
+  readonly #piped: PipedTracker;
 
   constructor(opts: DockerRunnerOptions) {
     const [uid, gid] = opts.user.split(":").map(Number);
@@ -86,6 +88,7 @@ export class DockerRunner implements Runner {
     this.containers = new RunnerContainers(this.engine, opts);
     this.#floorRoots = opts.floorRoots ?? DEFAULT_FLOOR_ROOTS;
     this.#volumeMap = opts.volumeMap ?? [];
+    this.#piped = new PipedTracker(opts.pipedDrainMs);
   }
 
   get home(): string {
@@ -112,26 +115,24 @@ export class DockerRunner implements Runner {
   }
 
   /**
-   * Docker cannot add a mount to a running container, so a floor the runner has
-   * not seen yet means recreating it. HOME is a named volume and survives; the
-   * tmux server and every process do not. So the recreate only happens while the
-   * runner is idle (no tmux sessions, no piped processes from this office);
-   * otherwise {@link RunnerBusyError}. The unit is the human's own area on the
-   * floor (mounts.ts), so this happens once per floor per human.
-   *
-   * Mounts that are not one of this human's areas (the whole-floor mounts made
-   * before #114) are dropped by the same recreate; a busy runner that still
-   * has them is refused, because it could see other humans' work.
+   * Docker cannot add a mount to a running container, so a new floor (area,
+   * mounts.ts) means recreating the runner: HOME survives, tmux and every process
+   * do not. So only an idle runner is recreated: no tmux sessions, and no piped
+   * processes once they had `pipedDrainMs` to finish (e.g. the spawn dialog's
+   * login check, #126); otherwise {@link RunnerBusyError}. Mounts that are not
+   * this human's areas (pre-#114) go in the same recreate; one change at a time.
    */
   async mountProject(user: RunnerUser, repo: FloorRepoRef): Promise<MountedProject> {
     const workdir = posix.normalize(repo.workdir);
     const target = humanMountTarget(workdir, this.#floorRoots, user.userId);
-    const c = await this.containers.ensure(user.userId);
-    this.#ids.set(user.userId, c.id);
-    // Only the human's own areas count: a stale whole-floor mount covers the path but goes.
-    const own = c.floorMounts.filter((m) => isOwnArea(m, this.#floorRoots, user.userId));
-    const missing = isCovered(target, own) ? [] : [target];
-    await this.#remount(user, c.floorMounts, missing, { running: true, strict: true });
+    await this.#piped.hold(user.userId, async () => {
+      const c = await this.containers.ensure(user.userId);
+      this.#ids.set(user.userId, c.id);
+      // Only the human's own areas count: a stale whole-floor mount covers the path but goes.
+      const own = c.floorMounts.filter((m) => isOwnArea(m, this.#floorRoots, user.userId));
+      const missing = isCovered(target, own) ? [] : [target];
+      await this.#remount(user, c.floorMounts, missing, { running: true, strict: true });
+    });
     return { workdir };
   }
 
@@ -140,11 +141,13 @@ export class DockerRunner implements Runner {
    * recreating the runner if it is idle. Returns false when stale mounts
    * remain because the runner is busy (the next `mountProject` refuses it).
    */
-  async reconcileMounts(user: RunnerUser): Promise<boolean> {
-    const c = await this.containers.lookup(user.userId);
-    if (!c) return true;
-    this.#ids.set(user.userId, c.id);
-    return this.#remount(user, c.floorMounts, [], { running: c.running, strict: false });
+  reconcileMounts(user: RunnerUser): Promise<boolean> {
+    return this.#piped.hold(user.userId, async () => {
+      const c = await this.containers.lookup(user.userId);
+      if (!c) return true;
+      this.#ids.set(user.userId, c.id);
+      return this.#remount(user, c.floorMounts, [], { running: c.running, strict: false });
+    });
   }
 
   async #remount(
@@ -158,13 +161,14 @@ export class DockerRunner implements Runner {
     const stale = current.filter((m) => !keep.includes(m)).map((m) => m.Target);
     if (missing.length === 0 && stale.length === 0) return true;
 
-    const sessions = opts.running ? await this.listSessions(user) : [];
-    if (sessions.length > 0 || (this.#piped.get(user.userId)?.size ?? 0) > 0) {
+    const list = () => (opts.running ? this.listSessions(user) : Promise.resolve([]));
+    const { sessions, piped } = await this.#piped.busy(user.userId, list, opts.strict);
+    if (sessions.length > 0 || piped.length > 0) {
       if (!opts.strict) return false;
-      throw new RunnerBusyError(user.userId, sessions, [...missing, ...stale.map((t) => `-${t}`)]);
+      const changes = [...missing, ...stale.map((t) => `-${t}`)];
+      throw new RunnerBusyError(user.userId, sessions, changes, piped);
     }
-    // Mount sources must exist; create them as the office sees them (host path
-    // for binds, the office's view of the volume for volume subpaths).
+    // Mount sources must exist: create them as the office sees them (bind or volume subpath).
     for (const dir of missing) await mkdir(dir, { recursive: true }).catch(() => {});
     const mounts = [...keep, ...missing.map((t) => toMountSpec(t, this.#volumeMap))];
     const next = await this.containers.recreate(user.userId, mounts);
@@ -194,23 +198,22 @@ export class DockerRunner implements Runner {
     return { userId: user.userId, name: plan.tmuxSession };
   }
 
-  async spawnPiped(user: RunnerUser, plan: SpawnPlan): Promise<PipedProcess> {
-    const { containerId } = await this.provision(user);
-    await this.#writeFiles(user.userId, plan.files);
-    const proc = await startPiped(this.engine, {
-      containerId: containerId as string,
-      argv: plan.argv,
-      env: Object.entries(plan.env.reveal()).map(([k, v]) => `${k}=${v}`),
-      workdir: plan.cwd,
-      signal: async (pid, signal) => {
-        await this.#run(user.userId, { cmd: ["kill", "-s", signal.replace(/^SIG/, ""), `${pid}`] });
-      },
+  /** Counted as live from this call on; waits while a mount change runs (piped-tracker.ts). */
+  spawnPiped(user: RunnerUser, plan: SpawnPlan): Promise<PipedProcess> {
+    return this.#piped.track(user.userId, plan.argv, async () => {
+      const { containerId } = await this.provision(user);
+      await this.#writeFiles(user.userId, plan.files);
+      return startPiped(this.engine, {
+        containerId: containerId as string,
+        argv: plan.argv,
+        env: Object.entries(plan.env.reveal()).map(([k, v]) => `${k}=${v}`),
+        workdir: plan.cwd,
+        signal: async (pid, signal) => {
+          const cmd = ["kill", "-s", signal.replace(/^SIG/, ""), `${pid}`];
+          await this.#run(user.userId, { cmd });
+        },
+      });
     });
-    const live = this.#piped.get(user.userId) ?? new Set();
-    this.#piped.set(user.userId, live);
-    live.add(proc.exited);
-    proc.exited.finally(() => live.delete(proc.exited)).catch(() => {});
-    return proc;
   }
 
   attach(session: TmuxSessionRef, mode: TerminalMode): AttachStream {
@@ -377,10 +380,7 @@ export class DockerRunner implements Runner {
     for (const file of files) await this.#writeFile(userId, file);
   }
 
-  /**
-   * Write a file as the runner uid. Contents travel on the exec's stdin (never
-   * argv); `head -c <n>` stops after exactly n bytes, then an atomic rename.
-   */
+  /** Write a file as the runner uid: contents on exec stdin (never argv), then a rename. */
   async #writeFile(userId: string, file: PlannedFile): Promise<void> {
     const path = posix.normalize(file.path);
     if (!posix.isAbsolute(path)) throw new Error(`runner file path must be absolute: ${path}`);
