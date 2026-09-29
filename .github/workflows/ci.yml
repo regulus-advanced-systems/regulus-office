@@ -204,26 +204,17 @@ jobs:
           sudo visudo -cf "$RUNNER_TEMP/office-runner"
           sudo install -m 0440 -o root -g root "$RUNNER_TEMP/office-runner" /etc/sudoers.d/office-runner
           sudo install -d -m 0750 -o "$USER" -g "$USER" /srv/office/projects /srv/office/worktrees
-      - name: Diagnose (temporary)
+      # useradd --create-home copies /etc/skel. On GitHub's image that is
+      # large (.nvm and more) and read from a cold disk, so the first copy takes
+      # 25-100 s and the second < 1 s (#117). Warm the page cache with a
+      # throwaway account so the test measures our code, not the image.
+      - name: Pre-warm useradd (/etc/skel copy)
         run: |
-          sudo apt-get install -y -q strace >/dev/null
-          t() { local s=$(date +%s.%N); "$@"; echo "TIMING $(echo "$(date +%s.%N) - $s" | bc) s: $*"; }
-          t sudo strace -f -tt -T -o "$RUNNER_TEMP/ua.strace" useradd --create-home --shell /bin/bash --comment probe --user-group office-probe1
-          echo "--- slowest syscalls of the first useradd"
-          sudo awk '{ if (match($0, /<([0-9.]+)>$/, m) && m[1] > 0.5) print }' "$RUNNER_TEMP/ua.strace" | head -40
-          sudo grep -c . "$RUNNER_TEMP/ua.strace"
-          echo "--- syscalls by name"
-          sudo awk '{ s=$3; sub(/\(.*/, "", s); c[s]++ } END { for (k in c) print c[k], k }' "$RUNNER_TEMP/ua.strace" | sort -rn | head -15
-          echo "--- paths by count"
-          sudo grep -oE '"/[^"]*"' "$RUNNER_TEMP/ua.strace" | sort | uniq -c | sort -rn | head -25
-          echo "--- per second of wall time: syscall count and top syscall"
-          sudo awk '{ t=substr($2,1,8); c[t]++; s=$3; sub(/\(.*/, "", s); n[t" "s]++ } END { for (k in n) print k, n[k] }' "$RUNNER_TEMP/ua.strace" | sort -k1,1 -k3,3rn | awk '$1!=p { print; p=$1 }'
-          echo "--- first/last 30 lines"
-          sudo head -30 "$RUNNER_TEMP/ua.strace"; sudo tail -30 "$RUNNER_TEMP/ua.strace"
-          t sudo systemd-run --quiet --collect --scope --uid=office-probe1 -- true
-          t sudo userdel --remove office-probe1
-          t sudo useradd --create-home --shell /bin/bash --comment probe --user-group office-probe2
-          t sudo userdel --remove office-probe2
+          sudo du -sh /etc/skel || true
+          start=$(date +%s%N)
+          sudo timeout 300 useradd --create-home --shell /bin/bash --comment warmup --user-group office-warmup
+          echo "first useradd took $(( ($(date +%s%N) - start) / 1000000 )) ms"
+          sudo userdel --remove office-warmup 2>/dev/null || true
       - name: Integration test
         env:
           OFFICE_TEST_LINUX_USER: "1"
