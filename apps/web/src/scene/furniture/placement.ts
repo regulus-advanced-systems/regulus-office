@@ -151,10 +151,21 @@ export function snapHeading(heading: number): number {
   return snapped <= -Math.PI ? snapped + 2 * Math.PI : snapped;
 }
 
+/** Kinds that are themselves the seat: they face the way their sitter does. */
+export const SEAT_FURNITURE: ReadonlySet<ObstacleKind> = new Set(["couch", "armchair"]);
+
+/** The opposite heading, kept in (-pi, pi]. */
+export function turnAround(heading: number): number {
+  const h = heading + Math.PI;
+  return h > Math.PI ? h - 2 * Math.PI : h;
+}
+
 /**
- * Which way a piece faces: its seat's heading (a desk faces the way its
- * sitter does), else toward its `standAt` pose, else away from the closest
- * wall. Returns a three.js `rotation.y`.
+ * Which way a piece's front faces (#143): a couch or armchair faces the way
+ * its sitter does; a desk or table faces its sitter (the drawers are on the
+ * chair's side); an interactable faces its `standAt` pose; anything else
+ * faces away from the closest wall, into the room. A heading, not yet
+ * corrected for the model's own front (`fitToFootprint` does that).
  */
 export function furnitureHeading(
   obstacle: Obstacle,
@@ -162,7 +173,8 @@ export function furnitureHeading(
   size: FloorTemplate["size"],
 ): number {
   const seat = seats.find((s) => s.furnitureId === obstacle.id);
-  if (seat) return seat.pose.heading;
+  if (seat)
+    return SEAT_FURNITURE.has(obstacle.kind) ? seat.pose.heading : turnAround(seat.pose.heading);
   if (obstacle.standAt) {
     const cx = obstacle.rect.x + obstacle.rect.w / 2;
     const cz = obstacle.rect.z + obstacle.rect.d / 2;
@@ -226,5 +238,42 @@ export function anchorPlacement(
     rotationY: planeYawFacing(f),
     width: anchor.w,
     height: anchor.h,
+  };
+}
+
+/** Ground direction a placed model's front points: its +z axis after `rotation.y`. */
+export function modelForward(rotationY: number): { x: number; z: number } {
+  return { x: Math.sin(rotationY), z: Math.cos(rotationY) };
+}
+
+/** How deep a wall-mounted TV's footprint is, metres. */
+export const TV_DEPTH = 0.25;
+
+export interface WallPropPlacement {
+  rect: Rect;
+  heading: number;
+  /** Height of the model's base above the floor. */
+  y: number;
+}
+
+/**
+ * Footprint and heading of a model hung on a wall anchor (the TV): its
+ * width runs along the wall, its depth out from the wall's room side, and it
+ * faces into the room.
+ */
+export function wallPropPlacement(
+  wall: Wall,
+  anchor: Pick<WallAnchor, "t" | "y" | "w" | "h">,
+  depth = TV_DEPTH,
+): WallPropPlacement {
+  const p = anchorPlacement(wall, anchor, depth);
+  const f = DIRECTION[wall.facing];
+  const alongX = Math.abs(f.z) > Math.abs(f.x);
+  const w = alongX ? anchor.w : depth;
+  const d = alongX ? depth : anchor.w;
+  return {
+    rect: { x: p.position[0] - w / 2, z: p.position[2] - d / 2, w, d },
+    heading: headingFacing(f),
+    y: anchor.y - anchor.h / 2,
   };
 }

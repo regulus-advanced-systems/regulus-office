@@ -6,7 +6,7 @@
  * Models are referenced with `new URL(..., import.meta.url)` so Vite bundles
  * them from the assets package without any config.
  */
-import type { ObstacleKind, SeatKind } from "@regulus/floor-layout";
+import { HEADING, type ObstacleKind, type SeatKind } from "@regulus/floor-layout";
 
 export interface ModelSpec {
   /** Resolved asset URL. */
@@ -86,8 +86,13 @@ export const MODEL_URLS = {
   books: new URL("../../../../../packages/assets/models/furniture/books.glb", import.meta.url).href,
 } as const;
 
-/** Kenney's kit is exported facing -z; our default "front" is +z (toward the camera). */
-const KENNEY_HEADING = 0;
+/**
+ * Every Kenney Furniture Kit model is exported with its front toward +z: the
+ * chair's seat, the sofa's cushions, the desk's drawers, the cabinet and
+ * fridge doors and the TV screen (#143 checked each one rendered on its own).
+ * In our heading convention +z is south.
+ */
+export const KENNEY_HEADING = HEADING.south;
 
 export const FURNITURE_MODELS: Partial<Record<ObstacleKind, ModelSpec>> = {
   reception_desk: { url: MODEL_URLS.desk, targetHeight: 0.76, modelHeading: KENNEY_HEADING },

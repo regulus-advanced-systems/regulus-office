@@ -4,8 +4,8 @@
  * {@link SCREEN_REPAINT_MS} apart per laptop however often the text changes.
  */
 
-/** Texture size: 16:10 like the screen; plenty for a laptop that is ~20-200 px on screen. */
-export const SCREEN_TEXTURE_SIZE = { width: 256, height: 160 } as const;
+/** Texture size: 16:10 like the screen, 1.4x the #111 texture to match the 1.4x laptop (#143). */
+export const SCREEN_TEXTURE_SIZE = { width: 360, height: 224 } as const;
 /** ~2 fps per laptop. */
 export const SCREEN_REPAINT_MS = 500;
 /** Grid the text is laid out on (the agents' fixed 160x45 terminal). */

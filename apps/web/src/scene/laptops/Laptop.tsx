@@ -14,20 +14,9 @@ import {
   PlaneGeometry,
 } from "three";
 import { createToonMaterial } from "../materials/toon.ts";
+import { LAPTOP_DIMENSIONS } from "./dimensions.ts";
 import type { LaptopPlacement } from "./placement.ts";
 import { SCREEN_COLORS } from "./screenPaint.ts";
-
-export const LAPTOP_DIMENSIONS = {
-  w: 0.34,
-  baseH: 0.018,
-  d: 0.24,
-  lidH: 0.22,
-  lidT: 0.012,
-  /** Lid tilt back from vertical, radians. */
-  tilt: 0.26,
-  screenW: 0.31,
-  screenH: 0.19,
-} as const;
 
 interface Shared {
   base: BoxGeometry;
