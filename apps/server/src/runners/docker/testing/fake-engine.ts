@@ -54,6 +54,12 @@ export class FakeEngine {
   readonly execs = new Map<string, FakeExec & { exitCode: number | null }>();
   readonly images = new Set<string>();
   onExec: ExecHandler = () => 0;
+  /**
+   * How long a container create takes. Like the real daemon, the name is reserved at once
+   * (a second create of it gets 409) but inspecting it answers 404 until the create is done.
+   */
+  createDelayMs = 0;
+  readonly #reserved = new Set<string>();
   #seq = 0;
 
   private constructor(
@@ -166,8 +172,17 @@ export class FakeEngine {
       const name = req.query.get("name") ?? "";
       if (!this.images.has(String(body.Image)))
         return this.#reply(s, 404, { message: "No such image" });
-      if (this.#container(name)) return this.#reply(s, 409, { message: "Conflict" });
+      if (this.#container(name) || this.#reserved.has(name)) {
+        return this.#reply(s, 409, {
+          message: `Conflict. The container name "/${name}" is in use`,
+        });
+      }
       const id = `c${this.#id()}`;
+      if (this.createDelayMs > 0) {
+        this.#reserved.add(name);
+        await Bun.sleep(this.createDelayMs);
+        this.#reserved.delete(name);
+      }
       this.containers.set(id, { id, name, running: false, body });
       return this.#reply(s, 201, { Id: id });
     }

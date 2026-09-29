@@ -28,6 +28,8 @@ function Facts({ robot }: { robot: RobotState }) {
     ],
     ["Owner", robot.ownerName || "—"],
   ];
+  // Why it is in `error` (a short code and a redacted message, safe for every viewer).
+  if (robot.statusReason) rows.splice(1, 0, ["Reason", robot.statusReason]);
   if (robot.worktreeBranch) rows.push(["Branch", robot.worktreeBranch]);
   if (robot.issueNumber) rows.push(["Issue", `#${robot.issueNumber}`]);
   if (robot.prNumber) rows.push(["Pull request", `#${robot.prNumber}`]);

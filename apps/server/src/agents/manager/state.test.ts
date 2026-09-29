@@ -17,6 +17,7 @@ function view(overrides: Partial<AgentView> = {}): AgentView {
     model: "m",
     effort: "",
     status: "starting",
+    statusReason: "",
     action: "none",
     taskTitle: "t",
     taskSummary: "",
@@ -131,6 +132,27 @@ describe("robot reducer", () => {
     applyEvent(v, { kind: "action", ts, action: "typing" }, 3);
     expect(v.action).toBe("none");
     expect(setStatus(v, "starting", 4)).toBe(true);
+  });
+
+  test("an error shows its redacted reason until the robot leaves error", () => {
+    const v = view();
+    const reason = "runner_api: Docker Engine: POST /containers/x/start: 500 no such file";
+    applyEvent(v, { kind: "status", ts, status: "error", reason }, 1);
+    expect(robotState(v)).toMatchObject({
+      status: "error",
+      action: "failing",
+      statusReason: "runner_api: Docker Engine: POST <path>: 500 no such file",
+    });
+    expect(RobotState.safeParse(robotState(v)).success).toBe(true);
+    applyEvent(v, { kind: "status", ts, status: "working" }, 2);
+    expect(robotState(v).statusReason).toBe("");
+    applyEvent(v, { kind: "status", ts, status: "error" }, 3);
+    expect(robotState(v).statusReason).toBe("");
+    applyEvent(v, { kind: "status", ts, status: "error", reason: "boom" }, 4);
+    expect(v.statusReason).toBe("");
+    v.statusReason = "stale";
+    expect(setStatus(v, "starting", 5)).toBe(true);
+    expect(robotState(v).statusReason).toBe("");
   });
 
   test("usage does not count as activity", () => {

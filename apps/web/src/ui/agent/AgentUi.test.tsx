@@ -84,6 +84,18 @@ describe("AgentPanel", () => {
     await m.unmount();
   });
 
+  test("a robot that failed to start shows why", async () => {
+    const statusReason = "runner_busy: the runner needs a new mount but still runs 1 tmux session";
+    seed({ robot: { status: "error", action: "failing", statusReason } });
+    const { wrap } = recorder();
+    useAgentStore.getState().openAgentPanel("a1");
+    const m = track(await mount(wrap(<AgentPanel />)));
+    const reason = document.querySelector('[data-key="reason"] dd');
+    expect(reason?.textContent).toBe(statusReason);
+    expect(buttonByText("Resume")).toBeDefined();
+    await m.unmount();
+  });
+
   test.each([
     ["another member", "member", "u-other"],
     ["a viewer who owns it", "viewer", "u-owner"],

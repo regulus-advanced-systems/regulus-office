@@ -90,6 +90,7 @@ function RobotImpl({ robot, seat, reducedMotion, onSelect }: RobotProps) {
         status: robot.status,
         action: robot.action,
         handRaised: robot.handRaised,
+        statusReason: robot.statusReason,
         animation,
         seated: look.seated,
         seatId: robot.seatId,

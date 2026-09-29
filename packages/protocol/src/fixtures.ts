@@ -107,6 +107,7 @@ export const robotFixture: RobotState = {
   prNumber: 0,
   worktreeBranch: "protocol/8-wire-types",
   handRaised: false,
+  statusReason: "",
   bubbleEmits: { toolCalls: 12, fileEdits: 4, testRuns: 2, toolFailures: 1 },
   lastActivityAt: 1_700_000_003_000,
 };

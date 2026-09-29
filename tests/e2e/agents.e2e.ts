@@ -11,10 +11,11 @@
  * small test runner image. The spec starts, restarts and stops its own office-server in
  * production mode (tests/e2e/agentOffice.ts). Run with `bun run e2e:agents`; needs Docker.
  */
-import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { type BrowserContext, expect, type Page, test } from "@playwright/test";
+import { collectAgentDiagnostics } from "./agentDiagnostics.ts";
 import {
   AgentOffice,
   buildRunnerImage,
@@ -57,6 +58,8 @@ let agentId = "";
 let seatId = "";
 /** The human's clone of the floor repo that holds the agent's branch (its git common dir). */
 let cloneGitDir = "";
+/** A test failed: afterAll keeps the run's diagnostics too. */
+let failed = false;
 
 test.beforeAll(async ({ browser }) => {
   test.setTimeout(300_000);
@@ -86,14 +89,26 @@ test.beforeAll(async ({ browser }) => {
 
 test.afterEach(async ({}, testInfo) => {
   if (testInfo.status !== testInfo.expectedStatus && office) {
-    // Written into test-results/ so CI uploads it with the trace.
-    const path = testInfo.outputPath("office-server.log");
-    writeFileSync(path, office.log());
-    await testInfo.attach("office-server.log", { path, contentType: "text/plain" });
+    failed = true;
+    // Written into test-results/ so CI uploads it with the trace (agentDiagnostics.ts).
+    const files = collectAgentDiagnostics(testInfo.outputPath("diagnostics"), {
+      prefix,
+      serverLog: office.log(),
+    });
+    for (const path of files) {
+      await testInfo.attach(basename(path), { path, contentType: "text/plain" });
+    }
   }
 });
 
-test.afterAll(async () => {
+test.afterAll(async ({}, testInfo) => {
+  // A failure outside a test (beforeAll, a hook) leaves no per-test diagnostics: keep them here.
+  if ((failed || testInfo.status !== testInfo.expectedStatus) && office) {
+    collectAgentDiagnostics(join(testInfo.project.outputDir, "agents-diagnostics"), {
+      prefix,
+      serverLog: office.log(),
+    });
+  }
   await ownerCtx?.close();
   await memberCtx?.close();
   await office?.stop();
