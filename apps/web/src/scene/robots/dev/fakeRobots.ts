@@ -58,6 +58,7 @@ export function fakeRobots(
       prNumber: 0,
       worktreeBranch: "",
       handRaised: status === "waiting_permission",
+      statusReason: status === "error" ? "demo: a fake failure" : "",
       bubbleEmits: {
         toolCalls: tick * 2 + (i % 3),
         fileEdits: Math.floor(tick / 2),

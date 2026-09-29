@@ -12,9 +12,18 @@
 # `claude auth status` (the office's login check, credentials/cli-status.ts): report a login
 # without touching any account, so the spawn dialog offers "Your Claude Code login". It takes
 # a moment, like the real CLI, so the check is still running when the spec spawns (#126).
+#
+# Diagnostics (#130): its stderr, plus a timestamped trace of what it did and each hook's HTTP
+# status, is appended to $HOME/fake-claude.stderr, which the spec collects when a test fails. The
+# trace never holds the hook token (it stays in the 0600 headers file).
+trace_file="${HOME:-/tmp}/fake-claude.stderr"
+exec 2>>"$trace_file"
+trace() { printf '%s [%s] %s\n' "$(date -u +%H:%M:%S.%N | cut -c1-12)" "$$" "$*" >&2; }
+trace "start: $(printf '%s ' "$@" | cut -c1-80)"
 if [ "$1" = auth ]; then
   sleep 2
   echo '{"loggedIn":true,"authMethod":"fake"}'
+  trace "auth status answered"
   exit 0
 fi
 settings=""
@@ -30,17 +39,23 @@ while [ $# -gt 0 ]; do
   esac
 done
 echo "FAKE CLAUDE (not Claude Code) session $session"
-[ -r "$settings" ] || { echo "FAKE CLAUDE no settings"; exec sleep infinity; }
+trace "session $session in $PWD"
+[ -r "$settings" ] || { echo "FAKE CLAUDE no settings"; trace "no settings"; exec sleep infinity; }
 dir=$(dirname "$settings")
 url=$(sed -n 's/.*"url": "\([^"]*\)".*/\1/p' "$settings" | head -n 1)
 headers="$dir/fake-hook.headers"
 (umask 077 && sed -n 's/.*"Authorization": "\([^"]*\)".*/Authorization: \1/p' "$settings" |
   head -n 1 > "$headers")
 
-# hook <json> [max-seconds]: POST one hook payload, print the response body.
+# hook <json> [max-seconds]: POST one hook payload, print the response body. The trace gets
+# the event name and the HTTP status (curl's errors go to stderr, i.e. the trace).
 hook() {
-  printf '%s' "$1" | curl -s --max-time "${2:-10}" -H 'Content-Type: application/json' \
-    -H "@$headers" --data-binary @- "$url"
+  body_file=$(mktemp)
+  status=$(printf '%s' "$1" | curl -sS --max-time "${2:-10}" -o "$body_file" -w '%{http_code}' \
+    -H 'Content-Type: application/json' -H "@$headers" --data-binary @- "$url")
+  trace "hook $(printf '%s' "$1" | sed -n 's/.*"hook_event_name":"\([A-Za-z]*\)".*/\1/p') -> ${status:-none}"
+  cat "$body_file"
+  rm -f "$body_file"
 }
 json_escape() { printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' | tr '\n' ' '; }
 
@@ -72,4 +87,5 @@ fi
 hook "{$base,\"hook_event_name\":\"Stop\",\"stop_hook_active\":false}" > /dev/null
 rm -f "$headers"
 echo "FAKE CLAUDE DONE"
+trace "done"
 exec sleep infinity

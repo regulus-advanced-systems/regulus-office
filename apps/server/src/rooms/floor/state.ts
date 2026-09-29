@@ -43,6 +43,7 @@ export function writeRobot(target: RobotSchema, robot: RobotState): RobotSchema 
   target.prNumber = robot.prNumber;
   target.worktreeBranch = robot.worktreeBranch;
   target.handRaised = robot.handRaised;
+  target.statusReason = robot.statusReason;
   target.bubbleEmits.toolCalls = robot.bubbleEmits.toolCalls;
   target.bubbleEmits.fileEdits = robot.bubbleEmits.fileEdits;
   target.bubbleEmits.testRuns = robot.bubbleEmits.testRuns;

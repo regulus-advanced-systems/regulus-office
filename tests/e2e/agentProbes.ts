@@ -11,6 +11,8 @@ export interface RobotProbe {
   status: string;
   action: string;
   handRaised: boolean;
+  /** Why the robot is in `error` (RobotState.statusReason), else "". */
+  statusReason: string;
   animation: string;
   seated: boolean;
   seatId: string;
@@ -34,8 +36,9 @@ export function robots(page: Page): Promise<Record<string, RobotProbe>> {
 }
 
 /**
- * Starts sampling every robot's (status, action, animation, handRaised) inside the page every
- * 50 ms, so short-lived states are not missed between Playwright polls. Read with {@link history}.
+ * Starts sampling every robot's (status, action, animation, handRaised, and the reason of an
+ * `error`) inside the page every 50 ms, so short-lived states are not missed between Playwright
+ * polls. Read with {@link history}.
  */
 export async function recordRobots(page: Page): Promise<void> {
   await page.evaluate(() => {
@@ -51,7 +54,9 @@ export async function recordRobots(page: Page): Promise<void> {
       w.__regulusR3F?.scene.traverse((o) => {
         if (!o.name.startsWith("robot-") || !("status" in o.userData)) return;
         const d = o.userData;
-        const entry = `${d.status}/${d.action}/${d.animation}/${d.handRaised ? "hand" : "-"}`;
+        const entry =
+          `${d.status}/${d.action}/${d.animation}/${d.handRaised ? "hand" : "-"}` +
+          (d.statusReason ? ` (${d.statusReason})` : "");
         const h = w.__robotHistory ?? [];
         if (h[h.length - 1] !== entry) h.push(entry);
       });
@@ -59,7 +64,7 @@ export async function recordRobots(page: Page): Promise<void> {
   });
 }
 
-/** Distinct `status/action/animation/hand` samples since {@link recordRobots}, in order. */
+/** Distinct `status/action/animation/hand[ (statusReason)]` samples since {@link recordRobots}, in order. */
 export function history(page: Page): Promise<string[]> {
   return page.evaluate(
     () => (window as unknown as { __robotHistory?: string[] }).__robotHistory ?? [],

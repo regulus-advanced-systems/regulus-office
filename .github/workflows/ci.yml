@@ -42,7 +42,8 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: playwright-report
+          # One artifact per attempt: a re-run must not replace a failed attempt's evidence (#130).
+          name: playwright-report-${{ github.run_attempt }}
           path: |
             playwright-report/
             test-results/
@@ -76,10 +77,23 @@ jobs:
             --build-arg RUNNER_UID="$(id -u)" --build-arg RUNNER_GID="$(id -g)" tests/e2e/runner
       - run: bunx playwright install --with-deps chromium
       - run: bun run e2e:agents
+      # The spec itself saves the office-server log, each runner's state, `docker logs`, the fake
+      # claude's stderr and tmux panes into test-results/ when a test fails (agentDiagnostics.ts);
+      # this adds `docker logs` of any runner container the spec did not get to clean up.
+      - name: Runner diagnostics
+        if: failure()
+        run: |
+          out=test-results/ci-runner-diagnostics
+          mkdir -p "$out"
+          docker ps -a > "$out/docker-ps.txt" 2>&1 || true
+          for name in $(docker ps -a --filter name=-runner- --format '{{.Names}}'); do
+            docker logs --timestamps "$name" > "$out/$name.log" 2>&1 || true
+          done
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: playwright-report-agents
+          # One artifact per attempt: a re-run must not replace a failed attempt's evidence (#130).
+          name: playwright-report-agents-${{ github.run_attempt }}
           path: |
             playwright-report/
             test-results/

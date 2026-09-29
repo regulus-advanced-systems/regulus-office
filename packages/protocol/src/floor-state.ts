@@ -46,6 +46,12 @@ export const RobotState = z.object({
   worktreeBranch: z.string().max(200),
   /** True while waiting for permission or input (raised-hand animation). */
   handRaised: z.boolean(),
+  /**
+   * Why the robot is in `error`, e.g. `runner_busy: the runner has live work …`: a short
+   * code and a redacted one-line message, safe for every floor viewer (no paths, env or
+   * tokens). Empty in every other status.
+   */
+  statusReason: z.string().max(200),
   bubbleEmits: BubbleEmits,
   lastActivityAt: TimestampMs,
 });

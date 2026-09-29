@@ -17,6 +17,7 @@ import { WorkspaceError } from "../../worktrees/types.ts";
 import type { AgentEventSink } from "../events.ts";
 import { CredentialResolver } from "./credentials.ts";
 import { AgentManagerError } from "./errors.ts";
+import { startFailure, startFailureReason } from "./failure.ts";
 import { type HeuristicRung, SessionWatcher } from "./ladder.ts";
 import { closeQuietly, type LaunchProfile, launchProfile } from "./launch.ts";
 import { DEFAULT_PERMISSION_TTL_MS, PendingPermissions } from "./permissions.ts";
@@ -316,16 +317,25 @@ export class AgentRuntime implements AgentEventSink {
     this.opts.robots.publishRobot(live.view.floorId, robotState(live.view));
   }
 
+  /**
+   * A start failed: log the cause, stop what may have started, and move the
+   * robot to `error` with a short, safe reason (failure.ts) that the robot
+   * shows (`statusReason`) and the status event keeps.
+   */
   protected failed(live: LiveAgent, err: unknown): void {
     const agentId = live.view.agentId;
-    this.logger.error({ agentId, err: errorSummary(err) }, "agent launch failed");
+    const failure = startFailure(err);
+    this.logger.error(
+      { agentId, code: failure.code, err: errorSummary(err) },
+      "agent launch failed",
+    );
     this.processGone(live);
     void this.runner.kill({ userId: live.view.ownerUserId, agentId }).catch(() => {});
     this.publish(agentId, {
       kind: "status",
       ts: this.now(),
       status: "error",
-      reason: "failed to start",
+      reason: startFailureReason(err),
     });
   }
 

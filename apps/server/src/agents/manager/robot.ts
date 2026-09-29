@@ -11,6 +11,7 @@ import type {
   RobotState,
   ToolKind,
 } from "@regulus/protocol";
+import { MAX_STATUS_REASON, safeReason } from "./failure.ts";
 import { handRaised, transition } from "./state-machine.ts";
 
 export interface AgentView {
@@ -24,6 +25,8 @@ export interface AgentView {
   model: string;
   effort: string;
   status: AgentStatus;
+  /** Why the robot is in `error` (safe to publish, failure.ts); "" otherwise. */
+  statusReason: string;
   action: AgentAction;
   taskTitle: string;
   taskSummary: string;
@@ -69,6 +72,7 @@ export function viewFromRow(
     model: row.model,
     effort: row.effort ?? "",
     status: row.status,
+    statusReason: "",
     action: "none",
     taskTitle: row.taskTitle,
     taskSummary: row.taskSummary ?? "",
@@ -118,6 +122,7 @@ export function robotState(view: AgentView): RobotState {
     prNumber: view.prNumber,
     worktreeBranch: view.worktreeBranch.slice(0, 200),
     handRaised: handRaised(view.status),
+    statusReason: view.status === "error" ? view.statusReason.slice(0, MAX_STATUS_REASON) : "",
     bubbleEmits: { ...view.bubbles },
     lastActivityAt: view.lastActivityAt,
   };
@@ -180,6 +185,8 @@ export function applyEvent(view: AgentView, event: AgentEvent, now: number): App
     if (next.changed) {
       view.status = next.status;
       view.action = actionFor(next.status, view.action);
+      view.statusReason =
+        next.status === "error" && event.kind === "status" ? safeReason(event.reason) : "";
       result.statusChanged = true;
     }
   }
@@ -234,6 +241,7 @@ export function setStatus(view: AgentView, status: AgentStatus, now: number): bo
   if (!next.changed) return false;
   view.status = next.status;
   view.action = actionFor(next.status, view.action);
+  view.statusReason = "";
   view.lastActivityAt = now;
   return true;
 }
