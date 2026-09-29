@@ -32,7 +32,10 @@ import type { FloorService } from "./service.ts";
 /** Largest accepted JSON body; a create request with 8 repos and PATs is ~5 KB. */
 const MAX_BODY_BYTES = 64 * 1024;
 
-async function readBody<S extends z.ZodType>(request: Request, schema: S): Promise<z.output<S>> {
+export async function readBody<S extends z.ZodType>(
+  request: Request,
+  schema: S,
+): Promise<z.output<S>> {
   const text = await request.text();
   if (text.length > MAX_BODY_BYTES) throw new AuthHttpError(413, "body_too_large");
   let raw: unknown;

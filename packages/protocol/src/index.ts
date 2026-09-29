@@ -7,6 +7,7 @@
  * - building-state.ts  BuildingRoom state shapes (zod + inferred types)
  * - floor-state.ts     FloorRoom state shapes (zod + inferred types)
  * - floors-api.ts      REST shapes for floors, repos and floor members
+ * - github-api.ts      REST shapes for the office GitHub connection and its repo list
  * - credentials-api.ts read-only credential profile list (ids and labels only)
  * - provider-connect.ts "Connect providers": key profiles, key presets, CLI login flows
  * - commands/          client→server command union (zod, discriminated on `type`)
@@ -27,6 +28,7 @@ export * from "./credentials-api.ts";
 export * from "./enums.ts";
 export * from "./floor-state.ts";
 export * from "./floors-api.ts";
+export * from "./github-api.ts";
 export * from "./provider-connect.ts";
 export * from "./rooms.ts";
 export * from "./schema/index.ts";

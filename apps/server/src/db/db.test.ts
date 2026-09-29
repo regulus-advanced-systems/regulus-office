@@ -41,7 +41,7 @@ const SPEC_TABLES = [
 ] as const;
 
 /** Tables outside SPEC §5 that the server adds for its own bookkeeping. */
-const EXTRA_TABLES = ["chat_messages"] as const;
+const EXTRA_TABLES = ["chat_messages", "github_connection"] as const;
 
 /** Better Auth's remaining core tables (`users` is in SPEC_TABLES); see schema/auth.ts. */
 const BETTER_AUTH_TABLES = ["sessions", "accounts", "verifications"] as const;

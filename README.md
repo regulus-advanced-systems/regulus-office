@@ -43,6 +43,16 @@ For a real server set `OFFICE_DOMAIN` in `deploy/.env` to a hostname pointing at
 
 `docker compose exec -T office bun run - < runner-e2e.ts` runs the fake agent in a throwaway runner end to end. Runner containers and HOME volumes are created by the office, so `docker compose down -v` does not remove them; remove them first (this also frees the `runners` network): `docker rm -f $(docker ps -aq --filter label=org.regulus.office.prefix=<project>)`, then `docker volume rm $(docker volume ls -q --filter label=org.regulus.office.prefix=<project>)` if you also want to delete the logins. `<project>` is the Compose project name (`deploy` unless you pass `-p`).
 
+### Connect GitHub
+
+Floors are GitHub repos. Connect the office to GitHub once, as an owner or admin, and **Add floor** lists every repo the connection can see (search, tick one or more). Clones, fetches, pushes and one-click PRs then use the connection's token; typed repos under *Other repo…* keep their own optional token. Credentials are stored encrypted (so `OFFICE_MASTER_KEY` must be set), are never sent to browsers, logged or given to agents.
+
+**GitHub App (recommended).** Settings → *GitHub* → type the organization (empty = your personal account) → *Create GitHub App…*. GitHub opens with a private app for this office already filled in; create it, then install it on the organization for all or selected repos. The office asks for Contents, Pull requests and Issues (read and write), Checks and Metadata (read). The app's private key and webhook secret are converted and stored by the office; nothing goes into `.env`. The office mints a one-hour installation token narrowed to one repo for each git or API call, and caches it until five minutes before it expires. To add repos later, change the installation's repository access on GitHub. Webhooks stay off until the boards (M2) need them.
+
+**Organization token (fallback).** On GitHub: Settings → Developer settings → Fine-grained tokens → *Generate new token*, resource owner = the organization, all or selected repositories, permissions *Contents: read and write*, *Pull requests: read and write*, *Metadata: read*. In the office: Settings → *GitHub* → paste it under *Or an organization access token* → *Connect with token*.
+
+**From the environment.** `GITHUB_APP_ID` and `GITHUB_APP_PRIVATE_KEY` (optionally `GITHUB_APP_CLIENT_ID`, `GITHUB_WEBHOOK_SECRET`) configure the App instead and override whatever was connected in the UI. `OFFICE_GITHUB_API_BASE` and `OFFICE_GITHUB_WEB_BASE` point at another GitHub (tests use a fake).
+
 Developing instead? See [CONTRIBUTING.md](CONTRIBUTING.md): `bun install && bun run dev`. The browser smoke test runs with `bun run e2e` (needs `bunx playwright install chromium` once).
 
 ## Principles

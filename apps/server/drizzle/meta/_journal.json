@@ -36,6 +36,13 @@
       "when": 1790633188475,
       "tag": "0004_agent_hook_token",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1790692630032,
+      "tag": "0005_github_connection",
+      "breakpoints": true
     }
   ]
 }

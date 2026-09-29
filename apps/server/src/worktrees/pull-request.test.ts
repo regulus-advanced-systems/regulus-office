@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { eq } from "drizzle-orm";
 import { agents, auditLog } from "../db/schema/index.ts";
+import type { ConnectionTokens } from "../github/repo-access.ts";
 import { draftBody, draftTitle } from "./pull-request.ts";
 import {
   commitIn,
@@ -41,10 +42,19 @@ const pullJson = (number: number, draft = false) =>
 
 async function agentWithWork(
   respond: (req: RecordedRequest) => Response,
-  fields: { taskTitle?: string; issueNumber?: number; token?: boolean } = {},
+  fields: {
+    taskTitle?: string;
+    issueNumber?: number;
+    token?: boolean;
+    connection?: ConnectionTokens;
+  } = {},
 ) {
   github = fakeGitHub(respond);
-  const f = await setupFloor(root, { apiBase: github.url, token: fields.token });
+  const f = await setupFloor(root, {
+    apiBase: github.url,
+    token: fields.token,
+    connection: fields.connection,
+  });
   const agentId = f.addAgent(`agent-${crypto.randomUUID().slice(0, 6)}`, fields);
   const ws = await f.worktrees.workspaces.prepare({
     agentId,
@@ -191,6 +201,20 @@ describe("openPullRequest", () => {
       "no_repo_credential",
     );
     expect(tokenless.requests).toHaveLength(0);
+  });
+
+  test("a repo covered by the office GitHub connection pushes and opens the PR with its token", async () => {
+    const CONN = "ghs_officeConnectionFake0123456789";
+    const w = await agentWithWork(() => pullJson(3), {
+      token: false,
+      connection: { tokenFor: async (o, n) => (`${o}/${n}` === "octo/hello" ? CONN : null) },
+    });
+    await commitIn(w.ws.workdir, "c.ts", "Connected work");
+    const pr = await w.f.worktrees.openPullRequest(w.agentId);
+    expect(pr.number).toBe(3);
+    expect(w.requests[0]?.headers.get("authorization")).toBe(`Bearer ${CONN}`);
+    expect(w.f.gitCalls.flat().join(" ")).not.toContain(CONN);
+    expect(await filesContaining(join(w.f.cloneOf(), ".git"), CONN)).toEqual([]);
   });
 
   test("GitHub errors are reported without the token", async () => {

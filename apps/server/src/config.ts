@@ -17,6 +17,7 @@ export const DEFAULT_GITHUB_REMOTE_BASE = "https://github.com";
 /** Production root for per-agent git worktrees (SPEC §8). */
 export const DEFAULT_WORKTREES_DIR = "/srv/office/worktrees";
 export const DEFAULT_GITHUB_API_BASE = "https://api.github.com";
+export const DEFAULT_GITHUB_WEB_BASE = "https://github.com";
 export const LOG_LEVELS = ["fatal", "error", "warn", "info", "debug", "trace", "silent"] as const;
 export type LogLevel = (typeof LOG_LEVELS)[number];
 
@@ -139,6 +140,12 @@ export const envSchema = z.object({
   OFFICE_GITHUB_REMOTE_BASE: z.preprocess(emptyToUndefined, z.url().optional()),
   OFFICE_WORKTREES_DIR: z.preprocess(emptyToUndefined, str().optional()),
   OFFICE_GITHUB_API_BASE: z.preprocess(emptyToUndefined, z.url().optional()),
+  OFFICE_GITHUB_WEB_BASE: z.preprocess(emptyToUndefined, z.url().optional()),
+  // Office GitHub App from the environment (#141); overrides the one stored from the manifest flow.
+  GITHUB_APP_ID: z.preprocess(emptyToUndefined, z.coerce.number().int().positive().optional()),
+  GITHUB_APP_CLIENT_ID: z.preprocess(emptyToUndefined, str().optional()),
+  GITHUB_APP_PRIVATE_KEY: z.preprocess(emptyToUndefined, secretStr().optional()),
+  GITHUB_WEBHOOK_SECRET: z.preprocess(emptyToUndefined, secretStr().optional()),
   OFFICE_MASTER_KEY: z.preprocess(emptyToUndefined, masterKeySchema.optional()),
   OFFICE_PUBLIC_URL: z.preprocess(emptyToUndefined, z.url().optional()),
   OFFICE_LOG_LEVEL: z.preprocess(emptyToUndefined, z.enum(LOG_LEVELS).default("info")),
@@ -199,6 +206,14 @@ export const envSchema = z.object({
   OFFICE_DOCKER_VOLUME_MAP: z.preprocess(emptyToUndefined, volumeMap.default([])),
 });
 
+/** The office GitHub App from GITHUB_APP_ID / GITHUB_APP_PRIVATE_KEY (#141; D14). */
+export interface GithubAppEnvConfig {
+  appId: number;
+  clientId: string | null;
+  privateKey: SecretValue<string>;
+  webhookSecret: SecretValue<string> | undefined;
+}
+
 /** GitHub OAuth app used for human sign-in (SPEC §4.2 Auth); unrelated to agent credentials. */
 export interface GithubOAuthConfig {
   clientId: string;
@@ -229,6 +244,10 @@ export interface OfficeConfig {
   worktreesDir: string;
   /** GitHub REST base for pull requests. Default `https://api.github.com`; tests use a fake. */
   githubApiBase: string;
+  /** GitHub web base the manifest form posts to. Default `https://github.com`. */
+  githubWebBase: string;
+  /** Office GitHub App from the environment; overrides the stored connection when set. */
+  githubApp: GithubAppEnvConfig | undefined;
   /** Envelope-encryption root key (SPEC §8 rule 2). Absent means secrets cannot be stored. */
   masterKey: SecretValue<Uint8Array> | undefined;
   /** Externally reachable origin, used for links and OAuth callbacks. */
@@ -312,6 +331,11 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     throw new ConfigError(`Invalid environment:\n${lines.join("\n")}`);
   }
   const e = parsed.data;
+  if (Boolean(e.GITHUB_APP_ID) !== Boolean(e.GITHUB_APP_PRIVATE_KEY)) {
+    throw new ConfigError(
+      "Invalid environment:\n  GITHUB_APP_ID, GITHUB_APP_PRIVATE_KEY: set both to configure the office GitHub App, or neither",
+    );
+  }
   if (Boolean(e.GITHUB_CLIENT_ID) !== Boolean(e.GITHUB_CLIENT_SECRET)) {
     throw new ConfigError(
       "Invalid environment:\n  GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET: set both to enable GitHub login, or neither",
@@ -340,6 +364,16 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     ),
     worktreesDir,
     githubApiBase: (e.OFFICE_GITHUB_API_BASE ?? DEFAULT_GITHUB_API_BASE).replace(/\/+$/, ""),
+    githubWebBase: (e.OFFICE_GITHUB_WEB_BASE ?? DEFAULT_GITHUB_WEB_BASE).replace(/\/+$/, ""),
+    githubApp:
+      e.GITHUB_APP_ID && e.GITHUB_APP_PRIVATE_KEY
+        ? {
+            appId: e.GITHUB_APP_ID,
+            clientId: e.GITHUB_APP_CLIENT_ID ?? null,
+            privateKey: e.GITHUB_APP_PRIVATE_KEY,
+            webhookSecret: e.GITHUB_WEBHOOK_SECRET,
+          }
+        : undefined,
     masterKey: e.OFFICE_MASTER_KEY,
     publicUrl: e.OFFICE_PUBLIC_URL ?? `http://localhost:${e.OFFICE_PORT}`,
     logLevel: e.OFFICE_LOG_LEVEL,
@@ -375,9 +409,12 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
 
 /** A copy of the config that is safe to log: secrets removed, presence reported as flags. */
 export function redactConfig(config: OfficeConfig): Record<string, unknown> {
-  const { masterKey, betterAuthSecret, githubOAuth, ...rest } = config;
+  const { masterKey, betterAuthSecret, githubOAuth, githubApp, ...rest } = config;
   return {
     ...rest,
+    githubApp: githubApp
+      ? { appId: githubApp.appId, clientId: githubApp.clientId, privateKeySet: true }
+      : undefined,
     masterKeySet: Boolean(masterKey),
     betterAuthSecretSet: Boolean(betterAuthSecret),
     githubOAuth: githubOAuth ? { clientId: githubOAuth.clientId } : undefined,

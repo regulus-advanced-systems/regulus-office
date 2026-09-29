@@ -42,7 +42,13 @@ async function exists(path: string): Promise<boolean> {
 const CREDENTIAL_MESSAGES: Record<RepoCredentialError["code"], string> = {
   master_key_missing: "OFFICE_MASTER_KEY is not set, so the stored access token cannot be used",
   undecryptable: "the stored access token could not be decrypted; enter it again",
+  connection_failed: "the office's GitHub connection could not issue a token",
 };
+
+function credentialMessage(err: RepoCredentialError): string {
+  const base = CREDENTIAL_MESSAGES[err.code];
+  return err.detail ? `${base}: ${redactGitOutput(err.detail).slice(0, 300)}` : base;
+}
 
 export class RepoCloner {
   readonly #deps: RepoClonerDeps;
@@ -137,7 +143,7 @@ export class RepoCloner {
     } catch (err) {
       let message: string;
       if (err instanceof CloneFailure) message = err.message;
-      else if (err instanceof RepoCredentialError) message = CREDENTIAL_MESSAGES[err.code];
+      else if (err instanceof RepoCredentialError) message = credentialMessage(err);
       else {
         // Filesystem errors (permissions, disk full): paths only, no credential material.
         const reason = err instanceof Error ? err.message : String(err);

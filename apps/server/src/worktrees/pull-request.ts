@@ -3,8 +3,9 @@
  *
  * Agents commit their own work, so a dirty worktree is an error that lists
  * the files. Otherwise: fetch, push `office/<slug>` from the owner's own
- * clone (#114) with the floor repo's project credential (never a user's PAT,
- * SPEC §8 / D14), and open the PR via GitHub REST with a drafted title and
+ * clone (#114) with the floor repo's project credential (the office GitHub
+ * connection's token when it covers the repo, else the repo's own PAT; never
+ * a user's PAT, SPEC §8 / D14, #141), and open the PR via GitHub REST with a drafted title and
  * body (`Closes #n` when the agent works on an issue). An already open PR for the branch is returned as is.
  */
 import { eq } from "drizzle-orm";
@@ -143,7 +144,7 @@ export class PullRequestService {
         if (!token) {
           throw new WorkspaceError(
             "no_repo_credential",
-            "this floor repo has no access token, so the office cannot push or open a PR",
+            "this floor repo has no access token and the office GitHub connection does not cover it, so the office cannot push or open a PR",
           );
         }
         const ref = `refs/heads/${branch}`;

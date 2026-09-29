@@ -11,7 +11,7 @@ import type { OfficeConfig } from "../config.ts";
 import type { Db } from "../db/index.ts";
 import { RepoCredentialVault } from "../github/credentials.ts";
 import type { GitRunner } from "../github/git.ts";
-import { createRepoAccess, type RepoAccess } from "../github/repo-access.ts";
+import { type ConnectionTokens, createRepoAccess, type RepoAccess } from "../github/repo-access.ts";
 import type { Logger } from "../logging.ts";
 import type { MasterKeyring } from "../secrets/index.ts";
 import { RepoCloner } from "./cloner.ts";
@@ -31,6 +31,11 @@ export interface FloorsDeps {
   /** A floor was created or archived, or one of its repos finished cloning. */
   onChange?(floorId: string): void;
   git?: GitRunner;
+  /**
+   * The office GitHub connection (#141): its token is used for repos it
+   * covers; other repos use their own stored PAT.
+   */
+  connection?: ConnectionTokens;
 }
 
 export interface Floors {
@@ -42,7 +47,12 @@ export interface Floors {
 
 export function createFloors(deps: FloorsDeps): Floors {
   const vault = new RepoCredentialVault(deps.keyring);
-  const repos = createRepoAccess({ db: deps.db, vault, remoteBase: deps.config.githubRemoteBase });
+  const repos = createRepoAccess({
+    db: deps.db,
+    vault,
+    remoteBase: deps.config.githubRemoteBase,
+    connection: deps.connection,
+  });
   const cloner = new RepoCloner({
     db: deps.db,
     repos,

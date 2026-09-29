@@ -2,6 +2,8 @@
  * A fake GitHub REST API for the agents e2e (OFFICE_GITHUB_API_BASE points here). It records
  * every request and answers the two calls the one-click PR makes (apps/server/src/github/pulls.ts):
  * `POST /repos/{o}/{r}/pulls` creates PR #1, #2, … and `GET /repos/{o}/{r}/pulls` lists them.
+ * With `orgToken`, it also plays the office GitHub connection's org PAT (#141): `GET /user` and
+ * `GET /user/repos` answer for that token only, listing `repos`.
  * Listens on 127.0.0.1 only; nothing here talks to the real GitHub.
  */
 import { createServer, type Server } from "node:http";
@@ -22,7 +24,13 @@ export interface FakeGitHub {
 
 const PULLS = /^\/repos\/([^/]+)\/([^/]+)\/pulls$/;
 
-export async function startFakeGitHub(): Promise<FakeGitHub> {
+export interface FakeOrgConnection {
+  /** The org fine-grained PAT the office connects with. */
+  orgToken: string;
+  repos: { owner: string; name: string; defaultBranch: string }[];
+}
+
+export async function startFakeGitHub(org?: FakeOrgConnection): Promise<FakeGitHub> {
   const requests: RecordedRequest[] = [];
   const pulls: { number: number; html_url: string; draft: boolean; head: string }[] = [];
   const server: Server = createServer((req, res) => {
@@ -42,6 +50,25 @@ export async function startFakeGitHub(): Promise<FakeGitHub> {
         res.writeHead(status, { "content-type": "application/json" });
         res.end(JSON.stringify(payload));
       };
+      const authorized = org && req.headers.authorization === `Bearer ${org.orgToken}`;
+      if (url.pathname === "/user" || url.pathname === "/user/repos") {
+        if (!authorized) return send(401, { message: "Bad credentials" });
+        if (url.pathname === "/user") return send(200, { login: "org-bot" });
+        const page = Number(url.searchParams.get("page") ?? "1");
+        const listed = page > 1 ? [] : org.repos;
+        return send(
+          200,
+          listed.map((r) => ({
+            name: r.name,
+            full_name: `${r.owner}/${r.name}`,
+            owner: { login: r.owner },
+            private: true,
+            default_branch: r.defaultBranch,
+            pushed_at: new Date().toISOString(),
+            description: null,
+          })),
+        );
+      }
       const m = PULLS.exec(url.pathname);
       if (!m) return send(404, { message: "Not Found" });
       const [, owner, repo] = m;

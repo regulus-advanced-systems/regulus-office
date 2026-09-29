@@ -11,6 +11,7 @@ import { Button } from "../components/Button.tsx";
 import { Switch } from "../components/Switch.tsx";
 import { openProvidersPanel } from "../providers/providersStore.ts";
 import { FirstPersonSettings } from "./FirstPersonSettings.tsx";
+import { GitHubSection } from "./GitHubSection.tsx";
 import { DEFAULT_SETTINGS } from "./settingsStorage.ts";
 
 export function SettingsForm() {
@@ -23,6 +24,8 @@ export function SettingsForm() {
   return (
     <div>
       <AccountSection />
+
+      <GitHubSection />
 
       <div className="rg-field">
         <div className="rg-field__label">AI providers</div>
