@@ -205,7 +205,7 @@ jobs:
           sudo install -m 0440 -o root -g root "$RUNNER_TEMP/office-runner" /etc/sudoers.d/office-runner
           sudo install -d -m 0750 -o "$USER" -g "$USER" /srv/office/projects /srv/office/worktrees
       # useradd --create-home copies /etc/skel. On GitHub's image that is
-      # large (.nvm and more) and read from a cold disk, so the first copy takes
+      # ~800 MB (.nvm and more) read from a cold disk, so the first copy takes
       # 25-100 s and the second < 1 s (#117). Warm the page cache with a
       # throwaway account so the test measures our code, not the image.
       - name: Pre-warm useradd (/etc/skel copy)

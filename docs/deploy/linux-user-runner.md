@@ -172,9 +172,9 @@ marker, uid 0, and IDs outside `^[a-z0-9]{1,23}$` (runner), `^[A-Za-z0-9_-]{1,64
 - **Timeouts.** The office waits 60 s for a helper verb and 180 s for
   `provision` (`HelperOptions.timeoutMs` and `verbTimeoutsMs`). `provision`
   gets longer because `useradd --create-home` copies `/etc/skel`: a large skel
-  on a cold disk makes the first account slow (25-100 s on GitHub's runner
-  image, where `/etc/skel` holds `.nvm` and more; the next one takes under a
-  second). Keep `/etc/skel` small on an office host. On timeout the office
+  on a cold disk makes the first account slow (20-100 s on GitHub's runner
+  image, whose `/etc/skel` is ~800 MB with `.nvm` and more; the next account
+  takes under a second). Keep `/etc/skel` small on an office host. On timeout the office
   sends SIGTERM, which sudo passes to the helper, then SIGKILL after 2 s, and
   reports "<verb> timed out after N ms" without waiting for children that
   still hold its output. An interrupted `provision` can be retried: it is
