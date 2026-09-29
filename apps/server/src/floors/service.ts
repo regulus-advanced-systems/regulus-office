@@ -8,7 +8,13 @@
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import { paletteById, paletteForFloor, templateForTier } from "@regulus/floor-layout";
-import type { FloorAccess, FloorInfo, FloorMemberInfo, FloorRepoInfo } from "@regulus/protocol";
+import type {
+  FloorAccess,
+  FloorInfo,
+  FloorMemberInfo,
+  FloorRepoInfo,
+  OfficeUserInfo,
+} from "@regulus/protocol";
 import { CreateFloorRequest, hasFloorAccess } from "@regulus/protocol";
 import { and, asc, eq, isNull, max } from "drizzle-orm";
 import type { z } from "zod";
@@ -21,6 +27,7 @@ import { parseRepoRef, type RepoRef, repoKey, repoWebUrl } from "../github/repo-
 import { effectiveAccess, type FloorActor, floorAccessFor, isOfficeManager } from "./access.ts";
 import type { RepoCloner } from "./cloner.ts";
 import { repoDirNames, slugify, uniqueSlug } from "./naming.ts";
+import { listOfficeUsers } from "./people.ts";
 
 export type CreateFloorInput = z.output<typeof CreateFloorRequest>;
 
@@ -247,6 +254,11 @@ export class FloorService {
       .where(eq(floorMembers.floorId, floorId))
       .orderBy(asc(userProfiles.displayName))
       .all();
+  }
+
+  /** Office people to pick from when granting access (anyone who manages a floor). */
+  people(actor: FloorActor): OfficeUserInfo[] {
+    return listOfficeUsers(this.#db, actor);
   }
 
   setMember(actor: FloorActor, floorId: string, userId: string, access: FloorAccess): void {
