@@ -12,7 +12,13 @@
  * - Usage: `thread/tokenUsage/updated` in-band; plan limits from
  *   `account/rateLimits/read|updated`.
  */
-import type { LimitSample, ProviderId, UsageSample } from "@regulus/protocol";
+import {
+  effectivePermissionMode,
+  isPermissionModeFor,
+  type LimitSample,
+  type ProviderId,
+  type UsageSample,
+} from "@regulus/protocol";
 import { SecretEnv } from "../secret.ts";
 import { tmuxSessionName } from "../session.ts";
 import type {
@@ -98,6 +104,17 @@ function modelArgs(model?: string, effort?: string): string[] {
 }
 
 /**
+ * The robot's approval policy (#166): the stored one, else Codex's recommended
+ * `on-request` (https://learn.chatgpt.com/docs/agent-approvals-security).
+ */
+export function codexApprovalPolicy(mode: string | undefined): string {
+  if (mode !== undefined && !isPermissionModeFor("codex", mode)) {
+    throw new Error(`Invalid Codex approval policy: ${mode}`);
+  }
+  return effectivePermissionMode("codex", mode) ?? "on-request";
+}
+
+/**
  * HOME of the runner identity. CODEX_HOME is left at its default (`~/.codex`):
  * codex refuses an explicit CODEX_HOME that does not exist yet, while it
  * creates the default one itself on first run.
@@ -121,6 +138,7 @@ export class CodexAdapter implements AgentAdapter {
     if (req.resumeSessionId && !THREAD_ID.test(req.resumeSessionId)) {
       throw new Error("Invalid Codex thread id");
     }
+    const permissionMode = codexApprovalPolicy(req.permissionMode);
     let env = codexEnv(ctx);
     if (req.credential.kind !== "cli_login") env = env.with(CODEX_KEY_ENV, req.credential.apiKey);
     return {
@@ -137,6 +155,8 @@ export class CodexAdapter implements AgentAdapter {
       tmuxSession: tmuxSessionName(req.agentId),
       files: [],
       providerSessionId: req.resumeSessionId,
+      // Applied as `approvalPolicy` on thread/start and thread/resume (control.ts).
+      permissionMode,
     };
   }
 
@@ -161,7 +181,13 @@ export class CodexAdapter implements AgentAdapter {
     return {
       agentId: agent.agentId,
       provider: this.id,
-      argv: [...this.#command, "resume", ...modelArgs(agent.model, agent.effort), threadId],
+      argv: [
+        ...this.#command,
+        "resume",
+        ...modelArgs(agent.model, agent.effort),
+        ...configArg("approval_policy", codexApprovalPolicy(agent.permissionMode)),
+        threadId,
+      ],
       env: codexEnv(ctx),
       cwd: agent.workdir,
       tmuxSession: agent.tmuxSession,

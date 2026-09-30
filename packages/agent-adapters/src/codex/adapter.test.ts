@@ -151,7 +151,17 @@ describe("CodexAdapter.buildAttachTui", () => {
 
   test("codex resume <threadId> in the agent's tmux session", () => {
     const plan = adapter.buildAttachTui(agent, ctx) as SpawnPlan;
-    expect(plan.argv).toEqual(["codex", "resume", "-c", 'model="gpt-6-sol"', "019a-thread"]);
+    expect(plan.argv).toEqual([
+      "codex",
+      "resume",
+      "-c",
+      'model="gpt-6-sol"',
+      "-c",
+      'approval_policy="on-request"',
+      "019a-thread",
+    ]);
+    const never = adapter.buildAttachTui({ ...agent, permissionMode: "never" }, ctx) as SpawnPlan;
+    expect(never.argv).toContain('approval_policy="never"');
     expect(plan.tmuxSession).toBe("agent-a1");
     expect(plan.cwd).toBe("/w");
   });

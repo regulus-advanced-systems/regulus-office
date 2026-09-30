@@ -3,7 +3,7 @@ import { describe, expect, test } from "bun:test";
 import { CLAUDE_SIGN_IN_REASON, CLAUDE_TRUST_REASON } from "@regulus/agent-adapters";
 import { AGENT_STATUSES, type AgentEvent, RobotState } from "@regulus/protocol";
 import { deriveHeuristicStatus } from "./ladder.ts";
-import { type AgentView, applyEvent, robotState, setStatus } from "./robot.ts";
+import { type AgentView, applyEvent, robotState, setStatus, viewFromRow } from "./robot.ts";
 import { canTransition, handRaised, isLive, transition } from "./state-machine.ts";
 
 function view(overrides: Partial<AgentView> = {}): AgentView {
@@ -17,6 +17,7 @@ function view(overrides: Partial<AgentView> = {}): AgentView {
     provider: "claude-code",
     model: "m",
     effort: "",
+    permissionMode: "auto",
     status: "starting",
     statusReason: "",
     action: "none",
@@ -32,6 +33,41 @@ function view(overrides: Partial<AgentView> = {}): AgentView {
     ...overrides,
   };
 }
+
+describe("permission mode on the robot (#166)", () => {
+  const row = {
+    id: "a1",
+    floorId: "f1",
+    repoId: "r1",
+    deskSeatId: "seat-1",
+    ownerUserId: "u1",
+    provider: "claude-code" as const,
+    model: "opus",
+    effort: null,
+    status: "idle" as const,
+    taskTitle: "t",
+    taskSummary: null,
+    issueNumber: null,
+    prNumber: null,
+    worktreeBranch: null,
+    lastActivityAt: null,
+  };
+
+  test("the stored mode is published in RobotState", () => {
+    const state = robotState(viewFromRow({ ...row, permissionMode: "acceptEdits" }, "Olga"));
+    expect(RobotState.parse(state).permissionMode).toBe("acceptEdits");
+    const codex = viewFromRow({ ...row, provider: "codex", permissionMode: "never" }, "Olga");
+    expect(robotState(codex).permissionMode).toBe("never");
+  });
+
+  test("rows from before #166 show the provider default", () => {
+    expect(viewFromRow({ ...row, permissionMode: null }, "Olga").permissionMode).toBe("auto");
+    const codex = viewFromRow({ ...row, provider: "codex", permissionMode: null }, "Olga");
+    expect(codex.permissionMode).toBe("on-request");
+    const custom = viewFromRow({ ...row, provider: "custom", permissionMode: null }, "Olga");
+    expect(custom.permissionMode).toBe("");
+  });
+});
 
 describe("state machine", () => {
   test("the normal lifecycle is allowed", () => {

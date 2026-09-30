@@ -7,9 +7,12 @@ import {
   providerUsable,
 } from "./credentials.ts";
 import { defaultEffortFor, PROVIDER_PRESETS, SPAWNABLE_PROVIDERS } from "./models.ts";
+import { permissionModeOptions } from "./permissionModes.ts";
 import {
   effectiveCredential,
+  effectivePermissionModeOf,
   initialSpawnValues,
+  MORE_OPTION_FIELDS,
   type SpawnContext,
   type SpawnRepoOption,
   usableDefault,
@@ -76,6 +79,7 @@ describe("spawn form defaults", () => {
       provider: "claude-code",
       model: "opus",
       effort: "medium",
+      permissionMode: null,
       profileId: null,
       prompt: "",
       taskTitle: "",
@@ -179,6 +183,38 @@ describe("default credential", () => {
 
 describe("spawn form validation and payload", () => {
   const base = () => initialSpawnValues(repos, undefined);
+
+  test("permission mode: omitted by default, sent when picked, reset with the provider (#166)", () => {
+    const v = base();
+    expect(effectivePermissionModeOf(v)).toBe("auto");
+    const auto = validateSpawnForm(v, ctx());
+    expect(auto.ok && "permissionMode" in auto.payload).toBe(false);
+
+    const manual = validateSpawnForm({ ...v, permissionMode: "default" }, ctx());
+    expect(manual.ok && manual.payload.permissionMode).toBe("default");
+
+    const codex = withModel({ ...v, permissionMode: "acceptEdits" }, "codex", "gpt-6-sol");
+    expect(codex.permissionMode).toBeNull();
+    expect(effectivePermissionModeOf(codex)).toBe("on-request");
+    const never = validateSpawnForm({ ...codex, permissionMode: "never" }, ctx());
+    expect(never.ok && never.payload.permissionMode).toBe("never");
+    expect(
+      withModel({ ...v, permissionMode: "default" }, "claude-code", "sonnet").permissionMode,
+    ).toBe("default");
+  });
+
+  test("a permission mode of another provider is refused under More options (#166)", () => {
+    const result = validateSpawnForm({ ...base(), permissionMode: "never" }, ctx());
+    expect(result).toMatchObject({ ok: false, errors: { permissionMode: expect.any(String) } });
+    expect(MORE_OPTION_FIELDS).toContain("permissionMode");
+    expect(permissionModeOptions("claude-code").map((o) => [o.value, o.isDefault])).toEqual([
+      ["auto", true],
+      ["default", false],
+      ["acceptEdits", false],
+    ]);
+    expect(permissionModeOptions("codex").map((o) => o.value)).toEqual(["on-request", "never"]);
+    expect(permissionModeOptions("custom")).toEqual([]);
+  });
 
   test("the defaults alone make a payload: empty prompt, worktree on, own login", () => {
     expect(validateSpawnForm(base(), ctx())).toEqual({

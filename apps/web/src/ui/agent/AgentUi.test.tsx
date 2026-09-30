@@ -97,6 +97,33 @@ describe("AgentPanel", () => {
   });
 
   test.each([
+    ["claude-code", "auto", "Auto mode"],
+    ["claude-code", "default", "Ask for everything"],
+    ["claude-code", "acceptEdits", "Accept edits"],
+    ["codex", "on-request", "Ask outside the sandbox"],
+    ["codex", "never", "Never ask"],
+  ] as const)(
+    "shows the permission mode (%s %s, #166)",
+    async (provider, permissionMode, label) => {
+      seed({ robot: { provider, permissionMode }, role: "member", userId: "u-other" });
+      const { wrap } = recorder();
+      useAgentStore.getState().openAgentPanel("a1");
+      const m = track(await mount(wrap(<AgentPanel />)));
+      expect(document.querySelector('[data-key="permissions"] dd')?.textContent).toBe(label);
+      await m.unmount();
+    },
+  );
+
+  test("no permissions row for a provider without modes", async () => {
+    seed({ robot: { provider: "custom", permissionMode: "" } });
+    const { wrap } = recorder();
+    useAgentStore.getState().openAgentPanel("a1");
+    const m = track(await mount(wrap(<AgentPanel />)));
+    expect(document.querySelector('[data-key="permissions"]')).toBeNull();
+    await m.unmount();
+  });
+
+  test.each([
     ["another member", "member", "u-other"],
     ["a viewer who owns it", "viewer", "u-owner"],
   ] as const)("%s only watches", async (_label, role, userId) => {

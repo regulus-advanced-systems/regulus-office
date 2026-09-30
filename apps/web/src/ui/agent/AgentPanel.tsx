@@ -13,6 +13,7 @@ import { useSessionStore } from "../../state/session.ts";
 import { Button } from "../components/Button.tsx";
 import { CloseButton } from "../components/CloseButton.tsx";
 import { Panel } from "../Panel.tsx";
+import { permissionModeLabel } from "../spawn/permissionModes.ts";
 import { useTerminalModal } from "../terminal/terminalStore.ts";
 import { useAgentSender } from "./agentCommands.ts";
 import { flightKey, useAgentStore } from "./agentStore.ts";
@@ -28,6 +29,9 @@ function Facts({ robot }: { robot: RobotState }) {
     ],
     ["Owner", robot.ownerName || "—"],
   ];
+  // How much it may do before it raises its hand (#166).
+  if (robot.permissionMode)
+    rows.splice(3, 0, ["Permissions", permissionModeLabel(robot.permissionMode)]);
   // Why it is in `error` (a short code and a redacted message, safe for every viewer).
   if (robot.statusReason) rows.splice(1, 0, ["Reason", robot.statusReason]);
   if (robot.worktreeBranch) rows.push(["Branch", robot.worktreeBranch]);

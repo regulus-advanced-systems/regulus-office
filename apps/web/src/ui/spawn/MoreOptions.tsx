@@ -1,13 +1,23 @@
 /**
  * "More options" of the spawn dialog (#142): the first prompt, task title,
- * issue number, credential and the own-worktree toggle. All optional; the
- * defaults are "no prompt (the robot waits)", a title from the prompt or the
- * issue, the default credential and a fresh worktree. Credentials are picked
+ * issue number, permission mode (#166), credential and the own-worktree
+ * toggle. All optional; the defaults are "no prompt (the robot waits)", a
+ * title from the prompt or the issue, the provider's own permission mode
+ * (Claude: auto mode), the default credential and a fresh worktree. Credentials are picked
  * by profile id; no secret is ever asked for or shown here (SPEC §8).
  */
+
+import type { PermissionMode } from "@regulus/protocol";
 import { Switch } from "../components/Switch.tsx";
 import type { CredentialOption } from "./credentials.ts";
-import { MAX_PROMPT, MAX_TITLE, type SpawnFormErrors, type SpawnFormValues } from "./spawnForm.ts";
+import { permissionModeCopy, permissionModeOptions } from "./permissionModes.ts";
+import {
+  effectivePermissionModeOf,
+  MAX_PROMPT,
+  MAX_TITLE,
+  type SpawnFormErrors,
+  type SpawnFormValues,
+} from "./spawnForm.ts";
 
 export interface MoreOptionsProps {
   idBase: string;
@@ -88,6 +98,13 @@ export function MoreOptions(props: MoreOptionsProps) {
         </div>
       </div>
 
+      <PermissionModeField
+        idBase={idBase}
+        values={values}
+        error={error("permissionMode")}
+        set={set}
+      />
+
       <div className="rg-field">
         <label className="rg-field__label" htmlFor={f("profileId")}>
           Credentials
@@ -113,6 +130,43 @@ export function MoreOptions(props: MoreOptionsProps) {
         label="Own worktree"
         hint="Work on a fresh branch from the default branch (recommended)."
       />
+    </div>
+  );
+}
+
+/** Permission mode select (#166): the provider's modes, its default marked. */
+function PermissionModeField(props: {
+  idBase: string;
+  values: SpawnFormValues;
+  error: React.ReactNode;
+  set: MoreOptionsProps["set"];
+}) {
+  const options = permissionModeOptions(props.values.provider);
+  const current = effectivePermissionModeOf(props.values);
+  if (options.length === 0 || !current) return null;
+  const id = `${props.idBase}-permissionMode`;
+  return (
+    <div className="rg-field">
+      <label className="rg-field__label" htmlFor={id}>
+        Permissions
+      </label>
+      <select
+        id={id}
+        className="rg-select"
+        value={current}
+        aria-describedby={`${id}-hint`}
+        onChange={(e) => props.set("permissionMode", e.target.value as PermissionMode)}
+      >
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.isDefault ? `${o.label} (default)` : o.label}
+          </option>
+        ))}
+      </select>
+      <div id={`${id}-hint`} className="rg-field__hint">
+        {permissionModeCopy(current)?.hint}
+      </div>
+      {props.error}
     </div>
   );
 }

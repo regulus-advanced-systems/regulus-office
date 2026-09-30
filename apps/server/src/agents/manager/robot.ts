@@ -4,13 +4,14 @@
  * the desk animation (`action`), the raised hand and the bubble counters.
  */
 import { HUMAN_WAIT_REASONS } from "@regulus/agent-adapters";
-import type {
-  AgentAction,
-  AgentEvent,
-  AgentStatus,
-  ProviderId,
-  RobotState,
-  ToolKind,
+import {
+  type AgentAction,
+  type AgentEvent,
+  type AgentStatus,
+  effectivePermissionMode,
+  type ProviderId,
+  type RobotState,
+  type ToolKind,
 } from "@regulus/protocol";
 import { MAX_STATUS_REASON, safeReason } from "./failure.ts";
 import { handRaised, transition } from "./state-machine.ts";
@@ -25,6 +26,8 @@ export interface AgentView {
   provider: ProviderId;
   model: string;
   effort: string;
+  /** Permission mode the robot runs in (#166); "" when the provider has none. */
+  permissionMode: string;
   status: AgentStatus;
   /** Why the robot is in `error` (safe to publish, failure.ts); "" otherwise. */
   statusReason: string;
@@ -52,6 +55,7 @@ export function viewFromRow(
     provider: ProviderId;
     model: string;
     effort: string | null;
+    permissionMode?: string | null;
     status: AgentStatus;
     taskTitle: string;
     taskSummary: string | null;
@@ -72,6 +76,7 @@ export function viewFromRow(
     provider: row.provider,
     model: row.model,
     effort: row.effort ?? "",
+    permissionMode: effectivePermissionMode(row.provider, row.permissionMode) ?? "",
     status: row.status,
     statusReason: "",
     action: "none",
@@ -115,6 +120,7 @@ export function robotState(view: AgentView): RobotState {
     provider: view.provider,
     model: view.model.slice(0, 100),
     effort: view.effort.slice(0, 32),
+    permissionMode: view.permissionMode.slice(0, 32),
     status: view.status,
     action: view.action,
     taskTitle: view.taskTitle.slice(0, 200),

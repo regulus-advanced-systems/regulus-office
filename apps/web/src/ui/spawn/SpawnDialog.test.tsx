@@ -43,6 +43,7 @@ const robot = (seatId: string, ownerUserId: string): RobotState => ({
   provider: "claude-code",
   model: "opus",
   effort: "",
+  permissionMode: "auto",
   status: "starting",
   action: "none",
   taskTitle: "Fix the bug",
@@ -227,12 +228,38 @@ describe("spawn dialog", () => {
     await submitForm();
     expect(sent[0]?.profileId).toBe("office:claude-code");
     await click(moreToggle() as HTMLButtonElement);
-    const select = document.querySelector("select");
+    const select = document.querySelector<HTMLSelectElement>('select[id$="-profileId"]');
     expect(select?.value).toBe("office:claude-code");
     expect(Array.from(select?.options ?? []).map((o) => o.textContent)).toEqual([
       "Your Claude Code login (not connected)",
       "Office key: Team key",
     ]);
+  });
+
+  test("More options picks the permission mode per provider; auto mode by default (#166)", async () => {
+    const { client, sent } = fakeClient();
+    mounted = await mount(<SpawnDialogHost api={api} client={client} />);
+    await openAt();
+    await click(moreToggle() as HTMLButtonElement);
+    const mode = () => document.querySelector<HTMLSelectElement>('select[id$="-permissionMode"]');
+    const labels = () => Array.from(mode()?.options ?? []).map((o) => o.textContent);
+    expect(mode()?.value).toBe("auto");
+    expect(labels()).toEqual(["Auto mode (default)", "Ask for everything", "Accept edits"]);
+    expect(text()).toContain("Claude approves low-risk actions itself");
+
+    await act(async () => {
+      const select = mode() as HTMLSelectElement;
+      select.value = "default";
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    expect(text()).toContain("raises its hand before every edit and command");
+    await submitForm();
+    expect(sent[0]?.permissionMode).toBe("default");
+
+    // Codex has its own approval policies; switching provider resets the pick.
+    await click(radio("codex:gpt-6-sol") as HTMLInputElement);
+    expect(mode()?.value).toBe("on-request");
+    expect(labels()).toEqual(["Ask outside the sandbox (default)", "Never ask"]);
   });
 
   test("an unconnected provider's models are disabled, with a Connect link", async () => {

@@ -231,7 +231,11 @@ export const turnWithApprovals: TraceStep[] = [
 /** Resumed thread (API-key account: no plan limits), interrupted mid-command. */
 export const resumeAndInterrupt: TraceStep[] = [
   ...handshake(),
-  out({ method: "thread/resume", id: 1, params: { threadId: THREAD_ID, cwd: CWD } }),
+  out({
+    method: "thread/resume",
+    id: 1,
+    params: { threadId: THREAD_ID, cwd: CWD, approvalPolicy: "on-request" },
+  }),
   reply("thread/resume", 1, resumeResponse),
   out({ method: "account/rateLimits/read", id: 2 }),
   fail(2, -32600, "codex account authentication required to read rate limits"),

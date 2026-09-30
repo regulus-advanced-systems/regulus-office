@@ -34,6 +34,11 @@ export const agents = sqliteTable(
     provider: enumText("provider", PROVIDER_IDS).notNull(),
     model: text("model").notNull(),
     effort: text("effort"),
+    /**
+     * Provider permission mode chosen at spawn (#166, protocol
+     * `permission-modes.ts`). Null for rows from before it: the provider default.
+     */
+    permissionMode: text("permission_mode"),
     /** `credential_profiles.id`, or `office:<provider>` for an opt-in office key (SPEC §8 rule 3). */
     profileId: text("profile_id").notNull(),
     status: enumText("status", AGENT_STATUSES).notNull().default("starting"),
