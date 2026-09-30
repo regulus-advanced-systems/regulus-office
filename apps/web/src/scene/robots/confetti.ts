@@ -19,6 +19,8 @@ export const CONFETTI_PER_BURST = 80;
 export const CONFETTI_LIFETIME = 2.2;
 const GRAVITY = 5.5;
 const DRAG = 1.6;
+/** Longest motion step per frame, seconds. */
+const MAX_MOTION_STEP = 0.1;
 
 export interface Particle {
   live: boolean;
@@ -81,13 +83,20 @@ export class ConfettiField {
     }
   }
 
-  /** Advance by `dt` seconds; returns how many particles are alive. */
+  /**
+   * Advance by `dt` seconds; returns how many particles are alive. Particles
+   * age by the real `dt`, so a burst is gone after its lifetime in wall-clock
+   * time even at a low frame rate; the motion integrates at most
+   * `MAX_MOTION_STEP` per call, so a long frame does not fling them away.
+   */
   step(dt: number): number {
     let live = 0;
+    const age = Math.max(0, dt);
+    dt = Math.min(age, MAX_MOTION_STEP);
     const drag = Math.exp(-DRAG * dt);
     for (const p of this.particles) {
       if (!p.live) continue;
-      p.age += dt;
+      p.age += age;
       if (p.age >= CONFETTI_LIFETIME || p.y < 0) {
         p.live = false;
         continue;

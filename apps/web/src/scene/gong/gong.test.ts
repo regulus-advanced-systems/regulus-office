@@ -165,6 +165,10 @@ describe("confetti", () => {
     expect(live).toBeGreaterThan(0);
     for (let t = 1 / 60; t < 3; t += 1 / 60) live = field.step(1 / 60);
     expect(live).toBe(0);
+    // At 3 fps (software GL in CI) it is still gone within 3 s of wall-clock time.
+    field.burst({ x: 0, y: 2, z: 0 }, GONG_CONFETTI);
+    for (let t = 0; t < 3; t += 1 / 3) live = field.step(1 / 3);
+    expect(live).toBe(0);
   });
 });
 

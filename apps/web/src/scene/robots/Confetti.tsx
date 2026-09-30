@@ -58,7 +58,7 @@ export function Confetti({ bus, name = "confetti" }: { bus: ConfettiBus; name?: 
     const m = mesh.current;
     if (!m) return;
     for (const origin of bus.pending.splice(0)) field.burst(origin, origin.count);
-    field.step(Math.min(delta, 0.1));
+    field.step(delta);
     let n = 0;
     for (const p of field.particles) {
       if (!p.live) continue;
