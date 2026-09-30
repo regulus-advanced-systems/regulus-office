@@ -151,6 +151,12 @@ export interface Runner {
   sandbox?(agent: AgentRef, spec: SandboxSpec): Promise<SandboxInfo | null>;
   /** Every sandbox of this office, so orphans can be reaped. */
   listSandboxes?(): Promise<SandboxInfo[]>;
+  /**
+   * The robot's existing sandbox, without creating one (null when it has none):
+   * where the services proxy (#39) reaches its ports. Cheap: served from the
+   * backend's routes, so it may be called every discovery tick.
+   */
+  sandboxOf?(agent: AgentRef): Promise<SandboxInfo | null>;
 
   /** Create (idempotently) the human's runner identity, HOME and tmux server. */
   provision(user: RunnerUser): Promise<RunnerHandle>;

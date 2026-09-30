@@ -127,14 +127,31 @@ export const PullCard = z.object({
 });
 export type PullCard = z.infer<typeof PullCard>;
 
-/** A detected dev server reachable through the office proxy (SPEC §9.4). */
+/**
+ * A dev server a robot runs in its sandbox, opened through the office's
+ * authenticated proxy (SPEC §9.4, #39). Keyed by service id; one per robot and port.
+ */
 export const ServiceState = z.object({
   id: Id,
   agentId: Id,
   port: z.number().int().min(1).max(65535),
-  /** Proxy path such as `/p/<floor>/port/<n>/`. */
+  /** Office proxy path, `/p/<floorId>/a/<agentId>/port/<n>/` (servicesProxyPath). */
   url: z.string().max(512),
   title: z.string().max(200),
+  /** Listening process id inside the sandbox; 0 when unknown. */
+  pid: z.number().int().min(0),
+  /** Bind address, e.g. `0.0.0.0`, `::` or `127.0.0.1`. */
+  address: z.string().max(64),
+  /**
+   * Bound to loopback only inside the robot's sandbox, so the proxy cannot reach it:
+   * the server must listen on `0.0.0.0` (Vite `--host`, Next `-H 0.0.0.0`).
+   */
+  localOnly: z.boolean(),
+  /**
+   * Whether floor members besides the robot's owner may open it (read-only). True only
+   * when the office serves apps on their own origin (`OFFICE_SERVICES_DOMAIN`).
+   */
+  shared: z.boolean(),
   firstSeenAt: TimestampMs,
   lastSeenAt: TimestampMs,
 });
@@ -186,6 +203,11 @@ export const FloorState = z.object({
   carriedCards: z.record(Id, CarriedCard),
 });
 export type FloorState = z.infer<typeof FloorState>;
+
+/** The office proxy path of a robot's service (SPEC §9.4, #39). */
+export function servicesProxyPath(floorId: string, agentId: string, port: number): string {
+  return `/p/${encodeURIComponent(floorId)}/a/${encodeURIComponent(agentId)}/port/${port}/`;
+}
 
 /** Key used for `FloorState.issues` / `FloorState.pulls`. */
 export function boardCardKey(repoId: string, number: number): string {

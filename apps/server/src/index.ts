@@ -36,6 +36,7 @@ import {
   type RoomAuth,
 } from "./rooms/index.ts";
 import { loadMasterKeyring, type MasterKeyring } from "./secrets/index.ts";
+import { createServices, type Services } from "./services/index.ts";
 import { createTerminals } from "./terminals/index.ts";
 import {
   createWorktrees,
@@ -130,11 +131,28 @@ async function main(): Promise<void> {
     dataDir: config.dataDir,
     originPolicy: originPolicyFor(config.publicUrl, production),
   });
+  // Running apps proxy (#39): first in the router, so app hosts never reach the office's routes.
+  let services: Services;
+  try {
+    services = createServices({
+      db,
+      floors: rooms.floors,
+      sessions: auth,
+      originPolicy: originPolicyFor(config.publicUrl, production),
+      officePort: config.port,
+      appDomain: process.env.OFFICE_SERVICES_DOMAIN,
+      logger,
+    });
+  } catch (err) {
+    console.error(`Invalid services configuration: ${(err as Error).message}`);
+    process.exit(2);
+  }
   const server = createOfficeServer({
     config,
     logger,
     version,
     attach: new WsRouter()
+      .use(services.route)
       .use(terminals.bridge)
       .use(terminals.screens)
       .use(rooms.transport.attachment),
@@ -291,6 +309,8 @@ async function main(): Promise<void> {
   floors.cloner.resumePending().catch((err) => logger.error({ err }, "resuming clones failed"));
   githubSync.start();
   shutdown.register("github-sync", () => githubSync?.stop());
+  services.start(runner);
+  shutdown.register("services", () => services.stop());
   shutdown.register("rooms", () => rooms.transport.shutdown());
   shutdown.register("terminals", () => terminals.shutdown());
   shutdown.register("provider-logins", () => credentialPanel.shutdown());

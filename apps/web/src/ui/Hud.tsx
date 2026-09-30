@@ -21,6 +21,7 @@ import { TopBar } from "./hud/TopBar.tsx";
 import { WorkCounters } from "./hud/WorkCounters.tsx";
 import { NotificationsHost } from "./notifications/NotificationsHost.tsx";
 import { ProvidersPanelHost } from "./providers/ProvidersPanel.tsx";
+import { RunningApps } from "./services/RunningApps.tsx";
 import { SettingsForm } from "./settings/SettingsPanel.tsx";
 import { SpawnDialogHost } from "./spawn/SpawnDialog.tsx";
 import { TerminalModalHost } from "./terminal/TerminalModal.tsx";
@@ -71,6 +72,7 @@ export function Hud() {
       <StatusBox />
       <div className="rg-hud__left">
         <ElevatorPanel />
+        <RunningApps />
       </div>
       <ChatPanel />
       <div className="rg-hud__corner">
