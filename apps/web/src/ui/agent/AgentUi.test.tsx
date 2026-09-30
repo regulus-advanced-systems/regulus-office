@@ -126,25 +126,20 @@ describe("AgentPanel", () => {
   test.each([
     ["another member", "member", "u-other"],
     ["a viewer who owns it", "viewer", "u-owner"],
+    ["an office admin", "admin", "u-admin"],
+    ["an office owner", "owner", "u-boss"],
   ] as const)("%s only watches", async (_label, role, userId) => {
     seed({ role, userId });
     const { wrap } = recorder();
     useAgentStore.getState().openAgentPanel("a1");
     const m = track(await mount(wrap(<AgentPanel />)));
-    expect(bodyText()).toContain("Only Mia or an admin can control this robot.");
+    expect(bodyText()).toContain("Only Mia can control this robot.");
     expect(document.querySelector("textarea")).toBeNull();
     expect(buttonByText("Stop")).toBeUndefined();
+    expect(buttonByText("Interrupt")).toBeUndefined();
+    expect(buttonByText("Send home")).toBeUndefined();
     expect(buttonByText("Open PR")).toBeUndefined();
     expect(buttonByText("Watch terminal")).toBeDefined();
-    await m.unmount();
-  });
-
-  test("an office admin controls someone else's robot", async () => {
-    seed({ role: "admin", userId: "u-admin" });
-    const { wrap } = recorder();
-    useAgentStore.getState().openAgentPanel("a1");
-    const m = track(await mount(wrap(<AgentPanel />)));
-    expect(buttonByText("Stop")).toBeDefined();
     await m.unmount();
   });
 

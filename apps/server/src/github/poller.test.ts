@@ -123,6 +123,26 @@ describe("changes", () => {
     expect(f.events.every((e) => e.floorIds.includes(f.alpha.floorId))).toBe(true);
   });
 
+  test("a PR opened and merged between two polls is reported closed, with merged_at", async () => {
+    const hello = seeded();
+    hello.pulls.push(
+      fakePull(30, { state: "closed", merged_at: at(20_000), updated_at: at(20_000) }),
+    );
+    await f.sync.pollNow();
+    await tick();
+    expect(f.events).toHaveLength(0); // old closed PRs are learnt in the first pass, silently
+    hello.pulls.push(fakePull(12, { state: "closed", merged_at: at(0), updated_at: at(0) }));
+    await tick();
+    const event = f.events.find((e) => e.name === "pull_request");
+    expect(event).toMatchObject({ action: "closed", source: "poll", stale: false });
+    expect(
+      (event?.payload as { pull_request?: { merged_at?: unknown } }).pull_request?.merged_at,
+    ).toBeString();
+    expect(board(f.alpha.floorId).pulls.find((p) => p.number === 12)).toMatchObject({
+      merged: true,
+    });
+  });
+
   test("an installation webhook makes the next poll start over", async () => {
     seeded();
     await f.sync.pollNow();

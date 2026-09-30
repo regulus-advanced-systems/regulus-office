@@ -35,6 +35,9 @@ async function run(
     case "agent.stop":
       await manager.stop(actor, agentId);
       return { type: command.type, agentId };
+    case "agent.emergencyStop":
+      await manager.emergencyStop(actor, agentId, command.reason);
+      return { type: command.type, agentId };
     case "agent.resume":
       await manager.resume(actor, agentId);
       return { type: command.type, agentId };

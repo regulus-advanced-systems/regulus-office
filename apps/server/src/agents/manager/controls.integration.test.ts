@@ -1,14 +1,16 @@
 /**
  * Robot controls (#33) through `floorAgentCommands(manager).control`, the
- * same path the FloorRoom uses: the D12 ACL for every command, pending
- * permission requests (published for controllers, answered once, cleared,
- * expired), interrupt / stop / resume, and send-home keeping or deleting the
- * branch. Runs the FakeAdapter over LocalTmuxRunner; skipped without tmux.
+ * same path the FloorRoom uses: the D12 ACL for every command (owner only,
+ * #138), the office owner/admin emergency stop, pending permission requests
+ * (published for the owner, answered once, cleared, expired), interrupt /
+ * stop / resume, and send-home keeping or deleting the branch. Runs the FakeAdapter over LocalTmuxRunner; skipped without tmux.
  */
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { rm } from "node:fs/promises";
 import { FakeAdapter } from "@regulus/agent-adapters";
 import type { AgentCommandResult } from "@regulus/protocol";
+import { eq } from "drizzle-orm";
+import { auditLog } from "../../db/schema/index.ts";
 import type { AgentControlCommand, AgentControlOutcome } from "../../rooms/floor/room.ts";
 import { hasTmux, LocalTmuxRunner } from "../../runners/testing/local-tmux-runner.ts";
 import type { Workspaces } from "../../worktrees/types.ts";
@@ -95,7 +97,7 @@ describe.skipIf(!hasTmux())("robot controls (tmux)", () => {
     return outcome.result;
   };
 
-  test("every control follows D12: owner, admin and the robot's owner; not others or viewers", async () => {
+  test("every control follows D12: the robot's owner only; not admins, office owners, others or viewers", async () => {
     const { manager, agentId, control, adapter } = await setup();
     const commands: AgentControlCommand[] = [
       { type: "agent.prompt", agentId, text: "go" },
@@ -107,37 +109,97 @@ describe.skipIf(!hasTmux())("robot controls (tmux)", () => {
       { type: "agent.pr", agentId, draft: false },
       { type: "agent.worktree", agentId },
     ];
-    for (const who of [office.stranger, office.viewer, office.roleViewer]) {
+    const others = [office.admin, office.owner, office.stranger, office.viewer, office.roleViewer];
+    for (const who of others) {
       for (const command of commands) {
         const outcome = await control(who, command);
         expect(outcome).toEqual({
           ok: false,
-          reason: "only the robot's owner or an admin may control it",
+          reason: "only the robot's owner may control it",
           files: [],
         });
       }
     }
     expect(adapter.lastControl?.prompts).toHaveLength(1); // only the spawn prompt
+    expect(adapter.lastControl?.permissionResponses).toEqual([]);
+    expect(adapter.lastControl?.interrupts).toBe(0);
 
-    for (const who of [office.member, office.admin, office.owner]) {
-      expect(
-        ok(await control(who, { type: "agent.prompt", agentId, text: `hi ${who.id}` })),
-      ).toEqual({ type: "agent.prompt", agentId });
-      expect(ok(await control(who, { type: "agent.worktree", agentId }))).toEqual({
-        type: "agent.worktree",
-        agentId,
-        worktree: { branch: "office/fix", uncommitted: ["src/a.ts"] },
-      });
-    }
-    expect(adapter.lastControl?.prompts.map((p) => p.text).slice(1)).toEqual([
-      `hi ${office.member.id}`,
-      `hi ${office.admin.id}`,
-      `hi ${office.owner.id}`,
-    ]);
+    expect(ok(await control(office.member, { type: "agent.prompt", agentId, text: "hi" }))).toEqual(
+      { type: "agent.prompt", agentId },
+    );
+    expect(ok(await control(office.member, { type: "agent.worktree", agentId }))).toEqual({
+      type: "agent.worktree",
+      agentId,
+      worktree: { branch: "office/fix", uncommitted: ["src/a.ts"] },
+    });
+    expect(adapter.lastControl?.prompts.map((p) => p.text).slice(1)).toEqual(["hi"]);
     await manager.close();
   }, 20_000);
 
-  test("permission requests are published for controllers, answered once, then cleared", async () => {
+  test("emergency stop: office owners/admins only, kills the session, keeps branch and desk, audited", async () => {
+    const { manager, robots, agentId, control, workspaces } = await setup();
+    const stop = { type: "agent.emergencyStop" as const, agentId, reason: "runaway cost" };
+    for (const who of [office.member, office.stranger, office.viewer, office.roleViewer]) {
+      expect(await control(who, stop)).toEqual({
+        ok: false,
+        reason: "only an office owner or admin may emergency-stop a robot",
+        files: [],
+      });
+    }
+    expect(robots.robots.get(agentId)?.status).toBe("idle");
+
+    expect(ok(await control(office.admin, stop))).toEqual({ type: "agent.emergencyStop", agentId });
+    expect(robots.robots.get(agentId)?.status).toBe("exited");
+    expect(await runner.sessionExists({ userId: office.member.id, name: `agent-${agentId}` })).toBe(
+      false,
+    );
+    // Branch, worktree and desk stay: the robot is still seated and nothing was released.
+    expect(workspaces.released).toEqual([]);
+    expect(robots.removed).toEqual([]);
+    expect(robots.robots.get(agentId)?.worktreeBranch).toBeTruthy();
+    const audit = office.db
+      .select()
+      .from(auditLog)
+      .where(eq(auditLog.action, "agent.emergency_stop"))
+      .all();
+    expect(audit).toHaveLength(1);
+    expect(audit[0]).toMatchObject({ userId: office.admin.id, targetId: agentId });
+    expect(JSON.parse(audit[0]?.metaJson ?? "{}")).toEqual({
+      ownerUserId: office.member.id,
+      reason: "runaway cost",
+    });
+
+    // The stop grants nothing else: the admin still cannot resume it; its owner can.
+    expect(await control(office.admin, { type: "agent.resume", agentId })).toMatchObject({
+      ok: false,
+      reason: "only the robot's owner may control it",
+    });
+    ok(await control(office.member, { type: "agent.resume", agentId }));
+    await robots.waitFor(agentId, (r) => r.status === "idle");
+    ok(await control(office.owner, { type: "agent.emergencyStop", agentId }));
+    expect(robots.robots.get(agentId)?.status).toBe("exited");
+    await manager.close();
+  }, 20_000);
+
+  test("floor evacuation (#150): office owners/admins only, branch always kept", async () => {
+    const { manager, robots, agentId, workspaces } = await setup();
+    for (const who of [office.member, office.stranger]) {
+      await expect(manager.evacuate(who as never, agentId)).rejects.toThrow("clear a floor");
+    }
+    await manager.evacuate(office.admin, agentId);
+    expect(workspaces.released).toEqual([{ agentId, keepBranch: true }]);
+    expect(robots.removed).toEqual([agentId]);
+    const [entry] = office.db
+      .select()
+      .from(auditLog)
+      .where(eq(auditLog.action, "agent.send_home"))
+      .all();
+    expect(entry?.userId).toBe(office.admin.id);
+    expect(JSON.parse(entry?.metaJson ?? "{}")).toMatchObject({ floorEvacuation: true });
+    await manager.close();
+  }, 20_000);
+
+  test("permission requests are published for the owner, answered once, then cleared", async () => {
     const { manager, robots, agentId, control, adapter } = await setup();
     const fake = adapter.lastControl;
     if (!fake) throw new Error("no control");
@@ -155,13 +217,15 @@ describe.skipIf(!hasTmux())("robot controls (tmux)", () => {
     // Nothing about the request is in the public robot.
     expect(JSON.stringify(robots.robots.get(agentId))).not.toContain("rm -rf");
 
-    const refused = await control(office.stranger, {
-      type: "agent.approve",
-      agentId,
-      requestId: "p1",
-      decision: "allow_once",
-    });
-    expect(refused.ok).toBe(false);
+    for (const who of [office.stranger, office.admin, office.owner]) {
+      const refused = await control(who, {
+        type: "agent.approve",
+        agentId,
+        requestId: "p1",
+        decision: "allow_once",
+      });
+      expect(refused.ok).toBe(false);
+    }
     expect(fake.permissionResponses).toEqual([]);
 
     expect(
@@ -256,7 +320,7 @@ describe.skipIf(!hasTmux())("robot controls (tmux)", () => {
     ok(await control(office.member, { type: "agent.interrupt", agentId }));
     expect(adapter.lastControl?.interrupts).toBe(1);
 
-    ok(await control(office.admin, { type: "agent.stop", agentId }));
+    ok(await control(office.member, { type: "agent.stop", agentId }));
     expect(robots.robots.get(agentId)?.status).toBe("exited");
     expect(
       await control(office.member, { type: "agent.prompt", agentId, text: "x" }),
@@ -288,7 +352,7 @@ describe.skipIf(!hasTmux())("robot controls (tmux)", () => {
     const second = await manager.spawn(office.member, spawnInput(office.floorId, office.repoId));
     await robots.waitFor(second.agentId, (r) => r.status === "idle");
     ok(
-      await control(office.owner, {
+      await control(office.member, {
         type: "agent.sendHome",
         agentId: second.agentId,
         keepBranch: true,

@@ -25,6 +25,8 @@ export const AUDIT_ACTIONS = {
   worktreesPrune: "worktrees.prune",
   agentSpawn: "agent.spawn",
   agentStop: "agent.stop",
+  /** An office owner/admin stopped someone else's robot (D12, #138). */
+  agentEmergencyStop: "agent.emergency_stop",
   agentApprove: "agent.approve",
   agentResume: "agent.resume",
   agentSendHome: "agent.send_home",
@@ -35,6 +37,9 @@ export const AUDIT_ACTIONS = {
   providerLoginFinish: "provider_login.finish",
   githubConnect: "github.connect",
   githubDisconnect: "github.disconnect",
+  notificationChannelCreate: "notification_channel.create",
+  notificationChannelUpdate: "notification_channel.update",
+  notificationChannelDelete: "notification_channel.delete",
 } as const;
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];
 
@@ -51,7 +56,8 @@ export interface AuditEntry {
     | "worktrees"
     | "credential_profile"
     | "provider_login"
-    | "github_connection";
+    | "github_connection"
+    | "notification_channel";
   targetId: string | null;
   meta?: Record<string, unknown>;
 }

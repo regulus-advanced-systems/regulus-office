@@ -201,6 +201,76 @@ jobs:
           docker volume ls -q --filter label=org.regulus.office.prefix=regulus-ci | xargs -r docker volume rm
           docker compose down -v --remove-orphans
 
+  # scripts/setup.sh (#44), the documented install path on an existing VM: shellcheck, then a
+  # non-interactive install on this runner (secrets, images, Compose up, /healthz through Caddy,
+  # owner seed), a re-run that must keep the secrets, a truncated secret it must refuse, and
+  # --upgrade. The runner image is prebuilt from the GHA cache with the runner/ tree label the
+  # script checks, so the script sees it as up to date instead of spending ~7 minutes on it.
+  setup-script:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      COMPOSE_PROJECT_NAME: regulus-setup
+    steps:
+      - uses: actions/checkout@v4
+      - run: shellcheck scripts/setup.sh scripts/backup.sh
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - id: runner-tree
+        run: echo "tree=$(git rev-parse HEAD:runner)" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@v3
+      - name: Prebuild the runner image
+        uses: docker/build-push-action@v6
+        with:
+          context: runner
+          load: true
+          tags: ghcr.io/regulus-advanced-systems/regulus-office-runner:latest
+          labels: org.regulus.office.runner-tree=${{ steps.runner-tree.outputs.tree }}
+          cache-from: type=gha,scope=runner-image
+      - name: Install non-interactively
+        run: scripts/setup.sh --domain localhost --non-interactive --owner-email ci-owner@example.com --owner-name "CI Owner"
+      - name: Checks after install
+        run: |
+          test "$(stat -c %a deploy/.env)" = 600
+          for name in BETTER_AUTH_SECRET OFFICE_MASTER_KEY; do
+            value="$(sed -n "s/^$name=//p" deploy/.env)"
+            echo "::add-mask::$value"
+            test "${#value}" = 44 && test "$(printf %s "$value" | base64 -d | wc -c)" = 32
+          done
+          grep -E '^(BETTER_AUTH_SECRET|OFFICE_MASTER_KEY)=' deploy/.env | sha256sum > "$RUNNER_TEMP/secrets.sha"
+          curl -fsSk https://localhost/healthz; echo
+          curl -fsSk https://localhost/login | grep -q '<div id="root">'
+      - name: Re-run keeps the secrets
+        run: |
+          scripts/setup.sh --non-interactive
+          grep -E '^(BETTER_AUTH_SECRET|OFFICE_MASTER_KEY)=' deploy/.env | sha256sum -c "$RUNNER_TEMP/secrets.sha"
+      - name: A truncated secret is refused, not replaced
+        run: |
+          cp deploy/.env "$RUNNER_TEMP/env.bak"
+          sed -i -E 's/^(OFFICE_MASTER_KEY=.{30}).*/\1/' deploy/.env
+          if scripts/setup.sh --non-interactive > "$RUNNER_TEMP/out.txt" 2>&1; then
+            cat "$RUNNER_TEMP/out.txt"; echo "setup accepted a truncated OFFICE_MASTER_KEY" >&2; exit 1
+          fi
+          grep -q "OFFICE_MASTER_KEY in deploy/.env is 30 characters" "$RUNNER_TEMP/out.txt"
+          grep -q '^OFFICE_MASTER_KEY=.\{30\}$' deploy/.env
+          cp "$RUNNER_TEMP/env.bak" deploy/.env
+      - name: Upgrade
+        run: |
+          scripts/setup.sh --upgrade --non-interactive
+          curl -fsSk https://localhost/healthz; echo
+      - name: Compose logs
+        if: failure()
+        working-directory: deploy
+        run: docker compose logs --no-color
+      - name: Tear down
+        if: always()
+        working-directory: deploy
+        run: |
+          docker ps -aq --filter label=org.regulus.office.prefix=regulus-setup | xargs -r docker rm -f
+          docker volume ls -q --filter label=org.regulus.office.prefix=regulus-setup | xargs -r docker volume rm
+          docker compose down -v --remove-orphans
+
   # Docker runner backend (#23) against the real daemon: builds a tiny fixture image, then drives
   # a runner through a socket proxy started with the deploy/ allowlist (#95), as the office does
   # in Compose. Bind mounts are allowed from /tmp here (test workdirs) instead of /srv/office.

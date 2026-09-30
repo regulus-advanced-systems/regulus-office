@@ -1,9 +1,9 @@
 /**
  * FloorRoom server→client messages about robots (SPEC §6 channel 2, §8 rule 4).
  *
- * - `agent.permissions` goes only to clients that may control the robot (its
- *   owner, or an office owner/admin; never viewers): the pending permission
- *   requests with what exactly is being approved. Everyone else only sees the
+ * - `agent.permissions` goes only to the client that may control the robot
+ *   (its owner; never admins, other members or viewers): the pending
+ *   permission requests with what exactly is being approved. Everyone else only sees the
  *   public `RobotState.handRaised`. An empty list clears the robot's requests.
  * - `agent.result` answers the caller of an `agent.*` control command that
  *   succeeded (failures are `command.rejected` with the `agentId`).
@@ -61,6 +61,7 @@ export const AgentCommandResult = z.discriminatedUnion("type", [
   ack("agent.approve").extend({ requestId: z.string().max(128) }),
   ack("agent.interrupt"),
   ack("agent.stop"),
+  ack("agent.emergencyStop"),
   ack("agent.resume"),
   ack("agent.sendHome"),
   ack("agent.pr").extend({ pr: OpenedPullRequestInfo }),

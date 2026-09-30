@@ -3,7 +3,8 @@
  * plus three the spec's list does not name yet: `agent.interrupt` (SPEC §7
  * `AgentControl.interrupt`), `agent.sendHome` (issue #33: free the desk, keep
  * or delete the branch) and `agent.worktree` (read the worktree's uncommitted
- * files for the send-home and PR dialogs).
+ * files for the send-home and PR dialogs), and `agent.emergencyStop` (D12,
+ * #138: an office owner/admin kills another person's robot, branch kept).
  *
  * `profileId` names a credential profile; the secret itself never travels
  * over the wire (SPEC §8). `office:<provider>` selects an office-wide key.
@@ -59,6 +60,17 @@ export const StopAgentCommand = z.object({
   agentId: Id,
 });
 
+/**
+ * Office owner/admin escape hatch on someone else's robot (D12, #138): kill
+ * the session like `agent.stop`, keep the branch and the desk, audited with
+ * the optional reason. Grants no other control.
+ */
+export const EmergencyStopAgentCommand = z.object({
+  type: z.literal("agent.emergencyStop"),
+  agentId: Id,
+  reason: ShortText.optional(),
+});
+
 export const ResumeAgentCommand = z.object({
   type: z.literal("agent.resume"),
   agentId: Id,
@@ -98,6 +110,7 @@ export const agentCommands = [
   PromptAgentCommand,
   ApproveAgentCommand,
   StopAgentCommand,
+  EmergencyStopAgentCommand,
   ResumeAgentCommand,
   AgentPrCommand,
   InterruptAgentCommand,

@@ -8,6 +8,7 @@ export * from "./chat.ts";
 export * from "./desks.ts";
 export * from "./floors.ts";
 export * from "./github.ts";
+export * from "./notifications.ts";
 export * from "./ops.ts";
 export * from "./usage.ts";
 export * from "./users.ts";

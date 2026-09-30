@@ -6,6 +6,29 @@ Walk around an isometric office drawn in the spirit of Game Dev Tycoon. Each flo
 
 Status: **M0 Foundations**. Humans can sign in, walk around the lobby together, chat and switch to first person; no agents yet. Read [`docs/SPEC.md`](docs/SPEC.md) for the full design and [`docs/research/`](docs/research/) for the research behind it.
 
+## Install on your server
+
+For an existing Linux VM (reference: Ubuntu 24.04, see [Recommended machine](#recommended-machine)) with a DNS record pointing at it. Nothing is provisioned for you: clone the repo on the VM and run the setup script.
+
+```sh
+git clone https://github.com/regulus-advanced-systems/regulus-office.git
+cd regulus-office
+scripts/setup.sh --domain office.example.com
+```
+
+The script is safe to re-run. It:
+
+1. checks the machine: Docker 27+ with Compose and Buildx, free ports 80/443, RAM, disk, swap and whether the domain resolves here, and prints the exact fix command for anything missing (`--install-docker` installs Docker from Docker's apt repository on Ubuntu, after asking);
+2. creates `deploy/.env` (mode 600) if absent, generates `BETTER_AUTH_SECRET` and `OFFICE_MASTER_KEY`, never overwrites existing secrets, and refuses to start with one that looks truncated (each must be 44 base64 characters, 32 bytes);
+3. builds the office image from the checkout (or pulls the release images when the checkout is on a release tag; `--images build|pull` to choose), and builds the runner image, which takes about 7 minutes and 3 GB the first time and is skipped afterwards while `runner/` is unchanged. If Docker's build cache is corrupted (`parent snapshot … does not exist`), it explains the error and offers `docker builder prune`;
+4. runs `docker compose up -d --wait` and checks `/healthz` through Caddy;
+5. optionally creates the owner account and an invite (`--owner-email you@example.com`, needs `bun` on the host); otherwise the first account registered at `/login` becomes the owner;
+6. prints next steps: connecting the GitHub App (below) and notification webhooks.
+
+If ports 80/443 are taken, it asks for other ports (or pass `--http-port 8080 --https-port 8443`), stores them as `OFFICE_HTTP_PORT`/`OFFICE_HTTPS_PORT` and sets `OFFICE_PUBLIC_URL` to match. Let's Encrypt still needs 80/443 to reach Caddy, so on a public domain forward them. `--non-interactive` never prompts (for automation; CI runs it this way). `--domain localhost` serves `https://localhost` with Caddy's internal CA.
+
+Upgrade with `scripts/setup.sh --upgrade`: it fast-forwards a clean checkout, rebuilds what changed and restarts the office; robots keep running in their runner containers. `scripts/setup.sh --help` lists every option. The plain Compose steps below keep working if you prefer them.
+
 ## Quickstart (Docker Compose)
 
 Needs Docker with Compose v2 and free ports 80 and 443.
@@ -32,7 +55,7 @@ bun run seed --url https://localhost --email you@example.com --name "Your Name"
 
 It prints a generated password once (pass `--password` to choose one) and the invite URL. Run again with `--password` to mint more invites (`--role admin|member|viewer`); it never creates a second owner.
 
-For a real server set `OFFICE_DOMAIN` in `deploy/.env` to a hostname pointing at the machine; Caddy then gets a Let's Encrypt certificate and the office is served at `https://<domain>`. Tagged releases publish images to `ghcr.io/regulus-advanced-systems/regulus-office` and `…/regulus-office-runner`; `docker compose pull && docker compose up -d` without `--build` uses them.
+For a real server set `OFFICE_DOMAIN` in `deploy/.env` to a hostname pointing at the machine (or use [`scripts/setup.sh`](#install-on-your-server)); Caddy then gets a Let's Encrypt certificate and the office is served at `https://<domain>`. Tagged releases publish images to `ghcr.io/regulus-advanced-systems/regulus-office` and `…/regulus-office-runner`; `docker compose pull && docker compose up -d` without `--build` uses them.
 
 **Docker access.** Agents run in one runner container per human, which the office creates through the Docker Engine API. Only the `docker-proxy` service mounts `/var/run/docker.sock`; it forwards an allowlist of container, exec, image, volume and network-read calls to the office alone and answers 403 to everything else (build, swarm, secrets, system info, network changes, bind mounts outside `/srv/office`). The office runs as a non-root user without the socket, and runners never get the socket (SPEC §8). The allowlist and the reason for each entry are in `deploy/docker-compose.yml`; `docker compose exec -T office bun run - < docker-proxy-check.ts` checks it. The proxy narrows what a compromised office process could do but is not a sandbox: the office can still create containers. For rootless Docker set `DOCKER_SOCKET` in `deploy/.env`.
 
@@ -74,6 +97,16 @@ Floors are GitHub repos. Connect the office to GitHub once, as an owner or admin
 With an env-configured App (`GITHUB_APP_ID`), set `GITHUB_WEBHOOK_SECRET` to the secret shown in the App's settings (or a new one you enter in both places).
 
 **From the environment.** `GITHUB_APP_ID` and `GITHUB_APP_PRIVATE_KEY` (optionally `GITHUB_APP_CLIENT_ID`, `GITHUB_WEBHOOK_SECRET`) configure the App instead and override whatever was connected in the UI. `OFFICE_GITHUB_API_BASE` and `OFFICE_GITHUB_WEB_BASE` point at another GitHub (tests use a fake).
+
+### Notifications
+
+**For you.** The tab title shows how many of your robots wait for you, e.g. `(2) Regulus Office`. Settings → *Notifications* → *Allow desktop notifications*, then pick the events: needs input, asks for permission, done, error, PR opened, PR merged. Quiet hours use your computer's clock. You are only notified about your own robots; owners and admins can also opt in to anyone's robot hitting an error. While the office tab has focus you get a toast instead; clicking a notification takes you to the robot.
+
+**For the team (owners and admins).** Settings → *Team notifications* → *Add channel…*, pick the service, name it, paste the URL or token, choose floors (all or some) and events, then *Send test*. Status events wait 5 s to settle (a robot that asks and carries on sends nothing), repeats of one event per robot are dropped for a minute, each robot is capped at 8 team messages per 10 minutes, each channel sends at most one message per 1.1 s and 20 per minute, and failed deliveries are retried after 1, 5 and 25 s (honouring the service's `Retry-After`). Messages carry the robot's name, owner, floor, status, task title and PR link, never terminal output or permission details. URLs and tokens need `OFFICE_MASTER_KEY`, are stored encrypted, and are never shown again or logged. A robot's PR merge is noticed from GitHub webhooks, or from board polling when webhooks are off (see *Connect GitHub*), and notifies once, even if the robot was already sent home.
+
+- **Slack** ([incoming webhooks](https://docs.slack.dev/messaging/sending-messages-using-incoming-webhooks)): [api.slack.com/apps](https://api.slack.com/apps) → *Create New App* → *From scratch* → *Incoming Webhooks* → turn on → *Add New Webhook to Workspace* → pick the channel → copy the `https://hooks.slack.com/services/…` URL.
+- **Discord** ([webhooks](https://docs.discord.com/developers/resources/webhook#execute-webhook)): the channel's *Edit Channel* → *Integrations* → *Webhooks* → *New Webhook* → *Copy Webhook URL* (`https://discord.com/api/webhooks/…`). Messages never ping anyone (`allowed_mentions` is empty).
+- **Telegram** ([Bot API](https://core.telegram.org/bots/api#sendmessage)): talk to [@BotFather](https://t.me/BotFather), `/newbot`, copy the token (`123456789:AA…`). Add the bot to the group (or as an admin of the channel), send `/start@<your_bot>` there (bots only see commands in groups by default), open `https://api.telegram.org/bot<token>/getUpdates` and copy `chat.id` (groups start with `-100`; public channels can use `@name`). In the office paste the token and the chat id.
 
 Developing instead? See [CONTRIBUTING.md](CONTRIBUTING.md): `bun install && bun run dev`. The browser smoke test runs with `bun run e2e` (needs `bunx playwright install chromium` once).
 

@@ -16,7 +16,7 @@
  * owner's runner: every runner call is bound to `ownerUserId`.
  */
 import type { AgentControl } from "@regulus/agent-adapters";
-import { mayControlRobot, type PermissionDecision } from "@regulus/protocol";
+import { mayControlRobot, mayEmergencyStop, type PermissionDecision } from "@regulus/protocol";
 import { eq } from "drizzle-orm";
 import { AUDIT_ACTIONS } from "../../auth/audit.ts";
 import { floorRepos } from "../../db/schema/index.ts";
@@ -196,6 +196,7 @@ export class AgentManager extends AgentRuntime {
       live.view.prNumber = pr.number;
       this.publishLive(live);
     }
+    this.observePullRequest(live, pr);
     return pr;
   }
 
@@ -204,6 +205,28 @@ export class AgentManager extends AgentRuntime {
     const live = this.#authorize(actor, agentId);
     await this.#halt(live, "stopped");
     this.store.audit(actor.id, AUDIT_ACTIONS.agentStop, agentId);
+  }
+
+  /**
+   * Office owner/admin escape hatch on anyone's robot (D12, #138): kill the
+   * session like `stop`, keep the branch, the worktree and the desk, and
+   * audit who did it to whose robot and why. Grants nothing else.
+   */
+  async emergencyStop(actor: FloorActor, agentId: string, reason?: string): Promise<void> {
+    const live = this.agents.get(agentId);
+    if (!live) throw new AgentManagerError("not_found", "no such agent");
+    if (!mayEmergencyStop(actor)) {
+      throw new AgentManagerError(
+        "forbidden",
+        "only an office owner or admin may emergency-stop a robot",
+      );
+    }
+    await this.#halt(live, "emergency stop");
+    this.store.audit(actor.id, AUDIT_ACTIONS.agentEmergencyStop, agentId, {
+      ownerUserId: live.view.ownerUserId,
+      ...(reason ? { reason } : {}),
+    });
+    this.logger.warn({ agentId, actorId: actor.id }, "agent emergency-stopped");
   }
 
   async #halt(live: LiveAgent, reason: string): Promise<void> {
@@ -248,7 +271,33 @@ export class AgentManager extends AgentRuntime {
 
   /** Stop if needed, release the workspace, free the desk and remove the robot. */
   async sendHome(actor: FloorActor, agentId: string, opts: { keepBranch: boolean }): Promise<void> {
-    const live = this.#authorize(actor, agentId);
+    await this.#sendHome(this.#authorize(actor, agentId), opts);
+    this.store.audit(actor.id, AUDIT_ACTIONS.agentSendHome, agentId, {
+      keepBranch: opts.keepBranch,
+    });
+  }
+
+  /**
+   * "Send all home" before an office owner/admin deletes a floor (#150): not
+   * control (D12, #138), a floor-lifecycle step, so the branch is always kept
+   * and the robot's owner is recorded in the audit entry.
+   */
+  async evacuate(actor: FloorActor, agentId: string): Promise<void> {
+    const live = this.agents.get(agentId);
+    if (!live) throw new AgentManagerError("not_found", "no such agent");
+    if (!mayEmergencyStop(actor)) {
+      throw new AgentManagerError("forbidden", "only an office owner or admin may clear a floor");
+    }
+    await this.#sendHome(live, { keepBranch: true });
+    this.store.audit(actor.id, AUDIT_ACTIONS.agentSendHome, agentId, {
+      keepBranch: true,
+      floorEvacuation: true,
+      ownerUserId: live.view.ownerUserId,
+    });
+  }
+
+  async #sendHome(live: LiveAgent, opts: { keepBranch: boolean }): Promise<void> {
+    const { agentId } = live.view;
     if (live.view.status !== "exited") await this.#halt(live, "sent home");
     this.processGone(live);
     await this.#workspaces().release({ agentId, keepBranch: opts.keepBranch });
@@ -259,10 +308,8 @@ export class AgentManager extends AgentRuntime {
     this.agents.delete(agentId);
     this.opts.robots.removeRobot(live.view.floorId, agentId);
     this.countersChanged();
-    this.store.audit(actor.id, AUDIT_ACTIONS.agentSendHome, agentId, {
-      keepBranch: opts.keepBranch,
-    });
   }
+
   /** Re-publish seated robots and re-adopt live sessions (boot). */
   async adopt(): Promise<void> {
     this.store.sweep();
@@ -273,7 +320,7 @@ export class AgentManager extends AgentRuntime {
     const live = this.agents.get(agentId);
     if (!live) throw new AgentManagerError("not_found", "no such agent");
     if (!mayControlRobot(actor, live.view.ownerUserId)) {
-      throw new AgentManagerError("forbidden", "only the robot's owner or an admin may control it");
+      throw new AgentManagerError("forbidden", "only the robot's owner may control it");
     }
     return live;
   }

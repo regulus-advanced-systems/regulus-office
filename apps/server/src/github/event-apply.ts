@@ -122,9 +122,13 @@ export class EventApplier {
 
   /** A change the poller saw (the cache is already updated). */
   polled(change: PolledChange): void {
+    // First seen after the first pass: opened, or closed (merged) since the last poll.
     const action =
-      change.change === "new" ? (change.object.state === "open" ? "opened" : null) : change.change;
-    if (!action) return;
+      change.change === "new"
+        ? change.object.state === "open"
+          ? "opened"
+          : "closed"
+        : change.change;
     const repo: GitHubRepoName = {
       owner: change.repo.owner,
       name: change.repo.name,

@@ -41,9 +41,15 @@ const SPEC_COMMANDS = [
 /**
  * Commands beyond the SPEC §6 list, each with its source: `agent.interrupt`
  * is SPEC §7 `AgentControl.interrupt`; `agent.sendHome` and `agent.worktree`
- * are the send-home and PR dialogs of issue #33.
+ * are the send-home and PR dialogs of issue #33; `agent.emergencyStop` is the
+ * office owner/admin stop of D12 (#138).
  */
-const EXTENSION_COMMANDS = ["agent.interrupt", "agent.sendHome", "agent.worktree"] as const;
+const EXTENSION_COMMANDS = [
+  "agent.interrupt",
+  "agent.sendHome",
+  "agent.worktree",
+  "agent.emergencyStop",
+] as const;
 
 const valid: Record<ClientCommandType, Record<string, unknown>> = {
   move: { x: 1, z: -2, heading: 0.5 },
@@ -67,6 +73,7 @@ const valid: Record<ClientCommandType, Record<string, unknown>> = {
   "agent.interrupt": { agentId: "a1" },
   "agent.sendHome": { agentId: "a1", keepBranch: true },
   "agent.worktree": { agentId: "a1" },
+  "agent.emergencyStop": { agentId: "a1", reason: "runaway cost" },
   "queue.add": {
     floorId: "f1",
     repoId: "r1",

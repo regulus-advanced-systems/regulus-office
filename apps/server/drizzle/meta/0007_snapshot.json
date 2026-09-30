@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "8a64f0ae-42b2-45ff-aefc-ee4ef8e466c9",
+  "id": "5ab72417-e0b3-4a3f-94c0-7f2c8bdef1fd",
   "prevId": "0780e343-8914-41f5-b27c-e9974437fa95",
   "tables": {
     "agent_events": {
@@ -1707,29 +1707,6 @@
           "notNull": true,
           "autoincrement": false,
           "default": false
-        },
-        "head_sha": {
-          "name": "head_sha",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "checks_json": {
-          "name": "checks_json",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'{}'"
-        },
-        "reviews_json": {
-          "name": "reviews_json",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'{}'"
         }
       },
       "indexes": {
@@ -1768,8 +1745,8 @@
         }
       }
     },
-    "github_webhook_deliveries": {
-      "name": "github_webhook_deliveries",
+    "notification_channels": {
+      "name": "notification_channels",
       "columns": {
         "id": {
           "name": "id",
@@ -1778,8 +1755,164 @@
           "notNull": true,
           "autoincrement": false
         },
-        "event": {
-          "name": "event",
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "label": {
+          "name": "label",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "encrypted_secret": {
+          "name": "encrypted_secret",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "chat_id": {
+          "name": "chat_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "floor_ids_json": {
+          "name": "floor_ids_json",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "events_json": {
+          "name": "events_json",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'[]'"
+        },
+        "enabled": {
+          "name": "enabled",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": true
+        },
+        "last_delivery_at": {
+          "name": "last_delivery_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "last_delivery_ok": {
+          "name": "last_delivery_ok",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "last_delivery_code": {
+          "name": "last_delivery_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "notification_channels_created_by_users_id_fk": {
+          "name": "notification_channels_created_by_users_id_fk",
+          "tableFrom": "notification_channels",
+          "tableTo": "users",
+          "columnsFrom": ["created_by"],
+          "columnsTo": ["id"],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "notification_channels_kind_check": {
+          "name": "notification_channels_kind_check",
+          "value": "\"kind\" IN ('slack', 'discord', 'telegram')"
+        }
+      }
+    },
+    "notification_marks": {
+      "name": "notification_marks",
+      "columns": {
+        "key": {
+          "name": "key",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "notification_prefs": {
+      "name": "notification_prefs",
+      "columns": {
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "prefs_json": {
+          "name": "prefs_json",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -1800,14 +1933,18 @@
           "autoincrement": false
         }
       },
-      "indexes": {
-        "github_webhook_deliveries_created_idx": {
-          "name": "github_webhook_deliveries_created_idx",
-          "columns": ["created_at"],
-          "isUnique": false
+      "indexes": {},
+      "foreignKeys": {
+        "notification_prefs_user_id_users_id_fk": {
+          "name": "notification_prefs_user_id_users_id_fk",
+          "tableFrom": "notification_prefs",
+          "tableTo": "users",
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
-      "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}

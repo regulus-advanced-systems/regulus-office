@@ -2,7 +2,8 @@
  * Board polling (SPEC §4.2 "polling mode when no inbound URL", D14; #35).
  *
  * For every GitHub repo a live floor follows, one request at a time:
- * 1. first pass: open issues and open PRs (up to 3 pages each);
+ * 1. first pass: open issues and open PRs (up to 3 pages each), then the
+ *    recent page of step 2, all without events;
  * 2. then: the 50 most recently updated issues and PRs (`state=all`, so closes
  *    and merges show), as conditional requests with the last ETag;
  * 3. reviews of PRs that changed, and check suites of open PRs' heads, also
@@ -161,42 +162,44 @@ export class BoardPoller {
     const changedPulls = new Set<number>();
     const emit = state.bootstrapped;
 
-    const issuePages = state.bootstrapped
-      ? [`${base}/issues?state=all&sort=updated&direction=desc&per_page=${STEADY_PAGE}`]
-      : pages(`${base}/issues?state=open&per_page=100`);
-    for (const path of issuePages) {
-      const res = await this.#get<unknown[]>(state, path, token, state.bootstrapped);
-      if (res.status === 304) break;
-      const list = Array.isArray(res.body) ? res.body : [];
-      for (const raw of list) {
-        const fields = normalizeIssue(raw);
-        if (!fields) continue;
-        const change = cache.upsertIssue(repo.repoIds, fields);
-        if (change === "none") continue;
-        touched = true;
-        if (emit) this.#deps.onChange({ kind: "issues", change, repo, object: raw as RawObject });
+    // The first pass reads every open item and then the recent page too (closes
+    // and merges), so later passes only report what really changed since.
+    const lists = async (kind: "issues" | "pulls") => {
+      const steady = `${base}/${kind}?state=all&sort=updated&direction=desc&per_page=${STEADY_PAGE}`;
+      const groups = state.bootstrapped
+        ? [[steady]]
+        : [pages(`${base}/${kind}?state=open&per_page=100`), [steady]];
+      const out: unknown[] = [];
+      for (const group of groups) {
+        for (const path of group) {
+          const res = await this.#get<unknown[]>(state, path, token, path === steady);
+          if (res.status === 304) break;
+          const list = Array.isArray(res.body) ? res.body : [];
+          out.push(...list);
+          if (list.length < 100) break;
+        }
       }
-      if (list.length < 100) break;
-    }
+      return out;
+    };
 
-    const pullPages = state.bootstrapped
-      ? [`${base}/pulls?state=all&sort=updated&direction=desc&per_page=${STEADY_PAGE}`]
-      : pages(`${base}/pulls?state=open&per_page=100`);
-    for (const path of pullPages) {
-      const res = await this.#get<unknown[]>(state, path, token, state.bootstrapped);
-      if (res.status === 304) break;
-      const list = Array.isArray(res.body) ? res.body : [];
-      for (const raw of list) {
-        const fields = normalizePull(raw);
-        if (!fields) continue;
-        const change = cache.upsertPull(repo.repoIds, fields);
-        if (change === "none") continue;
-        touched = true;
-        changedPulls.add(fields.number);
-        if (emit)
-          this.#deps.onChange({ kind: "pull_request", change, repo, object: raw as RawObject });
+    for (const raw of await lists("issues")) {
+      const fields = normalizeIssue(raw);
+      if (!fields) continue;
+      const change = cache.upsertIssue(repo.repoIds, fields);
+      if (change === "none") continue;
+      touched = true;
+      if (emit) this.#deps.onChange({ kind: "issues", change, repo, object: raw as RawObject });
+    }
+    for (const raw of await lists("pulls")) {
+      const fields = normalizePull(raw);
+      if (!fields) continue;
+      const change = cache.upsertPull(repo.repoIds, fields);
+      if (change === "none") continue;
+      touched = true;
+      changedPulls.add(fields.number);
+      if (emit) {
+        this.#deps.onChange({ kind: "pull_request", change, repo, object: raw as RawObject });
       }
-      if (list.length < 100) break;
     }
 
     const primary = repo.repoIds[0] as string;

@@ -7,13 +7,15 @@ import { dbFloorVisibility, decideTerminalAccess, mayUseTerminal } from "./acl.t
 const OWNER_ID = "robot-owner";
 const everyFloor = () => true;
 
-describe("terminal ACL (SPEC §8 rule 4, D12)", () => {
+describe("terminal ACL (SPEC §8 rule 4, D12, #138)", () => {
   // role × (is the robot's owner) × mode → allowed
   const matrix: [UserRole, boolean, "watch" | "control", boolean][] = [
     ["owner", false, "watch", true],
-    ["owner", false, "control", true],
+    ["owner", false, "control", false],
+    ["owner", true, "control", true],
     ["admin", false, "watch", true],
-    ["admin", false, "control", true],
+    ["admin", false, "control", false],
+    ["admin", true, "control", true],
     ["member", true, "watch", true],
     ["member", true, "control", true],
     ["member", false, "watch", true],

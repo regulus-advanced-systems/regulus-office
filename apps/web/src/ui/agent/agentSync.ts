@@ -33,6 +33,7 @@ export interface AgentSyncDeps {
 const DONE: Partial<Record<AgentCommandResult["type"], string>> = {
   "agent.interrupt": "Interrupted",
   "agent.stop": "Stopped",
+  "agent.emergencyStop": "Emergency-stopped; its owner can resume it",
   "agent.resume": "Resuming",
 };
 
