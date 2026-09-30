@@ -2,7 +2,7 @@
  * Robots on the floor we are on (SPEC §9.3, §9.4): one <Robot> per
  * `RobotState` from the FloorRoom at its desk seat, the GDT floor name
  * decals, work bubbles flying to the HUD counters, confetti when a robot
- * finishes and a soft ding when a hand goes up. Also the free-desk
+ * starts its celebration and a soft ding when a hand goes up. Also the free-desk
  * interaction: `E` near a free desk (or a click on it) opens the spawn
  * dialog. A click on a robot or its occupied desk opens the robot panel
  * (#33); `E` at an occupied desk and laptop clicks open the terminal
@@ -30,7 +30,7 @@ import { Confetti, createConfettiBus } from "./Confetti.tsx";
 import { freeDeskAt } from "./deskInteraction.ts";
 import { NameDecal } from "./NameDecal.tsx";
 import { Robot } from "./Robot.tsx";
-import { celebrates, raisesHand } from "./robotAnimation.ts";
+import { raisesHand } from "./robotAnimation.ts";
 import { facing, laptopOrigin } from "./seatPlacement.ts";
 
 const EMPTY: Readonly<Record<string, RobotState>> = {};
@@ -146,8 +146,15 @@ export function RobotLayer({ template, robots: given }: RobotLayerProps) {
     ),
   );
 
-  // Transitions: confetti on finishing, a ding when a hand goes up.
+  // Confetti when a robot starts to celebrate (Robot calls back once its dance shows).
   const confetti = useMemo(() => createConfettiBus(), []);
+  const burst = useCallback(
+    (seat: Seat) => {
+      if (!reducedMotion) confetti.pending.push({ x: seat.pose.x, y: 1.7, z: seat.pose.z });
+    },
+    [confetti, reducedMotion],
+  );
+  // A ding when a hand goes up.
   const ding = useMemo(() => createDingGate(), []);
   const prev = useRef<Readonly<Record<string, RobotState>>>({});
   useEffect(() => {
@@ -156,16 +163,12 @@ export function RobotLayer({ template, robots: given }: RobotLayerProps) {
     let rang = false;
     for (const r of Object.values(robots)) {
       const old = before[r.agentId];
-      const seat = seatsById.get(r.seatId);
-      if (!reducedMotion && seat && celebrates(old, r)) {
-        confetti.pending.push({ x: seat.pose.x, y: 1.7, z: seat.pose.z });
-      }
       if (!rang && raisesHand(old, r)) {
         rang = true;
         if (ding({ now: performance.now(), volume, reducedMotion })) playDing(volume);
       }
     }
-  }, [robots, seatsById, reducedMotion, volume, confetti, ding]);
+  }, [robots, reducedMotion, volume, ding]);
 
   const visible = useMemo(
     () => Object.values(robots).filter((r) => !(r.agentId in overrides) && seatsById.has(r.seatId)),
@@ -187,7 +190,13 @@ export function RobotLayer({ template, robots: given }: RobotLayerProps) {
         const seat = seatsById.get(r.seatId) as Seat;
         return (
           <group key={r.agentId}>
-            <Robot robot={r} seat={seat} reducedMotion={reducedMotion} onSelect={openAgentPanel} />
+            <Robot
+              robot={r}
+              seat={seat}
+              reducedMotion={reducedMotion}
+              onSelect={openAgentPanel}
+              onCelebrate={burst}
+            />
             <NameDecal seat={seat} ownerName={r.ownerName} model={r.model} />
           </group>
         );

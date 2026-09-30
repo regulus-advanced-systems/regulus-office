@@ -5,6 +5,7 @@
  */
 import { AnimationClip, type Bone, type Object3D, Quaternion, Vector3 } from "three";
 import { ROBOT_CLIPS } from "./clips.ts";
+import { holdClip, poseAt } from "./seatedClips.ts";
 
 /** Resolved by Vite to a hashed asset URL; no config needed. */
 export const ROBOT_MODEL_URL = new URL(
@@ -40,10 +41,18 @@ export const RIGHT_ARM_TRACK =
 
 export const ARM_CLIP_NAME = `${ROBOT_CLIPS.wave}.arm`;
 
-/** Sub-clip with only the right-arm tracks of a clip, so it can blend over any base pose. */
-export function armOnlyClip(source: AnimationClip): AnimationClip {
+/** When `Robot_Wave` has the hand up (between two waves), seconds. */
+export const RAISED_HAND_TIME = 0.9;
+
+/**
+ * The raised hand: the right-arm tracks of a clip (the wave) held at `at`
+ * seconds, so it blends over any base pose and the hand stays up without
+ * waving (#159: a waiting robot is still apart from its raised hand).
+ */
+export function armOnlyClip(source: AnimationClip, at = RAISED_HAND_TIME): AnimationClip {
   const tracks = source.tracks.filter((track) => RIGHT_ARM_TRACK.test(track.name));
-  return new AnimationClip(ARM_CLIP_NAME, source.duration, tracks);
+  const arm = new AnimationClip(`${source.name}.arm-source`, source.duration, tracks);
+  return holdClip(ARM_CLIP_NAME, poseAt(arm, Math.min(at, source.duration)), source.duration);
 }
 
 /** Small roll applied to the head bone while thinking (SPEC §9.3 "think (head tilt)"). */

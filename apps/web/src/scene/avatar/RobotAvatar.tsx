@@ -12,7 +12,14 @@ import { useAnimations, useGLTF } from "@react-three/drei";
 import { createPortal, type ThreeElements, useFrame } from "@react-three/fiber";
 import type { AgentStatus, AvatarAnimation, AvatarLook } from "@regulus/protocol";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { type AnimationAction, type Bone, type Group, Mesh, type Object3D } from "three";
+import {
+  type AnimationAction,
+  type AnimationClip,
+  type Bone,
+  type Group,
+  Mesh,
+  type Object3D,
+} from "three";
 import { clone as cloneSkeleton } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { Antenna, Badge, ChestLight, HeadAccessory } from "./accessories.tsx";
 import {
@@ -38,6 +45,7 @@ import {
 import { colorForRole, materialRoleFor, resolveLook } from "./colorSets.ts";
 import { NamePlate } from "./NamePlate.tsx";
 import type { NamePlateStyle } from "./namePlateTexture.ts";
+import { seatedClips } from "./seatedClips.ts";
 import { bulbColorFor, bulbLitFor, handRaisedFor } from "./statusBulb.ts";
 import { toonMaterialFor } from "./toonMaterial.ts";
 
@@ -85,11 +93,13 @@ export function RobotAvatar({
   /** Per-instance scene graph with its own bones; geometry stays shared with the cached GLB. */
   const instance = useMemo(() => cloneSkeleton(gltf.scene) as Group, [gltf.scene]);
   const root = useRef<Group>(null);
-  const clips = useMemo(() => {
-    const wave = gltf.animations.find((c) => c.name === ROBOT_CLIPS.wave);
-    return wave ? [...gltf.animations, armOnlyClip(wave)] : gltf.animations;
-  }, [gltf.animations]);
-  const { actions, names } = useAnimations(clips, root);
+  const clips = useMemo(
+    () => avatarClips(gltf.animations, gltf.scene),
+    [gltf.animations, gltf.scene],
+  );
+  const { actions, names, mixer } = useAnimations(clips, root);
+  // Read by the scene probes (tests/e2e, #159): clip weights over time; no behaviour.
+  instance.userData.mixer = mixer;
   const resolved = resolveLook(look);
   const raised = handRaised ?? handRaisedFor(status);
   const [bones, setBones] = useState<{ head: Bone; body: Bone } | null>(null);
@@ -179,6 +189,25 @@ export function RobotAvatar({
       {name && <NamePlate name={name} style={plateStyle} height={PLATE_HEIGHT} />}
     </group>
   );
+}
+
+/**
+ * The GLB's clips plus the ones built from them: the held raised hand (wave
+ * arm) and the seated loops (seatedClips.ts). Built once per loaded GLB.
+ */
+const builtClips = new WeakMap<readonly AnimationClip[], AnimationClip[]>();
+function avatarClips(animations: readonly AnimationClip[], model: Object3D): AnimationClip[] {
+  const cached = builtClips.get(animations);
+  if (cached) return cached;
+  const wave = animations.find((c) => c.name === ROBOT_CLIPS.wave);
+  const sitting = animations.find((c) => c.name === ROBOT_CLIPS.sitting);
+  const clips = [
+    ...animations,
+    ...(wave ? [armOnlyClip(wave)] : []),
+    ...(sitting ? seatedClips(sitting, (bone) => findBone(model, bone)?.quaternion.toArray()) : []),
+  ];
+  builtClips.set(animations, clips);
+  return clips;
 }
 
 /** Start fetching the GLB before the first avatar mounts. */

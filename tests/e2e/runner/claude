@@ -70,7 +70,9 @@ hook "{$base,\"hook_event_name\":\"UserPromptSubmit\",\"prompt\":\"$(json_escape
 sleep 1
 echo "FAKE CLAUDE editing $file"
 hook "{$base,\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"Edit\",\"tool_use_id\":\"toolu_fake_1\",\"tool_input\":$edit}" > /dev/null
-sleep 3
+# Long enough for the robot to show typing: it follows a new action only once it has held
+# for 1.5 s (#159), and a slow CI browser sees the status late.
+sleep 6
 echo "FAKE CLAUDE asking for permission"
 answer=$(hook "{$base,\"hook_event_name\":\"PermissionRequest\",\"tool_name\":\"Edit\",\"tool_input\":$edit}" 300)
 if printf '%s' "$answer" | grep -q '"behavior" *: *"allow"'; then

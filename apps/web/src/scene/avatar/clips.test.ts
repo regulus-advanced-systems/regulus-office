@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { AVATAR_ANIMATIONS } from "@regulus/protocol";
 import {
+  AVATAR_CLIP_NAMES,
   CLIP_CANDIDATES,
   clipTable,
   FALLBACK_CLIP,
@@ -9,12 +10,14 @@ import {
   ROBOT_CLIPS,
   resolveClip,
 } from "./clips.ts";
+import { SEATED_CLIPS } from "./seatedClips.ts";
 
 describe("clips", () => {
   test("every avatar animation has candidates and resolves against the shipped GLB", () => {
     for (const animation of AVATAR_ANIMATIONS) {
       expect(CLIP_CANDIDATES[animation].length).toBeGreaterThan(0);
-      expect(ROBOT_CLIP_NAMES).toContain(resolveClip(animation));
+      expect(AVATAR_CLIP_NAMES).toContain(resolveClip(animation));
+      expect(ROBOT_CLIP_NAMES).toContain(resolveClip(animation, ROBOT_CLIP_NAMES));
     }
   });
 
@@ -26,8 +29,10 @@ describe("clips", () => {
   });
 
   test("clips missing from the Quaternius model fall back to the closest available", () => {
-    expect(resolveClip("sit_type")).toBe(ROBOT_CLIPS.sitting);
-    expect(resolveClip("sit_idle")).toBe(ROBOT_CLIPS.sitting);
+    // Seated clips built from Robot_Sitting's last frame (#159); the raw clip is a last resort.
+    expect(resolveClip("sit_type")).toBe(SEATED_CLIPS.type);
+    expect(resolveClip("sit_idle")).toBe(SEATED_CLIPS.idle);
+    expect(resolveClip("sit_idle", ROBOT_CLIP_NAMES)).toBe(ROBOT_CLIPS.sitting);
     expect(resolveClip("celebrate")).toBe(ROBOT_CLIPS.dance);
     expect(resolveClip("facepalm")).toBe(ROBOT_CLIPS.no);
     expect(resolveClip("point")).toBe(ROBOT_CLIPS.thumbsUp);
@@ -51,6 +56,6 @@ describe("clips", () => {
   test("clipTable covers the whole enum", () => {
     const table = clipTable();
     expect(Object.keys(table).sort()).toEqual([...AVATAR_ANIMATIONS].sort());
-    expect(table.sit_idle).toBe(ROBOT_CLIPS.sitting);
+    expect(table.sit_idle).toBe(SEATED_CLIPS.idle);
   });
 });

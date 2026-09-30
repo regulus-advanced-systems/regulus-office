@@ -23,22 +23,46 @@ const SHOWREEL: ReadonlyArray<[AgentStatus, AgentAction]> = [
   ["starting", "none"],
 ];
 
+/**
+ * working: all typing/reading; mixed: the showreel; waiting: hands up; idle:
+ * all idle (should sit still, #159); flap: working/typing and idle/none
+ * alternating every tick (the animation should not follow it, #159).
+ */
+export type HarnessMode = "working" | "mixed" | "waiting" | "idle" | "flap";
+
+export function harnessMode(value: string | null): HarnessMode {
+  return value === "mixed" || value === "waiting" || value === "idle" || value === "flap"
+    ? value
+    : "working";
+}
+
+function pairFor(mode: HarnessMode, i: number, tick: number): [AgentStatus, AgentAction] {
+  switch (mode) {
+    case "working":
+      return ["working", i % 3 === 0 ? "reading" : "typing"];
+    case "waiting":
+      return ["waiting_permission", "none"];
+    case "idle":
+      return ["idle", "none"];
+    case "flap":
+      return tick % 2 === 0 ? ["working", "typing"] : ["idle", "none"];
+    default:
+      return SHOWREEL[(Math.floor(tick / 8) + i) % SHOWREEL.length] as [AgentStatus, AgentAction];
+  }
+}
+
 export function fakeRobots(
   template: FloorTemplate,
   count: number,
   tick: number,
-  mode: "working" | "mixed" | "waiting",
+  mode: HarnessMode,
 ): Record<string, RobotState> {
   const seats = template.seats.filter((s) => s.kind === "desk").slice(0, count);
   const out: Record<string, RobotState> = {};
   seats.forEach((seat, i) => {
-    const phase = Math.floor(tick / 8) + i;
-    const [status, action] =
-      mode === "working"
-        ? (["working", i % 3 === 0 ? "reading" : "typing"] as const)
-        : mode === "waiting"
-          ? (["waiting_permission", "none"] as const)
-          : (SHOWREEL[phase % SHOWREEL.length] as [AgentStatus, AgentAction]);
+    const [status, action] = pairFor(mode, i, tick);
+    // Idle robots do no work, so their counters (and bubbles) stay put.
+    const count = mode === "idle" ? 0 : tick;
     const agentId = `fake-${seat.id}`;
     const owner = OWNERS[i % OWNERS.length] as string;
     out[agentId] = {
@@ -60,10 +84,10 @@ export function fakeRobots(
       handRaised: status === "waiting_permission",
       statusReason: status === "error" ? "demo: a fake failure" : "",
       bubbleEmits: {
-        toolCalls: tick * 2 + (i % 3),
-        fileEdits: Math.floor(tick / 2),
-        testRuns: Math.floor(tick / 5),
-        toolFailures: Math.floor(tick / 11),
+        toolCalls: count * 2 + (i % 3),
+        fileEdits: Math.floor(count / 2),
+        testRuns: Math.floor(count / 5),
+        toolFailures: Math.floor(count / 11),
       },
       lastActivityAt: 0,
     };
