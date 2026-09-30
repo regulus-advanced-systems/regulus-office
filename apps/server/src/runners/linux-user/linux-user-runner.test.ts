@@ -359,10 +359,27 @@ describe("LinuxUserRunner sandboxes (#169)", () => {
     expect((await runner.listSandboxes()).map((s) => s.agentId)).toEqual(["a9"]);
   });
 
+  test("sandboxOf finds an existing sandbox without creating one (services proxy, #39)", async () => {
+    const { runner, calls } = withSandboxes();
+    expect(await runner.sandboxOf({ userId: "u1", agentId: "a1" })).toBeNull();
+    const made = await runner.sandbox({ userId: "u1", agentId: "a1" }, { workdir: "/w" });
+    expect(await runner.sandboxOf({ userId: "u1", agentId: "a1" })).toEqual({
+      userId: "u1",
+      agentId: "a1",
+      host: made?.host ?? "",
+      ports: made?.ports ?? { first: 0, last: 0 },
+      createdAt: made?.createdAt,
+    });
+    // Another human's robot id: not theirs.
+    expect(await runner.sandboxOf({ userId: "u2", agentId: "a1" })).toBeNull();
+    expect(calls.filter((c) => c.argv[3] === "sandbox-up")).toHaveLength(1);
+  });
+
   test("with sandboxes off there is no sandbox and no sandbox-list call", async () => {
     const { runner, calls } = mocked();
     expect(await runner.sandbox({ userId: "u1", agentId: "a1" }, { workdir: "/w" })).toBeNull();
     expect(await runner.listSandboxes()).toEqual([]);
+    expect(await runner.sandboxOf({ userId: "u1", agentId: "a1" })).toBeNull();
     await runner.exec(user, plan(runner, "a1"));
     expect(calls.some((c) => c.argv[3]?.startsWith("sandbox"))).toBe(false);
     expect(calls.find((c) => c.argv[3] === "exec")?.stdin).not.toContain("PORT=");

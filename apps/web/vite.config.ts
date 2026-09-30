@@ -38,6 +38,10 @@ export default defineConfig({
   server: {
     port: 5173,
     strictPort: false,
-    proxy: { "/api": { target: devServer, changeOrigin: true } },
+    proxy: {
+      "/api": { target: devServer, changeOrigin: true },
+      // Running apps (#39): the office's services proxy, WebSockets (HMR) included.
+      "/p/": { target: devServer, ws: true },
+    },
   },
 });
