@@ -2,9 +2,10 @@
  * Dev-only page (apps/web/dev/robots.html): the Office L2 floor with fake
  * robots at their desks, bubbles flying to the HUD counters and an fps probe.
  * Query: n=<robots> (default 12), mode=working|mixed|waiting|idle|flap, rate=<ticks/s>,
- * reduced=1. Not part of the production build.
+ * reduced=1, template=<template id> (default office-l2), seats=all (robots on
+ * meeting, bistro, reception and lounge seats too). Not part of the production build.
  */
-import { officeL2Template } from "@regulus/floor-layout";
+import { officeL2Template, templateById } from "@regulus/floor-layout";
 import type { RobotState } from "@regulus/protocol";
 import { Suspense, useEffect, useState } from "react";
 import { useFloorStore } from "../../../state/floor.ts";
@@ -19,7 +20,6 @@ import { fakeRobots, harnessMode } from "./fakeRobots.ts";
 import "../../../ui/globals.css";
 import "../../../ui/hud.css";
 
-const template = officeL2Template;
 const noSend = () => {};
 
 export function RobotsHarness({ search }: { search: string }) {
@@ -27,6 +27,8 @@ export function RobotsHarness({ search }: { search: string }) {
   const n = Number(params.get("n") ?? 12);
   const mode = harnessMode(params.get("mode"));
   const rate = Number(params.get("rate") ?? 2);
+  const template = templateById(params.get("template") ?? "") ?? officeL2Template;
+  const allSeats = params.get("seats") === "all";
   const [tick, setTick] = useState(0);
   const [robots, setRobots] = useState<Record<string, RobotState>>({});
 
@@ -38,7 +40,7 @@ export function RobotsHarness({ search }: { search: string }) {
   }, [rate, search]);
 
   useEffect(() => {
-    const next = fakeRobots(template, n, tick, mode);
+    const next = fakeRobots(template, n, tick, mode, allSeats);
     setRobots(next);
     // The HUD counters read the floor store.
     useFloorStore.setState({
@@ -61,7 +63,7 @@ export function RobotsHarness({ search }: { search: string }) {
         carriedCards: {},
       },
     });
-  }, [tick, n, mode]);
+  }, [tick, n, mode, template, allSeats]);
 
   return (
     <div style={{ position: "fixed", inset: 0 }}>

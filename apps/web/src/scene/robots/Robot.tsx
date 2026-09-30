@@ -12,6 +12,7 @@ import type { RobotState } from "@regulus/protocol";
 import { memo, useEffect, useRef } from "react";
 import type { Group } from "three";
 import { RobotAvatar } from "../avatar/index.ts";
+import type { SitAnchor } from "../avatar/seatedFit.ts";
 import { calmFor, raisedHandFor, robotAnimationFor, robotLookFor } from "./robotAnimation.ts";
 import { robotAvatarLook } from "./robotLook.ts";
 import { robotPlacement } from "./seatPlacement.ts";
@@ -23,6 +24,8 @@ const SPIN_SECONDS = 0.9;
 export interface RobotProps {
   robot: RobotState;
   seat: Seat;
+  /** Where to sit on this seat's chair (furniture/sitAnchor.ts). */
+  anchor: SitAnchor;
   reducedMotion: boolean;
   onSelect?: (agentId: string) => void;
   /** The robot starts its celebration (not on first sight): burst confetti over its seat. */
@@ -44,7 +47,7 @@ function Papers() {
   );
 }
 
-function RobotImpl({ robot, seat, reducedMotion, onSelect, onCelebrate }: RobotProps) {
+function RobotImpl({ robot, seat, anchor, reducedMotion, onSelect, onCelebrate }: RobotProps) {
   // Status/action → animation, held until it has settled (no flapping), one-shots once (#159).
   const animation = useSettledAnimation(calmFor(robotAnimationFor(robot), reducedMotion));
   const look = robotLookFor(animation);
@@ -54,7 +57,7 @@ function RobotImpl({ robot, seat, reducedMotion, onSelect, onCelebrate }: RobotP
     if (animation === "celebrate" && shownBefore.current !== "celebrate") onCelebrate?.(seat);
     shownBefore.current = animation;
   }, [animation, onCelebrate, seat]);
-  const place = robotPlacement(seat, look.seated);
+  const place = robotPlacement(seat, look.seated, anchor);
   const avatar = robotAvatarLook(robot);
 
   const spinner = useRef<Group>(null);
@@ -118,6 +121,7 @@ export const Robot = memo(
   RobotImpl,
   (a, b) =>
     a.seat === b.seat &&
+    a.anchor === b.anchor &&
     a.reducedMotion === b.reducedMotion &&
     a.onSelect === b.onSelect &&
     a.onCelebrate === b.onCelebrate &&

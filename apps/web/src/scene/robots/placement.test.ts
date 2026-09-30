@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { HEADING, officeL2Template, type Seat } from "@regulus/floor-layout";
+import { SEATED_HIPS, seatedOffset } from "../avatar/seatedFit.ts";
 import { laptopPlacement } from "../laptops/placement.ts";
 import { freeDeskAt } from "./deskInteraction.ts";
 import {
@@ -8,7 +9,6 @@ import {
   laptopOrigin,
   robotPlacement,
   SCREEN_TOP,
-  SIT_LIFT,
 } from "./seatPlacement.ts";
 
 const seat = (id: string, x: number, z: number, heading: number): Seat => ({
@@ -18,14 +18,20 @@ const seat = (id: string, x: number, z: number, heading: number): Seat => ({
 });
 
 describe("robot seat placement", () => {
-  test("seated robots sit on the chair facing the desk; standing ones on the floor", () => {
+  test("seated robots sit on the sit anchor facing the desk; standing ones on the floor", () => {
     const s = seat("s", 4, 6, HEADING.north);
-    const sitting = robotPlacement(s, true);
-    expect(sitting.position[1]).toBe(SIT_LIFT);
-    // Pushed back toward the chair's back (south, +z) and turned to face north.
-    expect(sitting.position[2]).toBeGreaterThan(6);
+    const anchor = { seatY: 0.31, backFwd: -0.13 };
+    const sitting = robotPlacement(s, true, anchor);
+    const { forward, lift } = seatedOffset(anchor);
+    expect(sitting.position[1]).toBeCloseTo(lift, 9);
+    // Moved toward the desk (north, -z) so the hips land on the cushion, and facing north.
+    expect(sitting.position[2]).toBeCloseTo(6 - forward, 9);
+    expect(sitting.position[0]).toBeCloseTo(4, 9);
     expect(sitting.rotationY).toBeCloseTo(HEADING.north, 6);
-    expect(robotPlacement(s, false).position).toEqual([4, 0, 6]);
+    // The Hips bone lands just above the cushion, in front of the backrest.
+    expect(lift + SEATED_HIPS.up - anchor.seatY).toBeCloseTo(0.015, 6);
+    expect(forward - SEATED_HIPS.back).toBeGreaterThan(anchor.backFwd);
+    expect(robotPlacement(s, false, anchor).position).toEqual([4, 0, 6]);
   });
 
   test("bubbles start at the top of the desk's laptop", () => {

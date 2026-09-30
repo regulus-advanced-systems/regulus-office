@@ -17,7 +17,43 @@ export interface ModelSpec {
   readonly uniform?: boolean;
   /** Heading (three.js rotation.y) the raw model faces; default faces +z. */
   readonly modelHeading?: number;
+  /** Where a sitter goes, for models people sit on (#163; see sitAnchor.ts). */
+  readonly sit?: SitSpec;
 }
+
+/**
+ * The sittable surfaces of a raw model, measured from the GLB (#163) and
+ * checked against the file by `sitAnchor.glb.test.ts`. Fractions are of the
+ * model's own bounds, so they hold at any scale `fitToFootprint` applies.
+ */
+export interface SitSpec {
+  /** The raw model's bounds size, model units (needed to place it before it loads). */
+  readonly size: { readonly w: number; readonly h: number; readonly d: number };
+  /** Top of the seat cushion, fraction of the height. */
+  readonly seatTop: number;
+  /** Front face of the backrest where a sitter's back rests (its most forward point), fraction of the depth from the back. */
+  readonly backFront: number;
+  /** Top of the backrest, fraction of the height. */
+  readonly backTop: number;
+  /**
+   * Inner edge of the armrests, fraction of the half-width from the middle; absent without
+   * armrests. The robot's pelvis (0.55 m) is wider than the desk chair's armrests are apart
+   * (0.36 m), so they end up inside it, hidden (#163).
+   */
+  readonly armrestsInner?: number;
+}
+
+/** Kenney `chairDesk`: cushion at 38 % of the height, a slanted backrest in the back 20 %. */
+const CHAIR_DESK_SIT: SitSpec = {
+  size: { w: 0.335, h: 0.6076, d: 0.3143 },
+  seatTop: 0.384,
+  backFront: 0.197,
+  backTop: 1,
+  armrestsInner: 0.8,
+};
+
+/** Kenney `loungeChair` / `loungeSofa`: cushion at half height, a block backrest in the back 22 %, block arms. */
+const LOUNGE_SIT = { seatTop: 0.5, backFront: 0.22, backTop: 1 } as const;
 
 /** Plain string literals: Vite only rewrites `new URL()` it can analyse statically. */
 export const MODEL_URLS = {
@@ -104,7 +140,12 @@ export const FURNITURE_MODELS: Partial<Record<ObstacleKind, ModelSpec>> = {
     uniform: true,
     modelHeading: KENNEY_HEADING,
   },
-  couch: { url: MODEL_URLS.loungeSofa, targetHeight: 0.85, modelHeading: KENNEY_HEADING },
+  couch: {
+    url: MODEL_URLS.loungeSofa,
+    targetHeight: 0.85,
+    modelHeading: KENNEY_HEADING,
+    sit: { size: { w: 0.98, h: 0.46, d: 0.41 }, ...LOUNGE_SIT, armrestsInner: 0.82 },
+  },
   coffee_table: { url: MODEL_URLS.tableCoffee, targetHeight: 0.45, modelHeading: KENNEY_HEADING },
   plant: { url: MODEL_URLS.pottedPlant, targetHeight: 1.2, uniform: true },
   plant_small: { url: MODEL_URLS.plantSmall1, targetHeight: 0.6, uniform: true },
@@ -116,6 +157,7 @@ export const FURNITURE_MODELS: Partial<Record<ObstacleKind, ModelSpec>> = {
     targetHeight: 0.8,
     uniform: true,
     modelHeading: KENNEY_HEADING,
+    sit: { size: { w: 0.49, h: 0.46, d: 0.41 }, ...LOUNGE_SIT, armrestsInner: 0.63 },
   },
   floor_lamp: { url: MODEL_URLS.lampRoundFloor, targetHeight: 1.6, uniform: true },
   bench: { url: MODEL_URLS.benchCushion, targetHeight: 0.45, modelHeading: KENNEY_HEADING },
@@ -135,11 +177,18 @@ export function smallPlantUrl(id: string): string {
   return SMALL_PLANT_URLS[h % SMALL_PLANT_URLS.length] as string;
 }
 
+/**
+ * 0.82 m tall (was 0.9, #163): the seated robot's big head starts 0.51 m above
+ * its hips, so with the hips on a 0.9 m chair's cushion (0.35 m) the backrest
+ * top (0.9 m) cut 3 cm into the head. At 0.82 m the cushion is at 0.31 m and
+ * the head clears the backrest by 2 cm.
+ */
 export const CHAIR_MODEL: ModelSpec = {
   url: MODEL_URLS.chairDesk,
-  targetHeight: 0.9,
+  targetHeight: 0.82,
   uniform: true,
   modelHeading: KENNEY_HEADING,
+  sit: CHAIR_DESK_SIT,
 };
 
 export const TV_MODEL: ModelSpec = {
