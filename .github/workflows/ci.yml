@@ -333,6 +333,19 @@ jobs:
           sudo visudo -cf "$RUNNER_TEMP/office-runner"
           sudo install -m 0440 -o root -g root "$RUNNER_TEMP/office-runner" /etc/sudoers.d/office-runner
           sudo install -d -m 0750 -o "$USER" -g "$USER" /srv/office/projects /srv/office/worktrees
+      # The runner user here has blanket sudo, which would hide a missing or too narrow rule:
+      # check every call shape the office uses (helper-calls.json) as a user that has only the
+      # office-runner rules, e.g. `sandbox-list` with no arguments needs an exact rule (#169).
+      - name: Sudoers allow every helper call without blanket sudo
+        run: |
+          helper=apps/server/src/runners/linux-user/helper
+          sudo useradd --no-create-home --shell /usr/sbin/nologin office-sudocheck
+          sed "s/^office /office-sudocheck /" "$helper/office-runner.sudoers" > "$RUNNER_TEMP/office-sudocheck"
+          sudo visudo -cf "$RUNNER_TEMP/office-sudocheck"
+          sudo install -m 0440 -o root -g root "$RUNNER_TEMP/office-sudocheck" /etc/sudoers.d/office-sudocheck
+          bash "$helper/check-sudoers.sh" "$helper" office-sudocheck
+          sudo rm -f /etc/sudoers.d/office-sudocheck
+          sudo userdel office-sudocheck
       # useradd --create-home copies /etc/skel. On GitHub's image that is
       # ~800 MB (.nvm and more) read from a cold disk, so the first copy takes
       # 25-100 s and the second < 1 s (#117). Warm the page cache with a

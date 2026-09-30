@@ -76,7 +76,7 @@ office ALL=(root) NOPASSWD: /usr/local/lib/office/office-runner-helper exec *
 office ALL=(root) NOPASSWD: /usr/local/lib/office/office-runner-helper spawn-piped *
 office ALL=(root) NOPASSWD: /usr/local/lib/office/office-runner-helper kill *
 office ALL=(root) NOPASSWD: /usr/local/lib/office/office-runner-helper sandbox-up *
-office ALL=(root) NOPASSWD: /usr/local/lib/office/office-runner-helper sandbox-list *
+office ALL=(root) NOPASSWD: /usr/local/lib/office/office-runner-helper sandbox-list
 office ALL=(root) NOPASSWD: /usr/local/lib/office/office-runner-helper sockets *
 office ALL=(root) NOPASSWD: /usr/local/lib/office/office-runner-helper capture *
 office ALL=(root) NOPASSWD: /usr/local/lib/office/office-runner-helper pane-title *
@@ -90,7 +90,9 @@ office ALL=(root) NOPASSWD: /usr/local/lib/office/office-runner-helper list-dir 
 ```
 
 sudo only pins the verb (`*` matches any remaining arguments, spaces
-included); the helper enforces the rest of the grammar and exits 2 on anything
+included, but not none: a verb without arguments, `sandbox-list`, needs an
+exact rule without `*`; CI checks every call shape in `helper/helper-calls.json`
+against these rules for a user without other sudo rights); the helper enforces the rest of the grammar and exits 2 on anything
 else, before it does any work. One rule per verb keeps the allowed surface
 greppable and lets an operator drop verbs they do not want.
 

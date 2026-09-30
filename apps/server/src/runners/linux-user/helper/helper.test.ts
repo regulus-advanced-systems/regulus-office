@@ -9,6 +9,9 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
 const HELPER = join(import.meta.dir, "office-runner-helper");
+const HELPER_CALLS = (await Bun.file(
+  join(import.meta.dir, "helper-calls.json"),
+).json()) as string[][];
 const isRoot = process.getuid?.() === 0;
 
 async function helper(args: string[]): Promise<{ code: number; stderr: string }> {
@@ -23,39 +26,12 @@ async function helper(args: string[]): Promise<{ code: number; stderr: string }>
 
 const P = "/srv/office/projects";
 const W = "/srv/office/worktrees";
-const accepted: string[][] = [
-  ["provision", "u1"],
-  ["provision", "0123456789abcdef0123456"],
-  ["deprovision", "u1"],
-  ["mount-project", "u1", `${W}/floor1/u1`],
-  ["mount-project", "u1", `${W}/floor1/u1/a1`],
-  ["mount-project", "u1", `${W}/floor1/u1/_clones/repo-1`],
-  ["reclaim", P],
-  ["reclaim", `${P}/floor1`],
-  ["reclaim", `${P}/floor1/repo-1`],
-  ["reclaim", `${W}/floor1/0f8c2d9e-agent`],
-  ["remove-floor", "floor1"],
-  ["remove-floor", "apollo-moon-2"],
-  ["remove-floor", "a"],
-  ["exec", "u1", "a1", "/srv/x y", "--", "sh", "-c", "echo $HOME; rm -rf /"],
-  ["spawn-piped", "u1", "a_1-B", "/", "--", "codex", "app-server"],
-  ["kill", "u1", "a1"],
-  ["sandbox-up", "u1", "a1", "0", "2147483648", "200", "1024", "u1"],
-  ["sandbox-up", "u1", "a_1-B", "64999", "10000000", "1", "10", "0f8c2d9e-5b6a.x_y"],
-  ["sandbox-list"],
-  ["sockets", "u1", "a1"],
-  ["capture", "u1", "agent-a1", "200"],
-  ["pane-title", "u1", "agent-a1"],
-  ["send-keys", "u1", "agent-a1", "1", "text"],
-  ["send-keys", "u1", "agent-a1", "0", "raw"],
-  ["has-session", "u1", "agent-a1"],
-  ["list-sessions", "u1"],
-  ["attach", "u1", "agent-a1", "ro"],
-  ["write-file", "u1", "/home/office-u-u1/.claude/settings.json", "600"],
-  ["write-file", "u1", "/home/office-u-u1/bin/hook", "0755"],
-  ["read-file", "u1", "/home/office-u-u1/.codex/sessions/x.jsonl"],
-  ["list-dir", "u1", "/home/office-u-u1"],
-];
+/**
+ * Every verb with the argument shapes the office uses. Shared with CI, which
+ * checks each one against the installed sudoers rules for a user without
+ * blanket sudo (.github/workflows/ci.yml, linux-user job).
+ */
+const accepted: string[][] = HELPER_CALLS;
 const rejected: string[][] = [
   [],
   ["frobnicate", "u1"],
@@ -179,9 +155,18 @@ describe("sudoers rules", () => {
     for (const rule of rules) expect(doc).toContain(rule);
     const script = await readFile(HELPER, "utf8");
     const verbs = rules
-      .map((r) => r.match(/office-runner-helper ([a-z-]+) \*$/)?.[1])
+      .map((r) => r.match(/office-runner-helper ([a-z-]+)(?: \*)?$/)?.[1])
       .filter((v): v is string => v !== undefined);
     expect(verbs.length).toBe(20);
     for (const verb of verbs) expect(script).toContain(`  ${verb}`);
+    // Every verb has a rule and at least one call shape in helper-calls.json (checked by CI
+    // against sudo); a verb without arguments gets an exact rule, since `verb *` needs one.
+    const called = new Set(HELPER_CALLS.map((c) => c[0]));
+    expect([...called].sort()).toEqual([...verbs].sort());
+    for (const rule of rules.filter((r) => r.includes("office-runner-helper "))) {
+      const verb = rule.match(/office-runner-helper ([a-z-]+)/)?.[1] ?? "";
+      const bare = HELPER_CALLS.some((c) => c[0] === verb && c.length === 1);
+      expect(rule.endsWith(" *"), rule).toBe(!bare);
+    }
   });
 });
