@@ -13,6 +13,7 @@
 import type { AgentStatus } from "@regulus/protocol";
 import type { Logger } from "../../logging.ts";
 import type { Runner } from "../../runners/types.ts";
+import { WORKFLOW_RUNNER_USER } from "../../workflows/workspace.ts";
 
 export const SANDBOX_REAP_INTERVAL_MS = 60_000;
 export const SANDBOX_REAP_GRACE_MS = 120_000;
@@ -36,6 +37,8 @@ export async function reapSandboxes(
   if (!deps.runner.listSandboxes) return 0;
   let removed = 0;
   for (const sb of await deps.runner.listSandboxes()) {
+    // Workflow robots (#155) are not agents; the workflow engine removes their sandboxes.
+    if (sb.userId === WORKFLOW_RUNNER_USER) continue;
     // Creation time comes from the backend's (wall) clock.
     if (sb.createdAt !== undefined && Date.now() - sb.createdAt < graceMs) continue;
     const view = deps.view(sb.agentId);

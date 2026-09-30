@@ -138,7 +138,7 @@ describe("GitHub App manifest flow", () => {
   const resultOf = (res: Response) =>
     new URL(res.headers.get("location") ?? "", "http://x").searchParams.get("github");
 
-  test("the manifest asks for the #141 permissions and posts to the org's settings", async () => {
+  test("the manifest asks for the #141 and #155 permissions and posts to the org's settings", async () => {
     const { body, state } = await start(owner.cookie, "octo");
     expect(body.action).toStartWith(
       "https://github.example/organizations/octo/settings/apps/new?state=",
@@ -150,7 +150,7 @@ describe("GitHub App manifest flow", () => {
       pull_requests: "write",
       metadata: "read",
       issues: "write",
-      checks: "read",
+      checks: "write",
     });
     expect(manifest.public).toBe(false);
     expect(manifest.redirect_url).toEndWith("/api/github/app/callback");

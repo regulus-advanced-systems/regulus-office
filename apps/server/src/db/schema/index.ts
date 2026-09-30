@@ -12,4 +12,5 @@ export * from "./notifications.ts";
 export * from "./ops.ts";
 export * from "./usage.ts";
 export * from "./users.ts";
+export * from "./workflows.ts";
 export * from "./world.ts";
