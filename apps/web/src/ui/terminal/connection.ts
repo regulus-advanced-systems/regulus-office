@@ -13,6 +13,7 @@
 import {
   parseTerminalServerMessage,
   TERMINAL_CLOSE_CODES,
+  TERMINAL_MAX_INPUT_BYTES,
   type TerminalMode,
 } from "@regulus/protocol";
 import { type BackoffOptions, backoffDelay } from "../../net/backoff.ts";
@@ -88,6 +89,9 @@ export class TerminalConnection {
   #failures = 0;
   #attempts = 0;
   #disposed = false;
+  /** The size in `hello`, and the one this controller last asked for. */
+  #helloSize: { cols: number; rows: number } | null = null;
+  #sentSize: { cols: number; rows: number } | null = null;
 
   constructor(options: TerminalConnectionOptions) {
     this.#opts = options;
@@ -137,7 +141,24 @@ export class TerminalConnection {
   /** Keystrokes from xterm; dropped unless the server granted control. */
   send(data: string): void {
     if (this.#granted !== "control" || this.#ws?.readyState !== OPEN) return;
-    this.#ws.send(this.#encoder.encode(data));
+    const bytes = this.#encoder.encode(data);
+    // A long paste goes in frames the server accepts (it splits nothing itself).
+    for (let at = 0; at < bytes.byteLength; at += TERMINAL_MAX_INPUT_BYTES) {
+      this.#ws.send(bytes.subarray(at, at + TERMINAL_MAX_INPUT_BYTES));
+    }
+  }
+
+  /**
+   * Asks tmux to reflow to `cols`×`rows` (#156). Only a controller may: a
+   * watcher's resize would reshape the agent's window for everyone, and the
+   * server ignores it anyway (#105). Returns whether it was sent.
+   */
+  resize(cols: number, rows: number): boolean {
+    if (this.#granted !== "control" || this.#ws?.readyState !== OPEN) return false;
+    if (this.#sentSize?.cols === cols && this.#sentSize.rows === rows) return false;
+    this.#ws.send(JSON.stringify({ type: "resize", cols, rows }));
+    this.#sentSize = { cols, rows };
+    return true;
   }
 
   dispose(): void {
@@ -147,6 +168,13 @@ export class TerminalConnection {
     const ws = this.#ws;
     this.#ws = null;
     if (ws) {
+      // A controller leaving puts the shared window back to the size watchers expect.
+      const hello = this.#helloSize;
+      const sent = this.#sentSize;
+      if (this.#granted === "control" && ws.readyState === OPEN && hello && sent) {
+        if (sent.cols !== hello.cols || sent.rows !== hello.rows)
+          ws.send(JSON.stringify({ type: "resize", cols: hello.cols, rows: hello.rows }));
+      }
       ws.onopen = ws.onmessage = ws.onclose = ws.onerror = null;
       ws.close(1000, "closed");
     }
@@ -164,6 +192,10 @@ export class TerminalConnection {
     const { onEvent } = this.#opts;
     if (message.type === "hello") {
       this.#granted = message.mode;
+      this.#helloSize = { cols: message.cols, rows: message.rows };
+      // A new attach starts at the hello size again.
+      this.#sentSize =
+        message.mode === "control" ? { cols: message.cols, rows: message.rows } : null;
       onEvent({
         kind: "hello",
         mode: message.mode,

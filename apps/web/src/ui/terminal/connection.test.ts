@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test } from "bun:test";
-import { TERMINAL_CLOSE_CODES } from "@regulus/protocol";
+import { TERMINAL_CLOSE_CODES, TERMINAL_MAX_INPUT_BYTES } from "@regulus/protocol";
 import { closeAction, TERMINAL_MAX_ATTEMPTS, TerminalConnection } from "./connection.ts";
 import { FakeSocket } from "./fakeSocket.ts";
 import type { TerminalEvent } from "./terminalState.ts";
@@ -144,5 +144,43 @@ describe("TerminalConnection", () => {
     expect(events.map((e) => e.kind)).toEqual(["connecting"]);
     conn.connect();
     expect(FakeSocket.all).toHaveLength(1);
+  });
+
+  test("resize is sent only in control mode, once per size, and undone when leaving (#156)", () => {
+    const watch = setup("watch");
+    const ws = FakeSocket.last();
+    ws.open();
+    ws.text(hello("watch"));
+    expect(watch.conn.resize(120, 30)).toBe(false);
+    expect(ws.sent).toEqual([]);
+    watch.conn.dispose();
+    expect(ws.sent).toEqual([]);
+
+    const control = setup("control");
+    const cs = FakeSocket.last();
+    expect(control.conn.resize(120, 30)).toBe(false); // not open yet
+    cs.open();
+    cs.text(hello("control"));
+    expect(control.conn.resize(160, 45)).toBe(false); // already the hello size
+    expect(control.conn.resize(120, 30)).toBe(true);
+    expect(control.conn.resize(120, 30)).toBe(false);
+    expect(cs.sent).toEqual([JSON.stringify({ type: "resize", cols: 120, rows: 30 })]);
+    control.conn.dispose();
+    expect(cs.sent.at(-1)).toBe(JSON.stringify({ type: "resize", cols: 160, rows: 45 }));
+    expect(cs.closedWith).toBe(1000);
+  });
+
+  test("a long paste is split into frames the server accepts", () => {
+    const { conn } = setup("control");
+    const ws = FakeSocket.last();
+    ws.open();
+    ws.text(hello("control"));
+    conn.send("x".repeat(TERMINAL_MAX_INPUT_BYTES * 2 + 5));
+    const frames = ws.sent.filter((f): f is Uint8Array => typeof f !== "string");
+    expect(frames.map((f) => f.byteLength)).toEqual([
+      TERMINAL_MAX_INPUT_BYTES,
+      TERMINAL_MAX_INPUT_BYTES,
+      5,
+    ]);
   });
 });

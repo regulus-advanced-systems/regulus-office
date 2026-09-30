@@ -91,8 +91,46 @@
 .rg-providers__term {
   height: 320px;
 }
+/* Login terminal (#156): sign-in link and expand above the terminal, help below. */
+.rg-providers__terminal {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.rg-providers__term-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.rg-providers__link {
+  flex: 1 1 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+  font-size: 13px;
+}
+.rg-providers__link-label {
+  font-weight: 700;
+}
+.rg-providers__link-url {
+  flex: 1 1 160px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--rg-color-panel-surface);
+}
 .rg-providers__failed {
   display: grid;
   gap: 6px;
   justify-items: start;
+}
+.rg-providers__link a.rg-btn {
+  text-decoration: none;
 }

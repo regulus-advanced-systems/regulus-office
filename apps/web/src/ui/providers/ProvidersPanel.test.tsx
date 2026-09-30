@@ -5,8 +5,9 @@ import { useSessionStore } from "../../state/session.ts";
 import { click, type Mounted, mount, useDom } from "../a11y/dom.ts";
 import { fakeFetch } from "../auth/fakeFetch.ts";
 import { button, settle, text } from "../auth/testDom.tsx";
+import { FakeHost } from "../terminal/fakeHost.ts";
 import { FakeSocket } from "../terminal/fakeSocket.ts";
-import type { TerminalDeps, TerminalHost } from "../terminal/host.ts";
+import type { TerminalDeps } from "../terminal/host.ts";
 import { usePanelBudget } from "../terminal/panelBudget.ts";
 import { createProvidersApi } from "./api.ts";
 import { ProvidersPanelHost } from "./ProvidersPanel.tsx";
@@ -16,19 +17,8 @@ useDom();
 
 const KEY = "sk-FAKE-web-test-key-0123456789";
 
-const host = (): TerminalHost => ({
-  renderer: "dom",
-  write() {},
-  reset() {},
-  setGrid() {},
-  fit() {},
-  setReadOnly() {},
-  focus() {},
-  onData: () => () => {},
-  dispose() {},
-});
 const terminalDeps: TerminalDeps = {
-  createHost: async () => host(),
+  createHost: async () => new FakeHost(),
   socket: FakeSocket.factory,
   wsBase: () => "ws://office",
 };
@@ -158,6 +148,75 @@ describe("subscriptions", () => {
     await act(async () => closeProvidersPanel());
     await settle();
     expect(fake.calls.some((c) => c.path === "/api/provider-logins/flows/L2/cancel")).toBe(true);
+  });
+});
+
+describe("login terminal (#156)", () => {
+  test("shows the CLI's sign-in link with Open and Copy; resizes tmux; expand widens the panel", async () => {
+    signedInAs("member");
+    localStorage.clear();
+    const written: string[] = [];
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: async (t: string) => void written.push(t) },
+    });
+    const claude = flow({
+      loginId: "L3",
+      provider: "claude-code",
+      kind: "pty_paste_code",
+      terminalId: "login-u1",
+      instructions: "Sign in here.",
+    });
+    await render({
+      "GET /api/provider-logins": status(false, true),
+      "POST /api/provider-logins/claude-code": { status: 201, body: claude },
+      "GET /api/provider-logins/flows/L3": { body: claude },
+      "POST /api/provider-logins/flows/L3/cancel": { status: 204 },
+    });
+    await click(rowButton("claude-code", "Connect") as HTMLElement);
+    await settle();
+    const bar = () => document.querySelector('[data-testid="sign-in-link"]') as HTMLElement;
+    expect(bar().textContent).toContain("appears here");
+    const ws = FakeSocket.last();
+    await act(async () => {
+      ws.open();
+      ws.text({ type: "hello", mode: "control", cols: 160, rows: 45, viewers: 1 });
+    });
+    // In control the login terminal fills its box and tmux reflows to it.
+    expect(ws.sent[0]).toBe(JSON.stringify({ type: "resize", cols: 120, rows: 30 }));
+    // The CLI prints its link; it wraps at the terminal width. Only the browser reads it.
+    const host = FakeHost.all.at(-1) as FakeHost;
+    const url = "https://claude.ai/oauth/authorize?code=true&client_id=FAKE&state=FAKEstate";
+    host.cols = 40;
+    host.lines = [
+      { text: "Use the url below to sign in:", wrapped: false },
+      { text: url.slice(0, 40), wrapped: false },
+      { text: url.slice(40), wrapped: false },
+      { text: "https://evil.example/login", wrapped: false },
+    ];
+    await act(async () => ws.bytes("output"));
+    await act(async () => new Promise((r) => setTimeout(r, 350)));
+    const open = bar().querySelector("a") as HTMLAnchorElement;
+    expect(open.getAttribute("href")).toBe(url);
+    expect(open.getAttribute("target")).toBe("_blank");
+    expect(open.getAttribute("rel")).toBe("noopener noreferrer");
+    const copy = Array.from(bar().querySelectorAll("button")).find((b) => b.textContent === "Copy");
+    await click(copy as HTMLElement);
+    await settle();
+    expect(written).toEqual([url]);
+    expect(bar().textContent).toContain("Copied");
+    // Nothing from the terminal went to the office server.
+    const frames = ws.sent.filter((f) => typeof f === "string");
+    expect(frames.every((f) => !String(f).includes("claude.ai"))).toBe(true);
+
+    const frame = () => document.querySelector(".rg-modal") as HTMLElement;
+    expect(frame().style.getPropertyValue("--rg-modal-width")).toBe("760px");
+    await click(document.querySelector('[data-testid="terminal-expand"]') as HTMLElement);
+    expect(Number.parseInt(frame().style.getPropertyValue("--rg-modal-width"), 10)).toBeGreaterThan(
+      900,
+    );
+    expect(localStorage.getItem("regulus.terminal.expanded.u1")).toBe("1");
+    localStorage.clear();
   });
 });
 

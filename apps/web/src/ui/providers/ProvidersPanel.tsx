@@ -9,10 +9,12 @@ import { useSessionStore } from "../../state/session.ts";
 import { useUiStore } from "../../state/ui.ts";
 import { Button } from "../components/Button.tsx";
 import { Modal } from "../components/Modal.tsx";
+import { useTerminalExpanded, useViewportSize } from "../terminal/expand.ts";
 import type { TerminalDeps } from "../terminal/host.ts";
 import { createProvidersApi, type ProvidersApi } from "./api.ts";
 import { CliLogins } from "./CliLogins.tsx";
 import { KeyProfiles } from "./KeyProfiles.tsx";
+import { providersPanelWidth } from "./loginLayout.ts";
 import { closeProvidersPanel, PROVIDERS_OVERLAY, useProvidersPanel } from "./providersStore.ts";
 import "./providers.css";
 
@@ -32,13 +34,17 @@ export function ProvidersPanelHost({
   const open = useUiStore((s) => s.overlay === PROVIDERS_OVERLAY);
   const focus = useProvidersPanel((s) => s.focus);
   const role = useSessionStore((s) => s.user?.role);
+  // An expanded login terminal widens the whole panel (#156).
+  const [expanded] = useTerminalExpanded();
+  const loginTerminal = useProvidersPanel((s) => s.loginTerminals > 0);
+  const viewport = useViewportSize();
   if (!open) return null;
   return (
     <Modal
       open
       onClose={closeProvidersPanel}
       title="Connect providers"
-      width={760}
+      width={providersPanelWidth(viewport, expanded && loginTerminal)}
       dismissOnBackdrop={false}
       footer={
         <Button variant="primary" onClick={closeProvidersPanel}>
