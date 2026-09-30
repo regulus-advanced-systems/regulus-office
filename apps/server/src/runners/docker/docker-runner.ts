@@ -34,6 +34,7 @@ import type {
 } from "../types.ts";
 import { type ContainerSettings, RunnerContainers } from "./containers.ts";
 import { DockerApiError, EngineClient, type ExecOptions, type ExecResult } from "./engine.ts";
+import { removeFloorAreas } from "./floor-cleanup.ts";
 import type { RunnerLog } from "./heal.ts";
 import { openTty, startPiped } from "./interactive.ts";
 import {
@@ -125,6 +126,13 @@ export class DockerRunner implements Runner {
     return this.#handle(user.userId, c.id);
   }
 
+  /** Not part of `Runner`: a deleted floor's human areas, removed as the runner uid (#150). */
+  removeFloorAreas(slug: string): Promise<void> {
+    const { engine, containers } = this;
+    const deps = { ...this.#remountDeps, engine, containers, settings: containers.settings };
+    return removeFloorAreas(deps, slug);
+  }
+
   /** Re-adopt runner containers after an office restart (starting stopped ones). */
   async recover(): Promise<RunnerHandle[]> {
     const found = await this.containers.list();
@@ -195,7 +203,8 @@ export class DockerRunner implements Runner {
       mode: 0o600,
     });
     const q = shellQuote(envFile);
-    const command = `. ${q}; rm -f ${q}; exec ${plan.argv.map(shellQuote).join(" ")}`;
+    // umask 0002: files the agent makes stay group-writable for the office (#150).
+    const command = `umask 0002; . ${q}; rm -f ${q}; exec ${plan.argv.map(shellQuote).join(" ")}`;
     const res = await this.#tmux(user.userId, [
       ...["new-session", "-d", "-s", plan.tmuxSession, "-x", "160", "-y", "45"],
       ...["-c", plan.cwd, command],

@@ -405,8 +405,9 @@ test("the owner archives, restores and deletes a floor; its files go with it", a
   await confirm.click();
   await expect(settings).toBeHidden();
   await expect(hermes).toHaveCount(0);
-  expect(existsSync(mirror)).toBe(false);
-  expect(existsSync(join(dataDir, "worktrees", "hermes"))).toBe(false);
+  // The dialog closes as soon as the floor is archived (step one of the delete).
+  await expect.poll(() => existsSync(mirror)).toBe(false);
+  await expect.poll(() => existsSync(join(dataDir, "worktrees", "hermes"))).toBe(false);
   // The other floor is untouched.
   expect(existsSync(join(dataDir, "projects", "apollo", "hello", ".git"))).toBe(true);
   await expect(elevator.getByRole("button", { name: /1\. Apollo/ })).toBeVisible();
