@@ -11,6 +11,7 @@ import { mayControlRobot, mayEmergencyStop, type RobotState } from "@regulus/pro
 import { useEffect, useId, useRef } from "react";
 import { useFloorStore } from "../../state/floor.ts";
 import { useSessionStore } from "../../state/session.ts";
+import { useChangesWindow } from "../changes/changesStore.ts";
 import { Button } from "../components/Button.tsx";
 import { CloseButton } from "../components/CloseButton.tsx";
 import { Panel } from "../Panel.tsx";
@@ -155,6 +156,7 @@ export function AgentPanel() {
   const robot = useFloorStore((s) => (agentId ? s.state?.robots[agentId] : undefined));
   const user = useSessionStore((s) => s.user);
   const openTerminal = useTerminalModal((s) => s.openTerminal);
+  const openChanges = useChangesWindow((s) => s.openChanges);
   const titleId = useId();
 
   // The robot left (sent home, floor changed): close.
@@ -179,6 +181,10 @@ export function AgentPanel() {
       <Facts robot={robot} />
       <Button size="sm" block aria-haspopup="dialog" onClick={() => openTerminal(agentId)}>
         {controller ? "Open terminal" : "Watch terminal"}
+      </Button>
+      {/* The changes window (#38): everyone on the floor reads it; the owner commits. */}
+      <Button size="sm" block aria-haspopup="dialog" onClick={() => openChanges(agentId)}>
+        {controller ? "Review changes" : "View changes"}
       </Button>
       {controller ? (
         <Controls robot={robot} />
