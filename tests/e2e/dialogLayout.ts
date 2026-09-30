@@ -11,7 +11,7 @@ export interface DialogLayout {
   close: { x: number; y: number; width: number; height: number } | null;
   /** The element at the X's centre is the X (or inside it). */
   closeHittable: boolean;
-  /** Frame, body or page wider than their box (a horizontal scrollbar). */
+  /** Frame, body or page scrolls sideways (a horizontal scrollbar). */
   horizontalOverflow: string[];
   /** The frame itself scrolls (only the body may). */
   frameScrolls: boolean;
@@ -28,8 +28,11 @@ export async function dialogLayout(dialog: Locator): Promise<DialogLayout> {
       closeHittable = hit !== null && (hit === close || close.contains(hit));
     }
     const horizontalOverflow: string[] = [];
+    // Only a box that can scroll gets a scrollbar: the X overhanging a
+    // frame with `overflow: visible` adds to its scrollWidth but scrolls nothing.
     const wide = (el: Element | null, name: string) => {
-      if (el && el.scrollWidth > el.clientWidth + 1)
+      if (!el || (el !== root && getComputedStyle(el).overflowX === "visible")) return;
+      if (el.scrollWidth > el.clientWidth + 1)
         horizontalOverflow.push(`${name} ${el.scrollWidth}>${el.clientWidth}`);
     };
     wide(frame, "frame");
