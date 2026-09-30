@@ -40,6 +40,7 @@ import { loadMasterKeyring, type MasterKeyring } from "./secrets/index.ts";
 import { createServices, type Services } from "./services/index.ts";
 import { createTerminals } from "./terminals/index.ts";
 import { createUsage } from "./usage/index.ts";
+import { createWorkflows } from "./workflows/setup.ts";
 import {
   createWorktrees,
   floorDirRemover,
@@ -245,6 +246,19 @@ async function main(): Promise<void> {
   });
   // Merged robot PRs notify their owners (#42), from webhooks or polling.
   notifications.followGitHub(githubSync.events);
+  // GitHub workflows (#155): events → robots in the workflow runner → posts as the office's App.
+  const workflows = createWorkflows({
+    db,
+    keyring,
+    config,
+    logger,
+    connection: github.connection,
+    repos: floors.repos,
+    runner,
+    usage: usage.tracker,
+  });
+  workflows.follow(githubSync.events);
+  workflows.mount(server.router, auth);
   mountFloorRoutes(server.router, {
     auth,
     floors: floors.service,
@@ -326,7 +340,9 @@ async function main(): Promise<void> {
   }
   floors.cloner.resumePending().catch((err) => logger.error({ err }, "resuming clones failed"));
   githubSync.start();
+  workflows.start();
   shutdown.register("github-sync", () => githubSync?.stop());
+  shutdown.register("workflows", () => workflows.close());
   services.start(runner);
   shutdown.register("services", () => services.stop());
   shutdown.register("rooms", () => rooms.transport.shutdown());
