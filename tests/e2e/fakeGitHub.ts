@@ -5,7 +5,8 @@
  * With `orgToken`, it also plays the office GitHub connection's org PAT (#141): `GET /user` and
  * `GET /user/repos` answer for that token only, listing `repos`.
  * With `boards` (#36), it also serves those repos' issues and PRs to the board poller (#35)
- * and the board panel: lists, comments, reviews, check suites and assignable users.
+ * and the board panel: lists, comments, reviews, check suites and assignable users, and a merge
+ * from the PR board (#43: `PUT …/pulls/{n}/merge` closes the PR as merged).
  * Listens on 127.0.0.1 only; nothing here talks to the real GitHub.
  */
 import { createServer, type Server } from "node:http";
@@ -52,6 +53,8 @@ function boardAnswer(boards: FakeBoards, path: string, url: URL): unknown {
   if (rest === "issues") return pick(repo.issues);
   if (rest === "pulls") return pick(repo.pulls);
   if (rest === "assignees") return [{ login: "org-bot" }];
+  const one = /^pulls\/(\d+)$/.exec(rest);
+  if (one) return repo.pulls.find((p) => p.number === Number(one[1]));
   if (/^issues\/\d+\/comments$/.test(rest)) return [];
   if (/^pulls\/\d+\/reviews$/.test(rest)) return [];
   if (/^commits\/[^/]+\/check-suites$/.test(rest)) return { total_count: 0, check_suites: [] };
@@ -104,6 +107,16 @@ export async function startFakeGitHub(
         if (!authorized) return send(401, { message: "Bad credentials" });
         const answer = boardAnswer(options.boards, url.pathname, url);
         if (answer !== undefined) return send(200, answer);
+      }
+      const merge = /^\/repos\/([^/]+)\/([^/]+)\/pulls\/(\d+)\/merge$/.exec(url.pathname);
+      if (options.boards && merge && req.method === "PUT") {
+        if (!authorized) return send(401, { message: "Bad credentials" });
+        const repo = options.boards[`${merge[1]}/${merge[2]}`.toLowerCase()];
+        const pull = repo?.pulls.find((p) => p.number === Number(merge[3]));
+        if (!pull || pull.state !== "open") return send(405, { message: "Not mergeable" });
+        const at = new Date().toISOString();
+        Object.assign(pull, { state: "closed", merged: true, merged_at: at, updated_at: at });
+        return send(200, { merged: true, sha: "e2emerge", message: "Pull Request merged" });
       }
       const m = PULLS.exec(url.pathname);
       if (!m) return send(404, { message: "Not Found" });

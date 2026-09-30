@@ -1,4 +1,7 @@
-/** Floor object commands: queue.*, card.*, decor.* (SPEC §6; queue.retry|settings: #37). */
+/**
+ * Floor object commands: queue.*, card.*, decor.*, gong.bang (SPEC §6;
+ * queue.retry|settings: #37; gong.bang: #43).
+ */
 import { z } from "zod";
 import { Count, Effort, GhNumber, Id, ModelName, PROMPT_MAX, ShortText } from "../common.ts";
 import { CARD_KINDS, DECOR_KINDS, PROVIDER_IDS, TASK_KINDS } from "../enums.ts";
@@ -78,6 +81,11 @@ export const CardDropCommand = z.object({
   seatId: Id.optional(),
 });
 
+/** Bang the floor's merge gong by hand (#43); rate-limited on the server. */
+export const GongBangCommand = z.object({
+  type: z.literal("gong.bang"),
+});
+
 const decorRect = {
   x: z.number().finite(),
   y: z.number().finite(),
@@ -114,6 +122,7 @@ export const floorCommands = [
   QueueSettingsCommand,
   CardPickCommand,
   CardDropCommand,
+  GongBangCommand,
   DecorPlaceCommand,
   DecorMoveCommand,
   DecorRemoveCommand,

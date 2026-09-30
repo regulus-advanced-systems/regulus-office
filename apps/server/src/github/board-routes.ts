@@ -55,6 +55,8 @@ export interface BoardRoutesDeps {
   /** The #35 cache and board publisher (`GitHubSync`). */
   sync: { cache: BoardCache; publish(floorIds: readonly string[]): void };
   logger: Logger;
+  /** A PR was merged from the board: ring the merge gong now (#43). */
+  onMerged?(pull: { repoIds: readonly string[]; number: number; title?: string }): void;
 }
 
 interface Target {
@@ -348,6 +350,14 @@ export function mountBoardRoutes(router: Router, deps: BoardRoutesDeps): void {
       }
       audit(user, AUDIT_ACTIONS.githubBoardMerge, t, { method, sha: merged.sha });
       await refresh(token, t);
+      if (merged.merged) {
+        try {
+          const followed = sync.cache.follow(t.repo.owner, t.repo.name);
+          deps.onMerged?.({ repoIds: followed?.repoIds ?? [t.repoId], number: t.number });
+        } catch (err) {
+          logger.warn({ err }, "merge gong failed");
+        }
+      }
       return json(merged);
     }, true),
   );

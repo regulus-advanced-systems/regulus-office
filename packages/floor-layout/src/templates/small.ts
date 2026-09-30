@@ -98,6 +98,8 @@ export const smallTemplateInput: FloorTemplateInput = {
       w: 0.5,
       h: 0.7,
     },
+    // The merge gong (#43) at the end of the collaboration wall.
+    { id: "gong", kind: "gong", wallId: "west", t: 9.75, y: 1.25, w: 1, h: 1.5 },
     { id: "usage-wall", kind: "usage_wall", wallId: "north", t: 10.25, y: 1.7, w: 1.4, h: 0.9 },
     { id: "picture-n1", kind: "picture", wallId: "north", t: 3.25, y: 1.6, w: 0.9, h: 0.6 },
     { id: "picture-n2", kind: "picture", wallId: "north", t: 8.25, y: 1.6, w: 0.9, h: 0.6 },

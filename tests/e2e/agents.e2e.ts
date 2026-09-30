@@ -5,7 +5,8 @@
  * second member's browser, nor an office admin's, who gets only the emergency stop (#138); approving lets the agent commit; the one-click PR reaches a fake
  * GitHub with `Closes #n`; restarting office-server re-adopts the same tmux session, whose
  * terminal still opens, copies, expands and reflows (#156); copying works in every terminal
- * surface while the fake turns on mouse tracking like Claude Code (#164); sending the robot
+ * surface while the fake turns on mouse tracking like Claude Code (#164); a bang on the merge
+ * gong makes the robot cheer in its chair and sit back exactly as it was (#43); sending the robot
  * home frees the desk and deletes the branch as chosen.
  *
  * The agent is the fake `claude` in tests/e2e/runner (never the real CLI, no account, no
@@ -31,6 +32,7 @@ import { checkChangesWindow } from "./changesChecks.ts";
 import { checkLaptopCopy, checkLoginTerminalCopy, checkRobotTerminalCopy } from "./copyChecks.ts";
 import { type FakeGitHub, startFakeGitHub } from "./fakeGitHub.ts";
 import { createRemoteRepo } from "./gitRemote.ts";
+import { checkRobotCheers } from "./gongChecks.ts";
 import { freeDeskPoint, OFFICE_PROBE_PATH, waitForScene } from "./probes.ts";
 import { checkRobotTerminal } from "./terminalChecks.ts";
 
@@ -628,6 +630,10 @@ test("7c. copying works in the robot's terminal, on the laptop and in the login 
   );
   await checkLaptopCopy(ownerPage, seatId);
   await checkLoginTerminalCopy(ownerPage);
+});
+
+test("7d. the merge gong: the robot cheers in its chair and sits back exactly as it was (#43)", async () => {
+  await checkRobotCheers(ownerPage, agentId);
 });
 
 test("8. send home frees the desk and deletes the branch as chosen", async () => {

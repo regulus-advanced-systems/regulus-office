@@ -1,0 +1,162 @@
+/**
+ * Probes for the merge gong (#43; needs `?stats`, see probes.ts): the gong group
+ * `gong-<anchorId>` (userData: strikes heard, ring id), its swinging part `gong-swing`, the
+ * `gong-confetti` instanced mesh, and each robot's `robot-<agentId>` group (userData
+ * `cheering`, `animation`, `seated`; its placement on the seat).
+ */
+import type { Page } from "@playwright/test";
+
+export interface RobotPose {
+  x: number;
+  y: number;
+  z: number;
+  rotY: number;
+  animation: string;
+  seated: boolean;
+  cheering: boolean;
+}
+
+export interface GongSample {
+  /** Strikes the page has heard, from the gong's userData. */
+  strikes: number;
+  /** Largest swing of the disc seen, radians. */
+  maxSwing: number;
+  /** The swing when sampling ended. */
+  lastSwing: number;
+  /** Most confetti instances alive at once, and how many at the end. */
+  maxConfetti: number;
+  lastConfetti: number;
+  /** Robots seen cheering at least once. */
+  cheered: string[];
+  /** Robots' poses when sampling ended. */
+  robots: Record<string, RobotPose>;
+}
+
+/** Samples the gong, its confetti and the robots every frame for `ms`. */
+export function sampleGong(page: Page, ms: number): Promise<GongSample> {
+  return page.evaluate(async (duration) => {
+    type Obj = {
+      name: string;
+      count?: number;
+      visible: boolean;
+      rotation: { x: number; y: number };
+      position: { x: number; y: number; z: number };
+      userData: Record<string, unknown>;
+    };
+    const r3f = (
+      window as unknown as { __regulusR3F?: { scene: { traverse(f: (o: Obj) => void): void } } }
+    ).__regulusR3F;
+    const out = {
+      strikes: 0,
+      maxSwing: 0,
+      lastSwing: 0,
+      maxConfetti: 0,
+      lastConfetti: 0,
+      cheered: [] as string[],
+      robots: {} as Record<string, RobotPose>,
+    };
+    type RobotPose = {
+      x: number;
+      y: number;
+      z: number;
+      rotY: number;
+      animation: string;
+      seated: boolean;
+      cheering: boolean;
+    };
+    const end = performance.now() + duration;
+    do {
+      let swing = 0;
+      let confetti = 0;
+      const robots: Record<string, RobotPose> = {};
+      r3f?.scene.traverse((o) => {
+        if (o.name.startsWith("gong-") && typeof o.userData.strikes === "number")
+          out.strikes = o.userData.strikes;
+        if (o.name === "gong-swing") swing = Math.max(swing, Math.abs(o.rotation.x));
+        if (o.name === "gong-confetti" && o.visible) confetti += o.count ?? 0;
+        if (o.name.startsWith("robot-") && "status" in o.userData) {
+          const id = o.name.slice("robot-".length);
+          const d = o.userData;
+          robots[id] = {
+            x: o.position.x,
+            y: o.position.y,
+            z: o.position.z,
+            rotY: o.rotation.y,
+            animation: String(d.animation),
+            seated: d.seated === true,
+            cheering: d.cheering === true,
+          };
+          if (d.cheering === true && !out.cheered.includes(id)) out.cheered.push(id);
+        }
+      });
+      out.maxSwing = Math.max(out.maxSwing, swing);
+      out.lastSwing = swing;
+      out.maxConfetti = Math.max(out.maxConfetti, confetti);
+      out.lastConfetti = confetti;
+      out.robots = robots;
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+    } while (performance.now() < end);
+    return out;
+  }, ms);
+}
+
+/** Robots' poses now (a zero-length sample). */
+export async function robotPoses(page: Page): Promise<Record<string, RobotPose>> {
+  return (await sampleGong(page, 0)).robots;
+}
+
+/** Strikes the page has heard so far. */
+export async function gongStrikes(page: Page): Promise<number> {
+  return (await sampleGong(page, 0)).strikes;
+}
+
+/** How far each robot moved or turned between two samples (metres + radians), largest first. */
+export function poseDrift(
+  before: Record<string, RobotPose>,
+  after: Record<string, RobotPose>,
+): number {
+  let drift = 0;
+  for (const [id, a] of Object.entries(before)) {
+    const b = after[id];
+    if (!b) continue;
+    drift = Math.max(drift, Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z), Math.abs(a.rotY - b.rotY));
+  }
+  return drift;
+}
+
+/** Local rotations (x, y, z, w) of every bone of one robot, by bone name. */
+export function boneSnapshot(page: Page, agentId: string): Promise<Record<string, number[]>> {
+  return page.evaluate((id) => {
+    type Obj = {
+      name: string;
+      isBone?: boolean;
+      quaternion: { x: number; y: number; z: number; w: number };
+      traverse(f: (o: Obj) => void): void;
+    };
+    const r3f = (
+      window as unknown as {
+        __regulusR3F?: { scene: { getObjectByName(n: string): Obj | undefined } };
+      }
+    ).__regulusR3F;
+    const out: Record<string, number[]> = {};
+    r3f?.scene.getObjectByName(`robot-${id}`)?.traverse((b) => {
+      if (b.isBone && !out[b.name])
+        out[b.name] = [b.quaternion.x, b.quaternion.y, b.quaternion.z, b.quaternion.w];
+    });
+    return out;
+  }, agentId);
+}
+
+/** Largest rotation of any bone between two snapshots, degrees (no acos rounding). */
+export function boneDriftDeg(a: Record<string, number[]>, b: Record<string, number[]>): number {
+  let max = 0;
+  for (const [name, x] of Object.entries(a)) {
+    const y = b[name];
+    if (!y) continue;
+    const sign = x.reduce((s, v, i) => s + v * (y[i] ?? 0), 0) < 0 ? -1 : 1;
+    const diff = Math.hypot(...x.map((v, i) => v - sign * (y[i] ?? 0)));
+    const sum = Math.hypot(...x.map((v, i) => v + sign * (y[i] ?? 0)));
+    max = Math.max(max, (4 * Math.atan2(diff, sum) * 180) / Math.PI);
+  }
+  return max;
+}

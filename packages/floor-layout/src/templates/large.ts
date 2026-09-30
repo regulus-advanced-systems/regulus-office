@@ -149,6 +149,8 @@ export const largeTemplateInput: FloorTemplateInput = {
       h: 0.7,
     },
     { id: "usage-wall", kind: "usage_wall", wallId: "north", t: 20.25, y: 1.7, w: 1.4, h: 0.9 },
+    // The merge gong (#43) beside the usage wall.
+    { id: "gong", kind: "gong", wallId: "north", t: 18.75, y: 1.25, w: 1, h: 1.5 },
     { id: "picture-n1", kind: "picture", wallId: "north", t: 24.75, y: 1.6, w: 0.9, h: 0.6 },
     { id: "picture-p1", kind: "picture", wallId: "partition", t: 4.75, y: 1.6, w: 0.9, h: 0.6 },
   ],
