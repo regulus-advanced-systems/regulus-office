@@ -40,6 +40,16 @@ export interface FakeContainer {
   name: string;
   running: boolean;
   body: Record<string, unknown>;
+  /** Id of the image it was created from. */
+  imageId?: string;
+  /** Docker state override, e.g. `dead` (default: running / exited). */
+  status?: string;
+}
+
+/** An Engine API error answer the test injects. */
+export interface FakeFailure {
+  status: number;
+  message: string;
 }
 
 interface Conn {
@@ -53,7 +63,13 @@ export class FakeEngine {
   readonly volumes = new Map<string, Record<string, unknown>>();
   readonly execs = new Map<string, FakeExec & { exitCode: number | null }>();
   readonly images = new Set<string>();
+  /** Image id per tag; a tag without one gets `sha256:<tag>`. Change it to "rebuild" the image. */
+  readonly imageIds = new Map<string, string>();
   onExec: ExecHandler = () => 0;
+  /** Makes `POST /containers/{id}/start` fail (e.g. the RWLayer 500 of #151). */
+  onStart: (c: FakeContainer) => FakeFailure | undefined = () => undefined;
+  /** Makes `GET /containers/{id}/json` fail. */
+  onInspect: (c: FakeContainer) => FakeFailure | undefined = () => undefined;
   /**
    * How long a container create takes. Like the real daemon, the name is reserved at once
    * (a second create of it gets 409) but inspecting it answers 404 until the create is done.
@@ -97,6 +113,10 @@ export class FakeEngine {
       (r) =>
         r.method === method && (typeof path === "string" ? r.path === path : path.test(r.path)),
     );
+  }
+
+  imageId(tag: string): string {
+    return this.imageIds.get(tag) ?? `sha256:${tag}`;
   }
 
   #id(): string {
@@ -164,6 +184,11 @@ export class FakeEngine {
       const found = this.volumes.delete(hit[1] ?? "");
       return this.#reply(s, found ? 204 : 404, found ? "" : { message: "no such volume" });
     }
+    if (req.method === "GET" && (hit = m(/^\/images\/(.+)\/json$/))) {
+      const tag = hit[1] ?? "";
+      if (!this.images.has(tag)) return this.#reply(s, 404, { message: `No such image: ${tag}` });
+      return this.#reply(s, 200, { Id: this.imageId(tag) });
+    }
     if (req.method === "POST" && req.path === "/images/create") {
       this.images.add(req.query.get("fromImage") ?? "");
       return this.#reply(s, 200, '{"status":"pulled"}\n');
@@ -183,15 +208,27 @@ export class FakeEngine {
         await Bun.sleep(this.createDelayMs);
         this.#reserved.delete(name);
       }
-      this.containers.set(id, { id, name, running: false, body });
+      const imageId = this.imageId(String(body.Image));
+      this.containers.set(id, { id, name, running: false, body, imageId });
       return this.#reply(s, 201, { Id: id });
     }
     if (req.method === "GET" && req.path === "/containers/json") {
-      const rows = [...this.containers.values()].map((c) => ({
-        Id: c.id,
-        Names: [`/${c.name}`],
-        Labels: c.body.Labels,
-      }));
+      const filters = JSON.parse(req.query.get("filters") ?? "{}") as Record<string, string[]>;
+      const labels = (c: FakeContainer) => (c.body.Labels ?? {}) as Record<string, string>;
+      const rows = [...this.containers.values()]
+        .filter((c) =>
+          (filters.label ?? []).every((f) => {
+            const [k = "", v] = f.split("=");
+            return v === undefined ? k in labels(c) : labels(c)[k] === v;
+          }),
+        )
+        .filter((c) => (filters.name ?? []).every((n) => new RegExp(n).test(`/${c.name}`)))
+        .map((c) => ({
+          Id: c.id,
+          Names: [`/${c.name}`],
+          Labels: c.body.Labels,
+          State: this.#status(c),
+        }));
       return this.#reply(s, 200, rows);
     }
     if ((hit = m(/^\/containers\/([^/]+)(?:\/(json|start|exec))?$/))) {
@@ -203,14 +240,19 @@ export class FakeEngine {
         return this.#reply(s, 204);
       }
       if (action === "json") {
+        const failure = this.onInspect(c);
+        if (failure) return this.#reply(s, failure.status, { message: failure.message });
         return this.#reply(s, 200, {
           Id: c.id,
-          State: { Running: c.running },
+          Image: c.imageId,
+          State: { Running: c.running, Status: this.#status(c) },
           Config: { Labels: c.body.Labels },
           HostConfig: c.body.HostConfig,
         });
       }
       if (action === "start") {
+        const failure = c.running ? undefined : this.onStart(c);
+        if (failure) return this.#reply(s, failure.status, { message: failure.message });
         const was = c.running;
         c.running = true;
         return this.#reply(s, was ? 304 : 204);
@@ -240,6 +282,10 @@ export class FakeEngine {
       return this.#runExec(s, exec, upgrade);
     }
     return this.#reply(s, 404, { message: `fake engine: no route for ${req.method} ${req.path}` });
+  }
+
+  #status(c: FakeContainer): string {
+    return c.running ? "running" : (c.status ?? "exited");
   }
 
   async #runExec(s: Socket<Conn>, exec: FakeExec & { exitCode: number | null }, upgrade: boolean) {

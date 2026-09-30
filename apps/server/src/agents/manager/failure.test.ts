@@ -7,9 +7,11 @@ import { rm } from "node:fs/promises";
 import { FakeAdapter } from "@regulus/agent-adapters";
 import { RobotState } from "@regulus/protocol";
 import { eq } from "drizzle-orm";
+import { CliMissingError } from "../../credentials/cli-probe.ts";
 import { agentEvents } from "../../db/schema/index.ts";
 import { createLogger } from "../../logging.ts";
 import { DockerApiError } from "../../runners/docker/engine.ts";
+import { RunnerImageMissingError } from "../../runners/docker/image.ts";
 import { MountRefusedError, RunnerBusyError } from "../../runners/docker/mounts.ts";
 import { hasTmux, LocalTmuxRunner } from "../../runners/testing/local-tmux-runner.ts";
 import { WorkspaceError } from "../../worktrees/types.ts";
@@ -65,6 +67,21 @@ describe("startFailure", () => {
       [
         new DockerApiError(500, `POST /containers/abc/start: 500 bind source path ${AREA}`),
         "runner_api: Docker Engine: POST <path>: 500 bind source path <path>",
+      ],
+      [
+        new DockerApiError(
+          500,
+          `POST /containers/abc/start: 500 RWLayer of container ${"f0".repeat(32)} is unexpectedly nil`,
+        ),
+        "runner_api: Docker Engine: POST <path>: 500 RWLayer of container [redacted] is unexpectedly nil",
+      ],
+      [
+        new RunnerImageMissingError("regulus-runner:latest", `pull failed: denied ${AREA}`),
+        "runner_image_missing: the runner image regulus-runner:latest is not on the Docker host",
+      ],
+      [
+        new CliMissingError("/usr/local/bin/codex"),
+        "cli_missing: codex is not installed in the runner",
       ],
       [new WorkspaceError("worktree_failed", "no such branch"), "worktree_failed: no such branch"],
       [new AgentManagerError("unavailable", "keys unavailable"), "unavailable: keys unavailable"],

@@ -6,6 +6,7 @@
  */
 import { join } from "node:path";
 import type { OfficeConfig } from "../../config.ts";
+import type { Logger } from "../../logging.ts";
 import { DockerRunner } from "../../runners/docker/docker-runner.ts";
 import { EngineClient } from "../../runners/docker/engine.ts";
 import { LinuxUserRunner } from "../../runners/linux-user/linux-user-runner.ts";
@@ -15,6 +16,7 @@ import type { Runner } from "../../runners/types.ts";
 export async function createRunner(
   config: Pick<OfficeConfig, "runnerBackend" | "docker" | "dataDir">,
   production: boolean,
+  logger?: Logger,
 ): Promise<Runner> {
   switch (config.runnerBackend) {
     case "docker": {
@@ -31,6 +33,8 @@ export async function createRunner(
         pidsLimit: d.pidsLimit,
         floorRoots: d.floorRoots,
         volumeMap: d.volumeMap,
+        // Recreated broken or outdated runner containers (#151).
+        logger: logger?.child({ component: "docker-runner" }),
       });
     }
     case "linux-user":

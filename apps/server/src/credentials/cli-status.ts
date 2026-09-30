@@ -54,7 +54,7 @@ export function sideProcessId(purpose: string, userId: string): string {
   return `${purpose}-${userId}`.replace(/[^A-Za-z0-9_-]/g, "_").slice(0, 64);
 }
 
-function sidePlan(
+export function sidePlan(
   ctx: RunnerContext,
   purpose: string,
   argv: string[],
@@ -72,7 +72,7 @@ function sidePlan(
   };
 }
 
-async function drain(stream: ReadableStream<Uint8Array>): Promise<void> {
+export async function drain(stream: ReadableStream<Uint8Array>): Promise<void> {
   try {
     for await (const _chunk of stream) {
       // discarded unread: may describe the account

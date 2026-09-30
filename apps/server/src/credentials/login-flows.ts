@@ -23,12 +23,14 @@ import {
   type LoginFlowState,
   type ProviderLoginStatus,
 } from "@regulus/protocol";
+import { type StartFailure, safeReason, startFailure } from "../agents/manager/failure.ts";
 import { AUDIT_ACTIONS, writeAudit } from "../auth/audit.ts";
 import { AuthHttpError, forbidden } from "../auth/errors.ts";
 import type { Db } from "../db/index.ts";
 import type { Logger } from "../logging.ts";
 import type { Runner } from "../runners/types.ts";
 import type { LoginSessionTargets } from "../terminals/login-sessions.ts";
+import { CliMissingError, cliInstalled, requireCli } from "./cli-probe.ts";
 import {
   type CliCommands,
   cliLoggedIn,
@@ -137,8 +139,13 @@ export class LoginFlows {
           : await this.#startClaude(actor.id, loginId, expiresAt);
     } catch (err) {
       if (err instanceof AuthHttpError) throw err;
-      this.#log.warn({ provider, err: { name: (err as Error).name } }, "login could not start");
-      throw new AuthHttpError(502, "login_unavailable");
+      const { code, message } = await this.#whyNot(actor.id, provider, err);
+      this.#log.warn(
+        { provider, code, reason: message, err: { name: (err as Error).name } },
+        "login could not start",
+      );
+      // The human sees the classified cause (#151); `message` is already safe (safeReason).
+      throw new AuthHttpError(502, "login_unavailable", { cause: code, reason: message });
     }
     this.#flows.set(loginId, flow);
     void flow.completion?.then((state) => this.#end(loginId, state));
@@ -197,6 +204,32 @@ export class LoginFlows {
     // Someone else's login is indistinguishable from a missing one.
     if (!flow || flow.userId !== actor.id) throw new AuthHttpError(404, "not_found");
     return flow;
+  }
+
+  /**
+   * Why a login could not start, safe to show (#151): the runner's or
+   * Docker's own cause, `cli_missing` only when `command -v` cannot find the
+   * CLI, and a fixed text for anything else (CLI output is never forwarded).
+   */
+  async #whyNot(userId: string, provider: CliLoginProvider, err: unknown): Promise<StartFailure> {
+    let failure = startFailure(err);
+    if (failure.code === "start_failed" && provider === "codex") {
+      const bin = this.#commands.codex[0] ?? "codex";
+      const missing = await runnerContext(
+        this.#opts.runner,
+        userId,
+        this.#opts.officeUrl,
+        () => this.#now,
+      )
+        .then((ctx) => cliInstalled(ctx, bin))
+        .then((found) => !found)
+        .catch(() => false);
+      if (missing) failure = startFailure(new CliMissingError(bin));
+    }
+    if (failure.code === "start_failed") {
+      failure = { code: "start_failed", message: "the CLI stopped before the sign-in began" };
+    }
+    return { code: failure.code, message: safeReason(failure.message) };
   }
 
   async #ask(userId: string, provider: CliLoginProvider): Promise<boolean | null> {
@@ -261,6 +294,8 @@ export class LoginFlows {
     const ctx = await runnerContext(runner, userId, this.#opts.officeUrl, () => this.#now);
     const plan = this.#opts.adapters.get("claude-code").loginFlow(ctx);
     if (plan.kind !== "pty_paste_code") throw new Error("claude login is not a terminal flow");
+    // A missing CLI would only show up as a login terminal that closes at once.
+    await requireCli(ctx, plan.plan.argv[0] ?? "claude");
     const terminalId = plan.plan.agentId;
     const session = { userId, name: plan.plan.tmuxSession };
     const agentRef = { userId, agentId: terminalId };

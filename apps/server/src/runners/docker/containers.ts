@@ -10,7 +10,10 @@
  * optional memory/CPU/pids limits. The Docker socket is never mounted: the only
  * mounts are the HOME volume, the tmpfs and floor directories.
  */
+import { safeReason } from "../../agents/manager/failure.ts";
 import { DockerApiError, type EngineClient } from "./engine.ts";
+import { classifyStartFailure, isInspectBroken, type RunnerLog } from "./heal.ts";
+import { ImageIds, isImageMissing, pullImage, RunnerImageMissingError } from "./image.ts";
 import type { MountSpec } from "./mounts.ts";
 
 export const TMUX_DIR = "/run/office/tmux";
@@ -33,6 +36,8 @@ export interface ContainerSettings {
   labels?: Record<string, string>;
   /** Pull the image when it is missing (default true). */
   pull?: boolean;
+  /** How long the image tag's id is trusted before a drift check asks again (default 10 s). */
+  imageIdTtlMs?: number;
 }
 
 export interface RunnerContainer {
@@ -41,11 +46,16 @@ export interface RunnerContainer {
   running: boolean;
   /** Floor mounts (everything in `HostConfig.Mounts` except HOME). */
   floorMounts: MountSpec[];
+  /** Docker's state: `running`, `exited`, `created`, `dead`, … (unknown for fresh ones). */
+  status?: string;
+  /** Id of the image the container was created from. */
+  imageId?: string;
 }
 
 interface InspectResult {
   Id: string;
-  State: { Running: boolean };
+  Image?: string;
+  State: { Running: boolean; Status?: string };
   Config: { Labels: Record<string, string> | null };
   HostConfig: { Mounts?: MountSpec[] | null };
 }
@@ -63,11 +73,15 @@ export function checkUserId(userId: string): string {
 export class RunnerContainers {
   /** Tail of each human's queue of container changes ({@link #serial}). */
   readonly #changes = new Map<string, Promise<unknown>>();
+  readonly #images: ImageIds;
 
   constructor(
     private readonly engine: EngineClient,
     readonly settings: ContainerSettings,
-  ) {}
+    private readonly log?: RunnerLog,
+  ) {
+    this.#images = new ImageIds(engine, settings.imageIdTtlMs);
+  }
 
   containerName(userId: string): string {
     return `${this.settings.prefix}-runner-${checkUserId(userId)}`;
@@ -101,8 +115,21 @@ export class RunnerContainers {
       userId,
       id: info.Id,
       running: info.State.Running,
+      status: info.State.Status,
+      imageId: info.Image,
       floorMounts: (info.HostConfig.Mounts ?? []).filter((m) => m.Target !== this.settings.home),
     };
+  }
+
+  /**
+   * True when the runner image tag now points at another image than the one
+   * `c` was created from (the image was rebuilt or pulled since): recreating
+   * it gives the human the new CLIs. False when either id is unknown.
+   */
+  async imageChanged(c: RunnerContainer): Promise<boolean> {
+    if (!c.imageId) return false;
+    const current = await this.#images.current(this.settings.image);
+    return current !== null && current !== c.imageId;
   }
 
   /**
@@ -114,18 +141,101 @@ export class RunnerContainers {
   }
 
   async #ensure(userId: string): Promise<RunnerContainer> {
-    const found = await this.lookup(userId);
-    if (found) return found.running ? found : this.#start(found);
+    let found: RunnerContainer | null;
+    try {
+      found = await this.lookup(userId);
+    } catch (e) {
+      if (!isInspectBroken(e)) throw e;
+      return this.#healUninspectable(userId, e);
+    }
+    if (found) return this.#revive(found);
     try {
       return await this.#start(await this.#create(userId, []));
     } catch (e) {
       // Lost a creation race with someone outside this office process: use theirs.
       if (e instanceof DockerApiError && e.status === 409) {
         const other = await this.#awaitCreated(userId);
-        if (other) return other.running ? other : this.#start(other);
+        if (other) return this.#revive(other);
       }
       throw e;
     }
+  }
+
+  /**
+   * Start an existing container, or replace it when it cannot run any more
+   * (heal.ts). Running containers are returned as they are: whatever runs in
+   * them, tmux included, is never touched here.
+   */
+  async #revive(c: RunnerContainer): Promise<RunnerContainer> {
+    if (c.running) return c;
+    if (c.status === "dead") return this.#replace(c, "the container is in the dead state");
+    if (await this.imageChanged(c)) return this.#replace(c, "the runner image changed");
+    let failure: unknown;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        return await this.#start(c);
+      } catch (e) {
+        failure = e;
+        const kind = classifyStartFailure(e);
+        if (kind === "other") throw e;
+        if (kind === "gone") return this.#start(await this.#create(c.userId, c.floorMounts));
+        if (kind === "broken") break;
+      }
+    }
+    return this.#replace(c, (failure as Error).message);
+  }
+
+  /** Inspect answers 5xx: replace the container only if the list says it is not running. */
+  async #healUninspectable(userId: string, err: DockerApiError): Promise<RunnerContainer> {
+    const row = await this.#listRow(userId);
+    if (!row) throw err;
+    if (row.State === "running") {
+      this.log?.warn(
+        { userId, reason: safeReason(err.message) },
+        "runner container cannot be inspected but is running; left alone",
+      );
+      throw err;
+    }
+    // Floor mounts are unknown: `mountProject` adds the human's areas back on the next spawn.
+    return this.#replace({ userId, id: row.Id, running: false, floorMounts: [] }, err.message);
+  }
+
+  /**
+   * Remove a container that is not running and create it again from the current image,
+   * with the same floor mounts and the same HOME volume (never removed here).
+   */
+  async #replace(c: RunnerContainer, reason: string): Promise<RunnerContainer> {
+    // Last look before removing: a container that runs now is left alone.
+    const now = await this.lookup(c.userId).catch(() => null);
+    if (now?.running) return now;
+    this.#logRecreate(c.userId, reason);
+    await this.#remove(c.id);
+    return this.#start(await this.#create(c.userId, c.floorMounts));
+  }
+
+  #logRecreate(userId: string, reason: string): void {
+    this.log?.warn(
+      { userId, reason: safeReason(reason) },
+      "recreating runner container, HOME kept",
+    );
+  }
+
+  /** The human's runner in the container list (works when inspect does not). */
+  async #listRow(userId: string): Promise<{ Id: string; State: string } | null> {
+    const rows = await this.engine.json<{ Id: string; State: string }[]>(
+      "GET",
+      "/containers/json",
+      {
+        query: {
+          all: true,
+          filters: JSON.stringify({
+            name: [`^/${this.containerName(userId)}$`],
+            label: [`${LABEL_ROLE}=runner`, `${LABEL_USER}=${userId}`],
+          }),
+        },
+      },
+    );
+    return rows[0] ?? null;
   }
 
   /**
@@ -133,9 +243,10 @@ export class RunnerContainers {
    * volume); anything running in the old container, tmux included, does not, so
    * callers only do this when the runner is idle.
    */
-  recreate(userId: string, floorMounts: MountSpec[]): Promise<RunnerContainer> {
+  recreate(userId: string, floorMounts: MountSpec[], reason?: string): Promise<RunnerContainer> {
     return this.#serial(userId, async () => {
       const found = await this.lookup(userId);
+      if (reason) this.#logRecreate(userId, reason);
       if (found) await this.#remove(found.id);
       return this.#start(await this.#create(userId, floorMounts));
     });
@@ -188,8 +299,15 @@ export class RunnerContainers {
     for (const row of rows) {
       const userId = row.Labels[LABEL_USER];
       if (!userId || !USER_ID.test(userId)) continue;
-      const container = await this.lookup(userId);
-      if (container) found.push(container.running ? container : await this.#start(container));
+      // One broken runner must not keep the others (or the office) from coming back.
+      try {
+        found.push(await this.ensure(userId));
+      } catch (e) {
+        this.log?.warn(
+          { userId, reason: safeReason((e as Error).message) },
+          "runner container could not be recovered",
+        );
+      }
     }
     return found;
   }
@@ -253,8 +371,10 @@ export class RunnerContainers {
     try {
       created = await create();
     } catch (e) {
-      if (!(e instanceof DockerApiError && e.status === 404 && s.pull !== false)) throw e;
-      await this.#pull(s.image);
+      if (!isImageMissing(e)) throw e;
+      if (s.pull === false) throw new RunnerImageMissingError(s.image, (e as Error).message);
+      await pullImage(this.engine, s.image);
+      this.#images.forget(s.image);
       created = await create();
     }
     return { userId, id: created.Id, running: false, floorMounts };
@@ -275,26 +395,6 @@ export class RunnerContainers {
       await this.engine.call("DELETE", `/containers/${id}`, { query: { force: true } });
     } catch (e) {
       if (!(e instanceof DockerApiError && e.status === 404)) throw e;
-    }
-  }
-
-  async #pull(image: string): Promise<void> {
-    const res = await this.engine.request("POST", "/images/create", {
-      query: { fromImage: image },
-    });
-    const text = await res.text();
-    const failure = text
-      .split("\n")
-      .map((line) => {
-        try {
-          return (JSON.parse(line) as { error?: string }).error;
-        } catch {
-          return undefined;
-        }
-      })
-      .find(Boolean);
-    if (!res.ok || failure) {
-      throw new DockerApiError(res.status, `pull ${image} failed: ${failure ?? res.status}`);
     }
   }
 }

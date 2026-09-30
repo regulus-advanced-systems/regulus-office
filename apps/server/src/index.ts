@@ -166,7 +166,7 @@ async function main(): Promise<void> {
   // `worktrees.workspaces`, the runner does mountProject; `agent.pr` and
   // `agent.worktree` (#33) reach `worktrees` through the manager.
   // Runner backend from OFFICE_RUNNER_BACKEND (SPEC §8): agents run only in their human's runner.
-  const runner = await createRunner(config, production);
+  const runner = await createRunner(config, production, logger);
   logger.info({ backend: config.runnerBackend }, "agent runner backend selected");
   const worktrees = createWorktrees({ db, logger, config, repos: floors.repos, runner });
   mountWorktreeRoutes(server.router, { auth, db, prune: worktrees.prune });

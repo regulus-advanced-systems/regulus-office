@@ -34,12 +34,21 @@ async function readJson(res: Response): Promise<unknown> {
   }
 }
 
-function failure(status: number, body: unknown): ApiFailure {
+/**
+ * A failed call. `cause` is the server's classified reason a sign-in could
+ * not start (#151: `runner_api`, `runner_image_missing`, `runner_busy`,
+ * `cli_missing`, …), with its redacted detail in `reason`.
+ */
+export type ProvidersFailure = ApiFailure & { cause?: string };
+
+function failure(status: number, body: unknown): ProvidersFailure {
   const b = body && typeof body === "object" ? (body as Record<string, unknown>) : {};
   const code = typeof b.error === "string" ? b.error.toLowerCase() : `http_${status}`;
-  const out: ApiFailure = { ok: false, status, code };
+  const out: ProvidersFailure = { ok: false, status, code };
   if (Array.isArray(b.fields))
     out.reason = b.fields.filter((f) => typeof f === "string").join(", ");
+  if (typeof b.cause === "string") out.cause = b.cause;
+  if (typeof b.reason === "string") out.reason = b.reason;
   if (typeof b.retryAfterSeconds === "number") out.retryAfterSeconds = b.retryAfterSeconds;
   return out;
 }
@@ -52,7 +61,7 @@ export function createProvidersApi(options: ProvidersApiOptions = {}) {
     path: string,
     schema: Parser<T>,
     body?: unknown,
-  ): Promise<ApiResult<T>> {
+  ): Promise<ApiResult<T> | ProvidersFailure> {
     const doFetch = options.fetch ?? fetch;
     let res: Response;
     try {
@@ -94,8 +103,30 @@ export function createProvidersApi(options: ProvidersApiOptions = {}) {
 
 export type ProvidersApi = ReturnType<typeof createProvidersApi>;
 
+/** Why a sign-in could not start in the human's runner, from the server's classified cause. */
+export function describeLoginFailure(
+  cause: string | undefined,
+  reason: string | undefined,
+): string {
+  const detail = reason ? ` (${reason})` : "";
+  switch (cause) {
+    case "runner_api":
+      return `Your runner could not start${detail}. The office replaces a broken runner and keeps your sign-ins; try again, and if it keeps failing ask the operator to check Docker on the host.`;
+    case "runner_image_missing":
+      return `The runner image is missing on the host and could not be pulled${detail}. Ask the operator to build it (docker compose --profile build-only build runner-image).`;
+    case "runner_busy":
+      return `Your runner is busy changing its setup${detail}. Try again in a moment.`;
+    case "cli_missing":
+      return `The CLI is not installed in your runner${detail}. Ask the operator to rebuild the runner image.`;
+    case "runner_helper":
+      return `The runner helper failed${detail}. Ask the operator to check office-runner-helper.`;
+    default:
+      return `The sign-in could not start in your runner${detail}.`;
+  }
+}
+
 /** Human wording for a failed providers call. */
-export function describeProvidersError(err: ApiFailure): string {
+export function describeProvidersError(err: ProvidersFailure): string {
   switch (err.code) {
     case "network_error":
       return "Could not reach the office server. Check your connection and try again.";
@@ -114,7 +145,7 @@ export function describeProvidersError(err: ApiFailure): string {
     case "base_url_not_allowed":
       return "This preset has a fixed endpoint.";
     case "login_unavailable":
-      return "The sign-in could not start in your runner. Is the CLI installed there?";
+      return describeLoginFailure(err.cause, err.reason);
     case "rate_limited":
       return `Too many attempts. Try again in ${err.retryAfterSeconds ?? 60} s.`;
     case "invalid_body":

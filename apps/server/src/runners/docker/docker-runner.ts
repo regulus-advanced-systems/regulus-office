@@ -11,7 +11,6 @@
  * Mounts: mounts.ts (the human's own area per floor) and `mountProject`.
  */
 import { randomUUID } from "node:crypto";
-import { mkdir } from "node:fs/promises";
 import { posix } from "node:path";
 import {
   type PipedProcess,
@@ -35,20 +34,20 @@ import type {
 } from "../types.ts";
 import { type ContainerSettings, RunnerContainers } from "./containers.ts";
 import { DockerApiError, EngineClient, type ExecOptions, type ExecResult } from "./engine.ts";
+import type { RunnerLog } from "./heal.ts";
 import { openTty, startPiped } from "./interactive.ts";
 import {
   DEFAULT_FLOOR_ROOTS,
   humanMountTarget,
   isCovered,
   isOwnArea,
-  type MountSpec,
-  RunnerBusyError,
-  toMountSpec,
   type VolumeMapping,
 } from "./mounts.ts";
 import { PipedTracker } from "./piped-tracker.ts";
 import { PORT_SCRIPT, PROCESS_SCRIPT, parsePortOutput, parseProcessOutput } from "./procfs.ts";
-import { envFileContents, shellQuote, WRITE_SCRIPT } from "./shell.ts";
+import { type RefreshDeps, refreshIfDrifted } from "./refresh.ts";
+import { type RemountDeps, remount } from "./remount.ts";
+import { envFileContents, shellQuote, writeFileExec } from "./shell.ts";
 
 export interface DockerRunnerOptions extends ContainerSettings {
   /** Defaults to a client for `DOCKER_HOST` / the local socket. */
@@ -58,6 +57,8 @@ export interface DockerRunnerOptions extends ContainerSettings {
   volumeMap?: readonly VolumeMapping[];
   /** How long a recreate waits for piped side processes to finish (default 5 s). */
   pipedDrainMs?: number;
+  /** Where runner recreates (#151) are logged, with a redacted reason. */
+  logger?: RunnerLog;
 }
 
 export { DEFAULT_FLOOR_ROOTS, RunnerBusyError } from "./mounts.ts";
@@ -78,6 +79,8 @@ export class DockerRunner implements Runner {
   readonly #volumeMap: readonly VolumeMapping[];
   readonly #ids = new Map<string, string>();
   readonly #piped: PipedTracker;
+  readonly #refresh: RefreshDeps;
+  readonly #remountDeps: RemountDeps;
 
   constructor(opts: DockerRunnerOptions) {
     const [uid, gid] = opts.user.split(":").map(Number);
@@ -85,18 +88,39 @@ export class DockerRunner implements Runner {
       throw new Error(`docker runner user must be a numeric non-root uid:gid, got ${opts.user}`);
     }
     this.engine = opts.engine ?? new EngineClient();
-    this.containers = new RunnerContainers(this.engine, opts);
+    this.containers = new RunnerContainers(this.engine, opts, opts.logger);
     this.#floorRoots = opts.floorRoots ?? DEFAULT_FLOOR_ROOTS;
     this.#volumeMap = opts.volumeMap ?? [];
     this.#piped = new PipedTracker(opts.pipedDrainMs);
+    this.#refresh = {
+      containers: this.containers,
+      piped: this.#piped,
+      listSessions: (userId) =>
+        this.#tmux(userId, ["list-sessions", "-F", "#{session_name}"], false),
+    };
+    this.#remountDeps = {
+      floorRoots: this.#floorRoots,
+      volumeMap: this.#volumeMap,
+      piped: this.#piped,
+      listSessions: (user) => this.listSessions(user),
+      recreate: async (userId, mounts) => {
+        this.#ids.set(userId, (await this.containers.recreate(userId, mounts)).id);
+      },
+    };
   }
 
   get home(): string {
     return this.containers.settings.home;
   }
 
-  async provision(user: RunnerUser): Promise<RunnerHandle> {
-    const c = await this.containers.ensure(user.userId);
+  /**
+   * The human's runner, created or started if needed (containers.ts replaces
+   * a broken stopped one), and recreated from a rebuilt image when idle
+   * (refresh.ts).
+   */
+  async provision(user: RunnerUser, opts: { refresh?: boolean } = {}): Promise<RunnerHandle> {
+    let c = await this.containers.ensure(user.userId);
+    if (opts.refresh !== false) c = await refreshIfDrifted(this.#refresh, c);
     this.#ids.set(user.userId, c.id);
     return this.#handle(user.userId, c.id);
   }
@@ -131,7 +155,10 @@ export class DockerRunner implements Runner {
       // Only the human's own areas count: a stale whole-floor mount covers the path but goes.
       const own = c.floorMounts.filter((m) => isOwnArea(m, this.#floorRoots, user.userId));
       const missing = isCovered(target, own) ? [] : [target];
-      await this.#remount(user, c.floorMounts, missing, { running: true, strict: true });
+      await remount(this.#remountDeps, user, c.floorMounts, missing, {
+        running: true,
+        strict: true,
+      });
     });
     return { workdir };
   }
@@ -146,38 +173,20 @@ export class DockerRunner implements Runner {
       const c = await this.containers.lookup(user.userId);
       if (!c) return true;
       this.#ids.set(user.userId, c.id);
-      return this.#remount(user, c.floorMounts, [], { running: c.running, strict: false });
+      return remount(this.#remountDeps, user, c.floorMounts, [], {
+        running: c.running,
+        strict: false,
+      });
     });
-  }
-
-  async #remount(
-    user: RunnerUser,
-    current: readonly MountSpec[],
-    missing: readonly string[],
-    /** `running`: false for a stopped container (nothing runs in it). `strict`: throw when busy. */
-    opts: { running: boolean; strict: boolean },
-  ): Promise<boolean> {
-    const keep = current.filter((m) => isOwnArea(m, this.#floorRoots, user.userId));
-    const stale = current.filter((m) => !keep.includes(m)).map((m) => m.Target);
-    if (missing.length === 0 && stale.length === 0) return true;
-
-    const list = () => (opts.running ? this.listSessions(user) : Promise.resolve([]));
-    const { sessions, piped } = await this.#piped.busy(user.userId, list, opts.strict);
-    if (sessions.length > 0 || piped.length > 0) {
-      if (!opts.strict) return false;
-      const changes = [...missing, ...stale.map((t) => `-${t}`)];
-      throw new RunnerBusyError(user.userId, sessions, changes, piped);
-    }
-    // Mount sources must exist: create them as the office sees them (bind or volume subpath).
-    for (const dir of missing) await mkdir(dir, { recursive: true }).catch(() => {});
-    const mounts = [...keep, ...missing.map((t) => toMountSpec(t, this.#volumeMap))];
-    const next = await this.containers.recreate(user.userId, mounts);
-    this.#ids.set(user.userId, next.id);
-    return true;
   }
 
   async exec(user: RunnerUser, plan: SpawnPlan): Promise<TmuxSessionRef> {
     await this.provision(user);
+    // Counted as a session from here on, so no recreate slips in before tmux has it.
+    return this.#piped.session(user.userId, plan.tmuxSession, () => this.#newSession(user, plan));
+  }
+
+  async #newSession(user: RunnerUser, plan: SpawnPlan): Promise<TmuxSessionRef> {
     await this.#writeFiles(user.userId, plan.files);
     const envFile = `${this.home}/.office/run/env-${randomUUID()}`;
     await this.#writeFile(user.userId, {
@@ -199,9 +208,11 @@ export class DockerRunner implements Runner {
   }
 
   /** Counted as live from this call on; waits while a mount change runs (piped-tracker.ts). */
-  spawnPiped(user: RunnerUser, plan: SpawnPlan): Promise<PipedProcess> {
+  async spawnPiped(user: RunnerUser, plan: SpawnPlan): Promise<PipedProcess> {
+    // Image refresh first: under `track` it would count this process as busy.
+    await this.provision(user);
     return this.#piped.track(user.userId, plan.argv, async () => {
-      const { containerId } = await this.provision(user);
+      const { containerId } = await this.provision(user, { refresh: false });
       await this.#writeFiles(user.userId, plan.files);
       return startPiped(this.engine, {
         containerId: containerId as string,
@@ -382,17 +393,6 @@ export class DockerRunner implements Runner {
 
   /** Write a file as the runner uid: contents on exec stdin (never argv), then a rename. */
   async #writeFile(userId: string, file: PlannedFile): Promise<void> {
-    const path = posix.normalize(file.path);
-    if (!posix.isAbsolute(path)) throw new Error(`runner file path must be absolute: ${path}`);
-    const contents = typeof file.contents === "string" ? file.contents : file.contents.reveal();
-    const bytes = new TextEncoder().encode(contents);
-    const mode = ((file.mode ?? 0o600) & 0o7777).toString(8);
-    const id = await this.#require(userId);
-    const res = await this.engine.execWithInput(
-      id,
-      { cmd: ["sh", "-c", WRITE_SCRIPT, "sh", path, `${bytes.byteLength}`, mode] },
-      bytes,
-    );
-    if (res.code !== 0) throw new Error(`write ${path} failed: ${res.stderr.trim()}`);
+    await writeFileExec(this.engine, await this.#require(userId), file);
   }
 }
