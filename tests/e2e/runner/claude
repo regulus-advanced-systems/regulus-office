@@ -47,6 +47,47 @@ if [ "$1" = auth ]; then
   trace "auth status answered"
   exit 0
 fi
+# Print mode (#155 workflow robots: `claude -p ... <prompt>`): no hooks, no session. It records
+# the flags it got (never the prompt), probes what the sandbox allows (writing to the checkout,
+# git remotes to push to, GitHub tokens in its env), and answers with a result object whose
+# structured_output is a review with one inline comment on the first changed line of the diff
+# in the prompt, one comment outside the diff, and two labels.
+case " $* " in
+*" -p "* | *" --print "*)
+  for last in "$@"; do :; done
+  pjson() { printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' | tr '\n' ' '; }
+  : > "${HOME:-/tmp}/fake-claude-print.args"
+  n=0
+  for a in "$@"; do
+    n=$((n + 1))
+    if [ "$n" -lt "$#" ]; then
+      printf '%s\n' "$(printf '%s' "$a" | head -c 300 | tr '\n' ' ')" >> "${HOME:-/tmp}/fake-claude-print.args"
+    fi
+  done
+  if (: > "$PWD/.fake-claude-write") 2>/dev/null; then write=allowed; else write=denied; fi
+  remotes=$(git remote 2>/dev/null | wc -l | tr -d ' ')
+  if git push --quiet origin HEAD:refs/heads/fake-claude 2>/dev/null; then push=allowed; else push=denied; fi
+  tokens=$(env | grep -c 'gh[pousr]_' || true)
+  if [ -n "$ANTHROPIC_API_KEY" ]; then key=yes; else key=no; fi
+  # The first added line of the diff: "<path>:<line in the new file>".
+  first=$(printf '%s\n' "$last" | awk '
+    /^\+\+\+ b\// { f = substr($0, 7); next }
+    /^@@ / { match($0, /\+[0-9]+/); n = substr($0, RSTART + 1, RLENGTH - 1); h = 1; next }
+    h && /^\+/ { print f ":" n; exit }
+    h && /^ / { n++ }')
+  path=${first%:*}
+  line=${first##*:}
+  trace "print mode: write=$write push=$push remotes=$remotes"
+  summary="Fake review (not Claude Code). write: $write, push: $push, remotes: $remotes, github tokens in env: $tokens, model key: $key. cc @octocat"
+  printf '{"type":"result","subtype":"success","is_error":false,"result":"","session_id":"fake","total_cost_usd":0.0123,'
+  printf '"usage":{"input_tokens":1200,"output_tokens":340,"cache_read_input_tokens":10,"cache_creation_input_tokens":5},'
+  printf '"structured_output":{"summary":"%s","verdict":"request_changes",' "$(pjson "$summary")"
+  printf '"comments":[{"path":"%s","line":%s,"body":"Fake inline note"},' "$(pjson "$path")" "${line:-1}"
+  printf '{"path":"not-in-diff.txt","line":999,"body":"Outside the diff"}],'
+  printf '"labels":["needs-work","not-allowed"]}}\n'
+  exit 0
+  ;;
+esac
 settings=""
 session=""
 prompt=""

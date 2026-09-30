@@ -22,13 +22,19 @@ import type { GitHubCaller } from "./api.ts";
 export const MANIFEST_STATE_TTL_MS = 60 * 60_000;
 const MAX_PENDING_STATES = 50;
 
-/** Repo permissions the office needs (issue #141): git, PRs, later boards and checks. */
+/**
+ * Repo permissions the office needs: git, PRs, boards (#141, #35), and for
+ * workflows (#155) PR reviews and comments (Pull requests, Issues: write) and
+ * a neutral check run per review (Checks: write). Metadata read also covers
+ * the commenter permission lookup for `/office` commands. An App created
+ * before #155 has Checks: read; the owner raises it once (README).
+ */
 export const APP_PERMISSIONS = {
   contents: "write",
   pull_requests: "write",
   metadata: "read",
   issues: "write",
-  checks: "read",
+  checks: "write",
 } as const;
 
 /**

@@ -24,6 +24,7 @@ import { SettingsForm } from "./settings/SettingsPanel.tsx";
 import { SpawnDialogHost } from "./spawn/SpawnDialog.tsx";
 import { TerminalModalHost } from "./terminal/TerminalModal.tsx";
 import { Toaster } from "./toast/Toaster.tsx";
+import { WorkflowsPanelHost } from "./workflows/WorkflowsPanel.tsx";
 
 export function HudDialogs() {
   const overlay = useUiStore((s) => s.overlay);
@@ -54,6 +55,7 @@ export function HudDialogs() {
       <AddFloorDialogHost />
       <FloorSettingsDialogHost />
       <ProvidersPanelHost />
+      <WorkflowsPanelHost />
       <SpawnDialogHost />
       <TerminalModalHost />
     </>

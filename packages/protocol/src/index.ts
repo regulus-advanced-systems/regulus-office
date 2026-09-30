@@ -19,6 +19,7 @@
  * - schema/            @colyseus/schema classes mirroring the state shapes
  * - terminal.ts        terminal WebSocket control messages and constants
  * - terminal-screens.ts laptop screen feed (plain-text screens per floor)
+ * - workflows.ts       GitHub workflow definitions (#155); workflows-api.ts their REST shapes
  */
 export * from "./acl.ts";
 export * from "./agent-events.ts";
@@ -38,3 +39,5 @@ export * from "./rooms.ts";
 export * from "./schema/index.ts";
 export * from "./terminal.ts";
 export * from "./terminal-screens.ts";
+export * from "./workflows.ts";
+export * from "./workflows-api.ts";

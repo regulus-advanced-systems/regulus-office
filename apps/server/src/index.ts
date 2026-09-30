@@ -35,6 +35,7 @@ import {
 } from "./rooms/index.ts";
 import { loadMasterKeyring, type MasterKeyring } from "./secrets/index.ts";
 import { createTerminals } from "./terminals/index.ts";
+import { createWorkflows } from "./workflows/setup.ts";
 import {
   createWorktrees,
   floorDirRemover,
@@ -210,6 +211,18 @@ async function main(): Promise<void> {
   mountGitHubSyncRoutes(server.router, { auth, sync: githubSync });
   // Merged robot PRs notify their owners (#42), from webhooks or polling.
   notifications.followGitHub(githubSync.events);
+  // GitHub workflows (#155): events → robots in the workflow runner → posts as the office's App.
+  const workflows = createWorkflows({
+    db,
+    keyring,
+    config,
+    logger,
+    connection: github.connection,
+    repos: floors.repos,
+    runner,
+  });
+  workflows.follow(githubSync.events);
+  workflows.mount(server.router, auth);
   mountFloorRoutes(server.router, {
     auth,
     floors: floors.service,
@@ -279,7 +292,9 @@ async function main(): Promise<void> {
     .catch((err) => logger.error({ err }, "per-human clone migration failed"));
   floors.cloner.resumePending().catch((err) => logger.error({ err }, "resuming clones failed"));
   githubSync.start();
+  workflows.start();
   shutdown.register("github-sync", () => githubSync?.stop());
+  shutdown.register("workflows", () => workflows.close());
   shutdown.register("rooms", () => rooms.transport.shutdown());
   shutdown.register("terminals", () => terminals.shutdown());
   shutdown.register("provider-logins", () => credentialPanel.shutdown());

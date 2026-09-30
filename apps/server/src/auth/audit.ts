@@ -40,6 +40,12 @@ export const AUDIT_ACTIONS = {
   notificationChannelCreate: "notification_channel.create",
   notificationChannelUpdate: "notification_channel.update",
   notificationChannelDelete: "notification_channel.delete",
+  workflowCreate: "workflow.create",
+  workflowUpdate: "workflow.update",
+  workflowDelete: "workflow.delete",
+  /** A workflow run wrote to GitHub as the office's App (review, comment, labels, check run). */
+  workflowRunGitHubWrite: "workflow_run.github_write",
+  workflowRunCancel: "workflow_run.cancel",
 } as const;
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];
 
@@ -57,7 +63,9 @@ export interface AuditEntry {
     | "credential_profile"
     | "provider_login"
     | "github_connection"
-    | "notification_channel";
+    | "notification_channel"
+    | "workflow"
+    | "workflow_run";
   targetId: string | null;
   meta?: Record<string, unknown>;
 }
