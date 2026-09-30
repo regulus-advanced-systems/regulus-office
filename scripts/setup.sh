@@ -342,7 +342,9 @@ if ! own_caddy_running; then
     var="${kind}_PORT"
     while port_in_use "${!var}"; do
       warn "port ${!var} ($kind) is already in use on this machine:"
-      command -v ss >/dev/null 2>&1 && ss -Hltnp "sport = :${!var}" 2>/dev/null | sed 's/^/         /' >&2 || true
+      if command -v ss >/dev/null 2>&1; then
+        ss -Hltnp "sport = :${!var}" 2>/dev/null | sed 's/^/         /' >&2 || true
+      fi
       if [[ $INTERACTIVE -eq 0 ]]; then
         die "free port ${!var} or pick other host ports (OFFICE_HTTP_PORT/OFFICE_HTTPS_PORT)" \
           "scripts/setup.sh --non-interactive --http-port 8080 --https-port 8443"
