@@ -20,6 +20,7 @@ Code: `apps/server/src/runners/linux-user/`. Helper:
 | tmux server scope | `office-tmux-<rid>.scope` |
 | Agent session / scope | tmux session `agent-<agentId>`, scope `agent-<agentId>.scope` |
 | Piped side process (e.g. `codex app-server`) | scope `agent-<agentId>.io-<random>.scope` |
+| Robot sandbox (#169) | record `/run/office/sandboxes/<agentId>`, network namespace `office-sbx<slot>`, host veth `osb<slot>` on bridge `office-sbx0`, tmux socket `/run/office/tmux/<rid>.sbx<slot>.sock` |
 
 All scopes live in `system.slice`, so `/sys/fs/cgroup/system.slice/agent-<agentId>*.scope/cgroup.procs`
 is the exact process list of an agent.
@@ -37,8 +38,9 @@ sudo install -d -m 0755 /srv/office
 sudo install -d -m 0750 -o office -g office /srv/office/projects /srv/office/worktrees
 ```
 
-Requirements: systemd (cgroup v2), `tmux` >= 3.0, `acl` (`setfacl`), util-linux
-(`setpriv`), `busctl`, `useradd`/`userdel`. `/proc` must not be mounted with
+Requirements: systemd (cgroup v2), `tmux` >= 3.2, `acl` (`setfacl`), util-linux
+(`setpriv`, `nsenter`, `unshare`, `flock`), `busctl`, `useradd`/`userdel`, and
+for robot sandboxes iproute2 (`ip`, `bridge`) and `nftables` (`nft`). `/proc` must not be mounted with
 `hidepid` (office reads `/proc/<pid>/stat` of agent processes).
 
 ### Helper configuration
@@ -52,6 +54,8 @@ OFFICE_TMUX_DIR=/run/office/tmux          # per-human tmux sockets
 OFFICE_PROJECTS_ROOT=/srv/office/projects # office-only floor mirrors (reclaim only)
 OFFICE_WORKTREES_ROOT=/srv/office/worktrees # humans' clones and worktrees
 OFFICE_SERVER_USER=office                 # gets rw ACLs on project files
+OFFICE_SANDBOX_NET=10.231                 # robot sandboxes' /16 (10.x, 172.16-31 or 192.168)
+OFFICE_PORT=4600                          # the office's port, forwarded into sandboxes
 ```
 
 ## sudoers
@@ -71,6 +75,8 @@ office ALL=(root) NOPASSWD: /usr/local/lib/office/office-runner-helper remove-fl
 office ALL=(root) NOPASSWD: /usr/local/lib/office/office-runner-helper exec *
 office ALL=(root) NOPASSWD: /usr/local/lib/office/office-runner-helper spawn-piped *
 office ALL=(root) NOPASSWD: /usr/local/lib/office/office-runner-helper kill *
+office ALL=(root) NOPASSWD: /usr/local/lib/office/office-runner-helper sandbox-up *
+office ALL=(root) NOPASSWD: /usr/local/lib/office/office-runner-helper sandbox-list
 office ALL=(root) NOPASSWD: /usr/local/lib/office/office-runner-helper sockets *
 office ALL=(root) NOPASSWD: /usr/local/lib/office/office-runner-helper capture *
 office ALL=(root) NOPASSWD: /usr/local/lib/office/office-runner-helper pane-title *
@@ -84,7 +90,9 @@ office ALL=(root) NOPASSWD: /usr/local/lib/office/office-runner-helper list-dir 
 ```
 
 sudo only pins the verb (`*` matches any remaining arguments, spaces
-included); the helper enforces the rest of the grammar and exits 2 on anything
+included, but not none: a verb without arguments, `sandbox-list`, needs an
+exact rule without `*`; CI checks every call shape in `helper/helper-calls.json`
+against these rules for a user without other sudo rights); the helper enforces the rest of the grammar and exits 2 on anything
 else, before it does any work. One rule per verb keeps the allowed surface
 greppable and lets an operator drop verbs they do not want.
 
@@ -98,7 +106,9 @@ greppable and lets an operator drop verbs they do not want.
 | `remove-floor` | `remove-floor <slug>`: a floor was deleted in the office (#150). Removes `<projects>/<slug>` (the floor mirrors) and `<worktrees>/<slug>` (every human's area on it: clones and agent worktrees). `<slug>` must be a floor slug (`^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$`: no dots or slashes), so the target is exactly one level below a configured root; both roots must be canonical and the target a real directory, not a symlink. `rm -r --one-file-system` never follows symlinks. The office refuses the delete while robots are on the floor. Root: the areas hold files owned by runner accounts. |
 | `exec` | Start `agent-<agentId>` on the human's tmux server as the human and move the pane into its own `agent-<agentId>.scope`. Root: acting as another uid, creating a system scope. |
 | `spawn-piped` | `systemd-run --uid --gid --scope` a stdio process (e.g. `codex app-server`) as the human. Root: same. |
-| `kill` | Kill the session and `systemctl kill` every `agent-<agentId>*` scope (only if all its processes are the human's). Root: the processes belong to another uid. |
+| `kill` | Kill the session and `systemctl kill` every `agent-<agentId>*` scope (only if all its processes are the human's, or the root `unshare` that parents a sandbox's pid namespace), then remove the robot's sandbox (network namespace, veth, record). Root: the processes belong to another uid. |
+| `sandbox-up` | `sandbox-up <rid> <agentId> <slot> <memory bytes> <cpu %> <tasks> <owner>`: the robot's sandbox (#169). Records the limits, sets up the sandbox bridge and NAT on the host once, and the robot's network namespace `office-sbx<slot>` with its address `<net>.<(slot+2)/256>.<(slot+2)%256>`. Every argument is a bounded number or an id. Root: network namespaces, links, nftables. |
+| `sandbox-list` | `<agentId> <rid> <slot> <address> <owner>` for every sandbox, so the office finds them again after a restart and reaps orphans. Root: the records are root-only. |
 | `sockets` | Socket inodes held by the agent's processes, for port detection. Root: `/proc/<pid>/fd` is readable only by the owner. |
 | `capture`, `pane-title`, `has-session`, `list-sessions` | Read the human's tmux server. Root only to switch to the human (`setpriv`); tmux sockets are private to their owner. |
 | `send-keys` | `send-keys <rid> <session> <0\|1> <text\|raw>`: the input arrives on stdin, is loaded into a one-off tmux buffer (`office-keys-<random>`) and pasted with `paste-buffer -d` (`-p` for text, `-S` for raw control keys), then `\r` is pasted when the Enter flag is 1. tmux's own `send-keys` is not used because it fails while a read-only watcher is attached (#107). Input never appears on a command line. |
@@ -145,7 +155,41 @@ marker, uid 0, and IDs outside `^[a-z0-9]{1,23}$` (runner), `^[A-Za-z0-9_-]{1,64
 - **Processes and ports.** `listProcesses` reads the agent's scopes'
   `cgroup.procs` and `/proc/<pid>/stat` directly (no sudo). `listPorts` asks
   the helper for `<pid> <socket inode>` pairs and matches them against LISTEN
-  rows of `/proc/net/tcp{,6}`.
+  rows of `/proc/<pid>/net/tcp{,6}` (the agent's own network namespace).
+- **Robot sandboxes (SPEC §8, D18, #169).** Every coding robot gets its own
+  sandbox inside its human's account (same uid, HOME and ACLs):
+  - *Network.* `sandbox-up` gives it a network namespace `office-sbx<slot>`
+    whose `eth0` is a veth on the bridge `office-sbx0` (`<net>.0.1/16` on the
+    host). Bridge ports are isolated from each other, so sandboxes cannot
+    reach each other; the host routes and masquerades their traffic out
+    (`nft` table `ip office_sandbox`, `net.ipv4.ip_forward=1`; if Docker's
+    `DOCKER-USER` chain exists the helper allows the bridge there, because
+    Docker sets the FORWARD policy to DROP). Inside, `127.0.0.1:<OFFICE_PORT>`
+    (the office, for hooks) and a loopback DNS forwarder such as dnsmasq are
+    forwarded to the host (`route_localnet`), so hook URLs and DNS work
+    unchanged. systemd-resolved's stub answers loopback clients only, so on
+    such hosts a sandbox gets resolved's upstream servers
+    (`/run/systemd/resolve/resolv.conf`) bind-mounted as its own
+    `/etc/resolv.conf`, in its private mount namespace. The office reaches a robot's dev server at the
+    sandbox's address; nothing is published. Two robots can both listen on
+    3000.
+  - *Processes.* `exec` starts the robot's own tmux server as pid 1 of a new
+    pid namespace with its own `/proc`, inside that network namespace, in
+    `agent-<agentId>.scope`; the robot's session runs there and the server
+    exits with it. `spawn-piped` of a sandboxed robot runs the same way. A
+    sandbox sees only its own processes. Session verbs pick the sandbox's
+    socket for a sandboxed robot.
+  - *Limits.* The scopes get `MemoryMax`, `MemorySwapMax=0`, `CPUQuota` and
+    `TasksMax` from `sandbox-up` (the office's `OFFICE_SANDBOX_*`, defaults 2
+    GiB, 2 CPUs, 1024 tasks). Each scope of the robot (its tmux server, each
+    piped process) gets the full limits.
+  - *Ports.* Slot `n` also owns the ports `OFFICE_SANDBOX_PORT_BASE + n *
+    OFFICE_SANDBOX_PORT_SPAN` onwards (`PORT` is the first), so dev servers
+    that honour `PORT` do not collide even in the office's port view.
+  - *Not a wall between one human's robots.* They share the uid and HOME (so
+    CLI logins work); the boundary between humans is unchanged.
+  - `kill` removes the sandbox; the office reaps sandboxes of robots that are
+    gone or down (`sandbox-list`).
 - **Project workdirs: one area per human per floor (#114).** Humans on a
   floor never share a git directory, because hooks and config in a shared
   `.git` would run in every other human's runner. The layout is:
@@ -207,6 +251,14 @@ delete fails: the floor stays archived with its files and rows, the office
 logs the helper error, and the delete can be retried from Settings → Floors
 once the helper is installed.
 
+## Upgrading for robot sandboxes (#169)
+
+Install the current helper and sudoers file (they add `sandbox-up` and
+`sandbox-list`) and `nftables` before upgrading. With an older helper every
+spawn fails (`runner_helper`); set `OFFICE_SANDBOXES=false` to run robots on
+the human's tmux server as before. Robots started before the upgrade keep
+running there until they are stopped or resumed.
+
 ## Verifying
 
 `bun test apps/server/src/runners/linux-user` runs the unit tests (helper
@@ -227,5 +279,5 @@ a failure in one does not cascade. `OFFICE_TEST_HELPER_TIMEOUT_MS` and
 
 ## Not covered yet
 
-- Resource limits (CPU/memory) per agent or per human: set them on the scopes
-  or a slice later.
+- Resource limits per human (all of a human's robots together): a slice later.
+- IPv6 inside sandboxes (IPv4 only).

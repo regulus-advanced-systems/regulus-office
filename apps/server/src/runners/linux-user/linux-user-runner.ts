@@ -14,12 +14,19 @@
  * `~/.office/env`, sourced by the agent's wrapper and deleted before exec. It
  * never appears on a command line (sudo, helper, tmux, systemd-run) or in logs.
  * `plan.files` travel the same way (stdin of `write-file`).
+ *
+ * Sandboxes (D18, #169): with `sandboxes` set, `sandbox()` gives a robot its
+ * own network namespace on the sandbox bridge (the office reaches its ports at
+ * its address), a pid namespace, and limits on its scopes (the helper's
+ * `sandbox-up`); `exec`/`spawnPiped` of that robot then run there, and `kill`
+ * removes it.
  */
 import type { PipedProcess, SpawnPlan } from "@regulus/agent-adapters";
 import { tmuxSessionName } from "@regulus/agent-adapters";
 import type { TerminalMode } from "@regulus/protocol";
 import { pasteMode } from "../keys.ts";
 import { FLOOR_SLUG } from "../layout.ts";
+import { pickSlot, portRange, type SandboxSettings, sandboxEnv } from "../sandbox.ts";
 import type {
   AgentRef,
   AttachArgv,
@@ -30,6 +37,8 @@ import type {
   Runner,
   RunnerHandle,
   RunnerUser,
+  SandboxInfo,
+  SandboxSpec,
   TmuxSessionRef,
 } from "../types.ts";
 import { Helper, type HelperOptions } from "./helper-client.ts";
@@ -40,6 +49,12 @@ export interface LinuxUserRunnerOptions extends HelperOptions {
   /** Where systemd puts the agent scopes (the helper uses `Slice=system.slice`). */
   cgroupDir?: string;
   procRoot?: string;
+  /** Per-agent sandboxes (#169); without it robots run on their human's tmux server. */
+  sandboxes?: SandboxSettings;
+}
+
+interface KnownSandbox extends SandboxInfo {
+  slot: number;
 }
 
 /** POSIX single-quote a word for `sh`. */
@@ -68,11 +83,96 @@ export class LinuxUserRunner implements Runner {
   readonly helper: Helper;
   readonly #cgroupDir: string;
   readonly #procRoot: string;
+  readonly #settings: SandboxSettings | undefined;
+  /** Sandboxes by agent id; read from the helper once, then kept in step. */
+  readonly #sandboxes = new Map<string, KnownSandbox>();
+  #loaded: Promise<void> | undefined;
 
   constructor(opts: LinuxUserRunnerOptions = {}) {
     this.helper = new Helper(opts);
     this.#cgroupDir = opts.cgroupDir ?? "/sys/fs/cgroup/system.slice";
     this.#procRoot = opts.procRoot ?? "/proc";
+    this.#settings = opts.sandboxes;
+  }
+
+  /**
+   * The robot's sandbox (#169): network namespace, limits, ports. Idempotent;
+   * null when sandboxes are off. The slot (address and ports) is kept while the
+   * sandbox exists and preferred again after it was removed (sandbox.ts).
+   */
+  async sandbox(agent: AgentRef, _spec: SandboxSpec): Promise<SandboxInfo | null> {
+    const s = this.#settings;
+    if (!s) return null;
+    const agentId = checkAgentId(agent.agentId);
+    await this.#load();
+    const known = this.#sandboxes.get(agentId);
+    const taken = new Set(
+      [...this.#sandboxes.values()].filter((k) => k.agentId !== agentId).map((k) => k.slot),
+    );
+    const slot = known?.slot ?? pickSlot(agentId, taken, s);
+    const res = await this.helper.call("sandbox-up", [
+      runnerId(agent.userId),
+      agentId,
+      String(slot),
+      String(Math.round(s.memoryBytes)),
+      String(Math.max(1, Math.round(s.cpus * 100))),
+      String(s.pids),
+      agent.userId,
+    ]);
+    const host = parseKeyValues(res.stdout).get("address");
+    if (!host) throw new Error("office-runner-helper sandbox-up: unexpected output");
+    const info: KnownSandbox = {
+      userId: agent.userId,
+      agentId,
+      host,
+      ports: portRange(slot, s),
+      slot,
+      createdAt: known?.createdAt ?? Date.now(),
+    };
+    this.#sandboxes.set(agentId, info);
+    return info;
+  }
+
+  async listSandboxes(): Promise<SandboxInfo[]> {
+    if (!this.#settings) return [];
+    const found = await this.#readSandboxes();
+    for (const k of found) if (!this.#sandboxes.has(k.agentId)) this.#sandboxes.set(k.agentId, k);
+    return found;
+  }
+
+  /** `sandbox-list`: `<agentId> <rid> <slot> <address> <owner>` lines. */
+  async #readSandboxes(): Promise<KnownSandbox[]> {
+    const s = this.#settings;
+    if (!s) return [];
+    const res = await this.helper.call("sandbox-list", []);
+    const out: KnownSandbox[] = [];
+    for (const line of res.stdout.split("\n")) {
+      const [agentId, rid, slotText, host, userId] = line.split(" ");
+      const slot = Number(slotText);
+      if (!agentId || !host || !userId || !Number.isInteger(slot) || slot >= s.portSlots) continue;
+      if (rid !== runnerId(userId)) continue;
+      out.push({ userId, agentId, host, slot, ports: portRange(slot, s) });
+    }
+    return out;
+  }
+
+  #load(): Promise<void> {
+    this.#loaded ??= this.listSandboxes().then(
+      () => {},
+      (err) => {
+        this.#loaded = undefined;
+        throw err;
+      },
+    );
+    return this.#loaded;
+  }
+
+  /** `PORT` and the port range for a sandboxed robot's processes (not secret). */
+  async #sandboxEnv(user: RunnerUser, agentId: string): Promise<Record<string, string>> {
+    if (!this.#settings) return {};
+    await this.#load();
+    const known = this.#sandboxes.get(agentId);
+    return known && known.userId === user.userId ? sandboxEnv(known.ports) : {};
   }
 
   async provision(user: RunnerUser): Promise<RunnerHandle> {
@@ -125,17 +225,19 @@ export class LinuxUserRunner implements Runner {
     if (plan.tmuxSession !== tmuxSessionName(agentId)) {
       throw new Error("plan.tmuxSession must be agent-<agentId>");
     }
+    const env = { ...(await this.#sandboxEnv(user, agentId)), ...plan.env.reveal() };
     await this.#writeFiles(user, plan);
     await this.helper.call("exec", this.#spawnArgs(user, plan), {
-      stdin: `${envScript(plan.env.reveal())}\0`,
+      stdin: `${envScript(env)}\0`,
     });
     return { userId: user.userId, name: plan.tmuxSession };
   }
 
   async spawnPiped(user: RunnerUser, plan: SpawnPlan): Promise<PipedProcess> {
+    const env = { ...(await this.#sandboxEnv(user, plan.agentId)), ...plan.env.reveal() };
     await this.#writeFiles(user, plan);
     const proc = this.helper.spawn("spawn-piped", this.#spawnArgs(user, plan));
-    await proc.write(`${envScript(plan.env.reveal())}\0`);
+    await proc.write(`${envScript(env)}\0`);
     return proc;
   }
 
@@ -187,8 +289,11 @@ export class LinuxUserRunner implements Runner {
     return listeningPorts(this.#procRoot, parseSocketInodes(res.stdout));
   }
 
+  /** Also removes the robot's sandbox (network namespace, record). */
   async kill(agent: AgentRef): Promise<void> {
     await this.helper.call("kill", [runnerId(agent.userId), checkAgentId(agent.agentId)]);
+    const known = this.#sandboxes.get(agent.agentId);
+    if (known?.userId === agent.userId) this.#sandboxes.delete(agent.agentId);
   }
 
   async readTextFile(user: RunnerUser, path: string): Promise<string | null> {

@@ -16,6 +16,10 @@
  * - a workspace from before per-human clones (#114) lives in the floor's
  *   shared mirror: its process is stopped and the robot marked `offline` with
  *   the reason; it cannot be resumed (the PR button and send-home still work).
+ *
+ * Robots in their own sandboxes (D18, #169) are found the same way: the
+ * runner lists each sandbox's sessions with the human's. Afterwards the
+ * sandboxes nobody re-adopted are reaped (sandbox-reaper.ts).
  */
 import type { RunnerContext } from "@regulus/agent-adapters";
 import type { AgentStatus } from "@regulus/protocol";
@@ -35,6 +39,11 @@ function canRecover(runner: object): runner is Recoverable {
 }
 
 export async function adoptAll(mgr: AgentManager): Promise<void> {
+  await adoptSeated(mgr);
+  await mgr.reapSandboxes();
+}
+
+async function adoptSeated(mgr: AgentManager): Promise<void> {
   const rows = mgr.store.seated();
   if (rows.length === 0) return;
   if (canRecover(mgr.runner)) {

@@ -4,6 +4,7 @@
  */
 import { describe, expect, test } from "bun:test";
 import { FakeAdapter, Secret, type SpawnPlan } from "@regulus/agent-adapters";
+import { DEFAULT_SANDBOX_SETTINGS } from "../sandbox.ts";
 import { bindRunnerOps } from "../types.ts";
 import type { HelperCall, HelperResult } from "./helper-client.ts";
 import { runnerId } from "./ids.ts";
@@ -246,5 +247,124 @@ describe("LinuxUserRunner command construction", () => {
       await expect(runner.removeFloorDirs(slug)).rejects.toThrow("invalid floor slug");
     }
     expect(calls.map((c) => c.argv.slice(3))).toEqual([["remove-floor", "apollo"]]);
+  });
+});
+
+describe("LinuxUserRunner sandboxes (#169)", () => {
+  const settings = { ...DEFAULT_SANDBOX_SETTINGS, memoryBytes: 1024 ** 3, cpus: 1.5, pids: 300 };
+
+  /** A runner with sandboxes on over a helper that keeps sandbox records. */
+  function withSandboxes(list = "") {
+    const records = new Map<string, string>();
+    const calls: HelperCall[] = [];
+    const spawned: { argv: readonly string[]; written: string[] }[] = [];
+    const runner = new LinuxUserRunner({
+      sandboxes: settings,
+      run: async (call) => {
+        calls.push(call);
+        const verb = call.argv[3];
+        if (verb === "sandbox-list") {
+          return { code: 0, stdout: list + [...records.values()].join(""), stderr: "" };
+        }
+        if (verb === "sandbox-up") {
+          const [, , , , rid, aid, slot, , , , owner] = call.argv;
+          const addr = `10.231.0.${Number(slot) + 2}`;
+          records.set(aid ?? "", `${aid} ${rid} ${slot} ${addr} ${owner}\n`);
+          return { code: 0, stdout: `address=${addr}\nslot=${slot}\n`, stderr: "" };
+        }
+        if (verb === "kill") records.delete(call.argv[5] ?? "");
+        return { code: 0, stdout: "", stderr: "" };
+      },
+      spawn: (argv) => {
+        const rec = { argv, written: [] as string[] };
+        spawned.push(rec);
+        return {
+          pid: 42,
+          stdout: new Response("").body as ReadableStream<Uint8Array>,
+          stderr: new Response("").body as ReadableStream<Uint8Array>,
+          exited: Promise.resolve(0),
+          async write(chunk) {
+            rec.written.push(typeof chunk === "string" ? chunk : new TextDecoder().decode(chunk));
+          },
+          kill() {},
+        };
+      },
+    });
+    return { runner, calls, spawned };
+  }
+
+  test("sandbox-up gets the slot, limits and owner; the robot's env gets PORT", async () => {
+    const { runner, calls, spawned } = withSandboxes();
+    const info = await runner.sandbox({ userId: "u1", agentId: "a1" }, { workdir: "/w" });
+    const up = calls.find((c) => c.argv[3] === "sandbox-up");
+    const slot = Number(up?.argv[6]);
+    expect(up?.argv).toEqual([
+      "sudo",
+      "-n",
+      HELPER,
+      "sandbox-up",
+      "u1",
+      "a1",
+      String(slot),
+      String(1024 ** 3),
+      "150",
+      "300",
+      "u1",
+    ]);
+    const first = settings.portBase + slot * settings.portSpan;
+    expect(info).toMatchObject({
+      userId: "u1",
+      agentId: "a1",
+      host: `10.231.0.${slot + 2}`,
+      ports: { first, last: first + settings.portSpan - 1 },
+    });
+
+    await runner.exec(user, plan(runner, "a1"));
+    const exec = calls.find((c) => c.argv[3] === "exec");
+    expect(exec?.stdin).toContain(`export PORT='${first}'\n`);
+    expect(exec?.stdin).toContain(`export FAKE_API_KEY='${KEY}'`);
+    await runner.spawnPiped(user, plan(runner, "a1"));
+    expect(spawned[0]?.written.join("")).toContain(`export PORT='${first}'\n`);
+
+    // A robot without a sandbox (or a login terminal) gets no PORT.
+    await runner.exec(user, plan(runner, "a2"));
+    expect(calls.filter((c) => c.argv[3] === "exec")[1]?.stdin).not.toContain("PORT=");
+  });
+
+  test("two robots never get the same slot; a known sandbox keeps its slot", async () => {
+    const { runner, calls } = withSandboxes();
+    const a1 = await runner.sandbox({ userId: "u1", agentId: "a1" }, { workdir: "/w" });
+    const a2 = await runner.sandbox({ userId: "u1", agentId: "a2" }, { workdir: "/w" });
+    const again = await runner.sandbox({ userId: "u1", agentId: "a1" }, { workdir: "/w" });
+    expect(a2?.ports.first).not.toBe(a1?.ports.first);
+    expect(again?.ports).toEqual(a1?.ports as NonNullable<typeof a1>["ports"]);
+    expect(calls.filter((c) => c.argv[3] === "sandbox-list")).toHaveLength(1);
+  });
+
+  test("a fresh runner reads existing sandboxes (re-adopt) and kill forgets them", async () => {
+    const rid = runnerId("0f8c2d9e-5b6a-4c1d-9e7f-123456789abc");
+    const list = `a9 ${rid} 5 10.231.0.7 0f8c2d9e-5b6a-4c1d-9e7f-123456789abc\nbad line\n`;
+    const { runner } = withSandboxes(list);
+    expect(await runner.listSandboxes()).toEqual([
+      {
+        userId: "0f8c2d9e-5b6a-4c1d-9e7f-123456789abc",
+        agentId: "a9",
+        host: "10.231.0.7",
+        slot: 5,
+        ports: { first: 20_050, last: 20_059 },
+      },
+    ] as never);
+    await runner.sandbox({ userId: "u1", agentId: "a1" }, { workdir: "/w" });
+    await runner.kill({ userId: "u1", agentId: "a1" });
+    expect((await runner.listSandboxes()).map((s) => s.agentId)).toEqual(["a9"]);
+  });
+
+  test("with sandboxes off there is no sandbox and no sandbox-list call", async () => {
+    const { runner, calls } = mocked();
+    expect(await runner.sandbox({ userId: "u1", agentId: "a1" }, { workdir: "/w" })).toBeNull();
+    expect(await runner.listSandboxes()).toEqual([]);
+    await runner.exec(user, plan(runner, "a1"));
+    expect(calls.some((c) => c.argv[3]?.startsWith("sandbox"))).toBe(false);
+    expect(calls.find((c) => c.argv[3] === "exec")?.stdin).not.toContain("PORT=");
   });
 });

@@ -98,11 +98,13 @@ jobs:
             playwright-report/
             test-results/
           retention-days: 14
-      - name: Leftover runners
+      - name: Leftover runners and robot sandboxes
         if: always()
         run: |
-          docker ps -a --filter label=org.regulus.office.role=runner
-          docker ps -aq --filter label=org.regulus.office.role=runner | xargs -r docker rm -f
+          for role in runner sandbox; do
+            docker ps -a --filter label=org.regulus.office.role=$role
+            docker ps -aq --filter label=org.regulus.office.role=$role | xargs -r docker rm -f
+          done
 
   # `docker compose up` serves the office behind Caddy (SPEC §4.2 Packaging, §13), and the office
   # provisions a runner from the real runner image and runs the fake agent in it (#104).
@@ -317,8 +319,9 @@ jobs:
         with:
           bun-version: latest
       - run: bun install --frozen-lockfile
-      - name: Install tmux and acl
-        run: sudo apt-get update -q && sudo apt-get install -y -q tmux acl
+      # nftables: robot sandboxes' NAT (#169).
+      - name: Install tmux, acl and nftables
+        run: sudo apt-get update -q && sudo apt-get install -y -q tmux acl nftables
       - run: shellcheck apps/server/src/runners/linux-user/helper/office-runner-helper
       - name: Install the helper and sudoers rules
         run: |
@@ -330,6 +333,19 @@ jobs:
           sudo visudo -cf "$RUNNER_TEMP/office-runner"
           sudo install -m 0440 -o root -g root "$RUNNER_TEMP/office-runner" /etc/sudoers.d/office-runner
           sudo install -d -m 0750 -o "$USER" -g "$USER" /srv/office/projects /srv/office/worktrees
+      # The runner user here has blanket sudo, which would hide a missing or too narrow rule:
+      # check every call shape the office uses (helper-calls.json) as a user that has only the
+      # office-runner rules, e.g. `sandbox-list` with no arguments needs an exact rule (#169).
+      - name: Sudoers allow every helper call without blanket sudo
+        run: |
+          helper=apps/server/src/runners/linux-user/helper
+          sudo useradd --no-create-home --shell /usr/sbin/nologin office-sudocheck
+          sed "s/^office /office-sudocheck /" "$helper/office-runner.sudoers" > "$RUNNER_TEMP/office-sudocheck"
+          sudo visudo -cf "$RUNNER_TEMP/office-sudocheck"
+          sudo install -m 0440 -o root -g root "$RUNNER_TEMP/office-sudocheck" /etc/sudoers.d/office-sudocheck
+          bash "$helper/check-sudoers.sh" "$helper" office-sudocheck
+          sudo rm -f /etc/sudoers.d/office-sudocheck
+          sudo userdel office-sudocheck
       # useradd --create-home copies /etc/skel. On GitHub's image that is
       # ~800 MB (.nvm and more) read from a cold disk, so the first copy takes
       # 25-100 s and the second < 1 s (#117). Warm the page cache with a
@@ -344,9 +360,14 @@ jobs:
       - name: Integration test
         env:
           OFFICE_TEST_LINUX_USER: "1"
-        run: bun test apps/server/src/runners/linux-user/linux-user-runner.integration.test.ts
-      - name: Leftover accounts and scopes
+        run: >-
+          bun test
+          apps/server/src/runners/linux-user/linux-user-runner.integration.test.ts
+          apps/server/src/runners/linux-user/sandboxes.integration.test.ts
+      - name: Leftover accounts, scopes and sandboxes
         if: always()
         run: |
           getent passwd | grep '^office-u-' || true
           systemctl list-units --all --plain --no-legend 'agent-*' 'office-tmux-*' || true
+          ip netns list || true
+          sudo ls -la /run/office/sandboxes 2>/dev/null || true

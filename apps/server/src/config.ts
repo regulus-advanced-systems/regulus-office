@@ -9,6 +9,11 @@
 import { join, resolve } from "node:path";
 import { inspect } from "node:util";
 import { z } from "zod";
+import {
+  checkSandboxSettings,
+  DEFAULT_SANDBOX_SETTINGS,
+  type SandboxSettings,
+} from "./runners/sandbox.ts";
 
 export const DEFAULT_PORT = 4600;
 /** Production clone root for floor repos (SPEC §8). */
@@ -211,6 +216,26 @@ export const envSchema = z.object({
       .optional(),
   ),
   OFFICE_DOCKER_VOLUME_MAP: z.preprocess(emptyToUndefined, volumeMap.default([])),
+  // Per-agent sandboxes (SPEC §8, D18, #169); see SandboxConfig. Defaults: runners/sandbox.ts.
+  OFFICE_SANDBOXES: bool(true),
+  OFFICE_SANDBOX_MEMORY: z.preprocess(emptyToUndefined, byteSize.optional()),
+  OFFICE_SANDBOX_CPUS: z.preprocess(emptyToUndefined, z.coerce.number().positive().optional()),
+  OFFICE_SANDBOX_PIDS: z.preprocess(
+    emptyToUndefined,
+    z.coerce.number().int().positive().optional(),
+  ),
+  OFFICE_SANDBOX_PORT_BASE: z.preprocess(
+    emptyToUndefined,
+    z.coerce.number().int().min(1024).max(65535).optional(),
+  ),
+  OFFICE_SANDBOX_PORT_SPAN: z.preprocess(
+    emptyToUndefined,
+    z.coerce.number().int().min(1).max(1000).optional(),
+  ),
+  OFFICE_SANDBOX_PORT_SLOTS: z.preprocess(
+    emptyToUndefined,
+    z.coerce.number().int().min(1).max(65000).optional(),
+  ),
 });
 
 /** The office GitHub App from GITHUB_APP_ID / GITHUB_APP_PRIVATE_KEY (#141; D14). */
@@ -300,7 +325,19 @@ export interface OfficeConfig {
   claudeTrustWorktrees: boolean;
   /** Docker runner backend settings; only used when that backend is selected. */
   docker: DockerBackendConfig;
+  /**
+   * Per-agent sandboxes (SPEC §8, D18, #169) for the docker and linux-user backends:
+   * null when `OFFICE_SANDBOXES=false` (robots then run in their human's runner).
+   */
+  sandbox: SandboxConfig | null;
 }
+
+/**
+ * `OFFICE_SANDBOX_*`: limits and ports of each robot's sandbox. Defaults
+ * (runners/sandbox.ts) suit the 8 vCPU / 16 GB central VM (D11): 2 GiB, 2 CPUs,
+ * 1024 pids, ports 20000 + 10 per slot, 2000 slots.
+ */
+export type SandboxConfig = SandboxSettings;
 
 /**
  * Docker runner backend settings (SPEC §8): one runner container per human from
@@ -370,7 +407,25 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
   const worktreesDir = resolve(
     e.OFFICE_WORKTREES_DIR ?? (production ? DEFAULT_WORKTREES_DIR : join(dataDir, "worktrees")),
   );
+  let sandbox: SandboxConfig | null = null;
+  if (e.OFFICE_SANDBOXES) {
+    try {
+      sandbox = checkSandboxSettings({
+        memoryBytes: e.OFFICE_SANDBOX_MEMORY ?? DEFAULT_SANDBOX_SETTINGS.memoryBytes,
+        cpus: e.OFFICE_SANDBOX_CPUS ?? DEFAULT_SANDBOX_SETTINGS.cpus,
+        pids: e.OFFICE_SANDBOX_PIDS ?? DEFAULT_SANDBOX_SETTINGS.pids,
+        portBase: e.OFFICE_SANDBOX_PORT_BASE ?? DEFAULT_SANDBOX_SETTINGS.portBase,
+        portSpan: e.OFFICE_SANDBOX_PORT_SPAN ?? DEFAULT_SANDBOX_SETTINGS.portSpan,
+        portSlots: e.OFFICE_SANDBOX_PORT_SLOTS ?? DEFAULT_SANDBOX_SETTINGS.portSlots,
+      });
+    } catch {
+      throw new ConfigError(
+        "Invalid environment:\n  OFFICE_SANDBOX_PORT_*: base + span * slots must stay within 65536",
+      );
+    }
+  }
   return {
+    sandbox,
     port: e.OFFICE_PORT,
     host: e.OFFICE_HOST,
     dataDir,

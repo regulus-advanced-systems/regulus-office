@@ -9,45 +9,46 @@
  * as exec-scoped `Env`, kept off the container config and `docker inspect`.
  *
  * Mounts: mounts.ts (the human's own area per floor) and `mountProject`.
+ *
+ * Sandboxes (D18, #169): with `sandboxes` set, `sandbox()` gives a robot its own
+ * container (sandboxes.ts) and every call about that robot runs there
+ * (exec-router.ts); the runner keeps login terminals and side processes.
  */
 import { randomUUID } from "node:crypto";
+import { mkdir } from "node:fs/promises";
 import { posix } from "node:path";
-import {
-  type PipedProcess,
-  type PlannedFile,
-  type SpawnPlan,
-  tmuxSessionName,
-} from "@regulus/agent-adapters";
-import type { TerminalMode } from "@regulus/protocol";
-import { PASTE_SCRIPT, pasteBufferName, pasteMode } from "../keys.ts";
+import type { PipedProcess, PlannedFile, SpawnPlan } from "@regulus/agent-adapters";
+import type { SandboxSettings } from "../sandbox.ts";
 import type {
   AgentRef,
-  AttachStream,
   FloorRepoRef,
   MountedProject,
-  PortInfo,
-  ProcessInfo,
   Runner,
   RunnerHandle,
   RunnerUser,
+  SandboxInfo,
+  SandboxSpec,
   TmuxSessionRef,
 } from "../types.ts";
 import { type ContainerSettings, RunnerContainers } from "./containers.ts";
-import { DockerApiError, EngineClient, type ExecOptions, type ExecResult } from "./engine.ts";
+import { EngineClient } from "./engine.ts";
+import type { Where } from "./exec-router.ts";
 import { removeFloorAreas } from "./floor-cleanup.ts";
 import type { RunnerLog } from "./heal.ts";
-import { openTty, startPiped } from "./interactive.ts";
+import { startPiped } from "./interactive.ts";
 import {
   DEFAULT_FLOOR_ROOTS,
   humanMountTarget,
   isCovered,
   isOwnArea,
+  toMountSpec,
   type VolumeMapping,
 } from "./mounts.ts";
 import { PipedTracker } from "./piped-tracker.ts";
-import { PORT_SCRIPT, PROCESS_SCRIPT, parsePortOutput, parseProcessOutput } from "./procfs.ts";
 import { type RefreshDeps, refreshIfDrifted } from "./refresh.ts";
 import { type RemountDeps, remount } from "./remount.ts";
+import { type DockerSandbox, DockerSandboxes } from "./sandboxes.ts";
+import { DockerSessionOps, sessionOf, target } from "./session-ops.ts";
 import { envFileContents, shellQuote, writeFileExec } from "./shell.ts";
 
 export interface DockerRunnerOptions extends ContainerSettings {
@@ -60,25 +61,26 @@ export interface DockerRunnerOptions extends ContainerSettings {
   pipedDrainMs?: number;
   /** Where runner recreates (#151) are logged, with a redacted reason. */
   logger?: RunnerLog;
+  /** Per-agent sandboxes (#169); without it robots run in their human's runner. */
+  sandboxes?: SandboxSettings;
 }
 
 export { DEFAULT_FLOOR_ROOTS, RunnerBusyError } from "./mounts.ts";
 export { envFileContents, shellQuote } from "./shell.ts";
 
-const target = (s: TmuxSessionRef) => `=${s.name}`;
-const paneTarget = (s: TmuxSessionRef) => `=${s.name}:`;
-const sessionOf = (a: AgentRef): TmuxSessionRef => ({
-  userId: a.userId,
-  name: tmuxSessionName(a.agentId),
+const sandboxInfo = (s: DockerSandbox): SandboxInfo => ({
+  userId: s.userId,
+  agentId: s.agentId,
+  host: s.host,
+  ports: s.ports,
+  createdAt: s.createdAt,
 });
 
-export class DockerRunner implements Runner {
+export class DockerRunner extends DockerSessionOps implements Runner {
   readonly backend = "docker" as const;
-  readonly engine: EngineClient;
-  readonly containers: RunnerContainers;
   readonly #floorRoots: readonly string[];
   readonly #volumeMap: readonly VolumeMapping[];
-  readonly #ids = new Map<string, string>();
+  readonly #ids: Map<string, string>;
   readonly #piped: PipedTracker;
   readonly #refresh: RefreshDeps;
   readonly #remountDeps: RemountDeps;
@@ -88,8 +90,16 @@ export class DockerRunner implements Runner {
     if (!Number.isInteger(uid) || !Number.isInteger(gid) || uid === 0) {
       throw new Error(`docker runner user must be a numeric non-root uid:gid, got ${opts.user}`);
     }
-    this.engine = opts.engine ?? new EngineClient();
-    this.containers = new RunnerContainers(this.engine, opts, opts.logger);
+    const engine = opts.engine ?? new EngineClient();
+    const containers = new RunnerContainers(engine, opts, opts.logger);
+    super(
+      engine,
+      containers,
+      opts.sandboxes
+        ? new DockerSandboxes(engine, containers, opts.sandboxes, opts.logger)
+        : undefined,
+    );
+    this.#ids = this.router.ids;
     this.#floorRoots = opts.floorRoots ?? DEFAULT_FLOOR_ROOTS;
     this.#volumeMap = opts.volumeMap ?? [];
     this.#piped = new PipedTracker(opts.pipedDrainMs);
@@ -97,13 +107,14 @@ export class DockerRunner implements Runner {
       containers: this.containers,
       piped: this.#piped,
       listSessions: (userId) =>
-        this.#tmux(userId, ["list-sessions", "-F", "#{session_name}"], false),
+        this.router.tmux({ userId }, ["list-sessions", "-F", "#{session_name}"], false),
     };
     this.#remountDeps = {
       floorRoots: this.#floorRoots,
       volumeMap: this.#volumeMap,
       piped: this.#piped,
-      listSessions: (user) => this.listSessions(user),
+      // The runner's own sessions only: robots in sandboxes do not keep it busy.
+      listSessions: (user) => this.runnerSessions(user),
       recreate: async (userId, mounts) => {
         this.#ids.set(userId, (await this.containers.recreate(userId, mounts)).id);
       },
@@ -140,10 +151,32 @@ export class DockerRunner implements Runner {
     return found.map((c) => this.#handle(c.userId, c.id));
   }
 
-  /** Remove the human's runner container and, with `removeHome`, their credentials volume. */
+  /**
+   * Remove the human's runner container and robot sandboxes and, with
+   * `removeHome`, their credentials volume.
+   */
   async deprovision(user: RunnerUser, opts: { removeHome?: boolean } = {}): Promise<void> {
     this.#ids.delete(user.userId);
+    await this.sandboxes?.removeAll(user.userId);
     await this.containers.remove(user.userId, opts);
+  }
+
+  /**
+   * The robot's own container (#169): HOME volume plus the human's area on the
+   * robot's floor, nothing else. Idempotent; null when sandboxes are off.
+   */
+  async sandbox(agent: AgentRef, spec: SandboxSpec): Promise<SandboxInfo | null> {
+    if (!this.sandboxes) return null;
+    // The runner owns the HOME volume the sandbox mounts.
+    await this.provision({ userId: agent.userId });
+    const area = humanMountTarget(posix.normalize(spec.workdir), this.#floorRoots, agent.userId);
+    await mkdir(area, { recursive: true }).catch(() => {});
+    const mounts = [toMountSpec(area, this.#volumeMap)];
+    return sandboxInfo(await this.sandboxes.ensure(agent.userId, agent.agentId, mounts));
+  }
+
+  async listSandboxes(): Promise<SandboxInfo[]> {
+    return (await this.sandboxes?.list())?.map(sandboxInfo) ?? [];
   }
 
   /**
@@ -189,15 +222,19 @@ export class DockerRunner implements Runner {
   }
 
   async exec(user: RunnerUser, plan: SpawnPlan): Promise<TmuxSessionRef> {
+    const inSandbox: Where = { userId: user.userId, agentId: plan.agentId };
+    if (await this.router.sandboxOf(inSandbox)) return this.#newSession(inSandbox, plan);
     await this.provision(user);
     // Counted as a session from here on, so no recreate slips in before tmux has it.
-    return this.#piped.session(user.userId, plan.tmuxSession, () => this.#newSession(user, plan));
+    return this.#piped.session(user.userId, plan.tmuxSession, () =>
+      this.#newSession({ userId: user.userId }, plan),
+    );
   }
 
-  async #newSession(user: RunnerUser, plan: SpawnPlan): Promise<TmuxSessionRef> {
-    await this.#writeFiles(user.userId, plan.files);
+  async #newSession(where: Where, plan: SpawnPlan): Promise<TmuxSessionRef> {
+    await this.#writeFiles(where, plan.files);
     const envFile = `${this.home}/.office/run/env-${randomUUID()}`;
-    await this.#writeFile(user.userId, {
+    await this.#writeFile(where, {
       path: envFile,
       contents: envFileContents(plan.env.reveal()),
       mode: 0o600,
@@ -205,132 +242,54 @@ export class DockerRunner implements Runner {
     const q = shellQuote(envFile);
     // umask 0002: files the agent makes stay group-writable for the office (#150).
     const command = `umask 0002; . ${q}; rm -f ${q}; exec ${plan.argv.map(shellQuote).join(" ")}`;
-    const res = await this.#tmux(user.userId, [
+    const res = await this.router.tmux(where, [
       ...["new-session", "-d", "-s", plan.tmuxSession, "-x", "160", "-y", "45"],
       ...["-c", plan.cwd, command],
     ]);
     if (res.code !== 0) {
-      await this.#run(user.userId, { cmd: ["rm", "-f", "--", envFile] });
+      await this.router.run(where, { cmd: ["rm", "-f", "--", envFile] });
       throw new Error(`tmux new-session failed: ${res.stderr.trim()}`);
     }
-    return { userId: user.userId, name: plan.tmuxSession };
+    return { userId: where.userId, name: plan.tmuxSession };
   }
 
   /** Counted as live from this call on; waits while a mount change runs (piped-tracker.ts). */
   async spawnPiped(user: RunnerUser, plan: SpawnPlan): Promise<PipedProcess> {
+    const inSandbox: Where = { userId: user.userId, agentId: plan.agentId };
+    const sandbox = await this.router.sandboxOf(inSandbox);
+    if (sandbox) return this.#startPiped(inSandbox, sandbox, plan);
     // Image refresh first: under `track` it would count this process as busy.
     await this.provision(user);
     return this.#piped.track(user.userId, plan.argv, async () => {
       const { containerId } = await this.provision(user, { refresh: false });
-      await this.#writeFiles(user.userId, plan.files);
-      return startPiped(this.engine, {
-        containerId: containerId as string,
-        argv: plan.argv,
-        env: Object.entries(plan.env.reveal()).map(([k, v]) => `${k}=${v}`),
-        workdir: plan.cwd,
-        signal: async (pid, signal) => {
-          const cmd = ["kill", "-s", signal.replace(/^SIG/, ""), `${pid}`];
-          await this.#run(user.userId, { cmd });
-        },
-      });
+      return this.#startPiped({ userId: user.userId }, containerId as string, plan);
     });
   }
 
-  attach(session: TmuxSessionRef, mode: TerminalMode): AttachStream {
-    const readOnly = mode === "watch" ? ["-r"] : [];
-    const argv = [
-      ...["tmux", "-S", this.containers.tmuxSocket(session.userId), "attach-session"],
-      ...[...readOnly, "-t", target(session)],
-    ];
-    return {
-      kind: "stream",
-      open: async (size) => {
-        const id = await this.#require(session.userId);
-        return openTty(this.engine, { containerId: id, argv, size });
+  async #startPiped(where: Where, containerId: string, plan: SpawnPlan): Promise<PipedProcess> {
+    await this.#writeFiles(where, plan.files);
+    return startPiped(this.engine, {
+      containerId,
+      argv: plan.argv,
+      env: Object.entries(plan.env.reveal()).map(([k, v]) => `${k}=${v}`),
+      workdir: plan.cwd,
+      signal: async (pid, signal) => {
+        const cmd = ["kill", "-s", signal.replace(/^SIG/, ""), `${pid}`];
+        await this.router.run(where, { cmd }, false);
       },
-    };
+    });
   }
 
-  async capturePane(session: TmuxSessionRef, lines: number): Promise<string> {
-    const res = await this.#tmuxOn(session, [
-      ...["capture-pane", "-p", "-J", "-t", paneTarget(session), "-S", `-${lines}`],
-    ]);
-    if (res.code !== 0) throw new Error(`capture-pane failed: ${res.stderr.trim()}`);
-    return res.stdout;
-  }
-
-  async paneTitle(session: TmuxSessionRef): Promise<string> {
-    const res = await this.#tmuxOn(session, [
-      ...["display-message", "-p", "-t", paneTarget(session), "#{pane_title}"],
-    ]);
-    return res.code === 0 ? res.stdout.trim() : "";
-  }
-
-  /** Buffer paste in one exec, input on its stdin; works while a watcher is attached (keys.ts). */
-  async sendKeys(session: TmuxSessionRef, keys: string, opts?: { enter?: boolean }): Promise<void> {
-    if (keys.length === 0 && !opts?.enter) return;
-    const bytes = new TextEncoder().encode(keys);
-    const socket = this.containers.tmuxSocket(session.userId);
-    const args = [socket, pasteBufferName(), paneTarget(session), `${bytes.byteLength}`];
-    const cmd = ["sh", "-c", PASTE_SCRIPT, "sh", ...args, pasteMode(keys), opts?.enter ? "1" : "0"];
-    const res = await this.engine.execWithInput(
-      await this.#require(session.userId),
-      { cmd },
-      bytes,
-    );
-    if (res.code !== 0) throw new Error(`paste into ${session.name} failed: ${res.stderr.trim()}`);
-  }
-
-  async sessionExists(session: TmuxSessionRef): Promise<boolean> {
-    const res = await this.#tmux(session.userId, ["has-session", "-t", target(session)], false);
-    return res?.code === 0;
-  }
-
-  async listSessions(user: RunnerUser): Promise<string[]> {
-    const res = await this.#tmux(user.userId, ["list-sessions", "-F", "#{session_name}"], false);
-    return res?.code === 0 ? res.stdout.split("\n").filter(Boolean) : [];
-  }
-
-  async listProcesses(agent: AgentRef): Promise<ProcessInfo[]> {
-    const socket = this.containers.tmuxSocket(agent.userId);
-    const res = await this.#run(
-      agent.userId,
-      { cmd: ["sh", "-c", PROCESS_SCRIPT, "sh", socket, paneTarget(sessionOf(agent))] },
-      false,
-    );
-    return res?.code === 0 ? parseProcessOutput(res.stdout) : [];
-  }
-
-  async listPorts(agent: AgentRef): Promise<PortInfo[]> {
-    const pids = (await this.listProcesses(agent)).map((p) => `${p.pid}`);
-    if (pids.length === 0) return [];
-    const res = await this.#run(agent.userId, { cmd: ["sh", "-c", PORT_SCRIPT, "sh", ...pids] });
-    return res.code === 0 ? parsePortOutput(res.stdout) : [];
-  }
-
+  /** Removes the robot's sandbox (and everything in it); else kills its runner session. */
   async kill(agent: AgentRef): Promise<void> {
-    const procs = await this.listProcesses(agent);
-    await this.#tmux(agent.userId, ["kill-session", "-t", target(sessionOf(agent))], false);
+    if (this.sandboxes && (await this.sandboxes.remove(agent.agentId))) return;
+    const inRunner = { userId: agent.userId };
+    const procs = await this.runnerProcesses(agent);
+    await this.router.tmux(inRunner, ["kill-session", "-t", target(sessionOf(agent))], false);
     if (procs.length === 0) return;
-    await this.#run(agent.userId, {
+    await this.router.run(inRunner, {
       cmd: ["sh", "-c", 'kill -9 "$@" 2>/dev/null; exit 0', "sh", ...procs.map((p) => `${p.pid}`)],
     });
-  }
-
-  async readTextFile(user: RunnerUser, path: string): Promise<string | null> {
-    const res = await this.#run(
-      user.userId,
-      { cmd: ["sh", "-c", '[ -f "$1" ] || exit 44; exec cat -- "$1"', "sh", path] },
-      false,
-    );
-    if (!res || res.code === 44) return null;
-    if (res.code !== 0) throw new Error(`read ${path} failed: ${res.stderr.trim()}`);
-    return res.stdout;
-  }
-
-  async listDir(user: RunnerUser, path: string): Promise<string[]> {
-    const res = await this.#run(user.userId, { cmd: ["ls", "-A1", "--", path] }, false);
-    return res?.code === 0 ? res.stdout.split("\n").filter(Boolean).sort() : [];
   }
 
   #handle(userId: string, containerId: string): RunnerHandle {
@@ -343,65 +302,12 @@ export class DockerRunner implements Runner {
     };
   }
 
-  /** Container id for a human: cached, else looked up (and created when `create`). */
-  async #resolve(userId: string, create: boolean): Promise<string | null> {
-    const cached = this.#ids.get(userId);
-    if (cached) return cached;
-    const c = create
-      ? await this.containers.ensure(userId)
-      : await this.containers
-          .lookup(userId)
-          .then((found) => (found && !found.running ? this.containers.ensure(userId) : found));
-    if (c) this.#ids.set(userId, c.id);
-    return c?.id ?? null;
-  }
-
-  async #require(userId: string): Promise<string> {
-    const id = await this.#resolve(userId, false);
-    if (!id) throw new Error(`no runner container for user ${userId}`);
-    return id;
-  }
-
-  /** Exec in the human's runner; retries once if the cached container vanished or stopped. */
-  #run(userId: string, opts: ExecOptions): Promise<ExecResult>;
-  #run(userId: string, opts: ExecOptions, create: false): Promise<ExecResult | null>;
-  async #run(userId: string, opts: ExecOptions, create = true): Promise<ExecResult | null> {
-    for (let attempt = 0; ; attempt++) {
-      const id = await this.#resolve(userId, create);
-      if (!id) {
-        if (create) throw new Error(`no runner container for user ${userId}`);
-        return null;
-      }
-      try {
-        return await this.engine.exec(id, opts);
-      } catch (e) {
-        const stale = e instanceof DockerApiError && (e.status === 404 || e.status === 409);
-        if (!stale || attempt > 0) throw e;
-        this.#ids.delete(userId);
-      }
-    }
-  }
-
-  #tmux(userId: string, args: string[]): Promise<ExecResult>;
-  #tmux(userId: string, args: string[], create: false): Promise<ExecResult | null>;
-  #tmux(userId: string, args: string[], create = true): Promise<ExecResult | null> {
-    const cmd = ["tmux", "-S", this.containers.tmuxSocket(userId), ...args];
-    return create ? this.#run(userId, { cmd }) : this.#run(userId, { cmd }, false);
-  }
-
-  /** tmux against an existing runner; a missing runner is an error. */
-  async #tmuxOn(session: TmuxSessionRef, args: string[]): Promise<ExecResult> {
-    const res = await this.#tmux(session.userId, args, false);
-    if (!res) throw new Error(`no runner container for user ${session.userId}`);
-    return res;
-  }
-
-  async #writeFiles(userId: string, files: readonly PlannedFile[]): Promise<void> {
-    for (const file of files) await this.#writeFile(userId, file);
+  async #writeFiles(where: Where, files: readonly PlannedFile[]): Promise<void> {
+    for (const file of files) await this.#writeFile(where, file);
   }
 
   /** Write a file as the runner uid: contents on exec stdin (never argv), then a rename. */
-  async #writeFile(userId: string, file: PlannedFile): Promise<void> {
-    await writeFileExec(this.engine, await this.#require(userId), file);
+  async #writeFile(where: Where, file: PlannedFile): Promise<void> {
+    await writeFileExec(this.engine, await this.router.require(where), file);
   }
 }

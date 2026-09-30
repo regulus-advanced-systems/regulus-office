@@ -75,6 +75,33 @@ export function parseProcessOutput(output: string): ProcessInfo[] {
     .map(({ pid, ppid, command }) => ({ pid, ppid, command }));
 }
 
+/**
+ * `sh -c SCRIPT`: in a robot's own sandbox (#169) every process is the robot's,
+ * detached dev servers included. Prints the script's own pid, then one
+ * `/proc/<pid>/stat` line per process.
+ */
+export const SANDBOX_PROCESS_SCRIPT = [
+  'echo "$$"',
+  `for d in /proc/[0-9]*; do s=$(cat "$d/stat" 2>/dev/null) && printf '%s\\n' "$s"; done`,
+].join("\n");
+
+/**
+ * Processes of a sandbox, without its plumbing: the init (pid 1), the container's
+ * `sleep`, the tmux server, and the listing exec itself with its children.
+ */
+export function parseSandboxProcesses(output: string): ProcessInfo[] {
+  const [first, ...lines] = output.split("\n");
+  const self = Number(first?.trim());
+  const all = lines.map(parseStat).filter((p): p is StatLine => p !== null);
+  const plumbing = (p: StatLine) =>
+    p.pid === 1 ||
+    p.pid === self ||
+    p.ppid === self ||
+    (p.ppid === 1 && p.command === "sleep") ||
+    p.command.startsWith("tmux");
+  return all.filter((p) => !plumbing(p)).map(({ pid, ppid, command }) => ({ pid, ppid, command }));
+}
+
 /** Listening TCP sockets (`st == 0A`) owned by the given pids. */
 export function parsePortOutput(output: string): PortInfo[] {
   const [table = "", fds = ""] = output.split("--fds--");

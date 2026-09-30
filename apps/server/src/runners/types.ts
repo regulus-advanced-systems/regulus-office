@@ -1,7 +1,9 @@
 /**
  * Runner backends (SPEC §8): one runner identity per human, agents inside that
- * human's tmux server (SPEC §4.4). Implemented by `linux-user` (#22) and
- * `docker` (#23); `testing/local-tmux-runner.ts` is a test double.
+ * human's tmux server (SPEC §4.4), or, with per-agent sandboxes (D18, #169),
+ * each coding robot in its own sandbox of that identity (`Runner.sandbox`).
+ * Implemented by `linux-user` (#22) and `docker` (#23);
+ * `testing/local-tmux-runner.ts` is a test double.
  *
  * Adapters never see a `Runner` directly: the server binds one to a human and
  * passes it to them as `RunnerOps` (@regulus/agent-adapters), which is why the
@@ -10,6 +12,7 @@
  */
 import type { PipedProcess, RunnerOps, SpawnPlan } from "@regulus/agent-adapters";
 import type { BackendId, TerminalMode } from "@regulus/protocol";
+import type { PortRange } from "./sandbox.ts";
 
 /** The human whose runner is addressed. */
 export interface RunnerUser {
@@ -114,8 +117,40 @@ export interface MountedProject {
   workdir: string;
 }
 
+/** What a robot's sandbox is created for (#169). */
+export interface SandboxSpec {
+  /** The robot's working directory; its human's area on that floor is all the sandbox sees. */
+  workdir: string;
+}
+
+/** A robot's own sandbox (SPEC §8, D18, #169; see sandbox.ts). */
+export interface SandboxInfo {
+  userId: string;
+  agentId: string;
+  /**
+   * Where the office reaches the sandbox's ports (for the services proxy, #39): a
+   * host name on the runners network (docker) or an address on the sandbox bridge
+   * (linux-user). Nothing is published on the host.
+   */
+  host: string;
+  /** The sandbox's own ports; `PORT` is `first`. */
+  ports: PortRange;
+  /** When it was created (ms since epoch), when known. */
+  createdAt?: number;
+}
+
 export interface Runner {
   readonly backend: BackendId;
+
+  /**
+   * Create (idempotently) the robot's own sandbox (D18). From then on `exec` and
+   * `spawnPiped` of plans for `agent.agentId`, and every session, process and port
+   * call for it, run in that sandbox, and `kill` removes it. Absent or null: the
+   * backend runs agents in the human's runner (sandboxes turned off, test backend).
+   */
+  sandbox?(agent: AgentRef, spec: SandboxSpec): Promise<SandboxInfo | null>;
+  /** Every sandbox of this office, so orphans can be reaped. */
+  listSandboxes?(): Promise<SandboxInfo[]>;
 
   /** Create (idempotently) the human's runner identity, HOME and tmux server. */
   provision(user: RunnerUser): Promise<RunnerHandle>;
@@ -153,7 +188,7 @@ export interface Runner {
   listProcesses(agent: AgentRef): Promise<ProcessInfo[]>;
   /** Listening TCP ports of those processes (dev-server detection). */
   listPorts(agent: AgentRef): Promise<PortInfo[]>;
-  /** Kill the agent's session and every process it started. Idempotent. */
+  /** Kill the agent's session and every process it started, and remove its sandbox. Idempotent. */
   kill(agent: AgentRef): Promise<void>;
 
   /** Read a UTF-8 file as the runner identity; null when absent. */

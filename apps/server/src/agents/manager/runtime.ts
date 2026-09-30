@@ -22,6 +22,7 @@ import { type HeuristicRung, SessionWatcher } from "./ladder.ts";
 import { closeQuietly, type LaunchProfile, launchProfile } from "./launch.ts";
 import { DEFAULT_PERMISSION_TTL_MS, PendingPermissions } from "./permissions.ts";
 import { type AgentView, applyEvent, robotState, setStatus, viewFromRow } from "./robot.ts";
+import { reapSandboxes, SANDBOX_REAP_INTERVAL_MS } from "./sandbox-reaper.ts";
 import { type AgentRow, AgentStore, type RetentionPolicy } from "./store.ts";
 import { DbAgentTokens } from "./tokens.ts";
 
@@ -116,6 +117,7 @@ export class AgentRuntime implements AgentEventSink {
   protected readonly opts: AgentManagerOptions;
   protected readonly agents = new Map<string, LiveAgent>();
   protected countersTimer: ReturnType<typeof setTimeout> | undefined;
+  #sandboxReaper: ReturnType<typeof setInterval> | undefined;
 
   constructor(opts: AgentManagerOptions) {
     this.opts = opts;
@@ -290,8 +292,25 @@ export class AgentRuntime implements AgentEventSink {
     return this.agents.get(agentId)?.view;
   }
 
+  /**
+   * Remove orphaned robot sandboxes now and then every minute (sandbox-reaper.ts,
+   * #169). Started once robots are re-adopted at boot.
+   */
+  async reapSandboxes(): Promise<void> {
+    if (!this.runner.listSandboxes) return;
+    const reap = () =>
+      reapSandboxes(this).catch((err) =>
+        this.logger.warn({ err: String(err) }, "sandbox reap failed"),
+      );
+    await reap();
+    this.#sandboxReaper ??= setInterval(() => void reap(), SANDBOX_REAP_INTERVAL_MS);
+    this.#sandboxReaper.unref?.();
+  }
+
   /** Detach from every agent without stopping any (office shutdown). */
   async close(): Promise<void> {
+    if (this.#sandboxReaper) clearInterval(this.#sandboxReaper);
+    this.#sandboxReaper = undefined;
     this.watcher.stop();
     this.permissions.dispose();
     if (this.countersTimer) clearTimeout(this.countersTimer);
