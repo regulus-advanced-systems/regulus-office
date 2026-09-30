@@ -378,8 +378,9 @@ test("3b. the robot's bones move while it works and hold still while it waits (#
   expect(working.length, report).toBeGreaterThan(0);
   expect(Math.max(...working.map((s) => s.maxDeg)), report).toBeGreaterThan(3);
   // Seated and not working (starting, idle, waiting with the hand up): still, to a tenth of a degree.
+  // At least two frames past the crossfade: CI renders the scene in software at a few fps.
   const calm = segments.filter(
-    (s) => /^(starting|idle|waiting_permission)\/\w+\/sit_idle\//.test(s.key) && s.frames > 5,
+    (s) => /^(starting|idle|waiting_permission)\/\w+\/sit_idle\//.test(s.key) && s.frames >= 2,
   );
   expect(calm.length, report).toBeGreaterThan(0);
   for (const s of calm) expect(s.maxDeg, report).toBeLessThan(0.1);
@@ -447,7 +448,7 @@ test("5b. once the celebration is over the done robot sits still (#159)", async 
   expect(still.keys, JSON.stringify(still)).toEqual([
     expect.stringMatching(/^done\/\w+\/sit_idle\/-$/),
   ]);
-  expect(still.frames, JSON.stringify(still)).toBeGreaterThan(5);
+  expect(still.frames, JSON.stringify(still)).toBeGreaterThanOrEqual(2);
   expect(still.maxDeg, JSON.stringify(still)).toBeLessThan(0.1);
 });
 
