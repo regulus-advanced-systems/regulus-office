@@ -26,7 +26,7 @@ import {
   sh,
 } from "./agentOffice.ts";
 import { collectTerminalOutput, history, recordRobots, robots, scenePoint } from "./agentProbes.ts";
-import { boneSegments, recordBones, sampleBones } from "./boneProbes.ts";
+import { type BoneSegment, boneSegments, recordBones, sampleBones } from "./boneProbes.ts";
 import { checkLaptopCopy, checkLoginTerminalCopy, checkRobotTerminalCopy } from "./copyChecks.ts";
 import { type FakeGitHub, startFakeGitHub } from "./fakeGitHub.ts";
 import { createRemoteRepo } from "./gitRemote.ts";
@@ -219,6 +219,15 @@ async function openRobotPanel(page: Page): Promise<void> {
 
 const robotOn = async (page: Page) => (await robots(page))[agentId];
 
+/** Runs of the recording in which the robot sat typing at its laptop long enough to judge. */
+const typing = (segments: BoneSegment[]) =>
+  segments.filter((s) => /^working\/\w+\/sit_type\//.test(s.key) && s.ms >= 500);
+
+/** Lets the fake `claude` stop editing and ask for permission (tests/e2e/runner/claude). */
+function letFakeAsk(): void {
+  sh("docker", ["exec", sandboxName(), "sh", "-c", 'touch "$HOME/.fake-claude-ask"']);
+}
+
 // ---- the flow ------------------------------------------------------------------------------
 
 test("the owner, an invited member and an invited admin sign in", async () => {
@@ -357,6 +366,13 @@ test("3. the robot's status and action change (editing) and it raises its hand",
   expect(seen.findIndex((s) => s.startsWith("working/thinking/"))).toBeLessThan(
     seen.findIndex((s) => s.startsWith("working/editing/")),
   );
+  // The fake keeps editing until told (#179). The robot starts typing once the action has held
+  // for 1.5 s, and a software-rendered CI page gets the status late and draws a few frames a
+  // second: wait until this page has drawn the typing clip moving the bones (3b), then go on.
+  const typed = async () =>
+    Math.max(0, ...typing(await boneSegments(ownerPage, agentId)).map((s) => s.maxDeg));
+  await expect.poll(typed, { timeout: 60_000 }).toBeGreaterThan(3);
+  letFakeAsk();
   for (const page of [ownerPage, memberPage]) {
     await expect
       .poll(async () => {
@@ -390,7 +406,7 @@ test("3b. the robot's bones move while it works and hold still while it waits (#
     contentType: "application/json",
   });
   // Working at the laptop (typing/editing) animates the arms and head.
-  const working = segments.filter((s) => /^working\/\w+\/sit_type\//.test(s.key) && s.ms >= 500);
+  const working = typing(segments);
   expect(working.length, report).toBeGreaterThan(0);
   expect(Math.max(...working.map((s) => s.maxDeg)), report).toBeGreaterThan(3);
   // Seated and not working (starting, idle, waiting with the hand up): still, to a tenth of a degree.
