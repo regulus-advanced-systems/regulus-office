@@ -37,3 +37,6 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 test-results
 playwright-report
 blob-report
+
+# Off-volume backups (scripts/setup.sh creates the directory)
+deploy/backups/

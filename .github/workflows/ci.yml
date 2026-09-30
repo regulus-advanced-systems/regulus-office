@@ -135,6 +135,8 @@ jobs:
           echo "::add-mask::$auth"; echo "::add-mask::$key"
           sed -e "s|^BETTER_AUTH_SECRET=.*|BETTER_AUTH_SECRET=$auth|" \
               -e "s|^OFFICE_MASTER_KEY=.*|OFFICE_MASTER_KEY=$key|" .env.example > .env
+          # The backup service's host directory, as in the README Quickstart.
+          sudo install -d -m 700 -o 1000 -g 1000 backups
       - run: docker compose build
       - run: docker compose up -d --wait --wait-timeout 120
       - name: /healthz through Caddy
@@ -147,6 +149,15 @@ jobs:
           curl -fsSk https://localhost/login | grep -q '<div id="root">'
       - name: Office image runs as a non-root user
         run: test "$(docker compose exec -T office id -u)" != "0"
+      # #203: a backup on start into the host directory; uid 1000, no socket, no network.
+      - name: Backup service
+        run: |
+          test "$(docker compose exec -T backup id -u)" = 1000
+          if docker compose exec -T backup test -e /var/run/docker.sock; then
+            echo "backup has the Docker socket" >&2; exit 1
+          fi
+          test "$(docker inspect -f '{{.HostConfig.NetworkMode}} {{.HostConfig.ReadonlyRootfs}}' regulus-ci-backup-1)" = "none true"
+          sudo find backups -name 'office-*.db' | grep -q .
       # SPEC §8: only docker-proxy mounts the socket; the office reaches a filtered Engine API.
       - name: Docker API only through the filtered proxy
         run: |
@@ -215,7 +226,7 @@ jobs:
       COMPOSE_PROJECT_NAME: regulus-setup
     steps:
       - uses: actions/checkout@v4
-      - run: shellcheck scripts/setup.sh scripts/backup.sh
+      - run: shellcheck scripts/setup.sh scripts/backup.sh scripts/backup-schedule.sh scripts/restore.sh scripts/restore-db.sh
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
@@ -243,10 +254,22 @@ jobs:
           grep -E '^(BETTER_AUTH_SECRET|OFFICE_MASTER_KEY)=' deploy/.env | sha256sum > "$RUNNER_TEMP/secrets.sha"
           curl -fsSk https://localhost/healthz; echo
           curl -fsSk https://localhost/login | grep -q '<div id="root">'
-      - name: Re-run keeps the secrets
+      # #203: backups go to deploy/backups on the host (mode 700, uid 1000, gitignored), not the
+      # data volume; the service took one on start and is healthy.
+      - name: Backups outside the data volume
+        run: |
+          test "$(sudo stat -c '%a %u' deploy/backups)" = "700 1000"
+          git check-ignore -q deploy/backups/
+          sudo find deploy/backups -name 'office-*.db' | grep -q .
+          sudo find deploy/backups -type f -exec sha256sum {} + | sort > "$RUNNER_TEMP/backups.sha"
+          test "$(docker compose -f deploy/docker-compose.yml ps --format '{{.Health}}' backup)" = healthy
+          test "$(docker compose -f deploy/docker-compose.yml exec -T backup id -u)" = 1000
+          test "$(docker inspect -f '{{.HostConfig.NetworkMode}} {{.HostConfig.ReadonlyRootfs}}' regulus-setup-backup-1)" = "none true"
+      - name: Re-run keeps the secrets and the backups
         run: |
           scripts/setup.sh --non-interactive
           grep -E '^(BETTER_AUTH_SECRET|OFFICE_MASTER_KEY)=' deploy/.env | sha256sum -c "$RUNNER_TEMP/secrets.sha"
+          sudo sha256sum -c "$RUNNER_TEMP/backups.sha"
       - name: A truncated secret is refused, not replaced
         run: |
           cp deploy/.env "$RUNNER_TEMP/env.bak"
@@ -261,6 +284,25 @@ jobs:
         run: |
           scripts/setup.sh --upgrade --non-interactive
           curl -fsSk https://localhost/healthz; echo
+      # #203, as on 2026-09-30: the data volume is deleted. The backups survive it, and
+      # scripts/restore.sh (the README steps) brings the seeded owner back.
+      - name: Backup, lose the data volume, restore
+        run: |
+          users() { docker compose -f deploy/docker-compose.yml exec -T backup sqlite3 /data/office.db "select group_concat(email) from users"; }
+          test "$(users)" = ci-owner@example.com
+          docker compose -f deploy/docker-compose.yml exec -T backup scripts/backup.sh | tee "$RUNNER_TEMP/backup.txt"
+          name="$(sed -n 's|^backup: wrote /backups/||p' "$RUNNER_TEMP/backup.txt")"
+          test -n "$name"
+          docker compose -f deploy/docker-compose.yml rm --stop --force office backup caddy
+          docker volume rm regulus-setup_office-data
+          sudo test -f "deploy/backups/$name"
+          docker compose -f deploy/docker-compose.yml up -d --wait --wait-timeout 180 --no-build
+          test -z "$(users)"
+          scripts/restore.sh
+          scripts/restore.sh -y "$name"
+          test "$(users)" = ci-owner@example.com
+          curl -fsSk https://localhost/healthz; echo
+          docker compose -f deploy/docker-compose.yml exec -T backup sh -c 'ls /data/office.db.before-restore-*'
       - name: Compose logs
         if: failure()
         working-directory: deploy

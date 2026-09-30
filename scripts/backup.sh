@@ -8,8 +8,13 @@
 #   OFFICE_BACKUP_DIR             where backups go (default: $OFFICE_DATA_DIR/backups)
 #   OFFICE_BACKUP_RETENTION_DAYS  delete backups older than this many days (default: 14; 0 keeps all)
 #
+# In Compose the `backup` service runs this nightly into a host directory (scripts/backup-schedule.sh);
+# `docker compose exec backup scripts/backup.sh` takes one now. scripts/restore.sh puts one back.
+#
 # Usage: scripts/backup.sh [db-path]
 set -euo pipefail
+# Backups hold everything the database holds (sessions, encrypted keys): owner-only files.
+umask 077
 
 DATA_DIR="${OFFICE_DATA_DIR:-./data}"
 DB_PATH="${1:-${OFFICE_DB_PATH:-$DATA_DIR/office.db}}"

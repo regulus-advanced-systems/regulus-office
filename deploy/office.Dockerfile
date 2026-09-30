@@ -20,8 +20,9 @@ COPY packages ./packages
 RUN bun run --filter '@regulus/web' build
 
 FROM oven/bun:${BUN_VERSION}-slim AS runtime
-# git clones floor repos and pushes branches (SPEC §8 floor workdirs); ca-certificates for HTTPS.
-RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates \
+# git clones floor repos and pushes branches (SPEC §8 floor workdirs); ca-certificates for HTTPS;
+# sqlite3 for the `backup` service (scripts/backup.sh, #203), which runs this image.
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates sqlite3 \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 ENV NODE_ENV=production \
@@ -44,6 +45,7 @@ COPY packages/agent-adapters ./packages/agent-adapters
 COPY packages/floor-layout ./packages/floor-layout
 COPY packages/protocol ./packages/protocol
 COPY --from=build /app/apps/web/dist ./apps/web/dist
+COPY scripts/backup.sh scripts/backup-schedule.sh scripts/restore-db.sh ./scripts/
 # /data is the SQLite + blob volume; owned by `bun` so a fresh named volume inherits it.
 # Floor workdirs are shared with runner containers (uid 1001, gid 1001; runner/Dockerfile)
 # through group 1001: `bun` is a member, and the roots are setgid 2775 so everything created
