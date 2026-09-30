@@ -61,12 +61,20 @@ export function insideViewport(layout: DialogLayout): boolean {
   );
 }
 
-/** Waits for the dialog's open animation to settle before measuring. */
-export async function settledDialogLayout(page: Page, dialog: Locator): Promise<DialogLayout> {
+/**
+ * Waits for the dialog's open animation (`rg-pop`, a scale from 0.96) to finish. Until then
+ * every `getBoundingClientRect` inside the dialog is scaled down by up to 4 %.
+ */
+export async function dialogSettled(page: Page, dialog: Locator): Promise<void> {
   await dialog.waitFor();
   await page.waitForFunction(
     (el) => (el as HTMLElement).getAnimations().every((a) => a.playState !== "running"),
     await dialog.elementHandle(),
   );
+}
+
+/** Waits for the dialog's open animation to settle before measuring. */
+export async function settledDialogLayout(page: Page, dialog: Locator): Promise<DialogLayout> {
+  await dialogSettled(page, dialog);
   return dialogLayout(dialog);
 }
