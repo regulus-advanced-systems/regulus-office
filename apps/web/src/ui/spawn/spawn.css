@@ -1,11 +1,7 @@
 /* Spawn dialog (SPEC §12 GDT modal, #142): repo, model and effort as radio
-   cards, "More options" collapsed. The body scrolls between the title and the
-   buttons, so the buttons and the round X never leave the screen. */
-.rg-modal:has(> .rg-modal__body > .rg-spawn) {
-  overflow: visible;
-  display: flex;
-  flex-direction: column;
-}
+   cards, "More options" collapsed. The Modal body (#149) is a flex column here
+   so the form's own scroller sits between the title and the Spawn/Cancel row,
+   which is part of the form and must stay on screen. */
 .rg-modal__body:has(> .rg-spawn) {
   display: flex;
   flex-direction: column;

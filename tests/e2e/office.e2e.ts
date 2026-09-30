@@ -4,14 +4,16 @@
  * reach /office and see each other, one walks and the other sees it move,
  * chat crosses between them, the first-person view toggles on V and back,
  * the owner's robot turns to follow the mouse and walks face-first to a click,
- * the owner adds a floor bound to a (local) repo and rides to it, and
- * clicking a free desk there opens the spawn dialog, whose agent.spawn gets
+ * the owner adds a floor bound to a (local) repo and rides to it, Floor
+ * settings and Add floor fit a 1280×720 window with the round X in view
+ * (#149), and clicking a free desk there opens the spawn dialog, whose agent.spawn gets
  * an answer from the server (no agent CLI runs in e2e).
  *
  * Runs against office-server in production mode (see playwright.config.ts),
  * so room joins are authorised by the Better Auth session cookie only.
  */
 import { type BrowserContext, expect, type Page, test } from "@playwright/test";
+import { insideViewport, settledDialogLayout } from "./dialogLayout.ts";
 import { createRemoteRepo } from "./gitRemote.ts";
 import {
   angleBetween,
@@ -293,6 +295,32 @@ test("the owner adds a floor from a repo and rides the elevator to it and back",
   await expect(ownerPage.locator(".rg-topbar__floor")).toHaveText("Lobby");
   await expect.poll(() => floorSize(ownerPage)).toBe(lobbySize);
   await expect.poll(() => remoteHumans(memberPage)).toHaveLength(1);
+});
+
+test("Floor settings and Add floor fit a 1280×720 window with the X in view", async () => {
+  test.skip(!process.env.E2E_DATA_DIR, "needs the floor from the previous step");
+  await ownerPage.bringToFront();
+  await ownerPage.setViewportSize({ width: 1280, height: 720 });
+  const elevator = ownerPage.getByRole("navigation", { name: "Elevator" });
+  const dialogs = [
+    {
+      name: "Floor settings",
+      opener: elevator.getByRole("button", { name: "Floor settings: Apollo" }),
+    },
+    { name: "Add floor", opener: elevator.getByRole("button", { name: "Add floor…" }) },
+  ];
+  for (const { name, opener } of dialogs) {
+    await opener.click();
+    const dialog = ownerPage.getByRole("dialog", { name });
+    const layout = await settledDialogLayout(ownerPage, dialog);
+    expect(insideViewport(layout), `${name}: X inside the viewport`).toBe(true);
+    expect(layout.closeHittable, `${name}: X not clipped or covered`).toBe(true);
+    expect(layout.horizontalOverflow, `${name}: no horizontal scrollbar`).toEqual([]);
+    expect(layout.frameScrolls, `${name}: only the body scrolls`).toBe(false);
+    await dialog.getByRole("button", { name: "Close", exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+  }
+  await ownerPage.setViewportSize({ width: 1280, height: 800 });
 });
 
 test("clicking a free desk opens the spawn dialog and the server answers agent.spawn", async () => {

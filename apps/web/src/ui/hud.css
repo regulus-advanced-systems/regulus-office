@@ -13,10 +13,11 @@
   top: 12px;
   left: 50%;
   transform: translateX(-50%);
-  min-width: 320px;
-  max-width: calc(100vw - 32px);
+  min-width: min(320px, 100%);
+  /* Of its container, not the window: the ui-kit previews it inside a row. */
+  max-width: calc(100% - 32px);
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 18px;
   padding: 8px 18px;

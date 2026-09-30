@@ -172,15 +172,22 @@
 }
 .rg-range {
   width: 100%;
+  /* Chrome's default 2px side margin would poke past a 100% wide parent. */
+  margin-inline: 0;
   accent-color: var(--rg-color-blue);
 }
 
-/* ---------- Modal: golden border on warm off-white with cream glow ---------- */
+/* ---------- Modal: golden border on warm off-white with cream glow ----------
+   Layout (#149): the frame never scrolls and never clips, so the round X that
+   overlaps its top-right corner is always whole. Title and footer stay put;
+   only the body scrolls, vertically, and nothing in it may push it sideways. */
 .rg-backdrop {
   position: fixed;
   inset: 0;
-  display: grid;
-  place-items: center;
+  display: flex;
+  /* If the frame is ever taller than the window, scroll the backdrop rather
+     than push the title off the top (margin: auto on the frame, not centring). */
+  overflow: auto;
   padding: 24px;
   background: rgba(240, 227, 189, 0.55);
   backdrop-filter: blur(2px);
@@ -189,9 +196,12 @@
 }
 .rg-modal {
   position: relative;
+  display: flex;
+  flex-direction: column;
+  margin: auto;
   width: min(100%, var(--rg-modal-width, 520px));
-  max-height: calc(100vh - 48px);
-  overflow: auto;
+  min-width: min(360px, 100%);
+  overflow: visible;
   background: var(--rg-color-modal-surface);
   border: 4px solid var(--rg-color-gold);
   border-radius: 14px;
@@ -199,12 +209,18 @@
   padding: 22px 26px 22px;
   animation: rg-pop var(--rg-motion-fade) ease both;
 }
+.rg-backdrop > .rg-modal {
+  max-height: 100%;
+}
 .rg-modal__close {
   position: absolute;
+  /* Less than the backdrop's 24px padding, so the X stays inside the window. */
   top: -16px;
   right: -16px;
+  z-index: 1;
 }
 .rg-modal__title {
+  flex: none;
   margin: 0 0 12px;
   padding-bottom: 8px;
   font-size: 32px;
@@ -212,15 +228,63 @@
   line-height: 1.15;
   color: var(--rg-color-ink);
   border-bottom: 1px solid var(--rg-color-navy);
+  overflow-wrap: anywhere;
 }
 .rg-modal__body {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  /* Room for focus rings at the edges of the scrolling area. */
+  margin: -4px -8px;
+  padding: 4px 8px;
   font-size: 14px;
+  overflow-wrap: break-word;
+}
+/* Soft shadows at the top/bottom edge of a scroller while there is more to scroll. */
+.rg-modal__body,
+.rg-scroll-shadows {
+  background:
+    linear-gradient(var(--rg-color-modal-surface) 30%, rgba(255, 249, 239, 0)) center top / 100%
+    28px no-repeat local,
+    linear-gradient(rgba(255, 249, 239, 0), var(--rg-color-modal-surface) 70%) center bottom / 100%
+    28px no-repeat local,
+    radial-gradient(farthest-side at 50% 0, rgba(28, 36, 72, 0.14), transparent) center top / 100%
+    10px no-repeat scroll,
+    radial-gradient(farthest-side at 50% 100%, rgba(28, 36, 72, 0.14), transparent) center bottom /
+    100% 10px no-repeat scroll;
+}
+/* Wide children shrink or wrap instead of widening the body. */
+.rg-modal__body :where(img, video, canvas, svg, table, pre, input, select, textarea) {
+  max-width: 100%;
+}
+.rg-modal__body :where(pre) {
+  white-space: pre-wrap;
+}
+.rg-modal__body :where(fieldset) {
+  min-width: 0;
 }
 .rg-modal__footer {
+  flex: none;
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: 10px;
   margin-top: 18px;
+}
+@media (max-height: 640px), (max-width: 520px) {
+  .rg-modal {
+    padding: 16px 20px;
+  }
+  .rg-modal__title {
+    font-size: 26px;
+    margin-bottom: 10px;
+  }
+  .rg-modal__footer {
+    margin-top: 14px;
+  }
 }
 
 /* ---------- Toasts: small golden-bordered cards with an icon ---------- */
