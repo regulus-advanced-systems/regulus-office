@@ -1,12 +1,15 @@
 /**
  * Integration: the Claude adapter plans a spawn whose `claude` is a fake
- * script; LocalTmuxRunner runs it in tmux; it POSTs a hook and runs the
- * generated statusline forwarder against a real office server on port 0; the
- * events land in a MemoryEventSink. Skipped without tmux or curl.
+ * script; LocalTmuxRunner runs it in tmux; it runs the generated command hook
+ * and statusline forwarders against a real office server on port 0; the
+ * events land in a MemoryEventSink. The fake refuses http hooks to private
+ * addresses like Claude Code does, so the office is also served on a private
+ * interface address when the host has one (#162: Compose runners reach the
+ * office at `office` → 172.x). Skipped without tmux or curl.
  */
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { networkInterfaces, tmpdir } from "node:os";
 import { join } from "node:path";
 import { ClaudeCodeAdapter, Secret } from "@regulus/agent-adapters";
 import { createOfficeServer, type OfficeServer } from "../../http/server.ts";
@@ -19,6 +22,17 @@ import { MemoryAgentTokens } from "./tokens.ts";
 
 const FAKE_CLAUDE = join(import.meta.dir, "testing", "fake-claude.sh");
 const user = { userId: "u1" };
+
+/** A non-loopback private IPv4 of this host (Claude Code refuses http hooks to these). */
+function privateAddress(): string | undefined {
+  const all = Object.values(networkInterfaces()).flatMap((list) => list ?? []);
+  return all.find(
+    (a) =>
+      a.family === "IPv4" &&
+      !a.internal &&
+      /^(10|172\.(1[6-9]|2\d|3[01])|192\.168)\./.test(a.address),
+  )?.address;
+}
 
 describe.skipIf(!hasTmux() || !Bun.which("curl"))("claude hooks end to end (tmux)", () => {
   let runner: LocalTmuxRunner;
@@ -47,47 +61,64 @@ describe.skipIf(!hasTmux() || !Bun.which("curl"))("claude hooks end to end (tmux
     await rm(workdir, { recursive: true, force: true });
   });
 
-  test("a hook and a statusline from the runner reach the sink", async () => {
-    const sink = new MemoryEventSink();
-    const tokens = new MemoryAgentTokens();
-    const adapter = new ClaudeCodeAdapter({ command: FAKE_CLAUDE });
-    mountClaudeHookRoutes(server.router, { sink, tokens, adapter });
-    const token = tokens.issue("a1");
-    const handle = await runner.provision(user);
-    const ctx = {
-      backend: runner.backend,
-      userId: user.userId,
-      home: handle.home,
-      officeUrl: `http://127.0.0.1:${server.port}`,
-      agentToken: Secret.of(token),
-      runner: bindRunnerOps(runner, user),
-      now: Date.now,
-    };
-    const plan = adapter.buildSpawn(
-      { agentId: "a1", provider: "claude-code", workdir, credential: { kind: "cli_login" } },
-      ctx,
-    );
-    const started = sink.next((e) => e.kind === "status" && e.status === "idle", "a1");
-    const limit = sink.next((e) => e.kind === "limit", "a1");
-    await runner.exec(user, plan);
+  const hosts = ["127.0.0.1", privateAddress()].filter((h): h is string => Boolean(h));
+  test.each(hosts)(
+    "a hook and a statusline from the runner reach the sink (office on %s)",
+    async (host) => {
+      if (host !== "127.0.0.1") {
+        await server.stop(true);
+        server = createOfficeServer({
+          config: { port: 0, host, webDist: missingDist },
+          logger: createLogger({
+            level: "debug",
+            destination: { write: (l: string) => logLines.push(l) },
+          }),
+          version: "test",
+        });
+      }
+      const sink = new MemoryEventSink();
+      const tokens = new MemoryAgentTokens();
+      const adapter = new ClaudeCodeAdapter({ command: FAKE_CLAUDE });
+      mountClaudeHookRoutes(server.router, { sink, tokens, adapter });
+      const token = tokens.issue("a1");
+      const handle = await runner.provision(user);
+      const ctx = {
+        backend: runner.backend,
+        userId: user.userId,
+        home: handle.home,
+        officeUrl: `http://${host}:${server.port}`,
+        agentToken: Secret.of(token),
+        runner: bindRunnerOps(runner, user),
+        now: Date.now,
+      };
+      const plan = adapter.buildSpawn(
+        { agentId: "a1", provider: "claude-code", workdir, credential: { kind: "cli_login" } },
+        ctx,
+      );
+      const started = sink.next((e) => e.kind === "status" && e.status === "idle", "a1");
+      const limit = sink.next((e) => e.kind === "limit", "a1");
+      await runner.exec(user, plan);
 
-    expect(await started).toMatchObject({ kind: "status", status: "idle" });
-    expect(await limit).toMatchObject({ windowKind: "five_hour", usedPct: 12 });
-    expect(sink.for("a1").some((e) => e.kind === "usage")).toBe(true);
-    expect(adapter.connect(plan, ctx).providerSessionId()).toBe(plan.providerSessionId as string);
+      expect(await started).toMatchObject({ kind: "status", status: "idle" });
+      expect(await limit).toMatchObject({ windowKind: "five_hour", usedPct: 12 });
+      expect(sink.for("a1").some((e) => e.kind === "usage")).toBe(true);
+      expect(adapter.connect(plan, ctx).providerSessionId()).toBe(plan.providerSessionId as string);
 
-    let pane = "";
-    for (let i = 0; i < 100 && !pane.includes("FAKE CLAUDE DONE"); i++) {
-      pane = await runner.capturePane({ userId: user.userId, name: plan.tmuxSession }, 50);
-      await Bun.sleep(20);
-    }
-    expect(pane).toContain("FAKE CLAUDE hook 204");
-    expect(pane).toContain("Regulus Office | Fake");
-    expect(pane).not.toContain(token);
+      let pane = "";
+      for (let i = 0; i < 100 && !pane.includes("FAKE CLAUDE DONE"); i++) {
+        pane = await runner.capturePane({ userId: user.userId, name: plan.tmuxSession }, 50);
+        await Bun.sleep(20);
+      }
+      expect(pane).toContain("FAKE CLAUDE hook SessionStart (command) -> exit 0");
+      expect(pane).not.toContain("hook error");
+      expect(pane).toContain("Regulus Office | Fake");
+      expect(pane).not.toContain(token);
 
-    const logs = logLines.join("\n");
-    expect(logs).toContain("/api/agents/:agentId/hooks/claude");
-    expect(logs).toContain("/api/agents/:agentId/statusline");
-    expect(logs).not.toContain(token);
-  }, 15_000);
+      const logs = logLines.join("\n");
+      expect(logs).toContain("/api/agents/:agentId/hooks/claude");
+      expect(logs).toContain("/api/agents/:agentId/statusline");
+      expect(logs).not.toContain(token);
+    },
+    15_000,
+  );
 });

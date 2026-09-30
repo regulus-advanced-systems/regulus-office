@@ -6,14 +6,18 @@
  * fake GitHub on 127.0.0.1.
  *
  * Runners mount only their human's own area under the worktrees dir (the default floor root).
- * Runners use host networking, so the fake agent's hooks reach the office on 127.0.0.1; they run
- * as the host user's uid:gid (never root) so they can write the worktrees the office creates.
+ * Runners use host networking and run as the host user's uid:gid (never root) so they can write
+ * the worktrees the office creates. They reach the office on a private address of this host,
+ * like Compose runners reach `office` on 172.x (#162): the office listens on 127.0.0.1 only, and
+ * a TCP relay on `<private address>:<port>` forwards to it. The fake `claude` refuses http hooks
+ * to private addresses as Claude Code does, so the hooks must work from a private address.
  * Every container and volume is labelled with a per-run prefix and removed by {@link cleanup}.
  */
 import { type ChildProcess, execFileSync, spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { createWriteStream, mkdirSync, readFileSync } from "node:fs";
-import { userInfo } from "node:os";
+import { connect, createServer, type Server, type Socket } from "node:net";
+import { networkInterfaces, userInfo } from "node:os";
 import { join, resolve } from "node:path";
 
 const ROOT = resolve(import.meta.dirname, "../..");
@@ -75,6 +79,45 @@ export function cleanupRunners(prefix: string): void {
   if (volumes.length) sh("docker", ["volume", "rm", ...volumes]);
 }
 
+/** A non-loopback private IPv4 of this host, where Claude Code refuses http hooks (#162). */
+export function privateHostAddress(): string {
+  const all = Object.values(networkInterfaces()).flatMap((list) => list ?? []);
+  const found = all.find(
+    (a) =>
+      a.family === "IPv4" &&
+      !a.internal &&
+      /^(10|172\.(1[6-9]|2\d|3[01])|192\.168)\./.test(a.address),
+  );
+  if (!found) throw new Error("the agents e2e needs a private IPv4 address on this host");
+  return found.address;
+}
+
+/** Forwards `host:port` to `127.0.0.1:port` (survives office restarts). */
+async function startRelay(host: string, port: number): Promise<{ close(): Promise<void> }> {
+  const sockets = new Set<Socket>();
+  const relay: Server = createServer((inbound) => {
+    const outbound = connect(port, "127.0.0.1");
+    for (const socket of [inbound, outbound]) {
+      sockets.add(socket);
+      socket.once("close", () => sockets.delete(socket));
+    }
+    inbound.pipe(outbound).pipe(inbound);
+    inbound.on("error", () => outbound.destroy());
+    outbound.on("error", () => inbound.destroy());
+  });
+  await new Promise<void>((resolve, reject) => {
+    relay.once("error", reject);
+    relay.listen(port, host, () => resolve());
+  });
+  return {
+    close: () =>
+      new Promise<void>((resolve) => {
+        relay.close(() => resolve());
+        for (const socket of sockets) socket.destroy();
+      }),
+  };
+}
+
 export interface AgentOfficeOptions {
   dataDir: string;
   port: number;
@@ -102,6 +145,8 @@ async function waitForHttp(url: string, timeoutMs: number, alive: () => boolean)
 /** One office-server process over a fixed data dir; start/stop/restart keep the same state. */
 export class AgentOffice {
   readonly baseURL: string;
+  /** What runners use: a private address of this host (see the module comment). */
+  readonly runnerOfficeUrl: string;
   readonly logFile: string;
   readonly projectsDir: string;
   readonly worktreesDir: string;
@@ -110,9 +155,11 @@ export class AgentOffice {
   #proc: ChildProcess | null = null;
   #exited: Promise<void> = Promise.resolve();
   #starts = 0;
+  #relay: { close(): Promise<void> } | null = null;
 
   constructor(readonly opts: AgentOfficeOptions) {
     this.baseURL = `http://127.0.0.1:${opts.port}`;
+    this.runnerOfficeUrl = `http://${privateHostAddress()}:${opts.port}`;
     this.logFile = join(opts.dataDir, "office-server.log");
     this.projectsDir = join(opts.dataDir, "projects");
     this.worktreesDir = join(opts.dataDir, "worktrees");
@@ -139,7 +186,7 @@ export class AgentOffice {
       OFFICE_MASTER_KEY: process.env.OFFICE_MASTER_KEY ?? secret(),
       OFFICE_RUNNER_BACKEND: "docker",
       OFFICE_RUNNER_IMAGE: RUNNER_IMAGE,
-      OFFICE_RUNNER_OFFICE_URL: this.baseURL,
+      OFFICE_RUNNER_OFFICE_URL: this.runnerOfficeUrl,
       OFFICE_DOCKER_RUNNER_PREFIX: opts.prefix,
       OFFICE_DOCKER_RUNNER_USER: runnerUser(),
       OFFICE_DOCKER_RUNNER_NETWORK: "host",
@@ -157,6 +204,7 @@ export class AgentOffice {
 
   async start(): Promise<void> {
     if (this.running) throw new Error("office-server already running");
+    this.#relay ??= await startRelay(new URL(this.runnerOfficeUrl).hostname, this.opts.port);
     this.#starts += 1;
     const log = createWriteStream(this.logFile, { flags: "a" });
     log.write(`\n===== start #${this.#starts} =====\n`);
@@ -181,6 +229,14 @@ export class AgentOffice {
     await this.#exited;
     clearTimeout(killed);
     this.#proc = null;
+  }
+
+  /** Stops the server and the relay. */
+  async close(): Promise<void> {
+    await this.stop();
+    const relay = this.#relay;
+    this.#relay = null;
+    await relay?.close();
   }
 
   async restart(): Promise<void> {

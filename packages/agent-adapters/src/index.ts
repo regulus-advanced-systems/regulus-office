@@ -6,7 +6,7 @@
  * - registry.ts  AdapterRegistry keyed by ProviderId
  * - session.ts   tmux session naming (`agent-<agentId>`)
  * - async-queue.ts  push queue backing `AgentControl.events`
- * - claude-code/ Claude Code adapter (tmux TUI + http hooks + statusline forwarder)
+ * - claude-code/ Claude Code adapter (tmux TUI + command-hook and statusline forwarders)
  * - codex/       Codex adapter (app-server JSON-RPC)
  * - testing/     FakeAdapter and an in-memory RunnerContext for tests
  */

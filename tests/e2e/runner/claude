@@ -3,8 +3,9 @@
 # network access beyond the office's hook URL, and never reads or writes any credentials.
 #
 # Like apps/server/src/agents/hooks/testing/fake-claude.sh it reads the --settings file the
-# Claude adapter generated and POSTs documented hook payloads to its http hook URL with the
-# configured Authorization header (copied into a 0600 file, never printed or put in argv):
+# Claude adapter generated and runs the registered hooks the way Claude Code does
+# (claude-hooks.sh, next to this script): command hooks get the payload on stdin, and http hooks
+# to a private or link-local address are refused with Claude Code's own error (#162). Payloads:
 #   SessionStart, UserPromptSubmit, PreToolUse(Edit), then PermissionRequest(Edit), whose
 #   response is held by the office until someone answers the permission prompt.
 # On "allow" it makes the edit, commits it in its worktree (the cwd) and posts PostToolUse and
@@ -14,10 +15,10 @@
 # a moment, like the real CLI, so the check is still running when the spec spawns (#126).
 #
 # Diagnostics (#130): its stderr, plus a timestamped trace of what it did and each hook's HTTP
-# status, is appended to $HOME/fake-claude.stderr, which the spec collects when a test fails. The
-# trace never holds the hook token (it stays in the 0600 headers file).
+# result, is appended to $HOME/fake-claude.stderr, which the spec collects when a test fails. The
+# trace never holds the hook token (it stays in the adapter's 0600 headers file).
 trace_file="${HOME:-/tmp}/fake-claude.stderr"
-exec 2>>"$trace_file"
+exec 3>&1 2>>"$trace_file"
 trace() { printf '%s [%s] %s\n' "$(date -u +%H:%M:%S.%N | cut -c1-12)" "$$" "$*" >&2; }
 trace "start: $(printf '%s ' "$@" | cut -c1-80)"
 if [ "$1" = auth ]; then
@@ -41,21 +42,15 @@ done
 echo "FAKE CLAUDE (not Claude Code) session $session"
 trace "session $session in $PWD"
 [ -r "$settings" ] || { echo "FAKE CLAUDE no settings"; trace "no settings"; exec sleep infinity; }
-dir=$(dirname "$settings")
-url=$(sed -n 's/.*"url": "\([^"]*\)".*/\1/p' "$settings" | head -n 1)
-headers="$dir/fake-hook.headers"
-(umask 077 && sed -n 's/.*"Authorization": "\([^"]*\)".*/Authorization: \1/p' "$settings" |
-  head -n 1 > "$headers")
+. "$(dirname "$0")/claude-hooks.sh"
+claude_hooks_trace() { trace "$@"; }
+# A blocked or failed hook shows in the pane (fd 3) like Claude Code's "<Event> hook error: ...".
+claude_hooks_error() { echo "$*" >&3; trace "$*"; }
+claude_hooks_init "$settings"
 
-# hook <json> [max-seconds]: POST one hook payload, print the response body. The trace gets
-# the event name and the HTTP status (curl's errors go to stderr, i.e. the trace).
+# hook <json>: run the hook registered for the payload's event, print its output.
 hook() {
-  body_file=$(mktemp)
-  status=$(printf '%s' "$1" | curl -sS --max-time "${2:-10}" -o "$body_file" -w '%{http_code}' \
-    -H 'Content-Type: application/json' -H "@$headers" --data-binary @- "$url")
-  trace "hook $(printf '%s' "$1" | sed -n 's/.*"hook_event_name":"\([A-Za-z]*\)".*/\1/p') -> ${status:-none}"
-  cat "$body_file"
-  rm -f "$body_file"
+  claude_hook "$(printf '%s' "$1" | sed -n 's/.*"hook_event_name":"\([A-Za-z]*\)".*/\1/p')" "$1"
 }
 json_escape() { printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' | tr '\n' ' '; }
 
@@ -74,7 +69,7 @@ hook "{$base,\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"Edit\",\"tool_us
 # for 1.5 s (#159), and a slow CI browser sees the status late.
 sleep 6
 echo "FAKE CLAUDE asking for permission"
-answer=$(hook "{$base,\"hook_event_name\":\"PermissionRequest\",\"tool_name\":\"Edit\",\"tool_input\":$edit}" 300)
+answer=$(hook "{$base,\"hook_event_name\":\"PermissionRequest\",\"tool_name\":\"Edit\",\"tool_input\":$edit}")
 if printf '%s' "$answer" | grep -q '"behavior" *: *"allow"'; then
   echo "FAKE CLAUDE allowed"
   printf 'hello from the fake agent\n' > "$file"
@@ -87,7 +82,6 @@ else
   echo "FAKE CLAUDE not allowed: $answer"
 fi
 hook "{$base,\"hook_event_name\":\"Stop\",\"stop_hook_active\":false}" > /dev/null
-rm -f "$headers"
 echo "FAKE CLAUDE DONE"
 trace "done"
 exec sleep infinity

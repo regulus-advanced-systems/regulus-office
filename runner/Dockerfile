@@ -55,6 +55,19 @@ RUN npm install -g --no-fund --no-audit \
     && npm cache clean --force \
     && command -v claude codex gemini kimi opencode
 
+# The CLIs above are root-owned and runners are non-root, so a CLI updating itself can only fail
+# ("Auto update failed: no write permission to npx prefix", #162). Versions come from this image:
+# rebuild it to update them. Claude Code: DISABLE_AUTOUPDATER stops the background check and
+# DISABLE_UPDATES also blocks `claude update` (https://code.claude.com/docs/en/setup#disable-auto-updates).
+# Codex has no env for this; `check_for_update_on_startup = false` in the system config layer
+# /etc/codex/config.toml (https://learn.chatgpt.com/docs/config-file/config-basic) stops its
+# startup update check and prompt, and a human's own ~/.codex/config.toml still takes precedence.
+ENV DISABLE_AUTOUPDATER=1 DISABLE_UPDATES=1
+RUN mkdir -p /etc/codex \
+    && printf '%s\n' '# Regulus Office runner: CLI versions come from the image.' \
+      'check_for_update_on_startup = false' > /etc/codex/config.toml \
+    && chmod 0644 /etc/codex/config.toml
+
 # Floor checkouts under /srv/office belong to the office user and are shared with runners through
 # group 1001 (deploy/docker-compose.yml); without this git refuses them as "dubious ownership".
 RUN git config --system --add safe.directory '*'

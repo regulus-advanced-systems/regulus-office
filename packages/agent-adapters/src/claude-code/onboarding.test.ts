@@ -192,7 +192,9 @@ describe("the onboarding plan (SPEC §8)", () => {
     const runner = createFakeRunnerOps();
     const plan = onboardingPlan(createFakeRunnerContext({ runner }), ["/srv/wt/a1"]);
     expect(plan.files).toEqual([]);
-    expect(plan.env.names().sort()).toEqual(["HOME", ONBOARDING_TRUST_ENV].sort());
+    expect(plan.env.names().sort()).toEqual(
+      ["DISABLE_AUTOUPDATER", "HOME", ONBOARDING_TRUST_ENV].sort(),
+    );
     expect(plan.env.reveal()[ONBOARDING_TRUST_ENV]).toBe('["/srv/wt/a1"]');
     const text = `${plan.argv.join(" ")} ${JSON.stringify(plan.env.reveal())}`;
     expect(text).not.toMatch(/credentials|\.claude\/|oauth|token|apiKey/i);

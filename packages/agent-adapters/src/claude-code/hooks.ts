@@ -1,5 +1,5 @@
 /**
- * Claude Code http hook payload → `AgentEvent`s (SPEC §7 status ladder rung
+ * Claude Code hook payload (forwarded by hook.sh) → `AgentEvent`s (SPEC §7 status ladder rung
  * "hooks"; mapping from research 04). Payload shapes follow
  * https://code.claude.com/docs/en/hooks#hook-events; unknown events and
  * unexpected shapes map to [] rather than throwing.
