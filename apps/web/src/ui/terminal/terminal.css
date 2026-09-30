@@ -165,3 +165,58 @@
   align-items: center;
   min-height: 30px;
 }
+
+/* Help line with the copy buttons beside it (#164). */
+.rg-term__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 12px;
+}
+.rg-term__foot .rg-term__help {
+  flex: 1 1 280px;
+  min-width: 0;
+}
+.rg-term__copy {
+  display: flex;
+  gap: 6px;
+}
+/* The browser refused the clipboard: the text, selected, to copy by hand. */
+.rg-term__copy-failed {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  z-index: 4;
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 2px solid var(--rg-color-orange-red, #f26522);
+  border-radius: 8px;
+  background: var(--rg-color-modal-surface, #fff9ef);
+  color: var(--rg-color-ink, #1c2448);
+  font-size: 13px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
+}
+.rg-term__copy-failed p {
+  margin: 0;
+}
+.rg-term__copy-failed-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.rg-term__copy-failed textarea {
+  width: 100%;
+  box-sizing: border-box;
+  height: 5.5em;
+  resize: none;
+  font:
+    12px / 1.4 "JetBrains Mono",
+    "DejaVu Sans Mono",
+    Menlo,
+    Consolas,
+    monospace;
+}

@@ -21,8 +21,28 @@ trace_file="${HOME:-/tmp}/fake-claude.stderr"
 exec 3>&1 2>>"$trace_file"
 trace() { printf '%s [%s] %s\n' "$(date -u +%H:%M:%S.%N | cut -c1-12)" "$$" "$*" >&2; }
 trace "start: $(printf '%s ' "$@" | cut -c1-80)"
+if [ "$1" = auth ] && [ "$2" = login ]; then
+  # The login terminal (#164): a long sign-in link (the terminal wraps it), then a prompt
+  # that waits for a pasted code. No account and no network are involved. While it waits,
+  # `auth status` says "not logged in", so the office keeps the login terminal open.
+  pending="${HOME:-/tmp}/.fake-claude-login-pending"
+  : > "$pending"
+  printf 'Browser didn'"'"'t open? Use the url below to sign in:\n\n'
+  printf 'https://claude.ai/oauth/authorize?code=true&client_id=fake-e2e-client&response_type=code'
+  printf '&redirect_uri=https%%3A%%2F%%2Fplatform.claude.com%%2Foauth%%2Fcode%%2Fcallback&state=fakee2e\n\n'
+  printf 'Paste code here if prompted > '
+  read -r code
+  trace "login code read (${#code} chars)"
+  rm -f "$pending"
+  exit 0
+fi
 if [ "$1" = auth ]; then
   sleep 2
+  if [ -e "${HOME:-/tmp}/.fake-claude-login-pending" ]; then
+    echo '{"loggedIn":false}'
+    trace "auth status answered: login pending"
+    exit 1
+  fi
   echo '{"loggedIn":true,"authMethod":"fake"}'
   trace "auth status answered"
   exit 0
@@ -40,6 +60,9 @@ while [ $# -gt 0 ]; do
   esac
 done
 echo "FAKE CLAUDE (not Claude Code) session $session"
+# Like Claude Code (2.1.x) on its prompt screen: turn on any-event mouse tracking in SGR
+# encoding. tmux passes it on to the attached client, i.e. the browser's xterm (#164).
+printf '\033[?1000h\033[?1002h\033[?1003h\033[?1006h'
 trace "session $session in $PWD"
 [ -r "$settings" ] || { echo "FAKE CLAUDE no settings"; trace "no settings"; exec sleep infinity; }
 . "$(dirname "$0")/claude-hooks.sh"

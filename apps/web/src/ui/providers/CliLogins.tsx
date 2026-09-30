@@ -9,6 +9,7 @@ import type { CliLoginProvider, LoginFlowInfo, ProviderLoginStatus } from "@regu
 import { useCallback, useEffect, useRef, useState } from "react";
 import { FormAlert } from "../auth/AuthCard.tsx";
 import { Button } from "../components/Button.tsx";
+import { copyText } from "../terminal/clipboard.ts";
 import type { TerminalDeps } from "../terminal/host.ts";
 import { describeProvidersError, type ProvidersApi } from "./api.ts";
 import { LoginTerminal } from "./LoginTerminal.tsx";
@@ -214,14 +215,8 @@ function FlowView({
 
 function DeviceCode({ flow }: { flow: LoginFlowInfo }) {
   const [copied, setCopied] = useState(false);
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(flow.userCode ?? "");
-      setCopied(true);
-    } catch {
-      setCopied(false);
-    }
-  };
+  // With the copy-command fallback when the browser refuses the Clipboard API (#164).
+  const copy = async () => setCopied(await copyText(flow.userCode ?? ""));
   return (
     <div className="rg-providers__device" data-testid="device-code">
       <p>

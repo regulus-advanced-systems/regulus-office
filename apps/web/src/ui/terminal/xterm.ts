@@ -8,6 +8,9 @@
  * Watchers keep the agent's fixed grid and scale the font to fit it
  * (`setGrid` / `fit`); a controller fills the box at the readable default
  * font (`fitGrid`) and the caller sends the new size to the server (#156).
+ *
+ * Mouse tracking requests from the program are dropped so a drag always
+ * selects text (#164, mouseModes.ts).
  */
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
@@ -17,6 +20,7 @@ import "@xterm/xterm/css/xterm.css";
 import { clampGrid, fitFontSize } from "./fit.ts";
 import type { BufferLine, TerminalHost, TerminalHostOptions } from "./host.ts";
 import { openExternalLink } from "./links.ts";
+import { sgrWheel, splitMouseModes } from "./mouseModes.ts";
 
 const THEME = {
   background: "#16161D",
@@ -30,6 +34,9 @@ export const BASE_FONT_PX = 13;
 
 /** Lines the sign-in link finder reads from the end of a buffer. */
 const READ_LINES = 400;
+
+/** Wheel travel (px) per scroll step sent to a program that asked for mouse reports. */
+const WHEEL_STEP_PX = 40;
 
 function linesOf(buffer: IBuffer): BufferLine[] {
   const out: BufferLine[] = [];
@@ -71,6 +78,7 @@ export function createXtermHost(element: HTMLElement, options: TerminalHostOptio
       renderer = "dom";
     }
   }
+  const programMouse = keepMouseForSelection(term);
   let grid = { cols: options.cols, rows: options.rows };
   const refit = () => {
     const size = fitFontSize(term.options.fontSize ?? BASE_FONT_PX, fit.proposeDimensions(), grid);
@@ -110,6 +118,24 @@ export function createXtermHost(element: HTMLElement, options: TerminalHostOptio
       return () => sub.dispose();
     },
     getSelection: () => term.getSelection(),
+    onSelectionChange: (listener) => {
+      const sub = term.onSelectionChange(listener);
+      return () => sub.dispose();
+    },
+    getScreenText: () => {
+      const buffer = term.buffer.active;
+      const rows: string[] = [];
+      for (let y = buffer.viewportY; y < buffer.viewportY + term.rows; y++) {
+        const line = buffer.getLine(y);
+        const text = line?.translateToString(true) ?? "";
+        // A soft-wrapped row continues the one above (a long URL stays one line).
+        if (line?.isWrapped && rows.length) rows[rows.length - 1] += text;
+        else rows.push(text);
+      }
+      const trimmed = rows.map((row) => row.trimEnd());
+      while (trimmed.length && trimmed.at(-1) === "") trimmed.pop();
+      return trimmed.join("\n");
+    },
     paste: (text) => {
       if (!term.options.disableStdin) term.paste(text);
     },
@@ -124,6 +150,51 @@ export function createXtermHost(element: HTMLElement, options: TerminalHostOptio
       const sub = term.onWriteParsed(listener);
       return () => sub.dispose();
     },
-    dispose: () => term.dispose(),
+    dispose: () => {
+      programMouse.dispose();
+      term.dispose();
+    },
+  };
+}
+
+/**
+ * Drops the program's mouse tracking requests (a drag selects instead) and, while the
+ * program wants mouse reports, turns the wheel into SGR wheel reports for a controller
+ * rather than the arrow keys xterm would otherwise type into it.
+ */
+function keepMouseForSelection(term: Terminal): { dispose(): void } {
+  const requested = new Set<number>();
+  const set = term.parser.registerCsiHandler({ prefix: "?", final: "h" }, (params) => {
+    const { mouse, rest } = splitMouseModes(params);
+    if (mouse.length === 0) return false;
+    for (const m of mouse) requested.add(m);
+    // Apply the other modes of a mixed sequence; they contain no mouse mode, so no loop.
+    if (rest.length) term.write(`\x1b[?${rest.join(";")}h`);
+    return true;
+  });
+  const reset = term.parser.registerCsiHandler({ prefix: "?", final: "l" }, (params) => {
+    for (const m of splitMouseModes(params).mouse) requested.delete(m);
+    return false;
+  });
+  let travel = 0;
+  term.attachCustomWheelEventHandler((event) => {
+    if (requested.size === 0) return true;
+    event.preventDefault();
+    if (term.options.disableStdin || !requested.has(1006)) return false;
+    travel += event.deltaMode === 0 ? event.deltaY : event.deltaY * WHEEL_STEP_PX;
+    const screen = term.element?.querySelector(".xterm-screen")?.getBoundingClientRect();
+    const col = screen ? ((event.clientX - screen.left) / screen.width) * term.cols + 1 : 1;
+    const row = screen ? ((event.clientY - screen.top) / screen.height) * term.rows + 1 : 1;
+    while (Math.abs(travel) >= WHEEL_STEP_PX) {
+      term.input(sgrWheel(travel, Math.min(col, term.cols), Math.min(row, term.rows)), true);
+      travel -= Math.sign(travel) * WHEEL_STEP_PX;
+    }
+    return false;
+  });
+  return {
+    dispose: () => {
+      set.dispose();
+      reset.dispose();
+    },
   };
 }

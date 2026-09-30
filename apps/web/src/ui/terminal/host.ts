@@ -42,6 +42,10 @@ export interface TerminalHost {
   onData(listener: (data: string) => void): () => void;
   /** The selected text ("" when nothing is selected). */
   getSelection(): string;
+  /** After the selection changed (made, extended or cleared). */
+  onSelectionChange(listener: () => void): () => void;
+  /** The rows on screen as text, trailing blank rows dropped (the "Copy screen" button). */
+  getScreenText(): string;
   /** Paste as typed input (bracketed when the program asked for it); ignored while read-only. */
   paste(text: string): void;
   /** The terminal's width and its recent lines (scrollback and screen), oldest first. */

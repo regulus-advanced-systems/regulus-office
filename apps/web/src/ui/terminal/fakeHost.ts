@@ -13,11 +13,13 @@ export class FakeHost implements TerminalHost {
   /** What `fitGrid` proposes (the cells that fit the box), or null for "no size yet". */
   fits: TerminalGrid | null = { cols: 120, rows: 30 };
   selection = "";
+  screenText = "";
   pasted: string[] = [];
   lines: BufferLine[] = [];
   cols = 160;
   #listener: ((data: string) => void) | null = null;
   #writeListeners = new Set<() => void>();
+  #selectionListeners = new Set<() => void>();
   constructor() {
     FakeHost.all.push(this);
   }
@@ -59,6 +61,20 @@ export class FakeHost implements TerminalHost {
   }
   getSelection() {
     return this.selection;
+  }
+  /** Changes the selection like a mouse drag would. */
+  select(text: string) {
+    this.selection = text;
+    for (const l of this.#selectionListeners) l();
+  }
+  onSelectionChange(listener: () => void) {
+    this.#selectionListeners.add(listener);
+    return () => {
+      this.#selectionListeners.delete(listener);
+    };
+  }
+  getScreenText() {
+    return this.screenText;
   }
   paste(text: string) {
     if (this.readOnly) return;

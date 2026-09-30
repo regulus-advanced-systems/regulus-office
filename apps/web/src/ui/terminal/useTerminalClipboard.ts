@@ -5,6 +5,10 @@
  * terminal (Ctrl+Shift+C would otherwise open the browser's inspector); a
  * paste shortcut is kept from xterm but not from the browser, whose native
  * paste then reaches xterm's paste handler (bracketed paste, typed input).
+ *
+ * #164: the drag may end outside the terminal, so the mouseup is caught on the
+ * document; "Copy selection" / "Copy screen" copy from a click; a copy the
+ * browser refuses every way shows the text selected, to copy by hand.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -31,9 +35,16 @@ export interface TerminalMenuState {
 export interface TerminalClipboard {
   /** Short status over the terminal ("Copied"), or null. */
   flash: string | null;
+  /** Text the browser would not let us copy: shown selected, to copy by hand. */
+  failed: string | null;
+  dismissFailed: () => void;
   menu: TerminalMenuState | null;
   closeMenu: () => void;
   copy: (text: string) => Promise<void>;
+  copySelection: () => Promise<void>;
+  copyScreen: () => Promise<void>;
+  /** The terminal has a selection ("Copy selection" is enabled). */
+  hasSelection: boolean;
   pasteFromClipboard: () => Promise<void>;
   mac: boolean;
 }
@@ -51,6 +62,8 @@ export function useTerminalClipboard(
 ): TerminalClipboard {
   const [flash, setFlash] = useState<string | null>(null);
   const [menu, setMenu] = useState<TerminalMenuState | null>(null);
+  const [failed, setFailed] = useState<string | null>(null);
+  const [hasSelection, setHasSelection] = useState(false);
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mac = deps.mac ?? isMacPlatform();
   const clipboard = deps.clipboard;
@@ -70,11 +83,33 @@ export function useTerminalClipboard(
   const copy = useCallback(
     async (text: string) => {
       if (!text) return;
-      const ok = await copyText(text, clipboard);
-      show(ok ? "Copied" : "Copy failed");
+      // The hidden textarea of the fallback goes into the terminal's box, inside the dialog.
+      const ok = await copyText(text, clipboard, { container: element?.parentElement });
+      if (ok) {
+        setFailed(null);
+        show("Copied");
+      } else {
+        setFailed(text);
+      }
     },
-    [clipboard, show],
+    [clipboard, show, element],
   );
+  const copySelection = useCallback(async () => {
+    if (host) await copy(host.getSelection());
+  }, [host, copy]);
+  const copyScreen = useCallback(async () => {
+    if (host) await copy(host.getScreenText());
+  }, [host, copy]);
+
+  useEffect(() => {
+    if (!host) {
+      setHasSelection(false);
+      return;
+    }
+    const update = () => setHasSelection(host.getSelection() !== "");
+    update();
+    return host.onSelectionChange(update);
+  }, [host]);
 
   const pasteShortcut = mac ? "Cmd+V" : "Ctrl+Shift+V";
   const pasteFromClipboard = useCallback(async () => {
@@ -102,13 +137,19 @@ export function useTerminalClipboard(
         event.stopPropagation();
       }
     };
+    const doc = element.ownerDocument;
     const onMouseUp = (event: MouseEvent) => {
       if (event.button !== 0) return;
+      doc.removeEventListener("mouseup", onMouseUp, true);
       // xterm finishes the selection on the same mouseup; read it afterwards.
       setTimeout(() => {
         const selection = host.getSelection();
         if (selection) void copy(selection);
       }, 0);
+    };
+    // A drag often ends past the terminal's edge: listen on the document until it ends.
+    const onMouseDown = (event: MouseEvent) => {
+      if (event.button === 0) doc.addEventListener("mouseup", onMouseUp, true);
     };
     const onContextMenu = (event: MouseEvent) => {
       event.preventDefault();
@@ -121,15 +162,30 @@ export function useTerminalClipboard(
       });
     };
     element.addEventListener("keydown", onKeyDown, true);
-    element.addEventListener("mouseup", onMouseUp);
+    // Capture: xterm stops the mousedown of a selection drag from bubbling.
+    element.addEventListener("mousedown", onMouseDown, true);
     element.addEventListener("contextmenu", onContextMenu);
     return () => {
       element.removeEventListener("keydown", onKeyDown, true);
-      element.removeEventListener("mouseup", onMouseUp);
+      element.removeEventListener("mousedown", onMouseDown, true);
+      doc.removeEventListener("mouseup", onMouseUp, true);
       element.removeEventListener("contextmenu", onContextMenu);
     };
   }, [element, host, mac, readOnly, copy]);
 
   const closeMenu = useCallback(() => setMenu(null), []);
-  return { flash, menu, closeMenu, copy, pasteFromClipboard, mac };
+  const dismissFailed = useCallback(() => setFailed(null), []);
+  return {
+    flash,
+    failed,
+    dismissFailed,
+    menu,
+    closeMenu,
+    copy,
+    copySelection,
+    copyScreen,
+    hasSelection,
+    pasteFromClipboard,
+    mac,
+  };
 }
