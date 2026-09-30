@@ -163,9 +163,12 @@ marker, uid 0, and IDs outside `^[a-z0-9]{1,23}$` (runner), `^[A-Za-z0-9_-]{1,64
     (`nft` table `ip office_sandbox`, `net.ipv4.ip_forward=1`; if Docker's
     `DOCKER-USER` chain exists the helper allows the bridge there, because
     Docker sets the FORWARD policy to DROP). Inside, `127.0.0.1:<OFFICE_PORT>`
-    (the office, for hooks) and a loopback DNS stub such as systemd-resolved's
-    `127.0.0.53` are forwarded to the host (`route_localnet`), so hook URLs and
-    DNS work unchanged. The office reaches a robot's dev server at the
+    (the office, for hooks) and a loopback DNS forwarder such as dnsmasq are
+    forwarded to the host (`route_localnet`), so hook URLs and DNS work
+    unchanged. systemd-resolved's stub answers loopback clients only, so on
+    such hosts a sandbox gets resolved's upstream servers
+    (`/run/systemd/resolve/resolv.conf`) bind-mounted as its own
+    `/etc/resolv.conf`, in its private mount namespace. The office reaches a robot's dev server at the
     sandbox's address; nothing is published. Two robots can both listen on
     3000.
   - *Processes.* `exec` starts the robot's own tmux server as pid 1 of a new

@@ -195,6 +195,8 @@ describe.skipIf(!enabled)("LinuxUserRunner sandboxes (real namespaces and scopes
       const script = [
         `curl -s --max-time 5 http://127.0.0.1:${OFFICE_PORT}/`,
         'echo " port=$PORT"',
+        "curl -s -o /dev/null --max-time 10 -w 'ip=%{http_code}\\n' http://1.1.1.1/",
+        "getent hosts github.com >/dev/null && echo dns=ok || echo dns=failed",
         "curl -s -o /dev/null --max-time 20 -w 'out=%{http_code}\\n' https://github.com/",
       ].join("; ");
       const proc = await runner.spawnPiped(user, {
@@ -205,6 +207,9 @@ describe.skipIf(!enabled)("LinuxUserRunner sandboxes (real namespaces and scopes
       await proc.exited;
       const p1 = (await runner.listSandboxes()).find((s) => s.agentId === "p1");
       expect(out).toContain(`office ok port=${p1?.ports.first}`);
+      // Routed and masqueraded out, names resolve, and both together.
+      expect(out).not.toContain("ip=000");
+      expect(out).toContain("dns=ok");
       expect(out).toMatch(/out=(200|301|302)/);
       await runner.kill({ userId: rid, agentId: "p1" });
     },

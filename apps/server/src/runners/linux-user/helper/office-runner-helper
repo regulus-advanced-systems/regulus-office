@@ -283,7 +283,10 @@ unit_owned() {
 # Slot n has the address $SANDBOX_NET.<(n+2)/256>.<(n+2)%256>/16; the bridge is
 # $SANDBOX_NET.0.1. Bridge ports are isolated from each other; the host routes
 # and masquerades the sandboxes' traffic, and forwards 127.0.0.1:$OFFICE_PORT
-# (the office, for hooks) and a loopback DNS stub into every sandbox.
+# (the office, for hooks) and a loopback DNS forwarder (e.g. dnsmasq) into every
+# sandbox. systemd-resolved's stub ignores queries from outside loopback, so
+# with it a sandbox gets resolved's upstream servers as its own resolv.conf
+# instead, bind-mounted in its private mount namespace.
 
 sandbox_addr() {
   local n=$(($1 + 2))
@@ -449,8 +452,30 @@ cmd_sandbox_up() {
   if [[ ! -e /run/netns/office-sbx$SLOT ]] || ! ip link show dev "osb$SLOT" >/dev/null 2>&1; then
     net_sandbox_up
   fi
+  sandbox_resolv
   printf 'address=%s\nslot=%s\n' "$(sandbox_addr "$SLOT")" "$SLOT"
 }
+
+# $SANDBOX_DIR/resolv.conf: systemd-resolved's upstream servers when the host
+# resolves through its stub (which answers loopback clients only); empty otherwise.
+sandbox_resolv() {
+  local up=/run/systemd/resolve/resolv.conf out="$SANDBOX_DIR/resolv.conf"
+  if [[ -f $up ]] && grep -Eq '^nameserver[[:space:]]+[0-9a-fA-F:.]+' "$up" &&
+    ! grep -Eq '^nameserver[[:space:]]+127\.' "$up" &&
+    grep -Eq '^nameserver[[:space:]]+127\.0\.0\.53' /etc/resolv.conf 2>/dev/null; then
+    grep -E '^(nameserver|search|options)[[:space:]]' "$up" >"$out.new"
+    chmod 0644 -- "$out.new"
+    mv -f -- "$out.new" "$out"
+  else
+    : >"$out"
+  fi
+}
+
+# Runs as root in a sandbox's fresh mount namespace: its resolv.conf (see
+# sandbox_resolv), then the rest of the command line.
+readonly SANDBOX_INIT='[ -s "$1" ] && mount --bind "$1" /etc/resolv.conf 2>/dev/null
+shift
+exec "$@"'
 
 cmd_sandbox_list() {
   local id
@@ -476,6 +501,7 @@ exec_in_sandbox() {
       --description="Regulus Office sandbox of agent $AID of $U" "${LIMITS[@]}" -- \
       nsenter --net="/run/netns/$ns" -- \
       unshare --pid --fork --kill-child --mount-proc -- \
+      /bin/sh -c "$SANDBOX_INIT" office-sandbox "$SANDBOX_DIR/resolv.conf" \
       setpriv --reuid="$R_UID" --regid="$R_GID" --init-groups --no-new-privs -- \
       "${USER_ENV[@]}" TERM=xterm-256color tmux -D -S "$SOCK" -f /dev/null
   ) &
@@ -647,6 +673,7 @@ cmd_spawn_piped() {
       --description="Regulus Office agent $AID of $U (piped, sandboxed)" "${LIMITS[@]}" -- \
       nsenter --net="/run/netns/office-sbx$S_SLOT" -- \
       unshare --pid --fork --kill-child --mount-proc -- \
+      /bin/sh -c "$SANDBOX_INIT" office-sandbox "$SANDBOX_DIR/resolv.conf" \
       setpriv --reuid="$R_UID" --regid="$R_GID" --init-groups --no-new-privs -- \
       "${USER_ENV[@]}" /bin/sh -c "$WRAPPER" office-agent "$unit.scope" "$envfile" "$CWD" "${ARGV[@]}"
   fi
