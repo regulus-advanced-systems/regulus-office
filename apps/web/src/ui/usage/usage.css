@@ -1,0 +1,72 @@
+/* HUD usage panel (#40): unfolds inside the status box. */
+.rg-usage {
+  width: 260px;
+  max-height: calc(100vh - 260px);
+  overflow-y: auto;
+  display: grid;
+  gap: 4px;
+  padding-top: 6px;
+  border-top: 1px solid var(--rg-color-panel-border);
+}
+.rg-usage__title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+}
+.rg-usage__h {
+  margin: 8px 0 2px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--rg-color-ink-muted);
+}
+.rg-usage__limits,
+.rg-usage__top {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.rg-usage__limit-head {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+}
+.rg-usage__bar {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--rg-color-panel-border);
+  overflow: hidden;
+}
+.rg-usage__fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+}
+.rg-usage__fill--ok {
+  background: var(--rg-color-cyan);
+}
+.rg-usage__fill--warn {
+  background: var(--rg-color-amber);
+}
+.rg-usage__fill--high {
+  background: var(--rg-color-crimson);
+}
+.rg-usage__detail,
+.rg-usage__note,
+.rg-usage__empty {
+  font-size: 12px;
+  margin: 0;
+}
+.rg-usage__sub {
+  padding-left: 8px;
+  font-size: 12px;
+}
+.rg-usage__top li {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+}

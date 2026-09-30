@@ -7,20 +7,22 @@
  * (in particular `.credentials.json`) is ever listed or opened (SPEC §8).
  */
 import type { UsageSample } from "@regulus/protocol";
-import type { RunnerOps } from "../types.ts";
 import { count, isObject, num, obj, str } from "./payload.ts";
 
 export function transcriptRoot(home: string): string {
   return `${home.replace(/\/+$/, "")}/.claude/projects`;
 }
 
-const SAFE_NAME = /^[^/\0]+$/;
-
-/** Usage samples from one transcript's text; `seen` dedupes streamed duplicates. */
+/**
+ * Usage samples from transcript lines; `seen` dedupes streamed duplicates
+ * (one API response is written as several lines with the same message id).
+ * `fallbackSessionId` (the file name) is used when a line has no `sessionId`.
+ */
 export function parseTranscriptUsage(
   text: string,
   seen: Set<string> = new Set(),
   since?: number,
+  fallbackSessionId?: string,
 ): UsageSample[] {
   const out: UsageSample[] = [];
   for (const line of text.split("\n")) {
@@ -41,6 +43,8 @@ export function parseTranscriptUsage(
     if (key !== ":" && seen.has(key)) continue;
     seen.add(key);
     const cost = num(entry, "costUSD");
+    const model = str(message, "model");
+    const sessionId = str(entry, "sessionId") ?? fallbackSessionId;
     out.push({
       ts,
       inputTokens: count(num(usage, "input_tokens")),
@@ -49,29 +53,10 @@ export function parseTranscriptUsage(
       cacheWriteTokens: count(num(usage, "cache_creation_input_tokens")),
       ...(cost !== undefined && cost >= 0 ? { costUsdEstimate: cost } : {}),
       source: "transcript",
+      ...(model && model.length <= 128 && model !== "<synthetic>" ? { model } : {}),
+      ...(sessionId && sessionId.length <= 128 ? { sessionId } : {}),
+      ...(key !== ":" && key.length <= 256 ? { dedupeKey: key } : {}),
     });
   }
   return out;
-}
-
-/** Scans every project's `*.jsonl` under the runner HOME's transcript root. */
-export async function* scanTranscripts(
-  runner: RunnerOps,
-  home: string,
-  opts: { since?: number; signal?: AbortSignal } = {},
-): AsyncIterable<UsageSample> {
-  const root = transcriptRoot(home);
-  const seen = new Set<string>();
-  for (const project of await runner.listDir(root)) {
-    if (opts.signal?.aborted) return;
-    if (!SAFE_NAME.test(project) || project === "." || project === "..") continue;
-    const dir = `${root}/${project}`;
-    for (const file of await runner.listDir(dir)) {
-      if (opts.signal?.aborted) return;
-      if (!file.endsWith(".jsonl") || !SAFE_NAME.test(file)) continue;
-      const text = await runner.readTextFile(`${dir}/${file}`);
-      if (text === null) continue;
-      yield* parseTranscriptUsage(text, seen, opts.since);
-    }
-  }
 }

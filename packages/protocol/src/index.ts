@@ -20,6 +20,7 @@
  * - schema/            @colyseus/schema classes mirroring the state shapes
  * - terminal.ts        terminal WebSocket control messages and constants
  * - terminal-screens.ts laptop screen feed (plain-text screens per floor)
+ * - usage-api.ts      the viewer's own usage (plan limits, spend); office totals are in building-state
  */
 export * from "./acl.ts";
 export * from "./agent-events.ts";
@@ -40,3 +41,4 @@ export * from "./rooms.ts";
 export * from "./schema/index.ts";
 export * from "./terminal.ts";
 export * from "./terminal-screens.ts";
+export * from "./usage-api.ts";

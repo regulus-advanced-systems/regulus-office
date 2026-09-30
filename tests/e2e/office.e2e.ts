@@ -179,6 +179,20 @@ test("chat from one browser arrives in the other", async () => {
   await memberInput.press("Escape");
 });
 
+test("the status box unfolds the viewer's own usage (#40)", async () => {
+  const status = ownerPage.getByRole("region", { name: "Status" });
+  await status.getByRole("button", { name: "Usage", exact: true }).click();
+  const panel = ownerPage.getByRole("region", { name: "Usage", exact: true });
+  await expect(panel).toContainText("Your plan windows");
+  await expect(panel).toContainText("No plan windows reported yet.");
+  await expect(panel).toContainText("Office today");
+  const res = await ownerPage.request.get("/api/usage/me?tz=0");
+  expect(res.status()).toBe(200);
+  expect(((await res.json()) as { limits: unknown[] }).limits).toEqual([]);
+  await status.getByRole("button", { name: "Hide usage", exact: true }).click();
+  await expect(panel).toBeHidden();
+});
+
 test("V toggles the first-person view and back", async () => {
   await ownerPage.bringToFront();
   const toggle = ownerPage.getByRole("button", { name: /First person/ });

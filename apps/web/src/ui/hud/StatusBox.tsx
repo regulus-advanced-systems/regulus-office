@@ -1,8 +1,8 @@
 /**
  * Top-right status box (research 03 §5): connection status from the
- * connection store, a usage summary (office totals from BuildingState;
- * placeholders until the server publishes them, SPEC §9.4) and the
- * first-person view toggle (SPEC §9.2).
+ * connection store, the office usage totals from BuildingState (SPEC §9.4,
+ * #40) with a "Usage" button that unfolds the viewer's own usage panel, and
+ * the first-person view toggle (SPEC §9.2).
  */
 import type { UsageSummary } from "@regulus/protocol";
 import { getOfficeClient } from "../../net/index.ts";
@@ -11,6 +11,8 @@ import { type ConnectionStatus, useConnectionStore } from "../../state/connectio
 import { Button } from "../components/Button.tsx";
 import { Panel } from "../Panel.tsx";
 import { colors } from "../theme.ts";
+import { UsagePanel } from "../usage/UsagePanel.tsx";
+import { useMyUsageStore } from "../usage/usageStore.ts";
 import { formatCompact, formatUsd } from "./format.ts";
 import { ViewToggle } from "./ViewToggle.tsx";
 
@@ -49,19 +51,33 @@ export function ConnectionChip({
 }
 
 export function UsageRows({ usage }: { usage: UsageSummary | null }) {
-  const tokens = usage ? usage.todayInputTokens + usage.todayOutputTokens : null;
+  const tokens = usage
+    ? usage.todayInputTokens + usage.todayOutputTokens + usage.todayCacheTokens
+    : null;
+  const panelOpen = useMyUsageStore((s) => s.panelOpen);
+  const togglePanel = useMyUsageStore((s) => s.togglePanel);
   return (
     <>
       <div className="rg-statusbox__row">
-        <span className="rg-muted">Tokens today</span>
+        <span className="rg-muted">Office tokens today</span>
         <strong>{tokens === null ? "—" : formatCompact(tokens)}</strong>
       </div>
       <div className="rg-statusbox__row">
-        <span className="rg-muted">Spend est.</span>
+        <span className="rg-muted">Office spend est.</span>
         <span className="rg-statusbox__cash">
           {usage ? formatUsd(usage.todayCostUsdEstimate) : "—"}
         </span>
       </div>
+      <Button
+        size="sm"
+        variant="ghost"
+        aria-expanded={panelOpen}
+        onClick={() => togglePanel()}
+        title="Your plan windows and spend"
+      >
+        {panelOpen ? "Hide usage" : "Usage"}
+      </Button>
+      <UsagePanel />
     </>
   );
 }

@@ -85,7 +85,8 @@ export const JukeboxStateSchema = schema(
 export const TopRobotUsageSchema = schema(
   {
     agentId: t.string().default(""),
-    taskTitle: t.string().default(""),
+    name: t.string().default(""),
+    ownerName: t.string().default(""),
     provider: t.string().default("custom"),
     tokens: t.number().default(0),
   },
@@ -96,8 +97,12 @@ export const UsageSummarySchema = schema(
   {
     todayInputTokens: t.number().default(0),
     todayOutputTokens: t.number().default(0),
+    todayCacheTokens: t.number().default(0),
     todayCostUsdEstimate: t.float64().default(0),
+    officeKeysCostUsdEstimate: t.float64().default(0),
+    activeHumans: t.number().default(0),
     topRobots: t.array(TopRobotUsageSchema),
+    dayStart: t.number().default(0),
     observedAt: t.number().default(0),
   },
   "UsageSummary",

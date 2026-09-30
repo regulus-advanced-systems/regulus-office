@@ -26,6 +26,7 @@ import { SettingsForm } from "./settings/SettingsPanel.tsx";
 import { SpawnDialogHost } from "./spawn/SpawnDialog.tsx";
 import { TerminalModalHost } from "./terminal/TerminalModal.tsx";
 import { Toaster } from "./toast/Toaster.tsx";
+import { useMyUsagePolling } from "./usage/usageStore.ts";
 
 export function HudDialogs() {
   const overlay = useUiStore((s) => s.overlay);
@@ -64,6 +65,7 @@ export function HudDialogs() {
 
 export function Hud() {
   useGlobalHotkeys();
+  useMyUsagePolling();
   const openOverlay = useUiStore((s) => s.openOverlay);
   return (
     <div className="rg-hud">
