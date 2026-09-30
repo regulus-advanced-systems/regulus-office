@@ -10,7 +10,14 @@ describe("hotkey help", () => {
   });
   test("groups keep registration order", () => {
     const groups = groupBindings(DEFAULT_HOTKEYS);
-    expect(groups.map(([g]) => g)).toEqual(["Navigation", "Camera", "World", "Chat", "Search", "Help"]);
+    expect(groups.map(([g]) => g)).toEqual([
+      "Navigation",
+      "Camera",
+      "World",
+      "Chat",
+      "Search",
+      "Help",
+    ]);
     expect(groups[0]?.[1].map((b) => b.id)).toEqual(["floorMenu"]);
   });
 });
