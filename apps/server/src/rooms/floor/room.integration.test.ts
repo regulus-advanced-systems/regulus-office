@@ -181,6 +181,50 @@ describe("FloorRoom over the wire", () => {
     ).toThrow();
   });
 
+  test("board summaries reach members, whether published before or after they join", async () => {
+    const repoId = floors.service.get({ id: users.owner.userId, role: "owner" }, floorId)?.repos[0]
+      ?.repoId as string;
+    const card = {
+      repoId,
+      number: 7,
+      title: "Fix the lift",
+      state: "open",
+      labels: ["bug"],
+      assignees: ["ada"],
+      author: "olga",
+      url: "https://github.com/octo/hello/issues/7",
+      updatedAt: 1_790_000_000_000,
+    };
+    const pull = {
+      ...card,
+      number: 8,
+      title: "Lift fix",
+      draft: false,
+      merged: false,
+      headBranch: "office/lift",
+      checksState: "pending" as const,
+      reviewState: "review_required" as const,
+    };
+    rooms.floors.publishBoard(floorId, { issues: [card], pulls: [] });
+    const room = await joinFloor(users.member, floorId);
+    await waitFor(() => room.state.issues.has(`${repoId}#7`), "issue card");
+    expect(room.state.issues.get(`${repoId}#7`)?.labels.toArray()).toEqual(["bug"]);
+    rooms.floors.publishBoard(floorId, { issues: [], pulls: [pull] });
+    await waitFor(
+      () =>
+        room.state.pulls.get(`${repoId}#8`)?.checksState === "pending" &&
+        room.state.issues.size === 0,
+      "pull card replaces the issue",
+    );
+    expect(rooms.floors.boardOn(floorId).pulls).toHaveLength(1);
+    expect(() =>
+      rooms.floors.publishBoard(floorId, {
+        issues: [{ ...card, title: "x".repeat(301) }],
+        pulls: [],
+      }),
+    ).toThrow();
+  });
+
   test("floor commands are rejected until their issues land", async () => {
     const room = await joinFloor(users.member, floorId);
     const rejected = new Promise<CommandRejected>((resolve) =>

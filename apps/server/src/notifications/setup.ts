@@ -2,11 +2,12 @@
  * Boot wiring for notifications (#42): the channel store, delivery queue,
  * NotificationCenter and REST routes. The center is handed to the
  * AgentManager as its observer (status changes, PRs opened); the BuildingRoom
- * delivers personal messages; the PR watcher starts once repos are known.
+ * delivers personal messages; merged robot PRs come from the GitHub event
+ * bus (#35 webhooks and polling).
  */
 import type { OfficeAuth } from "../auth/auth.ts";
 import type { Db } from "../db/index.ts";
-import type { RepoAccess } from "../github/repo-access.ts";
+import type { GitHubEventBus } from "../github/events.ts";
 import type { Router } from "../http/router.ts";
 import type { Logger } from "../logging.ts";
 import type { MasterKeyring } from "../secrets/index.ts";
@@ -14,7 +15,7 @@ import { NotificationCenter, type PersonalSink } from "./center.ts";
 import { ChannelStore } from "./channels.ts";
 import { WebhookDispatcher } from "./delivery.ts";
 import { NotificationDirectory } from "./directory.ts";
-import { PrWatcher } from "./pr-watch.ts";
+import { notifyMergedPullRequests } from "./pr-merged.ts";
 import { mountNotificationRoutes } from "./routes.ts";
 import { DEFAULT_SENDER_POLICY, type SenderPolicy } from "./senders.ts";
 
@@ -33,8 +34,8 @@ export interface Notifications {
     router: Router,
     auth: Pick<OfficeAuth, "getSessionFromRequest" | "publicUrl" | "allowedOrigins">,
   ): void;
-  /** Poll robots' PRs for merges with the floor repos' credentials. */
-  watchPullRequests(repos: Pick<RepoAccess, "withRepoCredential">): void;
+  /** Notify robots' owners when their PRs are merged (GitHub event bus, #35). */
+  followGitHub(events: Pick<GitHubEventBus, "on">): void;
   close(): void;
 }
 
@@ -61,25 +62,18 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
     logger,
     personal: deps.personal,
   });
-  let watcher: PrWatcher | undefined;
+  let unsubscribe: (() => void) | undefined;
   return {
     center,
     mount(router, auth) {
       mountNotificationRoutes(router, { auth, db: deps.db, channels, directory, center, policy });
     },
-    watchPullRequests(repos) {
-      watcher = new PrWatcher({
-        db: deps.db,
-        repos,
-        center,
-        directory,
-        apiBase: deps.config.githubApiBase,
-        logger,
-      });
-      watcher.start();
+    followGitHub(events) {
+      unsubscribe?.();
+      unsubscribe = notifyMergedPullRequests({ db: deps.db, events, center, directory, logger });
     },
     close() {
-      watcher?.stop();
+      unsubscribe?.();
       center.close();
     },
   };

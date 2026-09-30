@@ -108,3 +108,51 @@ export const StartManifestResponse = z.object({
   manifest: z.string().max(8000),
 });
 export type StartManifestResponse = z.infer<typeof StartManifestResponse>;
+
+// ---- Webhooks and board sync (#35) -------------------------------------------
+
+/**
+ * GitHub → office webhook deliveries. No session: every delivery must carry a
+ * valid `X-Hub-Signature-256` for the app's webhook secret.
+ */
+export const GITHUB_WEBHOOK_PATH = `${GITHUB_API_PATH}/webhook`;
+/** Board sync status (owners and admins). */
+export const GITHUB_SYNC_API_PATH = `${GITHUB_API_PATH}/sync`;
+
+/**
+ * How the boards are kept fresh: `webhook` once verified deliveries arrive
+ * (with a slow reconciliation poll), `polling` (ETag conditional requests)
+ * otherwise, `off` without a connection or when OFFICE_GITHUB_SYNC=off.
+ */
+export const GITHUB_SYNC_MODES = ["webhook", "polling", "off"] as const;
+export type GitHubSyncMode = (typeof GITHUB_SYNC_MODES)[number];
+
+/** What the office did about the app's webhook configuration on GitHub. */
+export const GITHUB_HOOK_CONFIG_STATES = [
+  "not_applicable",
+  "unknown",
+  "ok",
+  "updated",
+  "error",
+] as const;
+export type GitHubHookConfigState = (typeof GITHUB_HOOK_CONFIG_STATES)[number];
+
+export const GitHubSyncStatus = z.object({
+  mode: z.enum(GITHUB_SYNC_MODES),
+  /** Where GitHub should deliver webhooks, or null when OFFICE_PUBLIC_URL is not public https. */
+  webhookUrl: z.string().max(500).nullable(),
+  /** True when the office holds a webhook secret (never the secret itself). */
+  webhookSecretSet: z.boolean(),
+  hookConfig: z.object({
+    state: z.enum(GITHUB_HOOK_CONFIG_STATES),
+    /** Redacted reason for `error`, or a hint. */
+    detail: z.string().max(300).nullable(),
+  }),
+  lastDeliveryAt: TimestampMs.nullable(),
+  lastPollAt: TimestampMs.nullable(),
+  /** Polling is paused for GitHub's rate limit until this time. */
+  rateLimitedUntil: TimestampMs.nullable(),
+  /** Distinct GitHub repos the boards follow. */
+  repos: z.number().int().min(0),
+});
+export type GitHubSyncStatus = z.infer<typeof GitHubSyncStatus>;

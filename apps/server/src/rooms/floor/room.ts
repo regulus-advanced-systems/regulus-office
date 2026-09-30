@@ -34,6 +34,7 @@ import {
   isAgentControl,
   rejection as reject,
 } from "./agent-commands.ts";
+import { type BoardCards, parseBoard, syncBoard } from "./board.ts";
 import { FloorPermissions } from "./permissions.ts";
 import type { FloorRoomSource } from "./source.ts";
 import { type FloorRoomState, syncRobots, writeSnapshot } from "./state.ts";
@@ -76,6 +77,10 @@ export interface FloorRooms {
   ): void;
   /** Robots currently published on a floor. */
   robotsOn(floorId: string): RobotState[];
+  /** Replace a floor's issue / PR board summaries (#35; validated against the protocol shapes). */
+  publishBoard(floorId: string, board: BoardCards): void;
+  /** The board last published for a floor. */
+  boardOn(floorId: string): BoardCards;
   /** Re-read the floor (name, repos, desks); closes the room if it was archived. */
   refreshFloor(floorId: string): void;
   /** Floor ids with a live room instance. */
@@ -93,6 +98,7 @@ export function createFloorRooms(deps: FloorRoomsDeps): FloorRooms {
   const { source, logger } = deps;
   const live = new Map<string, RoomHandle<FloorRoomState>>();
   const robots = new Map<string, Map<string, RobotState>>();
+  const boards = new Map<string, BoardCards>();
 
   const robotsFor = (floorId: string) => {
     let map = robots.get(floorId);
@@ -146,6 +152,8 @@ export function createFloorRooms(deps: FloorRoomsDeps): FloorRooms {
       writeSnapshot(room.state, snap);
       live.set(snap.floorId, room);
       sync(snap.floorId);
+      const board = boards.get(snap.floorId);
+      if (board) syncBoard(room.state, board);
       logger.info({ roomId: room.roomId, floorId: snap.floorId }, "floor room created");
     },
 
@@ -214,6 +222,15 @@ export function createFloorRooms(deps: FloorRoomsDeps): FloorRooms {
     robotsOn(floorId) {
       return [...(robots.get(floorId)?.values() ?? [])];
     },
+
+    publishBoard(floorId, board) {
+      const parsed = parseBoard(board);
+      boards.set(floorId, parsed);
+      const room = live.get(floorId);
+      if (room) syncBoard(room.state, parsed);
+    },
+
+    boardOn: (floorId) => boards.get(floorId) ?? { issues: [], pulls: [] },
 
     refreshFloor(floorId) {
       const room = live.get(floorId);

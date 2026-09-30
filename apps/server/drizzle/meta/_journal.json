@@ -57,6 +57,13 @@
       "when": 1790776251973,
       "tag": "0007_notifications",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1790777324439,
+      "tag": "0008_github_webhooks",
+      "breakpoints": true
     }
   ]
 }

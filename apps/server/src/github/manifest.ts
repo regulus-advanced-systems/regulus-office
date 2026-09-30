@@ -12,7 +12,11 @@
  *    private key and webhook secret (`POST /app-manifests/{code}/conversions`).
  */
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
-import { GITHUB_APP_SETUP_PATH, GITHUB_MANIFEST_CALLBACK_PATH } from "@regulus/protocol";
+import {
+  GITHUB_APP_SETUP_PATH,
+  GITHUB_MANIFEST_CALLBACK_PATH,
+  GITHUB_WEBHOOK_PATH,
+} from "@regulus/protocol";
 import type { GitHubCaller } from "./api.ts";
 
 export const MANIFEST_STATE_TTL_MS = 60 * 60_000;
@@ -27,17 +31,33 @@ export const APP_PERMISSIONS = {
   checks: "read",
 } as const;
 
-/** Events for the M2 boards (#35); only subscribed when the office has a public webhook URL. */
-export const APP_EVENTS = ["issues", "pull_request", "pull_request_review", "check_suite"] as const;
+/**
+ * Webhook events (#35): the boards (issues, PRs, reviews, checks) plus what
+ * #155 workflows trigger on (pushes, comments). Only subscribed when the
+ * office has a public webhook URL. `installation` events reach every app
+ * without a subscription.
+ * https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/choosing-permissions-for-a-github-app
+ */
+export const APP_EVENTS = [
+  "issues",
+  "issue_comment",
+  "pull_request",
+  "pull_request_review",
+  "check_suite",
+  "check_run",
+  "push",
+] as const;
 
-const LOCAL_HOST_RE = /^(localhost|127\.\d+\.\d+\.\d+|\[::1\]|0\.0\.0\.0)$/i;
+/** Hosts GitHub cannot deliver to: loopback, private ranges, `.local` / `.internal` names. */
+const LOCAL_HOST_RE =
+  /^(localhost|.*\.localhost|.*\.local|.*\.internal|127\.\d+\.\d+\.\d+|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+|\[::1\]|0\.0\.0\.0)$/i;
 
 /** GitHub only delivers webhooks to public https URLs; localhost offices get none. */
 export function webhookUrlFor(publicUrl: string): string | null {
   try {
     const url = new URL(publicUrl);
     if (url.protocol !== "https:" || LOCAL_HOST_RE.test(url.hostname)) return null;
-    return new URL("/api/github/webhook", url).toString();
+    return new URL(GITHUB_WEBHOOK_PATH, url).toString();
   } catch {
     return null;
   }
@@ -62,9 +82,9 @@ export function buildManifest(publicUrl: string): Record<string, unknown> {
     setup_on_update: true,
     public: false,
     default_permissions: APP_PERMISSIONS,
-    // The webhook receiver lands with the boards (#35); until then the hook stays inactive.
+    // Deliveries go to POST /api/github/webhook, signed with the secret the conversion returns.
     ...(hook
-      ? { hook_attributes: { url: hook, active: false }, default_events: [...APP_EVENTS] }
+      ? { hook_attributes: { url: hook, active: true }, default_events: [...APP_EVENTS] }
       : {}),
   };
 }
