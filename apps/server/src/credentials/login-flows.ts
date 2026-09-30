@@ -9,13 +9,16 @@
  *   `verificationUrl` + `userCode` and waits for `account/login/completed`.
  * - Claude Code: `claude auth login` in a login session (a tmux session in
  *   the runner that is not an agent), opened by the human as
- *   `/ws/term/login-<id>`. Success is `claude auth status` exiting 0.
+ *   `/ws/term/login-<id>`. Success is `claude auth status` exiting 0. Then
+ *   the CLI's onboarding is marked complete in the runner (#158: `auth
+ *   login` alone leaves it open, and the first robot would ask to sign in
+ *   again); only that flag in `~/.claude.json`, never a credential.
  *
  * Flows are in memory, visible only to the human who started them, one per
  * human and provider, and end on success, cancel or timeout; their login
  * session is killed and unregistered from the bridge then.
  */
-import type { AdapterRegistry } from "@regulus/agent-adapters";
+import { type AdapterRegistry, ensureClaudeOnboarding } from "@regulus/agent-adapters";
 import {
   CLI_LOGIN_PROVIDERS,
   type CliLoginProvider,
@@ -328,7 +331,11 @@ export class LoginFlows {
           this.#commands,
           this.#opts.statusTimeoutMs,
         );
-        if (loggedIn) return "succeeded";
+        if (loggedIn) {
+          const { outcome } = await ensureClaudeOnboarding(ctx);
+          this.#log.info({ loginId, outcome }, "claude onboarding step after sign-in");
+          return "succeeded";
+        }
         // The login command exited without a login: nothing left to wait for.
         if (!(await runner.sessionExists(session).catch(() => true))) return "failed";
         return null;

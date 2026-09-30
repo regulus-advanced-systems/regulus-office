@@ -16,6 +16,7 @@ import {
   Secret,
   SecretEnv,
 } from "@regulus/agent-adapters";
+import type { Logger } from "../../logging.ts";
 import { bindRunnerOps, type Runner, type RunnerUser } from "../../runners/types.ts";
 import { agentGitEnv } from "../../worktrees/index.ts";
 import type { CredentialResolver } from "./credentials.ts";
@@ -30,6 +31,7 @@ export interface StartDeps {
   credentials: CredentialResolver;
   officeUrl: string;
   now: () => number;
+  logger?: Logger;
 }
 
 export interface Started {
@@ -84,6 +86,13 @@ export async function startAgent(
     ...built,
     env: SecretEnv.of(agentGitEnv(workdir, mounted.workdir)).merge(built.env),
   };
+  // The CLI's own first-run state (Claude: onboarding done, trust for the
+  // robot's own worktree only, never its owner's clone; #158).
+  const worktree = row.workdir === opts.clonePath ? undefined : workdir;
+  const prepared = await adapter.prepareSpawn?.(plan, ctx, { worktree });
+  if (prepared) {
+    deps.logger?.info({ agentId: row.id, ...prepared }, "agent CLI first-run state prepared");
+  }
   if (profile.mode === "exec") await deps.runner.exec(user, plan);
   const control = adapter.connect(plan, ctx);
   return {

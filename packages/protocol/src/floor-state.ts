@@ -49,7 +49,8 @@ export const RobotState = z.object({
   /**
    * Why the robot is in `error`, e.g. `runner_busy: the runner has live work …`: a short
    * code and a redacted one-line message, safe for every floor viewer (no paths, env or
-   * tokens). Empty in every other status.
+   * tokens). In `waiting_input`, one of the adapters' fixed "waiting for you" texts (e.g.
+   * Claude needs its human to finish signing in, #158). Empty in every other status.
    */
   statusReason: z.string().max(200),
   bubbleEmits: BubbleEmits,

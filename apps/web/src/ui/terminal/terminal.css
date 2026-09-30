@@ -158,3 +158,10 @@
   font-size: 12px;
   color: var(--rg-color-ink-muted, #5a5a66);
 }
+
+/* Sign-in link bar above a robot's terminal (#158); the bar itself is the providers panel's. */
+.rg-term__sign-in {
+  display: flex;
+  align-items: center;
+  min-height: 30px;
+}

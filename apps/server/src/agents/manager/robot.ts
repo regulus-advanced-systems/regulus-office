@@ -3,6 +3,7 @@
  * persisted row plus the event stream: status (through the state machine),
  * the desk animation (`action`), the raised hand and the bubble counters.
  */
+import { HUMAN_WAIT_REASONS } from "@regulus/agent-adapters";
 import type {
   AgentAction,
   AgentEvent,
@@ -122,7 +123,10 @@ export function robotState(view: AgentView): RobotState {
     prNumber: view.prNumber,
     worktreeBranch: view.worktreeBranch.slice(0, 200),
     handRaised: handRaised(view.status),
-    statusReason: view.status === "error" ? view.statusReason.slice(0, MAX_STATUS_REASON) : "",
+    statusReason:
+      view.status === "error" || view.status === "waiting_input"
+        ? view.statusReason.slice(0, MAX_STATUS_REASON)
+        : "",
     bubbleEmits: { ...view.bubbles },
     lastActivityAt: view.lastActivityAt,
   };
@@ -173,6 +177,17 @@ function remember(set: Set<string>, id: string): boolean {
   return true;
 }
 
+/**
+ * The reason a robot shows: an error's safe reason, or one of the fixed
+ * "waiting for you" reasons an adapter gives (e.g. Claude needs its human to
+ * finish signing in, #158). Other reasons stay internal.
+ */
+function statusReasonFor(status: AgentStatus, reason: string | undefined): string {
+  if (status === "error") return safeReason(reason);
+  if (status === "waiting_input" && reason && HUMAN_WAIT_REASONS.has(reason)) return reason;
+  return "";
+}
+
 /** Fold one event into the view. Mutates `view`; `now` stamps `lastActivityAt`. */
 export function applyEvent(view: AgentView, event: AgentEvent, now: number): ApplyResult {
   const before = JSON.stringify(robotState(view));
@@ -185,9 +200,12 @@ export function applyEvent(view: AgentView, event: AgentEvent, now: number): App
     if (next.changed) {
       view.status = next.status;
       view.action = actionFor(next.status, view.action);
-      view.statusReason =
-        next.status === "error" && event.kind === "status" ? safeReason(event.reason) : "";
+      view.statusReason = event.kind === "status" ? statusReasonFor(next.status, event.reason) : "";
       result.statusChanged = true;
+    } else if (event.kind === "status" && wanted === view.status && wanted === "waiting_input") {
+      // Still waiting, for something else now (e.g. sign-in done, trust dialog next).
+      const reason = statusReasonFor(wanted, event.reason);
+      if (reason) view.statusReason = reason;
     }
   }
 
