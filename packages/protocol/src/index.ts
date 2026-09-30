@@ -13,7 +13,7 @@
  * - commands/          client→server command union (zod, discriminated on `type`)
  * - agent-events.ts    adapter→server AgentEvent union (zod, discriminated on `kind`)
  * - agent-messages.ts  FloorRoom server→client robot messages (permissions, results)
- * - acl.ts             who may control a robot (D12)
+ * - acl.ts             who may control a robot, who may emergency-stop it (D12)
  * - permission-modes.ts per-provider robot permission modes (#166)
  * - schema/            @colyseus/schema classes mirroring the state shapes
  * - terminal.ts        terminal WebSocket control messages and constants

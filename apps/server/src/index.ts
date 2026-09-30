@@ -204,8 +204,9 @@ async function main(): Promise<void> {
     },
   });
   // "Send all home" before deleting a floor (#150): branches are kept, GitHub is not touched.
+  // An office owner/admin clears everyone's robots, which is not robot control (D12, #138).
   floors.lifecycle.robots = {
-    sendHome: (actor, agentId) => agents.sendHome(actor, agentId, { keepBranch: true }),
+    sendHome: (actor, agentId) => agents.evacuate(actor, agentId),
   };
   // "Connect providers" (#32): key profiles and CLI logins in the human's own runner (SPEC §8).
   const credentialPanel = mountCredentialPanel(server.router, {

@@ -1,11 +1,13 @@
 /**
  * FloorRoom handlers for the robot controls (SPEC §6, §7; issue #33):
- * `agent.prompt|approve|interrupt|stop|resume|sendHome|pr|worktree`.
+ * `agent.prompt|approve|interrupt|stop|resume|sendHome|pr|worktree` and
+ * `agent.emergencyStop`.
  *
  * Each command is already zod-validated by the room. Here it must name a
  * robot on this room's floor, and the sender must be allowed to control it
- * (D12: the robot's owner or an office owner/admin; viewers never). The
- * AgentManager checks the same rule again. A failure goes back to the sender
+ * (D12, #138: the robot's owner only; viewers never, admins neither). The one
+ * exception is `agent.emergencyStop`, open to office owners/admins on any
+ * robot (`mayEmergencyStop`). The AgentManager checks the same rules again. A failure goes back to the sender
  * as `command.rejected` with the `agentId` (and, for a PR refused over a
  * dirty worktree, the files); a success goes back to the sender only as
  * `agent.result` (the PR URL, the worktree status, or a plain ack).
@@ -23,13 +25,14 @@ import {
 } from "@regulus/protocol";
 import type { Logger } from "../../logging.ts";
 import type { RoomClient } from "../transport.ts";
-import { mayControl } from "./permissions.ts";
+import { mayControl, mayEmergencyStopAs } from "./permissions.ts";
 
 export const AGENT_CONTROL_TYPES = [
   "agent.prompt",
   "agent.approve",
   "agent.interrupt",
   "agent.stop",
+  "agent.emergencyStop",
   "agent.resume",
   "agent.sendHome",
   "agent.pr",
@@ -41,6 +44,9 @@ export type AgentControlCommand = Extract<ClientCommand, { type: AgentControlTyp
 export type AgentControlOutcome =
   | { ok: true; result: AgentCommandResult }
   | { ok: false; reason: string; files?: readonly string[] };
+
+/** Why a non-owner's control command is refused (the panel shows a note instead). */
+export const NOT_OWNER_REASON = "only the robot's owner may control it";
 
 export interface AgentActor {
   id: string;
@@ -88,8 +94,13 @@ export function handleAgentControl(ctx: AgentControlContext, command: AgentContr
     reject("no such robot on this floor");
     return;
   }
-  if (!mayControl(client, robot.ownerUserId)) {
-    reject("only the robot's owner or an admin may control it");
+  if (command.type === "agent.emergencyStop") {
+    if (!mayEmergencyStopAs(client)) {
+      reject("only an office owner or admin may emergency-stop a robot");
+      return;
+    }
+  } else if (!mayControl(client, robot.ownerUserId)) {
+    reject(NOT_OWNER_REASON);
     return;
   }
   if (!ctx.control) {

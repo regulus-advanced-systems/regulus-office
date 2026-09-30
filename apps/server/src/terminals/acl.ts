@@ -2,17 +2,18 @@
  * Terminal ACL (SPEC §8 rule 4, §14 D12), checked on every connection:
  *
  * - Anyone who can view the robot's floor may watch its terminal.
- * - Control (typing, approving in the TUI) requires being the robot's owner
- *   or an office `admin`/`owner`.
+ * - Control (typing, approving in the TUI, resizing) is the robot's owner's
+ *   alone (#138); office `admin`s/`owner`s watch other people's robots like
+ *   everyone else (their only lever is the FloorRoom `agent.emergencyStop`).
  * - `viewer`s watch only, even their own robots.
  *
  * "Can view the floor" is any access from floors/access.ts (owners/admins see
  * every live floor, others need a `floor_members` row, archived floors are
  * invisible), so the terminal and the FloorRoom agree on who sees a robot.
  */
-import type { TerminalMode, UserRole } from "@regulus/protocol";
+import { mayControlRobot, type TerminalMode, type UserRole } from "@regulus/protocol";
 import type { Db } from "../db/index.ts";
-import { floorAccessFor, isOfficeManager } from "../floors/access.ts";
+import { floorAccessFor } from "../floors/access.ts";
 
 export interface TerminalUser {
   id: string;
@@ -36,8 +37,7 @@ export function mayUseTerminal(
   mode: TerminalMode,
 ): boolean {
   if (mode === "watch") return true;
-  if (isOfficeManager(user.role)) return true;
-  return user.role !== "viewer" && user.id === ownerUserId;
+  return mayControlRobot(user, ownerUserId);
 }
 
 export function decideTerminalAccess(

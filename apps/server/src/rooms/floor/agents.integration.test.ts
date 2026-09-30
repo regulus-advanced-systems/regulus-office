@@ -1,9 +1,10 @@
 /**
- * FloorRoom robot controls over the wire (#33): the D12 ACL for office
- * owner, admin, the robot's owner, another member and a viewer; results and
- * rejections go to the caller only; pending permission requests reach the
- * robot's controllers and never anyone who only watches; send-home tells
- * everyone the robot is leaving.
+ * FloorRoom robot controls over the wire (#33, #138): the D12 ACL for office
+ * owner, admin, the robot's owner, another member and a viewer (only the
+ * robot's owner controls); the office owner/admin emergency stop; results
+ * and rejections go to the caller only; pending permission requests reach
+ * the robot's owner and never anyone who only watches, admins included;
+ * send-home tells everyone the robot is leaving.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -42,8 +43,9 @@ const users = {
   member: { userId: "u-max", displayName: "Max", role: "member" },
   viewer: { userId: "u-vic", displayName: "Vic", role: "viewer" },
 } satisfies Record<string, User>;
-const CONTROLLERS = ["owner", "admin", "robotOwner"] as const;
-const WATCHERS = ["member", "viewer"] as const;
+const CONTROLLERS = ["robotOwner"] as const;
+const WATCHERS = ["owner", "admin", "member", "viewer"] as const;
+const NOT_OWNER = "only the robot's owner may control it";
 const AGENT = "agent-7";
 
 let dir: string;
@@ -190,7 +192,7 @@ afterAll(async () => {
 });
 
 describe("FloorRoom robot controls", () => {
-  test("ACL matrix: owner, admin and the robot's owner control; others are refused", async () => {
+  test("ACL matrix: only the robot's owner controls; office owner, admin and others are refused", async () => {
     for (const key of [...CONTROLLERS, ...WATCHERS]) {
       const who = await enter(users[key]);
       const before = calls.length;
@@ -211,18 +213,39 @@ describe("FloorRoom robot controls", () => {
         ]);
       } else {
         expect(of(who, COMMAND_REJECTED_MESSAGE)).toEqual([
-          {
-            type: "agent.stop",
-            agentId: AGENT,
-            reason: "only the robot's owner or an admin may control it",
-          },
-          {
-            type: "agent.prompt",
-            agentId: AGENT,
-            reason: "only the robot's owner or an admin may control it",
-          },
+          { type: "agent.stop", agentId: AGENT, reason: NOT_OWNER },
+          { type: "agent.prompt", agentId: AGENT, reason: NOT_OWNER },
         ]);
         expect(calls.length).toBe(before); // never reached the manager
+      }
+    }
+  });
+
+  test("emergency stop: office owner and admin only, forwarded with the reason", async () => {
+    for (const key of ["owner", "admin", "robotOwner", "member", "viewer"] as const) {
+      const who = await enter(users[key]);
+      const before = calls.length;
+      who.room.send("agent.emergencyStop", { agentId: AGENT, reason: "runaway" });
+      await waitFor(() => who.inbox.length >= 1, `${key} answer`);
+      if (key === "owner" || key === "admin") {
+        expect(of(who, AGENT_RESULT_MESSAGE)).toEqual([
+          { type: "agent.emergencyStop", agentId: AGENT },
+        ]);
+        expect(calls.slice(before)).toEqual([
+          {
+            actor: users[key].userId,
+            command: { type: "agent.emergencyStop", agentId: AGENT, reason: "runaway" },
+          },
+        ]);
+      } else {
+        expect(of(who, COMMAND_REJECTED_MESSAGE)).toEqual([
+          {
+            type: "agent.emergencyStop",
+            agentId: AGENT,
+            reason: "only an office owner or admin may emergency-stop a robot",
+          },
+        ]);
+        expect(calls.length).toBe(before);
       }
     }
   });
@@ -260,7 +283,7 @@ describe("FloorRoom robot controls", () => {
     expect(of(other, AGENT_RESULT_MESSAGE)).toEqual([]);
   });
 
-  test("permission details reach controllers only, also on join, and clear", async () => {
+  test("permission details reach the robot's owner only, also on join, and clear", async () => {
     const joined = Object.fromEntries(
       await Promise.all(
         [...CONTROLLERS, ...WATCHERS].map(async (k) => [k, await enter(users[k])] as const),
@@ -275,10 +298,11 @@ describe("FloorRoom robot controls", () => {
       } satisfies AgentPermissions);
     }
 
-    // Late joiners: a controller gets what is open, a watcher does not.
+    // Late joiners: the robot's owner gets what is open; an admin or viewer does not.
+    const lateOwner = await enter(users.robotOwner);
     const lateAdmin = await enter(users.admin);
     const lateViewer = await enter(users.viewer);
-    await waitFor(() => of(lateAdmin, AGENT_PERMISSIONS_MESSAGE).length === 1, "late admin");
+    await waitFor(() => of(lateOwner, AGENT_PERMISSIONS_MESSAGE).length === 1, "late owner");
 
     rooms.floors.publishPermissions(floorId, AGENT, users.robotOwner.userId, []);
     for (const k of CONTROLLERS) {
@@ -286,7 +310,7 @@ describe("FloorRoom robot controls", () => {
       expect(of(joined[k], AGENT_PERMISSIONS_MESSAGE)[1]).toEqual({ agentId: AGENT, requests: [] });
     }
     await Bun.sleep(150);
-    for (const watcher of [joined.member, joined.viewer, lateViewer]) {
+    for (const watcher of [...WATCHERS.map((k) => joined[k]), lateAdmin, lateViewer]) {
       expect(of(watcher, AGENT_PERMISSIONS_MESSAGE)).toEqual([]);
       expect(JSON.stringify(watcher.inbox)).not.toContain("curl");
     }

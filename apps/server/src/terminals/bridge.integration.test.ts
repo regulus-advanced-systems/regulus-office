@@ -134,12 +134,12 @@ describe.skipIf(!hasTmux() || !hasBunPty())("terminal bridge (tmux + Bun PTY)", 
     await feed.close();
   });
 
-  describe("ACL matrix (D12) on the wire", () => {
+  describe("ACL matrix (D12, #138: owner-only control) on the wire", () => {
     const cases: [string, () => User, TerminalMode, number][] = [
       ["office owner", () => owner, "watch", 101],
-      ["office owner", () => owner, "control", 101],
+      ["office owner", () => owner, "control", 403],
       ["admin", () => admin, "watch", 101],
-      ["admin", () => admin, "control", 101],
+      ["admin", () => admin, "control", 403],
       ["robot owner (member)", () => robotOwner, "watch", 101],
       ["robot owner (member)", () => robotOwner, "control", 101],
       ["member", () => member, "watch", 101],
@@ -226,7 +226,7 @@ describe.skipIf(!hasTmux() || !hasBunPty())("terminal bridge (tmux + Bun PTY)", 
 
   test("five concurrent viewers on one session: counts, fan-out latency, clean teardown", async () => {
     await waitUntil(() => office.bridge.viewerCount("a1") === 0, "earlier viewers gone");
-    const driver = await connect("a1", "control", admin);
+    const driver = await connect("a1", "control", robotOwner);
     const viewers: TermClient[] = [];
     for (let i = 0; i < 5; i += 1) viewers.push(await connect("a1", "watch", member));
     for (const v of viewers) await v.waitFor((c) => c.output.includes("FAKE AGENT"), "attach");

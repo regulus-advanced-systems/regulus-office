@@ -35,6 +35,11 @@
 .rg-term__mode--control {
   background: var(--rg-color-orange-red, #f26522);
 }
+/* Everyone but the robot's owner watches (#138). */
+.rg-term__watch-only {
+  color: var(--rg-color-ink-muted);
+  font-size: 12px;
+}
 .rg-term__people {
   margin-left: auto;
   min-width: 0;

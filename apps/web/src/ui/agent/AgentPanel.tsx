@@ -2,11 +2,12 @@
  * Robot panel (#33): opened from the robot or its desk (`openAgentPanel`,
  * called by the scene, #29). Everyone who can see the floor gets the
  * robot's status, task, model and owner and can watch its terminal; its
- * controllers (owner, office owner/admin: D12) also get the prompt box,
- * the raised-hand approval, interrupt / stop / resume, send home and the
- * one-click PR. The server checks every command again.
+ * owner alone (D12, #138) also gets the prompt box, the raised-hand
+ * approval, interrupt / stop / resume, send home and the one-click PR.
+ * Office owners/admins watching someone else's running robot get only the
+ * confirmed, audited emergency stop. The server checks every command again.
  */
-import { mayControlRobot, type RobotState } from "@regulus/protocol";
+import { mayControlRobot, mayEmergencyStop, type RobotState } from "@regulus/protocol";
 import { useEffect, useId, useRef } from "react";
 import { useFloorStore } from "../../state/floor.ts";
 import { useSessionStore } from "../../state/session.ts";
@@ -17,6 +18,7 @@ import { permissionModeLabel } from "../spawn/permissionModes.ts";
 import { useTerminalModal } from "../terminal/terminalStore.ts";
 import { useAgentSender } from "./agentCommands.ts";
 import { flightKey, useAgentStore } from "./agentStore.ts";
+import { EmergencyStop } from "./EmergencyStop.tsx";
 import { isResumable, isRunning, PROVIDER_LABELS, STATUS_LABELS } from "./labels.ts";
 
 function Facts({ robot }: { robot: RobotState }) {
@@ -181,9 +183,12 @@ export function AgentPanel() {
       {controller ? (
         <Controls robot={robot} />
       ) : (
-        <p className="rg-field__hint">
-          Only {robot.ownerName || "its owner"} or an admin can control this robot.
-        </p>
+        <>
+          <p className="rg-field__hint">
+            Only {robot.ownerName || "its owner"} can control this robot.
+          </p>
+          {mayEmergencyStop(user) && isRunning(robot.status) && <EmergencyStop robot={robot} />}
+        </>
       )}
       {inlineRefusal && (
         <div role="alert" className="rg-form-alert">

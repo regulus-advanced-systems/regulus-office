@@ -86,3 +86,12 @@
   overflow: auto;
   font-size: 12px;
 }
+/* Emergency stop confirm (#138). */
+.rg-agent-estop {
+  display: grid;
+  gap: 6px;
+}
+.rg-agent-estop__lead {
+  margin: 0;
+  font-size: 13px;
+}

@@ -109,7 +109,11 @@ describe.skipIf(!hasTmux())("AgentManager (tmux)", () => {
     manager.publish(agentId, { kind: "status", ts: Date.now(), status: "working" });
     expect(robots.robots.get(agentId)?.status).toBe("exited");
 
-    await manager.sendHome(office.owner, agentId, { keepBranch: true });
+    // Office owners watch other people's robots; only the robot's owner sends it home (#138).
+    await expect(manager.sendHome(office.owner, agentId, { keepBranch: true })).rejects.toThrow(
+      "only the robot's owner may control it",
+    );
+    await manager.sendHome(office.member, agentId, { keepBranch: true });
     expect(robots.removed).toEqual([agentId]);
     expect(office.db.select().from(desks).where(eq(desks.agentId, agentId)).get()).toBeUndefined();
     const actions = office.db.select({ action: auditLog.action }).from(auditLog).all();

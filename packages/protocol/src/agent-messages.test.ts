@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mayControlRobot } from "./acl.ts";
+import { mayControlRobot, mayEmergencyStop } from "./acl.ts";
 import {
   AgentCommandResult,
   AgentLeaving,
@@ -67,13 +67,16 @@ describe("agent messages", () => {
   });
 });
 
-describe("mayControlRobot (D12)", () => {
+describe("mayControlRobot (D12, #138: owner only)", () => {
   test.each([
-    ["owner", "someone", true],
-    ["admin", "someone", true],
+    ["owner", "someone", false],
+    ["owner", "u1", true],
+    ["admin", "someone", false],
+    ["admin", "u1", true],
     ["member", "u1", true],
     ["member", "someone", false],
     ["viewer", "u1", false],
+    ["viewer", "someone", false],
   ] as const)("%s controlling a robot owned by %s → %p", (role, owner, expected) => {
     expect(mayControlRobot({ id: "u1", role }, owner)).toBe(expected);
   });
@@ -82,5 +85,21 @@ describe("mayControlRobot (D12)", () => {
     expect(mayControlRobot(null, "u1")).toBe(false);
     expect(mayControlRobot({ id: "u1", role: "member" }, undefined)).toBe(false);
     expect(mayControlRobot({ id: "", role: "member" }, "")).toBe(false);
+  });
+});
+
+describe("mayEmergencyStop (D12, #138)", () => {
+  test.each([
+    ["owner", true],
+    ["admin", true],
+    ["member", false],
+    ["viewer", false],
+  ] as const)("%s → %p", (role, expected) => {
+    expect(mayEmergencyStop({ id: "u1", role })).toBe(expected);
+  });
+
+  test("nobody signed in stops nothing", () => {
+    expect(mayEmergencyStop(null)).toBe(false);
+    expect(mayEmergencyStop(undefined)).toBe(false);
   });
 });
