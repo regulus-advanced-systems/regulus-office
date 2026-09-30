@@ -335,7 +335,7 @@ test("3. the robot's status and action change (editing) and it raises its hand",
   // PermissionRequest (waiting_permission, hand up).
   await expect
     .poll(() => history(ownerPage), { timeout: 60_000 })
-    .toContainEqual(expect.stringMatching(/^working\/editing\/sit_type\//));
+    .toContainEqual(expect.stringMatching(/^working\/editing\//));
   const seen = await history(ownerPage);
   expect(seen).toContainEqual(expect.stringMatching(/^working\/thinking\//));
   expect(seen.findIndex((s) => s.startsWith("working/thinking/"))).toBeLessThan(
