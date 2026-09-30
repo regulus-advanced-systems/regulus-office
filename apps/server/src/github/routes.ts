@@ -42,10 +42,16 @@ export interface GitHubRoutesDeps {
   /** github.com, where the browser posts the manifest. */
   webBase: string;
   logger: Logger;
+  /** After the connection changed (board sync resyncs, webhook config is checked; #35). */
+  onConnectionChanged?: () => void;
 }
 
 export function mountGitHubRoutes(router: Router, deps: GitHubRoutesDeps): void {
   const { auth, db, connection, states, logger } = deps;
+  const changed = () => {
+    connection.reset();
+    deps.onConnectionChanged?.();
+  };
   const publicBase = auth.publicUrl.replace(/\/+$/, "");
 
   const manager = async (request: Request): Promise<FloorActor> => {
@@ -125,7 +131,7 @@ export function mountGitHubRoutes(router: Router, deps: GitHubRoutesDeps): void 
         );
       }
       connection.store.savePat(token, checked.login);
-      connection.reset();
+      changed();
       audit(actor, "connect", { kind: "pat", login: checked.login, repos: checked.repoCount });
       return json(await connection.status());
     }, true),
@@ -137,7 +143,7 @@ export function mountGitHubRoutes(router: Router, deps: GitHubRoutesDeps): void 
     handle(async (_ctx, actor) => {
       if (connection.managedByEnv) throw new AuthHttpError(409, "managed_by_env");
       const removed = connection.store.clear();
-      connection.reset();
+      changed();
       if (removed) audit(actor, "disconnect", {});
       return new Response(null, { status: 204 });
     }, true),
@@ -171,7 +177,7 @@ export function mountGitHubRoutes(router: Router, deps: GitHubRoutesDeps): void 
     try {
       const app = await convertManifest(connection.api, code);
       connection.store.saveApp(app);
-      connection.reset();
+      changed();
       audit(user, "connect", { kind: "app", appId: app.appId, slug: app.slug, owner: app.owner });
       logger.info({ appId: app.appId, slug: app.slug }, "github app created from manifest");
       // Next step: install the app on the org and pick its repos.
@@ -193,7 +199,7 @@ export function mountGitHubRoutes(router: Router, deps: GitHubRoutesDeps): void 
   router.get(GITHUB_APP_SETUP_PATH, async (ctx) => {
     const user = await auth.getSessionFromRequest(ctx.request);
     // Only a signed-in owner/admin drops the cached lists, so the new installation shows.
-    if (user && isOfficeManager(user.role)) connection.reset();
+    if (user && isOfficeManager(user.role)) changed();
     return toOffice("installed");
   });
 }

@@ -1,6 +1,6 @@
 /**
  * NotificationCenter (#42; SPEC §10 Ops, D15). Fed by the AgentManager
- * (status changes, PRs opened) and the PR watcher (PRs merged), it:
+ * (status changes, PRs opened) and the GitHub event bus (PRs merged, #35), it:
  *
  * - keeps each human's tab badge current: `notify.attention` lists their own
  *   robots waiting for them, pushed to that human's clients only;
@@ -137,7 +137,7 @@ export class NotificationCenter {
     this.#emit({ ...snapshotOf(view), prNumber: pr.number }, "pr_opened", pr.url);
   }
 
-  /** PR watcher (or GitHub webhooks, #35): a robot's PR was merged. */
+  /** GitHub event bus (webhooks or polling, #35; pr-merged.ts): a robot's PR was merged. */
   pullRequestMerged(robot: RobotSnapshot, prUrl?: string): void {
     this.#emit(snapshotOf(robot), "pr_merged", prUrl);
   }

@@ -42,6 +42,12 @@ export const githubPulls = sqliteTable(
     headRef: text("head_ref"),
     baseRef: text("base_ref"),
     isDraft: integer("is_draft", { mode: "boolean" }).notNull().default(false),
+    /** Head commit; check suites for another sha are ignored (#35). */
+    headSha: text("head_sha"),
+    /** Latest state per check suite id (`pending|success|failure`), aggregated into `checksState`. */
+    checksJson: jsonText("checks_json").notNull().default("{}"),
+    /** Latest review state per reviewer login, aggregated into `reviewState`. */
+    reviewsJson: jsonText("reviews_json").notNull().default("{}"),
   },
   (t) => [
     uniqueIndex("github_pulls_repo_number_unique").on(t.repoId, t.number),
@@ -76,4 +82,21 @@ export const githubConnection = sqliteTable(
     ...timestamps(),
   },
   () => [check("github_connection_kind_check", inEnum("kind", ["app", "pat"]))],
+);
+
+/**
+ * Verified webhook deliveries seen recently (#35): `id` is GitHub's
+ * `X-GitHub-Delivery` GUID. A delivery is claimed before it is handled and
+ * released again if handling fails, so a replay (or a second copy racing the
+ * first) is dropped while a failed one can still be redelivered. Rows older
+ * than the dedupe window are pruned.
+ */
+export const githubWebhookDeliveries = sqliteTable(
+  "github_webhook_deliveries",
+  {
+    id: text("id").primaryKey(),
+    event: text("event").notNull(),
+    ...timestamps(),
+  },
+  (t) => [index("github_webhook_deliveries_created_idx").on(t.createdAt)],
 );

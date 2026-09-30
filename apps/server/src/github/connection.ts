@@ -233,6 +233,41 @@ export class GitHubConnection {
     }
   }
 
+  /**
+   * The app's webhook secret (GITHUB_WEBHOOK_SECRET for an env app, else the
+   * stored one), decrypted for one verification; null without an app or secret.
+   */
+  webhookSecret(): string | null {
+    try {
+      const resolved = this.#resolve();
+      if (resolved.kind !== "app") return null;
+      if (resolved.source === "env") return this.#deps.envApp?.webhookSecret ?? null;
+      return resolved.meta?.webhookSecret ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** The app's credentials and stored metadata (webhook setup, loop protection); null without an app. */
+  app(): { credentials: AppCredentials; source: "db" | "env"; slug: string | null } | null {
+    try {
+      const resolved = this.#resolve();
+      if (resolved.kind !== "app") return null;
+      return {
+        credentials: resolved.app,
+        source: resolved.source,
+        slug: resolved.meta?.slug ?? null,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  /** A fresh app JWT (for `/app` endpoints). */
+  appJwt(credentials: AppCredentials): string {
+    return appJwt(credentials, this.#now());
+  }
+
   /** Check an org PAT against GitHub; returns the account login when GitHub reports it. */
   async verifyPat(token: string): Promise<{ login: string | null; repoCount: number }> {
     const user = await this.#api.json<{ login?: unknown }>({ path: "/user", bearer: token });

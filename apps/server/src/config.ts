@@ -146,6 +146,12 @@ export const envSchema = z.object({
   GITHUB_APP_CLIENT_ID: z.preprocess(emptyToUndefined, str().optional()),
   GITHUB_APP_PRIVATE_KEY: z.preprocess(emptyToUndefined, secretStr().optional()),
   GITHUB_WEBHOOK_SECRET: z.preprocess(emptyToUndefined, secretStr().optional()),
+  // Board sync (#35): poll GitHub when webhooks are not arriving.
+  OFFICE_GITHUB_POLLING: bool(true),
+  OFFICE_GITHUB_POLL_SECONDS: z.preprocess(
+    emptyToUndefined,
+    z.coerce.number().int().min(30).max(3600).default(60),
+  ),
   OFFICE_MASTER_KEY: z.preprocess(emptyToUndefined, masterKeySchema.optional()),
   OFFICE_PUBLIC_URL: z.preprocess(emptyToUndefined, z.url().optional()),
   OFFICE_LOG_LEVEL: z.preprocess(emptyToUndefined, z.enum(LOG_LEVELS).default("info")),
@@ -249,6 +255,12 @@ export interface OfficeConfig {
   githubWebBase: string;
   /** Office GitHub App from the environment; overrides the stored connection when set. */
   githubApp: GithubAppEnvConfig | undefined;
+  /**
+   * Board sync (#35): poll issues/PRs with conditional requests while no
+   * webhooks arrive (OFFICE_GITHUB_POLLING, default true), every
+   * OFFICE_GITHUB_POLL_SECONDS (30..3600, default 60).
+   */
+  githubSync: { polling: boolean; pollIntervalMs: number };
   /** Envelope-encryption root key (SPEC §8 rule 2). Absent means secrets cannot be stored. */
   masterKey: SecretValue<Uint8Array> | undefined;
   /** Externally reachable origin, used for links and OAuth callbacks. */
@@ -381,6 +393,10 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
             webhookSecret: e.GITHUB_WEBHOOK_SECRET,
           }
         : undefined,
+    githubSync: {
+      polling: e.OFFICE_GITHUB_POLLING,
+      pollIntervalMs: e.OFFICE_GITHUB_POLL_SECONDS * 1000,
+    },
     masterKey: e.OFFICE_MASTER_KEY,
     publicUrl: e.OFFICE_PUBLIC_URL ?? `http://localhost:${e.OFFICE_PORT}`,
     logLevel: e.OFFICE_LOG_LEVEL,

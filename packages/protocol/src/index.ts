@@ -7,7 +7,7 @@
  * - building-state.ts  BuildingRoom state shapes (zod + inferred types)
  * - floor-state.ts     FloorRoom state shapes (zod + inferred types)
  * - floors-api.ts      REST shapes for floors, repos and floor members
- * - github-api.ts      REST shapes for the office GitHub connection and its repo list
+ * - github-api.ts      REST shapes for the office GitHub connection, its repo list and board sync
  * - notifications.ts   desktop/tab-badge messages, per-user prefs, team webhook channels
  * - credentials-api.ts read-only credential profile list (ids and labels only)
  * - provider-connect.ts "Connect providers": key profiles, key presets, CLI login flows

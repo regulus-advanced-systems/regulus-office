@@ -51,12 +51,17 @@ export function startFakeGitHub(opts: {
   conversions?: Record<string, Record<string, unknown>>;
   /** Installation token lifetime (ms from now). */
   tokenTtlMs?: number;
+  /** `GET /app` slug and the app's webhook config (#35); absent config answers 404. */
+  appSlug?: string;
+  hookConfig?: Record<string, unknown>;
+  /** More routes (the boards fake, #35); undefined falls through to 404. */
+  extra?: (req: Request, url: URL, body: unknown) => Response | undefined;
 }) {
   const calls: RecordedCall[] = [];
   /** Minted installation token → installation id and repo scope. */
   const minted = new Map<string, { installation: FakeInstallation; repo: string | null }>();
   let seq = 0;
-  const state = { failAll: false };
+  const state = { failAll: false, hookConfig: opts.hookConfig ?? null };
 
   const verifyJwt = (auth: string | null): boolean => {
     const jwt = auth?.replace(/^Bearer /, "") ?? "";
@@ -134,12 +139,27 @@ export function startFakeGitHub(opts: {
         if (!pat) return Response.json({ message: "Bad credentials" }, { status: 401 });
         return Response.json(slice(pat.repos).map(raw));
       }
+      if (url.pathname === "/app" || url.pathname === "/app/hook/config") {
+        if (!verifyJwt(authorization))
+          return Response.json({ message: "Bad JWT" }, { status: 401 });
+        if (url.pathname === "/app")
+          return Response.json({ id: opts.appId ?? 1, slug: opts.appSlug });
+        if (req.method === "PATCH") {
+          state.hookConfig = { ...(state.hookConfig ?? {}), ...(body as object) };
+        } else if (!state.hookConfig) {
+          return Response.json({ message: "Not Found" }, { status: 404 });
+        }
+        const { secret: _secret, ...shown } = state.hookConfig ?? {};
+        return Response.json(shown);
+      }
       const conv = /^\/app-manifests\/([^/]+)\/conversions$/.exec(url.pathname);
       if (conv && req.method === "POST") {
         const payload = opts.conversions?.[decodeURIComponent(conv[1] ?? "")];
         if (!payload) return Response.json({ message: "Not Found" }, { status: 404 });
         return Response.json(payload, { status: 201 });
       }
+      const extra = opts.extra?.(req, url, body);
+      if (extra) return extra;
       return Response.json({ message: "Not Found" }, { status: 404 });
     },
   });
