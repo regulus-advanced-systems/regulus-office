@@ -10,8 +10,8 @@
  *   their later report of it a no-op.
  * - `bang(floorId, user)`: a human bangs the gong (`gong.bang`), rate-limited
  *   per floor and per human (bang-limit.ts), broadcast as `gong.ring`.
- * - `queueEmptied(floorId)`: the hook for the task queue (#37). Its last task
- *   done and the queue empty: a triple ring. Repeats within
+ * - `queueEmptied(floorId)`: the task queue (#37) emptied (queue-watch.ts
+ *   detects it from the queue's publishes): a triple ring. Repeats within
  *   `QUEUE_EMPTY_REPEAT_MS` are dropped, so a queue that flaps between one
  *   and zero tasks does not ring each time.
  *

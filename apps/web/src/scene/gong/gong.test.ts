@@ -1,10 +1,13 @@
 /** The merge gong's client side (#43): where it hangs, its timing, its synth and its messages. */
 import { describe, expect, test } from "bun:test";
-import { FLOOR_TIERS, lobbyTemplate, templateForTier } from "@regulus/floor-layout";
+import { FLOOR_TIERS, interactables, lobbyTemplate, templateForTier } from "@regulus/floor-layout";
 import type { CommandRejected } from "@regulus/protocol";
 import { create } from "zustand";
 import { CONFETTI_CAPACITY, ConfettiField } from "../robots/confetti.ts";
-import { gongAnchors, gongInReach } from "./gongAnchor.ts";
+import { GONG_INTERACT_RADIUS, gongAnchors, gongInReach } from "./gongAnchor.ts";
+
+const BOARD_LIKE = new Set(["issue_board", "pr_board", "queue_clipboard"]);
+
 import { useGongStore } from "./gongStore.ts";
 import { bangGong, syncGong } from "./gongSync.ts";
 import { type GongAudio, gongVoices, playGong } from "./gongSynth.ts";
@@ -34,6 +37,21 @@ describe("gong anchor", () => {
       // The confetti point is between the wall and the stand point.
       const toWall = Math.hypot(gong.front.x - gong.stand.x, gong.front.z - gong.stand.z);
       expect(toWall).toBeCloseTo(gong.anchor.approach - 0.3, 6);
+    },
+  );
+
+  test.each([...FLOOR_TIERS])(
+    "in the %s room no other E target reaches the gong's stand",
+    (tier) => {
+      const t = templateForTier(tier);
+      const [gong] = gongAnchors(t);
+      if (!gong) throw new Error("no gong");
+      // Boards and the queue clipboard answer E within 1.4 m of their stand points.
+      for (const a of interactables(t)) {
+        if (a.id === gong.anchor.id || !BOARD_LIKE.has(a.kind)) continue;
+        const d = Math.hypot(a.standAt.x - gong.stand.x, a.standAt.z - gong.stand.z);
+        expect([a.id, d > 1.4 + GONG_INTERACT_RADIUS]).toEqual([a.id, true]);
+      }
     },
   );
 

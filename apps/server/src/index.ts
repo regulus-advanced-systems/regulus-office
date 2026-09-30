@@ -14,7 +14,7 @@ import {
   type OfficeAuth,
   originPolicyFor,
 } from "./auth/index.ts";
-import { createCelebrations } from "./celebrations/index.ts";
+import { createCelebrations, watchQueueEmptied } from "./celebrations/index.ts";
 import { ChangesService, mountChangesRoutes } from "./changes/index.ts";
 import { ConfigError, loadConfig, redactConfig } from "./config.ts";
 import { mountCredentialPanel } from "./credentials/panel.ts";
@@ -237,7 +237,7 @@ async function main(): Promise<void> {
     logger: logger.child({ module: "github-sync" }),
   });
   mountGitHubSyncRoutes(server.router, { auth, sync: githubSync });
-  // Merge gong (#43): merged PRs and manual bangs ring on the floor; #37's queue calls queueEmptied.
+  // Merge gong (#43): merged PRs, manual bangs and emptied task queues (#37) ring on the floor.
   const celebrations = createCelebrations({
     db,
     floors: rooms.floors,
@@ -290,7 +290,12 @@ async function main(): Promise<void> {
     changes: new ChangesService({ db, runner, repos: floors.repos, clones: worktrees.workspaces }),
   });
   // Room task queues (#37): created before the manager, which reports robot status to it.
-  const tasks = createTaskQueue({ db, rooms: rooms.floors, logger });
+  // A room whose queue empties rings the merge gong three times (#43).
+  const tasks = createTaskQueue({
+    db,
+    rooms: watchQueueEmptied(rooms.floors, (floorId) => celebrations.queueEmptied(floorId)),
+    logger,
+  });
   tasks.queue.followGitHub(githubSync.events);
   // Agents (#26): the manager, its FloorRoom/terminal registration, Claude hook routes (#27).
   const agents = await createAgents({

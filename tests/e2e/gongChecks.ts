@@ -104,9 +104,13 @@ export async function checkMergeGong(page: Page, opts: { githubPort: number; flo
     expect(await gongStrikes(page)).toBe(strikes + 2);
 
     // The click walked us to the gong: once the ring is over, E bangs it too.
+    // Pressing E before arriving (software GL is slow) sends nothing, and a press during the
+    // cooldown is refused without spending a bang, so keep pressing until it rings.
     await page.waitForTimeout(4_200);
-    await page.keyboard.press("e");
-    await expect.poll(() => gongStrikes(page)).toBe(strikes + 3);
+    await expect(async () => {
+      await page.keyboard.press("e");
+      await expect.poll(() => gongStrikes(page), { timeout: 2_000 }).toBe(strikes + 3);
+    }).toPass({ timeout: 30_000 });
   } finally {
     await page.request
       .delete("/api/github/connection", { headers: { origin } })
