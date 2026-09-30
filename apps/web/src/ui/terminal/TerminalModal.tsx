@@ -1,8 +1,8 @@
 /**
  * Live terminal modal (SPEC §9.4, §6 channel 3, D12): the robot's tmux
  * session in xterm.js, a watch/control indicator, "Take control" only for
- * those allowed (robot owner, office owner/admin), viewer faces, "X is
- * typing", reconnect status. Counts as one of the ≤ 2 live DOM panels.
+ * the robot's owner (#138; everyone else, admins included, gets an "only X
+ * can control" note), viewer faces, "X is typing", reconnect status. Counts as one of the ≤ 2 live DOM panels.
  *
  * While in control, every key (Escape and Tab included) goes to the
  * terminal; the close button and "Release control" stay clickable.
@@ -130,6 +130,11 @@ export function TerminalModal({
             <Button size="sm" onClick={() => setMode("watch")}>
               Release control
             </Button>
+          )}
+          {!canControl && robot && (
+            <span className="rg-term__watch-only" data-testid="terminal-watch-only">
+              Only {robot.ownerName || "its owner"} can control this robot
+            </span>
           )}
           <TerminalPeople
             viewers={state.viewers}

@@ -14,6 +14,7 @@ export type AgentControlType =
   | "agent.approve"
   | "agent.interrupt"
   | "agent.stop"
+  | "agent.emergencyStop"
   | "agent.resume"
   | "agent.sendHome"
   | "agent.pr"

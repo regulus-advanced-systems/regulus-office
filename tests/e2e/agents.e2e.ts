@@ -2,7 +2,7 @@
  * M1 exit criteria, automated half (docs/SPEC.md §10 M1, issue #120): an owner spawns a
  * Claude Code robot at a desk on a floor cloned from a (local, file://) repo; the robot
  * animates by action and raises its hand; the permission prompt reaches the owner but not a
- * second member's browser; approving lets the agent commit; the one-click PR reaches a fake
+ * second member's browser, nor an office admin's, who gets only the emergency stop (#138); approving lets the agent commit; the one-click PR reaches a fake
  * GitHub with `Closes #n`; restarting office-server re-adopts the same tmux session, whose
  * terminal still opens, copies, expands and reflows (#156); copying works in every terminal
  * surface while the fake turns on mouse tracking like Claude Code (#164); sending the robot
@@ -40,6 +40,7 @@ const member = {
   email: `member-${run}@example.com`,
   password: `member-pw-${run}`,
 };
+const admin = { name: "Cy Admin", email: `admin-${run}@example.com`, password: `admin-pw-${run}` };
 const REPO = { owner: "octo", name: "robots", branch: "trunk" };
 const FLOOR = "Hangar";
 const ISSUE = 42;
@@ -58,8 +59,10 @@ let github: FakeGitHub;
 let office: AgentOffice;
 let ownerCtx: BrowserContext;
 let memberCtx: BrowserContext;
+let adminCtx: BrowserContext;
 let ownerPage: Page;
 let memberPage: Page;
+let adminPage: Page;
 let ownerTerminal: { text(): string };
 let ownerId = "";
 let agentId = "";
@@ -100,8 +103,10 @@ test.beforeAll(async ({ browser }) => {
     permissions: ["clipboard-read", "clipboard-write"],
   });
   memberCtx = await browser.newContext({ baseURL: office.baseURL });
+  adminCtx = await browser.newContext({ baseURL: office.baseURL });
   ownerPage = await ownerCtx.newPage();
   memberPage = await memberCtx.newPage();
+  adminPage = await adminCtx.newPage();
   ownerTerminal = collectTerminalOutput(ownerPage);
 });
 
@@ -129,6 +134,7 @@ test.afterAll(async ({}, testInfo) => {
   }
   await ownerCtx?.close();
   await memberCtx?.close();
+  await adminCtx?.close();
   await office?.close();
   if (prefix) cleanupRunners(prefix);
   await github?.close();
@@ -214,7 +220,7 @@ const robotOn = async (page: Page) => (await robots(page))[agentId];
 
 // ---- the flow ------------------------------------------------------------------------------
 
-test("the owner and an invited member sign in", async () => {
+test("the owner, an invited member and an invited admin sign in", async () => {
   await ownerPage.goto("/login");
   await register(ownerPage, owner, "Create the owner account");
   const me = (await api(ownerPage, "GET", "/api/me")) as { id: string; role: string };
@@ -227,6 +233,13 @@ test("the owner and an invited member sign in", async () => {
   await memberPage.goto(invite.url);
   await register(memberPage, member, "Create account and join");
   expect(await api(memberPage, "GET", "/api/me")).toMatchObject({ role: "member" });
+
+  const adminInvite = (await api(ownerPage, "POST", "/api/invites", { role: "admin" })) as {
+    url: string;
+  };
+  await adminPage.goto(adminInvite.url);
+  await register(adminPage, admin, "Create account and join");
+  expect(await api(adminPage, "GET", "/api/me")).toMatchObject({ role: "admin" });
 });
 
 test("1. the owner connects GitHub, picks the repo in Add floor and rides to it", async () => {
@@ -388,8 +401,8 @@ test("3b. the robot's bones move while it works and hold still while it waits (#
   for (const s of calm) expect(s.maxDeg, report).toBeLessThan(0.1);
 });
 
-test("4. the permission prompt reaches the owner, not the member", async () => {
-  // A fresh request opens the prompt for the robot's controllers by itself.
+test("4. the permission prompt reaches the owner, not the member nor an admin", async () => {
+  // A fresh request opens the prompt for the robot's owner by itself.
   const prompt = ownerPage.getByRole("dialog", { name: "Permission needed" });
   await expect(prompt).toBeVisible();
   await expect(prompt).toContainText(`“${TASK}” wants to use`);
@@ -401,11 +414,29 @@ test("4. the permission prompt reaches the owner, not the member", async () => {
   const memberPanel = memberPage.locator("section.rg-agent-panel");
   await expect(memberPanel.locator('[data-key="status"] dd')).toHaveText("Waiting for approval");
   await expect(memberPanel.getByRole("button", { name: "Watch terminal" })).toBeVisible();
-  await expect(memberPanel.getByText(/Only Ada Owner or an admin can control/)).toBeVisible();
+  await expect(memberPanel.getByText("Only Ada Owner can control this robot.")).toBeVisible();
   await expect(memberPanel.getByRole("button", { name: /Review request/ })).toHaveCount(0);
+  await expect(memberPanel.getByRole("button", { name: "Emergency stop" })).toHaveCount(0);
   await expect(memberPage.getByRole("dialog", { name: "Permission needed" })).toHaveCount(0);
   await expect(memberPage.getByText("FAKE_CLAUDE.md")).toHaveCount(0);
   expect((await robotOn(memberPage))?.handRaised).toBe(true);
+
+  // An office admin (#138) watches too: no request, no prompt, no controls; only the
+  // emergency stop (not pressed here; the server tests cover it).
+  await adminPage.goto(OFFICE_PROBE_PATH);
+  await waitForScene(adminPage);
+  await rideTo(adminPage, FLOOR);
+  await openRobotPanel(adminPage);
+  const adminPanel = adminPage.locator("section.rg-agent-panel");
+  await expect(adminPanel.locator('[data-key="status"] dd')).toHaveText("Waiting for approval");
+  await expect(adminPanel.getByRole("button", { name: "Watch terminal" })).toBeVisible();
+  await expect(adminPanel.getByText("Only Ada Owner can control this robot.")).toBeVisible();
+  await expect(adminPanel.getByRole("button", { name: "Emergency stop" })).toBeVisible();
+  await expect(adminPanel.getByRole("button", { name: /Review request/ })).toHaveCount(0);
+  await expect(adminPanel.getByRole("button", { name: "Stop", exact: true })).toHaveCount(0);
+  await expect(adminPage.getByRole("dialog", { name: "Permission needed" })).toHaveCount(0);
+  await expect(adminPage.getByText("FAKE_CLAUDE.md")).toHaveCount(0);
+  await adminCtx.close();
 });
 
 test("5. the owner approves; the robot commits and finishes", async () => {

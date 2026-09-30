@@ -122,10 +122,23 @@ describe("TerminalModal", () => {
     await m.unmount();
   });
 
-  test("an admin may take control; the server refusing it falls back to watch", async () => {
-    signIn("adm", "admin");
+  test("admins and office owners only watch other people's robots, with a note (#138)", async () => {
+    for (const role of ["admin", "owner"] as const) {
+      signIn("adm", role);
+      const m = await openModal();
+      await serverHello("watch");
+      expect(button("Take control")).toBeUndefined();
+      expect(text("terminal-watch-only")).toBe("Only Rita can control this robot");
+      expect(FakeSocket.last().url).toEndWith("mode=watch");
+      await m.unmount();
+    }
+  });
+
+  test("the server refusing control falls back to watch", async () => {
+    signIn("rita", "member");
     const m = await openModal();
     await serverHello("watch");
+    expect(document.querySelector('[data-testid="terminal-watch-only"]')).toBeNull();
     await click(button("Take control") as HTMLElement);
     await settle();
     // Refused before upgrade (e.g. 403): the socket never opens.

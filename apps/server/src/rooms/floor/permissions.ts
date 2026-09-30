@@ -2,8 +2,8 @@
  * Targeted delivery of pending permission requests (SPEC §8 rule 4, D12).
  *
  * A request says exactly what the agent wants to run or change, so it goes
- * only to clients that may control the robot: its owner or an office
- * owner/admin, never viewers or members who only watch. It is sent as
+ * only to clients that may control the robot: its owner (D12, #138), never
+ * office admins/owners, other members or viewers, who only watch. It is sent as
  * `agent.permissions` when the list changes and again to a controller who
  * joins while requests are open. An empty list clears the robot's requests.
  * Everyone keeps seeing the public `RobotState.handRaised`.
@@ -12,6 +12,7 @@ import {
   AGENT_PERMISSIONS_MESSAGE,
   type AgentPermissions,
   mayControlRobot,
+  mayEmergencyStop,
   type PendingPermission,
 } from "@regulus/protocol";
 import type { RoomClient } from "../transport.ts";
@@ -23,6 +24,11 @@ interface Held {
 
 export function mayControl(client: RoomClient, ownerUserId: string): boolean {
   return mayControlRobot({ id: client.user.userId, role: client.user.role }, ownerUserId);
+}
+
+/** Office owners/admins may emergency-stop any robot they can see (D12, #138). */
+export function mayEmergencyStopAs(client: RoomClient): boolean {
+  return mayEmergencyStop({ id: client.user.userId, role: client.user.role });
 }
 
 export class FloorPermissions {

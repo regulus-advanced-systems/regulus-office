@@ -25,6 +25,8 @@ export const AUDIT_ACTIONS = {
   worktreesPrune: "worktrees.prune",
   agentSpawn: "agent.spawn",
   agentStop: "agent.stop",
+  /** An office owner/admin stopped someone else's robot (D12, #138). */
+  agentEmergencyStop: "agent.emergency_stop",
   agentApprove: "agent.approve",
   agentResume: "agent.resume",
   agentSendHome: "agent.send_home",
