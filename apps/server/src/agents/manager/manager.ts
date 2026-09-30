@@ -196,6 +196,7 @@ export class AgentManager extends AgentRuntime {
       live.view.prNumber = pr.number;
       this.publishLive(live);
     }
+    this.observePullRequest(live, pr);
     return pr;
   }
 

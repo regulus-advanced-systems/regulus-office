@@ -17,6 +17,7 @@ import type { HumanClones, Workspaces } from "../../worktrees/types.ts";
 import { mountClaudeHookRoutes } from "../hooks/index.ts";
 import { floorAgentCommands } from "./commands.ts";
 import { AgentManager, type AgentWorktreeTools } from "./manager.ts";
+import type { AgentObserver } from "./runtime.ts";
 
 export interface AgentsBootOptions {
   db: Db;
@@ -33,6 +34,8 @@ export interface AgentsBootOptions {
   clones?: HumanClones;
   /** Worktree status and the one-click PR (#31) for `agent.worktree` / `agent.pr`. */
   worktreeTools?: AgentWorktreeTools;
+  /** Notifications (#42). */
+  observer?: AgentObserver;
 }
 
 export async function createAgents(opts: AgentsBootOptions): Promise<AgentManager> {
@@ -52,6 +55,7 @@ export async function createAgents(opts: AgentsBootOptions): Promise<AgentManage
     officeUrl: opts.config.runnerOfficeUrl,
     logger: opts.logger,
     scrollback: opts.terminals.scrollback,
+    observer: opts.observer,
   });
   opts.terminals.runners.setDefault(runner);
   opts.rooms.floors.setAgentCommands(floorAgentCommands(manager));

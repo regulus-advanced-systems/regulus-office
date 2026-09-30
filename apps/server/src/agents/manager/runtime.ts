@@ -50,6 +50,15 @@ export interface AgentWorktreeTools {
   ): Promise<{ number: number; url: string; draft: boolean; created: boolean; branch: string }>;
 }
 
+/** Notifications (#42): told about status changes and PRs opened through the office. */
+export interface AgentObserver {
+  statusChanged(view: Readonly<AgentView>, previous: AgentStatus): void;
+  pullRequestOpened(
+    view: Readonly<AgentView>,
+    pr: { number: number; url: string; created: boolean },
+  ): void;
+}
+
 /** Scrollback snapshots of running agents (terminals `ScrollbackRecorder`). */
 export interface ScrollbackTracker {
   track(target: TerminalTarget): () => void;
@@ -76,6 +85,7 @@ export interface AgentManagerOptions {
   retention?: RetentionPolicy;
   launchProfiles?: Parameters<typeof launchProfile>[1];
   scrollback?: ScrollbackTracker;
+  observer?: AgentObserver;
   /** Session liveness / heuristic polling interval. */
   pollIntervalMs?: number;
   idleAfterMs?: number;
@@ -180,6 +190,7 @@ export class AgentRuntime implements AgentEventSink {
     const live = this.agents.get(agentId);
     if (!live) return;
     if (!(event.kind === "message" && event.partial)) this.store.appendEvent(agentId, event);
+    const previous = live.view.status;
     const result = applyEvent(live.view, event, this.now());
     if (result.refused) {
       this.logger.debug({ agentId, ...result.refused }, "status change refused");
@@ -201,9 +212,26 @@ export class AgentRuntime implements AgentEventSink {
     if (result.statusChanged) {
       this.store.setStatus(agentId, live.view.status, this.now());
       this.countersChanged();
+      this.#observe(() => this.opts.observer?.statusChanged(live.view, previous));
       if (live.view.status === "exited") this.processGone(live);
     }
     if (result.robotChanged) this.publishLive(live);
+  }
+
+  /** Observers never break the event path. */
+  #observe(fn: () => void): void {
+    try {
+      fn();
+    } catch (err) {
+      this.logger.warn({ err: errorSummary(err) }, "agent observer failed");
+    }
+  }
+
+  protected observePullRequest(
+    live: LiveAgent,
+    pr: { number: number; url: string; created: boolean },
+  ) {
+    this.#observe(() => this.opts.observer?.pullRequestOpened(live.view, pr));
   }
 
   protected heuristic(agentId: string, status: AgentStatus, rung: HeuristicRung): void {

@@ -1,0 +1,80 @@
+/**
+ * What a notification is about (#42): a robot, reduced to the fields a
+ * notification may carry. Terminal output, prompts, permission requests,
+ * status reasons and tokens are not in here, so no formatter can leak them.
+ */
+import type { AgentStatus, NotificationEvent, ProviderId } from "@regulus/protocol";
+
+/** The slice of an AgentView (agents/manager/robot.ts) notifications read. */
+export interface RobotSnapshot {
+  agentId: string;
+  floorId: string;
+  repoId: string;
+  ownerUserId: string;
+  ownerName: string;
+  provider: ProviderId;
+  status: AgentStatus;
+  taskTitle: string;
+  prNumber: number;
+}
+
+/** A robot event about to be delivered, with the names resolved. */
+export interface RobotNotice {
+  /** Unique per delivery (dedupe on the client). */
+  id: string;
+  event: NotificationEvent;
+  agentId: string;
+  floorId: string;
+  floorName: string;
+  ownerUserId: string;
+  ownerName: string;
+  robotName: string;
+  provider: ProviderId;
+  taskTitle: string;
+  prNumber: number;
+  /** https link to the pull request, or "". */
+  prUrl: string;
+  ts: number;
+}
+
+/** The status-driven events; PR events come from their own sources. */
+export function eventForStatus(status: AgentStatus): NotificationEvent | null {
+  switch (status) {
+    case "waiting_input":
+      return "needs_input";
+    case "waiting_permission":
+      return "needs_permission";
+    case "done":
+      return "done";
+    case "error":
+      return "error";
+    default:
+      return null;
+  }
+}
+
+/**
+ * After the settle delay: is the event still true? A robot that asked and
+ * went back to work within the delay, or errored and was resumed, sends
+ * nothing.
+ */
+export function eventStillHolds(
+  event: NotificationEvent,
+  status: AgentStatus | undefined,
+): boolean {
+  switch (event) {
+    case "needs_input":
+      return status === "waiting_input";
+    case "needs_permission":
+      return status === "waiting_permission";
+    case "done":
+      return status === "done" || status === "idle";
+    case "error":
+      return status === "error";
+    default:
+      return true;
+  }
+}
+
+/** Robots in these statuses wait for their human (tab badge). */
+export const ATTENTION_STATUSES: readonly AgentStatus[] = ["waiting_input", "waiting_permission"];

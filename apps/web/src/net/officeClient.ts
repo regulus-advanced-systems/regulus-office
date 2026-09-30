@@ -77,6 +77,9 @@ export class OfficeClient {
   /** FloorRoom message listeners by type; they survive floor changes and re-joins. */
   private readonly floorListeners = new Map<string, Set<MessageListener>>();
   private floorMessageSubs = new Map<string, Unsubscribe>();
+  /** BuildingRoom message listeners by type; they survive re-joins. */
+  private readonly buildingListeners = new Map<string, Set<MessageListener>>();
+  private buildingMessageSubs = new Map<string, Unsubscribe>();
   private readonly emitRejected: RejectionListener = (notice) => {
     for (const listener of this.rejectionListeners) listener(notice);
   };
@@ -196,6 +199,33 @@ export class OfficeClient {
     };
   }
 
+  /**
+   * Listen for a server→client BuildingRoom message (e.g. `notify.event`),
+   * now and after re-joins. Payloads are unvalidated.
+   */
+  onBuildingMessage(type: string, listener: MessageListener): Unsubscribe {
+    let set = this.buildingListeners.get(type);
+    if (!set) {
+      set = new Set();
+      this.buildingListeners.set(type, set);
+    }
+    set.add(listener);
+    if (this.building) this.subscribeBuildingMessage(this.building, type);
+    return () => {
+      set.delete(listener);
+    };
+  }
+
+  private subscribeBuildingMessage(handle: RoomHandle<BuildingState>, type: string) {
+    if (this.buildingMessageSubs.has(type)) return;
+    this.buildingMessageSubs.set(
+      type,
+      handle.onMessage(type, (payload) => {
+        for (const listener of this.buildingListeners.get(type) ?? []) listener(payload);
+      }),
+    );
+  }
+
   private subscribeFloorMessage(handle: RoomHandle<FloorState>, type: string) {
     if (this.floorMessageSubs.has(type)) return;
     this.floorMessageSubs.set(
@@ -224,11 +254,14 @@ export class OfficeClient {
       handle.onLeave((code, reason) => this.onBuildingLeft(code, reason)),
       handle.onRejected(this.emitRejected),
     ];
+    for (const type of this.buildingListeners.keys()) this.subscribeBuildingMessage(handle, type);
   }
 
   private unbindBuilding() {
     for (const off of this.buildingSubs) off();
     this.buildingSubs = [];
+    for (const off of this.buildingMessageSubs.values()) off();
+    this.buildingMessageSubs.clear();
     this.building = null;
     this.stores.building.getState().clear();
   }

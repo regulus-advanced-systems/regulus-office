@@ -545,8 +545,11 @@ cat <<EOF
     2. Connect GitHub (floors are GitHub repos): Settings -> GitHub -> Create GitHub App...,
        then install the app on your organization. Webhooks need $PUBLIC_URL to be reachable
        from GitHub; otherwise the office polls. (Fallback: a fine-grained organization token.)
-    3. Notifications (#42): an owner or admin adds Slack, Discord or Telegram webhook URLs in
-       the office settings to hear when a robot needs input, finishes, or a PR merges.
+    3. Notifications: each person turns on desktop notifications for their own robots in
+       Settings -> Notifications. For the team, an owner or admin opens
+       Settings -> Team notifications -> Add channel..., picks Slack (incoming webhook URL),
+       Discord (channel webhook URL) or Telegram (bot token + chat id), the floors and events,
+       and clicks Send test. Steps for each service: README "Notifications".
     4. Each teammate signs in to their AI providers (Claude Code, Codex, ...) from their own
        runner terminal in the office; logins stay in their runner's HOME volume.
     5. Back up deploy/.env and the ${PROJECT}_office-data volume (SQLite database) nightly.

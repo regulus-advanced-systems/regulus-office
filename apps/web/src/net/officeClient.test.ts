@@ -337,6 +337,24 @@ describe("OfficeClient", () => {
     expect(seen).toHaveLength(2);
   });
 
+  test("building messages reach listeners across re-joins, once each", async () => {
+    const { transport, client, clock } = setup();
+    const seen: unknown[] = [];
+    const off = client.onBuildingMessage("notify.attention", (p) => seen.push(p));
+    await client.connect();
+    transport.building.message("notify.attention", { agentIds: ["a1"] });
+    const first = transport.building;
+    first.serverClose(1006, "gone");
+    expect(first.listenerCount("notify.attention")).toBe(0);
+    await clock.fireNext();
+    client.onBuildingMessage("notify.attention", () => undefined);
+    expect(transport.building.listenerCount("notify.attention")).toBe(1);
+    transport.building.message("notify.attention", { agentIds: [] });
+    off();
+    transport.building.message("notify.attention", { agentIds: ["a2"] });
+    expect(seen).toEqual([{ agentIds: ["a1"] }, { agentIds: [] }]);
+  });
+
   test("floor messages reach listeners on the current and later floors, once each", async () => {
     const { transport, client } = setup();
     const seen: unknown[] = [];

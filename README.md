@@ -82,6 +82,16 @@ Floors are GitHub repos. Connect the office to GitHub once, as an owner or admin
 
 **From the environment.** `GITHUB_APP_ID` and `GITHUB_APP_PRIVATE_KEY` (optionally `GITHUB_APP_CLIENT_ID`, `GITHUB_WEBHOOK_SECRET`) configure the App instead and override whatever was connected in the UI. `OFFICE_GITHUB_API_BASE` and `OFFICE_GITHUB_WEB_BASE` point at another GitHub (tests use a fake).
 
+### Notifications
+
+**For you.** The tab title shows how many of your robots wait for you, e.g. `(2) Regulus Office`. Settings → *Notifications* → *Allow desktop notifications*, then pick the events: needs input, asks for permission, done, error, PR opened, PR merged. Quiet hours use your computer's clock. You are only notified about your own robots; owners and admins can also opt in to anyone's robot hitting an error. While the office tab has focus you get a toast instead; clicking a notification takes you to the robot.
+
+**For the team (owners and admins).** Settings → *Team notifications* → *Add channel…*, pick the service, name it, paste the URL or token, choose floors (all or some) and events, then *Send test*. Status events wait 5 s to settle (a robot that asks and carries on sends nothing), repeats of one event per robot are dropped for a minute, each robot is capped at 8 team messages per 10 minutes, each channel sends at most one message per 1.1 s and 20 per minute, and failed deliveries are retried after 1, 5 and 25 s (honouring the service's `Retry-After`). Messages carry the robot's name, owner, floor, status, task title and PR link, never terminal output or permission details. URLs and tokens need `OFFICE_MASTER_KEY`, are stored encrypted, and are never shown again or logged. A PR merge is noticed by checking each robot's PR on GitHub once a minute.
+
+- **Slack** ([incoming webhooks](https://docs.slack.dev/messaging/sending-messages-using-incoming-webhooks)): [api.slack.com/apps](https://api.slack.com/apps) → *Create New App* → *From scratch* → *Incoming Webhooks* → turn on → *Add New Webhook to Workspace* → pick the channel → copy the `https://hooks.slack.com/services/…` URL.
+- **Discord** ([webhooks](https://docs.discord.com/developers/resources/webhook#execute-webhook)): the channel's *Edit Channel* → *Integrations* → *Webhooks* → *New Webhook* → *Copy Webhook URL* (`https://discord.com/api/webhooks/…`). Messages never ping anyone (`allowed_mentions` is empty).
+- **Telegram** ([Bot API](https://core.telegram.org/bots/api#sendmessage)): talk to [@BotFather](https://t.me/BotFather), `/newbot`, copy the token (`123456789:AA…`). Add the bot to the group (or as an admin of the channel), send `/start@<your_bot>` there (bots only see commands in groups by default), open `https://api.telegram.org/bot<token>/getUpdates` and copy `chat.id` (groups start with `-100`; public channels can use `@name`). In the office paste the token and the chat id.
+
 Developing instead? See [CONTRIBUTING.md](CONTRIBUTING.md): `bun install && bun run dev`. The browser smoke test runs with `bun run e2e` (needs `bunx playwright install chromium` once).
 
 ## Principles

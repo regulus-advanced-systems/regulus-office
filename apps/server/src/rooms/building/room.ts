@@ -52,6 +52,8 @@ export interface BuildingRoomDeps {
 export interface BuildingRoom extends RoomDefinition<BuildingState, BuildingJoinOptions> {
   /** Re-read floors and robot counters from the source into room state. */
   refreshFloors(): Promise<void>;
+  /** Send a message to every connected client of one human (notifications, #42). */
+  sendToUser(userId: string, type: string, payload: unknown): void;
 }
 
 interface ClientBookkeeping {
@@ -263,5 +265,11 @@ export function createBuildingRoom(deps: BuildingRoomDeps): BuildingRoom {
     },
 
     refreshFloors,
+
+    sendToUser(userId, type, payload) {
+      for (const client of handle?.clients ?? []) {
+        if (client.user.userId === userId) client.send(type, payload);
+      }
+    },
   };
 }
