@@ -14,6 +14,7 @@ import {
   type OfficeAuth,
   originPolicyFor,
 } from "./auth/index.ts";
+import { ChangesService, mountChangesRoutes } from "./changes/index.ts";
 import { ConfigError, loadConfig, redactConfig } from "./config.ts";
 import { mountCredentialPanel } from "./credentials/panel.ts";
 import { closeDatabase, databasePathFor, openDatabase, runMigrations } from "./db/index.ts";
@@ -39,6 +40,7 @@ import { loadMasterKeyring, type MasterKeyring } from "./secrets/index.ts";
 import { createServices, type Services } from "./services/index.ts";
 import { createTerminals } from "./terminals/index.ts";
 import { createUsage } from "./usage/index.ts";
+import { createWorkflows } from "./workflows/setup.ts";
 import {
   createWorktrees,
   floorDirRemover,
@@ -244,6 +246,19 @@ async function main(): Promise<void> {
   });
   // Merged robot PRs notify their owners (#42), from webhooks or polling.
   notifications.followGitHub(githubSync.events);
+  // GitHub workflows (#155): events → robots in the workflow runner → posts as the office's App.
+  const workflows = createWorkflows({
+    db,
+    keyring,
+    config,
+    logger,
+    connection: github.connection,
+    repos: floors.repos,
+    runner,
+    usage: usage.tracker,
+  });
+  workflows.follow(githubSync.events);
+  workflows.mount(server.router, auth);
   mountFloorRoutes(server.router, {
     auth,
     floors: floors.service,
@@ -255,6 +270,13 @@ async function main(): Promise<void> {
   // `agent.worktree` (#33) reach `worktrees` through the manager.
   const worktrees = createWorktrees({ db, logger, config, repos: floors.repos, runner });
   mountWorktreeRoutes(server.router, { auth, db, prune: worktrees.prune });
+  // Changes window (#38): git in the owner's runner/sandbox; view for the floor, write for the owner.
+  mountChangesRoutes(server.router, {
+    auth,
+    db,
+    logger: logger.child({ module: "changes" }),
+    changes: new ChangesService({ db, runner, repos: floors.repos, clones: worktrees.workspaces }),
+  });
   // Agents (#26): the manager, its FloorRoom/terminal registration, Claude hook routes (#27).
   const agents = await createAgents({
     db,
@@ -318,7 +340,9 @@ async function main(): Promise<void> {
   }
   floors.cloner.resumePending().catch((err) => logger.error({ err }, "resuming clones failed"));
   githubSync.start();
+  workflows.start();
   shutdown.register("github-sync", () => githubSync?.stop());
+  shutdown.register("workflows", () => workflows.close());
   services.start(runner);
   shutdown.register("services", () => services.stop());
   shutdown.register("rooms", () => rooms.transport.shutdown());

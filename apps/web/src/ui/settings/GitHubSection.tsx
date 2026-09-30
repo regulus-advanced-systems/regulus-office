@@ -221,7 +221,7 @@ export function GitHubSection({
           <div className="rg-field__hint">
             Recommended. GitHub opens to confirm a private app for this office, then asks you to
             install it on the organization for all or selected repos. It asks for contents, pull
-            requests and issues (read and write), and checks and metadata (read).
+            requests, issues and checks (read and write), and metadata (read).
           </div>
           <label className="rg-field__label" htmlFor={ids.token}>
             Or an organization access token

@@ -8,6 +8,7 @@
  * - floor-state.ts     FloorRoom state shapes (zod + inferred types)
  * - floors-api.ts      REST shapes for floors, repos and floor members
  * - boards-api.ts      REST shapes for the issue/PR board panel and its write actions (#36)
+ * - changes-api.ts     REST shapes for a robot's changes window: diff, commit, discard (#38)
  * - github-api.ts      REST shapes for the office GitHub connection, its repo list and board sync
  * - notifications.ts   desktop/tab-badge messages, per-user prefs, team webhook channels
  * - credentials-api.ts read-only credential profile list (ids and labels only)
@@ -21,12 +22,14 @@
  * - terminal.ts        terminal WebSocket control messages and constants
  * - terminal-screens.ts laptop screen feed (plain-text screens per floor)
  * - usage-api.ts      the viewer's own usage (plan limits, spend); office totals are in building-state
+ * - workflows.ts       GitHub workflow definitions (#155); workflows-api.ts their REST shapes
  */
 export * from "./acl.ts";
 export * from "./agent-events.ts";
 export * from "./agent-messages.ts";
 export * from "./boards-api.ts";
 export * from "./building-state.ts";
+export * from "./changes-api.ts";
 export * from "./commands/index.ts";
 export * from "./common.ts";
 export * from "./credentials-api.ts";
@@ -42,3 +45,5 @@ export * from "./schema/index.ts";
 export * from "./terminal.ts";
 export * from "./terminal-screens.ts";
 export * from "./usage-api.ts";
+export * from "./workflows.ts";
+export * from "./workflows-api.ts";

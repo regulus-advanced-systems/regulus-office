@@ -30,6 +30,9 @@ export const AUDIT_ACTIONS = {
   agentApprove: "agent.approve",
   agentResume: "agent.resume",
   agentSendHome: "agent.send_home",
+  /** The robot's owner committed or discarded in its changes window (#38). */
+  agentChangesCommit: "agent.changes_commit",
+  agentChangesDiscard: "agent.changes_discard",
   credentialProfileCreate: "credential_profile.create",
   credentialProfileVerify: "credential_profile.verify",
   credentialProfileDelete: "credential_profile.delete",
@@ -45,6 +48,14 @@ export const AUDIT_ACTIONS = {
   notificationChannelCreate: "notification_channel.create",
   notificationChannelUpdate: "notification_channel.update",
   notificationChannelDelete: "notification_channel.delete",
+  workflowCreate: "workflow.create",
+  workflowUpdate: "workflow.update",
+  workflowDelete: "workflow.delete",
+  /** A workflow run wrote to GitHub as the office's App (review, comment, labels, check run). */
+  workflowRunGitHubWrite: "workflow_run.github_write",
+  workflowRunCancel: "workflow_run.cancel",
+  /** A robot's answer held a secret and was not posted (#155). */
+  workflowRunSecretBlocked: "workflow_run.secret_blocked",
 } as const;
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];
 
@@ -63,7 +74,9 @@ export interface AuditEntry {
     | "provider_login"
     | "github_connection"
     | "github_card"
-    | "notification_channel";
+    | "notification_channel"
+    | "workflow"
+    | "workflow_run";
   targetId: string | null;
   meta?: Record<string, unknown>;
 }

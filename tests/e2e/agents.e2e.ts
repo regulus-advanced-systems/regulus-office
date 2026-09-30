@@ -27,6 +27,7 @@ import {
 } from "./agentOffice.ts";
 import { collectTerminalOutput, history, recordRobots, robots, scenePoint } from "./agentProbes.ts";
 import { type BoneSegment, boneSegments, recordBones, sampleBones } from "./boneProbes.ts";
+import { checkChangesWindow } from "./changesChecks.ts";
 import { checkLaptopCopy, checkLoginTerminalCopy, checkRobotTerminalCopy } from "./copyChecks.ts";
 import { type FakeGitHub, startFakeGitHub } from "./fakeGitHub.ts";
 import { createRemoteRepo } from "./gitRemote.ts";
@@ -534,6 +535,33 @@ test("6. Open PR pushes the branch and sends a correct PR to GitHub", async () =
   await expect(ownerPage.locator('section.rg-agent-panel [data-key="pull request"] dd')).toHaveText(
     "#1",
   );
+});
+
+test("6b. the changes window: the owner commits and discards, a member watches (#38)", async () => {
+  const dir = worktreePath() ?? "";
+  await checkChangesWindow({
+    ownerPage,
+    memberPage,
+    agentId,
+    task: TASK,
+    openPanel: openRobotPanel,
+    // As the runner user in the robot's sandbox, like the robot's own edits.
+    writeInWorktree: (name, content) =>
+      void sh("docker", [
+        "exec",
+        "-w",
+        dir,
+        sandboxName(),
+        "sh",
+        "-c",
+        'printf %s "$1" > "$2"',
+        "sh",
+        content,
+        name,
+      ]),
+    worktreeGit,
+    worktreeHas: (name) => existsSync(join(dir, name)),
+  });
 });
 
 test("7. after an office-server restart the robot and its tmux session are still there", async () => {
