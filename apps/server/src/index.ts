@@ -29,6 +29,7 @@ import { WsRouter } from "./http/ws-router.ts";
 import { createShutdownController, installSignalHandlers } from "./lifecycle.ts";
 import { createLogger } from "./logging.ts";
 import { createNotifications } from "./notifications/setup.ts";
+import { allObservers, createTaskQueue } from "./queue/index.ts";
 import {
   composeRoomAuth,
   createDevHeaderAuth,
@@ -282,6 +283,9 @@ async function main(): Promise<void> {
     logger: logger.child({ module: "changes" }),
     changes: new ChangesService({ db, runner, repos: floors.repos, clones: worktrees.workspaces }),
   });
+  // Room task queues (#37): created before the manager, which reports robot status to it.
+  const tasks = createTaskQueue({ db, rooms: rooms.floors, logger });
+  tasks.queue.followGitHub(githubSync.events);
   // Agents (#26): the manager, its FloorRoom/terminal registration, Claude hook routes (#27).
   const agents = await createAgents({
     db,
@@ -298,9 +302,10 @@ async function main(): Promise<void> {
       status: (agentId) => worktrees.workspaces.status(agentId),
       openPullRequest: (agentId, options) => worktrees.openPullRequest(agentId, options),
     },
-    observer: notifications.center,
+    observer: allObservers(notifications.center, tasks.queue.observer),
     usage: usage.tracker,
   });
+  tasks.bind(agents);
   // "Send all home" before deleting a floor (#150): branches are kept, GitHub is not touched.
   // An office owner/admin clears everyone's robots, which is not robot control (D12, #138).
   floors.lifecycle.robots = {
@@ -338,7 +343,10 @@ async function main(): Promise<void> {
         logger,
       }),
     )
-    .catch((err) => logger.error({ err }, "per-human clone migration failed"));
+    .catch((err) => logger.error({ err }, "per-human clone migration failed"))
+    // Queued tasks start only once robots are re-adopted and settled (#37).
+    .then(() => tasks.queue.boot())
+    .catch((err) => logger.error({ err }, "starting the task queues failed"));
   const claudeAdapter = agents.adapters.find("claude-code");
   if (claudeAdapter) {
     usage.startScanning({ runner, adapter: claudeAdapter, officeUrl: config.runnerOfficeUrl });
@@ -358,6 +366,8 @@ async function main(): Promise<void> {
   shutdown.register("search", () => search.stop());
   // Detach only: agents keep running in their runners' tmux (SPEC §11).
   shutdown.register("agents", () => agents.close());
+  // Runs before the agents detach (hooks run last-registered-first): no new starts.
+  shutdown.register("task-queue", () => tasks.queue.close());
   installSignalHandlers(shutdown, (code) => {
     logger.flush();
     process.exit(code);

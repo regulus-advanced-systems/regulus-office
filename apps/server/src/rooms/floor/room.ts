@@ -22,10 +22,15 @@ import {
   FloorStateSchema,
   type PendingPermission,
   parseClientCommand,
+  QUEUE_RESULT_MESSAGE,
+  type QueueSettings,
+  type QueueTask,
   RobotState,
   type ServiceState,
 } from "@regulus/protocol";
 import type { Logger } from "../../logging.ts";
+import { type FloorQueueCommands, isQueueCommand } from "../../queue/commands.ts";
+import { syncQueue } from "../../queue/publish.ts";
 import type { RoomClient, RoomDefinition, RoomHandle } from "../transport.ts";
 import {
   type AgentActor,
@@ -92,6 +97,10 @@ export interface FloorRooms {
   liveFloorIds(): string[];
   /** Route `agent.spawn` (and later agent commands) to the AgentManager. */
   setAgentCommands(commands: FloorAgentCommands | undefined): void;
+  /** Replace a floor's task queue and its settings (#37). */
+  publishQueue(floorId: string, tasks: readonly QueueTask[], settings: QueueSettings): void;
+  /** Route `queue.*` to the task queue (#37). */
+  setQueueCommands(commands: FloorQueueCommands | undefined): void;
 }
 
 export interface FloorRoomsDeps {
@@ -105,6 +114,8 @@ export function createFloorRooms(deps: FloorRoomsDeps): FloorRooms {
   const robots = new Map<string, Map<string, RobotState>>();
   const boards = new Map<string, BoardCards>();
   const services = new Map<string, ServiceState[]>();
+  const queues = new Map<string, { tasks: readonly QueueTask[]; settings: QueueSettings }>();
+  let queueCommands: FloorQueueCommands | undefined;
 
   const robotsFor = (floorId: string) => {
     let map = robots.get(floorId);
@@ -162,6 +173,8 @@ export function createFloorRooms(deps: FloorRoomsDeps): FloorRooms {
       if (board) syncBoard(room.state, board);
       const apps = services.get(snap.floorId);
       if (apps) syncServices(room.state, apps);
+      const queue = queues.get(snap.floorId);
+      if (queue) syncQueue(room.state, queue.tasks, queue.settings);
       logger.info({ roomId: room.roomId, floorId: snap.floorId }, "floor room created");
     },
 
@@ -183,6 +196,16 @@ export function createFloorRooms(deps: FloorRoomsDeps): FloorRooms {
         const floorId = room.state.floorId;
         const access = source.accessOf?.(client.user, floorId) ?? null;
         handleCardCommand({ state: room.state, client, access }, parsed.data);
+        return;
+      }
+      if (parsed.success && isQueueCommand(parsed.data)) {
+        const actor = { id: client.user.userId, role: client.user.role };
+        const outcome = queueCommands?.run(actor, room.state.floorId, parsed.data) ?? {
+          ok: false as const,
+          reason: "the task queue is not available",
+        };
+        if (outcome.ok) client.send(QUEUE_RESULT_MESSAGE, outcome.result);
+        else client.send(COMMAND_REJECTED_MESSAGE, reject(parsed.data.type, outcome.reason));
         return;
       }
       if (parsed.success && isAgentControl(parsed.data)) {
@@ -275,6 +298,16 @@ export function createFloorRooms(deps: FloorRoomsDeps): FloorRooms {
 
     setAgentCommands(commands) {
       agentCommands = commands;
+    },
+
+    publishQueue(floorId, tasks, settings) {
+      queues.set(floorId, { tasks, settings });
+      const room = live.get(floorId);
+      if (room) syncQueue(room.state, tasks, settings);
+    },
+
+    setQueueCommands(commands) {
+      queueCommands = commands;
     },
   };
 }

@@ -1,8 +1,18 @@
-/** Floor object commands: queue.*, card.*, decor.* (SPEC §6). */
+/** Floor object commands: queue.*, card.*, decor.* (SPEC §6; queue.retry|settings: #37). */
 import { z } from "zod";
-import { Count, Effort, GhNumber, Id, ModelName, PromptText } from "../common.ts";
+import { Count, Effort, GhNumber, Id, ModelName, PROMPT_MAX, ShortText } from "../common.ts";
 import { CARD_KINDS, DECOR_KINDS, PROVIDER_IDS, TASK_KINDS } from "../enums.ts";
+import { PermissionModeSchema } from "../permission-modes.ts";
+import { QUEUE_LIMIT_MAX, QUEUE_LIMIT_MIN } from "../queue-api.ts";
 
+/**
+ * Queue a task on this room's queue (SPEC §5 `tasks`, §9.4; #37). The human
+ * who queues it owns the robot it spawns: their credentials, their runner.
+ * An issue / PR task names its number; a freeform task needs a prompt (an
+ * issue / PR task without one gets a prompt from the card). `profileId`
+ * names the queuer's own credential profile or `office:<provider>`, never a
+ * secret (SPEC §8).
+ */
 export const QueueAddCommand = z
   .object({
     type: z.literal("queue.add"),
@@ -10,26 +20,48 @@ export const QueueAddCommand = z
     repoId: Id,
     kind: z.enum(TASK_KINDS),
     refNumber: GhNumber.optional(),
-    prompt: PromptText,
+    title: ShortText.optional(),
+    prompt: z.string().trim().max(PROMPT_MAX).default(""),
     provider: z.enum(PROVIDER_IDS),
     model: ModelName,
     effort: Effort.optional(),
+    permissionMode: PermissionModeSchema.optional(),
+    profileId: Id.optional(),
     autoWorktree: z.boolean().default(true),
   })
   .refine((c) => c.kind === "freeform" || c.refNumber !== undefined, {
     message: "refNumber is required for issue and pr tasks",
     path: ["refNumber"],
+  })
+  .refine((c) => c.kind !== "freeform" || c.prompt.length > 0, {
+    message: "a freeform task needs a prompt",
+    path: ["prompt"],
   });
 
+/** Move a queued task to `position` among the queued tasks (0 = next). */
 export const QueueReorderCommand = z.object({
   type: z.literal("queue.reorder"),
   taskId: Id,
   position: Count,
 });
 
+/** Cancel a queued task, or let go of a running one (its robot keeps running). */
 export const QueueCancelCommand = z.object({
   type: z.literal("queue.cancel"),
   taskId: Id,
+});
+
+/** Put a failed or cancelled task back at the end of the queue (#37). */
+export const QueueRetryCommand = z.object({
+  type: z.literal("queue.retry"),
+  taskId: Id,
+});
+
+/** Room managers: how many queued tasks may run at once, in the room and per owner (#37). */
+export const QueueSettingsCommand = z.object({
+  type: z.literal("queue.settings"),
+  maxRunning: z.number().int().min(QUEUE_LIMIT_MIN).max(QUEUE_LIMIT_MAX),
+  maxPerOwner: z.number().int().min(QUEUE_LIMIT_MIN).max(QUEUE_LIMIT_MAX),
 });
 
 /** Pluck a card from the issue / PR board and carry it. */
@@ -78,6 +110,8 @@ export const floorCommands = [
   QueueAddCommand,
   QueueReorderCommand,
   QueueCancelCommand,
+  QueueRetryCommand,
+  QueueSettingsCommand,
   CardPickCommand,
   CardDropCommand,
   DecorPlaceCommand,

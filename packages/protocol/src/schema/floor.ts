@@ -70,17 +70,32 @@ export const QueueTaskSchema = schema(
     kind: t.string().default("freeform"),
     refNumber: t.uint32().default(0),
     repoId: t.string().default(""),
+    title: t.string().default(""),
     prompt: t.string().default(""),
     provider: t.string().default("custom"),
     model: t.string().default(""),
     effort: t.string().default(""),
+    permissionMode: t.string().default(""),
     autoWorktree: t.boolean().default(true),
     state: t.string().default("queued"),
     agentId: t.string().default(""),
+    prNumber: t.uint32().default(0),
+    reason: t.string().default(""),
     createdBy: t.string().default(""),
+    ownerName: t.string().default(""),
     createdAt: t.number().default(0),
+    startedAt: t.number().default(0),
+    finishedAt: t.number().default(0),
   },
   "QueueTask",
+);
+
+export const QueueSettingsSchema = schema(
+  {
+    maxRunning: t.uint8().default(2),
+    maxPerOwner: t.uint8().default(2),
+  },
+  "QueueSettings",
 );
 
 const cardFields = {
@@ -166,6 +181,7 @@ export const FloorStateSchema = schema(
     services: t.map(ServiceStateSchema),
     whiteboardVersion: t.uint32().default(0),
     carriedCards: t.map(CarriedCardSchema),
+    queueSettings: QueueSettingsSchema,
   },
   "FloorState",
 );
