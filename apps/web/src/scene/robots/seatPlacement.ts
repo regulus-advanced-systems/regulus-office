@@ -5,15 +5,13 @@
  * printed on the floor next to the seat, along the iso axis). Pure maths.
  */
 import type { FloorTemplate, Seat } from "@regulus/floor-layout";
+import { type SitAnchor, seatedOffset } from "../avatar/seatedFit.ts";
+import { FALLBACK_ANCHOR } from "../furniture/sitAnchor.ts";
 import { LAPTOP_TOP } from "../laptops/dimensions.ts";
 import { facing, laptopPlacement } from "../laptops/placement.ts";
 
 export { facing };
 
-/** How far the robot sits back from the seat point, toward the chair's back. */
-export const SIT_BACK = 0.12;
-/** Lift so the sitting clip (which squats to the ground) rests on the chair seat. */
-export const SIT_LIFT = 0.28;
 /** Bubbles pop out of the top of the laptop screen, this far above its base. */
 export const SCREEN_TOP = LAPTOP_TOP + 0.01;
 /** Decal centre: behind the chair, in the aisle. */
@@ -24,11 +22,21 @@ export interface RobotPlacement {
   rotationY: number;
 }
 
-export function robotPlacement(seat: Seat, seated: boolean): RobotPlacement {
+/**
+ * Where an avatar at a seat goes: seated, on the seat's sit anchor
+ * (furniture/sitAnchor.ts: hips on the cushion, back just in front of the
+ * backrest, #163); standing, on the seat point. Robots and seated humans
+ * both use it.
+ */
+export function robotPlacement(
+  seat: Seat,
+  seated: boolean,
+  anchor: SitAnchor = FALLBACK_ANCHOR,
+): RobotPlacement {
   const f = facing(seat.pose.heading);
-  const back = seated ? SIT_BACK : 0;
+  const { forward, lift } = seated ? seatedOffset(anchor) : { forward: 0, lift: 0 };
   return {
-    position: [seat.pose.x - f.x * back, seated ? SIT_LIFT : 0, seat.pose.z - f.z * back],
+    position: [seat.pose.x + f.x * forward, lift, seat.pose.z + f.z * forward],
     rotationY: seat.pose.heading,
   };
 }

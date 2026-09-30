@@ -1,6 +1,6 @@
 /**
  * Fake robots for the dev harness (dev/robots.html): N robots on the desk
- * seats of a template, cycling through statuses/actions and counting up
+ * seats of a template (or on every seat), cycling through statuses/actions and counting up
  * their bubble counters, so animations, bubbles and fps can be checked
  * without a server. Not used by the app.
  */
@@ -56,8 +56,10 @@ export function fakeRobots(
   count: number,
   tick: number,
   mode: HarnessMode,
+  allSeats = false,
 ): Record<string, RobotState> {
-  const seats = template.seats.filter((s) => s.kind === "desk").slice(0, count);
+  // `allSeats`: meeting, bistro, reception and lounge seats too (#163 seating checks).
+  const seats = template.seats.filter((s) => allSeats || s.kind === "desk").slice(0, count);
   const out: Record<string, RobotState> = {};
   seats.forEach((seat, i) => {
     const [status, action] = pairFor(mode, i, tick);

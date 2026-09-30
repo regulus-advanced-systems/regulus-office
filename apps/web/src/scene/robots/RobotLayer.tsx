@@ -25,6 +25,7 @@ import { useSpawnStore } from "../../state/spawn.ts";
 import { selectReducedMotion, useUiStore } from "../../state/ui.ts";
 import { openAgentPanel } from "../../ui/agent/agentStore.ts";
 import { useHotkeyEvents } from "../../ui/hotkeys/useHotkeys.ts";
+import { FALLBACK_ANCHOR, sitAnchors } from "../furniture/sitAnchor.ts";
 import { type BubbleSource, WorkBubbles } from "./bubbles/WorkBubbles.tsx";
 import { Confetti, createConfettiBus } from "./Confetti.tsx";
 import { freeDeskAt } from "./deskInteraction.ts";
@@ -118,6 +119,7 @@ export function RobotLayer({ template, robots: given }: RobotLayerProps) {
 
   const deskSeats = useMemo(() => template.seats.filter((s) => s.kind === "desk"), [template]);
   const seatsById = useMemo(() => new Map(template.seats.map((s) => [s.id, s])), [template]);
+  const anchors = sitAnchors(template);
   const occupiedKey = Object.values(robots)
     .map((r) => `${r.seatId}=${r.agentId}`)
     .sort()
@@ -193,6 +195,7 @@ export function RobotLayer({ template, robots: given }: RobotLayerProps) {
             <Robot
               robot={r}
               seat={seat}
+              anchor={anchors.get(seat.id) ?? FALLBACK_ANCHOR}
               reducedMotion={reducedMotion}
               onSelect={openAgentPanel}
               onCelebrate={burst}

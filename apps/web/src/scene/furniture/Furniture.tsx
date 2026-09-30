@@ -12,13 +12,8 @@ import { chairForSeat, FURNITURE_MODELS, PLACEHOLDER_HEIGHTS, smallPlantUrl } fr
 import { GltfProp } from "./GltfProp.tsx";
 import { Bookshelf, Planter, PropLayer } from "./LivedIn.tsx";
 import { ElevatorBank, Jukebox, PlaceholderBox } from "./Procedural.tsx";
-import {
-  furnitureHeading,
-  propTargetHeight,
-  restingHeight,
-  SEAT_FOOTPRINT,
-  visualFootprint,
-} from "./placement.ts";
+import { furnitureHeading, propTargetHeight, restingHeight, visualFootprint } from "./placement.ts";
+import { seatModel } from "./sitAnchor.ts";
 import { WallDecor } from "./WallDecor.tsx";
 
 export interface FurnitureProps {
@@ -66,21 +61,15 @@ export function Furniture({ template, palette }: FurnitureProps) {
         );
       })}
       {template.seats.map((s) => {
-        const spec = chairForSeat(s.kind);
-        if (!spec) return null;
-        const half = SEAT_FOOTPRINT / 2;
-        const rect = {
-          x: s.pose.x - half,
-          z: s.pose.z - half,
-          w: SEAT_FOOTPRINT,
-          d: SEAT_FOOTPRINT,
-        };
+        // Chairs only: a couch seat is a cushion of the couch drawn above.
+        const chair = chairForSeat(s.kind) && seatModel(template, s);
+        if (!chair) return null;
         return (
           <GltfProp
             key={`seat-${s.id}`}
-            spec={spec}
-            rect={rect}
-            heading={s.pose.heading}
+            spec={chair.spec}
+            rect={chair.rect}
+            heading={chair.heading}
             palette={palette}
           />
         );

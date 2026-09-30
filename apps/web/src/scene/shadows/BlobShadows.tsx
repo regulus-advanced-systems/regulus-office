@@ -6,7 +6,8 @@ import type { FloorTemplate, Rect } from "@regulus/floor-layout";
 import { useMemo } from "react";
 import { MeshBasicMaterial } from "three";
 import { chairForSeat } from "../furniture/catalog.ts";
-import { SEAT_FOOTPRINT, visualFootprint } from "../furniture/placement.ts";
+import { visualFootprint } from "../furniture/placement.ts";
+import { seatModel } from "../furniture/sitAnchor.ts";
 import { BLOB_COLOR, BLOB_OPACITY, blobPlacement, sharedBlobTexture } from "./blob.ts";
 
 let sharedMaterial: MeshBasicMaterial | null = null;
@@ -36,12 +37,9 @@ export function BlobShadows({ template }: { template: FloorTemplate }) {
     for (const o of template.obstacles)
       out.push({ id: o.id, rect: visualFootprint(o, template.seats) });
     for (const s of template.seats) {
-      if (!chairForSeat(s.kind)) continue;
-      const half = SEAT_FOOTPRINT / 2;
-      out.push({
-        id: `seat-${s.id}`,
-        rect: { x: s.pose.x - half, z: s.pose.z - half, w: SEAT_FOOTPRINT, d: SEAT_FOOTPRINT },
-      });
+      // The chair's own footprint (it may be pulled out from its table, #163).
+      const chair = chairForSeat(s.kind) && seatModel(template, s);
+      if (chair) out.push({ id: `seat-${s.id}`, rect: chair.rect });
     }
     return out;
   }, [template]);
