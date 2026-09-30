@@ -30,6 +30,9 @@ export const AUDIT_ACTIONS = {
   agentApprove: "agent.approve",
   agentResume: "agent.resume",
   agentSendHome: "agent.send_home",
+  /** The robot's owner committed or discarded in its changes window (#38). */
+  agentChangesCommit: "agent.changes_commit",
+  agentChangesDiscard: "agent.changes_discard",
   credentialProfileCreate: "credential_profile.create",
   credentialProfileVerify: "credential_profile.verify",
   credentialProfileDelete: "credential_profile.delete",

@@ -14,6 +14,7 @@ import {
   type OfficeAuth,
   originPolicyFor,
 } from "./auth/index.ts";
+import { ChangesService, mountChangesRoutes } from "./changes/index.ts";
 import { ConfigError, loadConfig, redactConfig } from "./config.ts";
 import { mountCredentialPanel } from "./credentials/panel.ts";
 import { closeDatabase, databasePathFor, openDatabase, runMigrations } from "./db/index.ts";
@@ -256,6 +257,13 @@ async function main(): Promise<void> {
   // `agent.worktree` (#33) reach `worktrees` through the manager.
   const worktrees = createWorktrees({ db, logger, config, repos: floors.repos, runner });
   mountWorktreeRoutes(server.router, { auth, db, prune: worktrees.prune });
+  // Changes window (#38): git in the owner's runner/sandbox; view for the floor, write for the owner.
+  mountChangesRoutes(server.router, {
+    auth,
+    db,
+    logger: logger.child({ module: "changes" }),
+    changes: new ChangesService({ db, runner, repos: floors.repos, clones: worktrees.workspaces }),
+  });
   // Room task queues (#37): created before the manager, which reports robot status to it.
   const tasks = createTaskQueue({ db, rooms: rooms.floors, logger });
   tasks.queue.followGitHub(githubSync.events);
