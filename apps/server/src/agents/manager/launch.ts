@@ -50,6 +50,7 @@ export function adoptionPlan(row: AgentRow): SpawnPlan {
     tmuxSession: row.tmuxSession ?? `agent-${row.id}`,
     files: [],
     providerSessionId: row.providerSessionId ?? undefined,
+    permissionMode: row.permissionMode ?? undefined,
   };
 }
 
@@ -60,6 +61,7 @@ export function agentRecord(row: AgentRow): AgentRecord {
     provider: row.provider,
     model: row.model || undefined,
     effort: row.effort ?? undefined,
+    permissionMode: row.permissionMode ?? undefined,
     profileId: row.profileId,
     status: row.status,
     providerSessionId: row.providerSessionId ?? undefined,

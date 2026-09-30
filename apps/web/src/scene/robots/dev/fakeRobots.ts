@@ -76,6 +76,7 @@ export function fakeRobots(
       provider: i % 2 === 0 ? "claude-code" : "codex",
       model: MODELS[i % MODELS.length] as string,
       effort: "",
+      permissionMode: i % 2 === 0 ? "auto" : "on-request",
       status,
       action,
       taskTitle: `Task ${i + 1}`,

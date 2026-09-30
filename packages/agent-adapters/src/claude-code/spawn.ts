@@ -12,6 +12,7 @@
  * Env names: https://code.claude.com/docs/en/env-vars
  */
 
+import { effectivePermissionMode, isPermissionModeFor } from "@regulus/protocol";
 import { SecretEnv } from "../secret.ts";
 import { tmuxSessionName } from "../session.ts";
 import type { RunnerContext, SpawnCredential, SpawnPlan, SpawnRequest } from "../types.ts";
@@ -93,6 +94,22 @@ export function checkModel(model: string): string {
 }
 
 /**
+ * `--permission-mode <mode>` (#166, https://code.claude.com/docs/en/permission-modes).
+ * Always passed, also on resume: a resumed terminal session otherwise restores
+ * whatever mode it was last in (someone may have pressed Shift+Tab in the
+ * terminal), and the flag overrides that
+ * (https://code.claude.com/docs/en/sessions#permission-mode-on-resume).
+ * Omitted = Claude's own default, auto mode.
+ */
+export function permissionModeArgs(mode: string | undefined): string[] {
+  if (mode !== undefined && !isPermissionModeFor("claude-code", mode)) {
+    throw new Error(`Invalid Claude permission mode: ${mode}`);
+  }
+  const resolved = effectivePermissionMode("claude-code", mode);
+  return resolved ? ["--permission-mode", resolved] : [];
+}
+
+/**
  * Env every Claude process of this office gets, before credentials.
  * `DISABLE_AUTOUPDATER=1` stops the background update check (#162): the CLI
  * is installed root-owned in the runner image and runners are non-root, so
@@ -124,6 +141,7 @@ export function buildClaudeSpawn(
     sessionId = opts.newSessionId();
     argv.push("--session-id", sessionId);
   }
+  argv.push(...permissionModeArgs(req.permissionMode));
   if (req.model) argv.push("--model", checkModel(req.model));
   if (req.effort) {
     if (!(CLAUDE_EFFORTS as readonly string[]).includes(req.effort)) {

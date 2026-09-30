@@ -99,6 +99,7 @@ export const robotFixture: RobotState = {
   provider: "claude-code",
   model: "claude-sonnet-4-5",
   effort: "high",
+  permissionMode: "auto",
   status: "working",
   action: "editing",
   taskTitle: "Fix #8",

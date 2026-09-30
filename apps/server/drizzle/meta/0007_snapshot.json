@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "0780e343-8914-41f5-b27c-e9974437fa95",
-  "prevId": "555af5be-5371-49b4-9943-cd92d71fbe4e",
+  "id": "8a64f0ae-42b2-45ff-aefc-ee4ef8e466c9",
+  "prevId": "0780e343-8914-41f5-b27c-e9974437fa95",
   "tables": {
     "agent_events": {
       "name": "agent_events",
@@ -1707,6 +1707,29 @@
           "notNull": true,
           "autoincrement": false,
           "default": false
+        },
+        "head_sha": {
+          "name": "head_sha",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "checks_json": {
+          "name": "checks_json",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'{}'"
+        },
+        "reviews_json": {
+          "name": "reviews_json",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'{}'"
         }
       },
       "indexes": {
@@ -1744,6 +1767,50 @@
           "value": "\"review_state\" IN ('none', 'review_required', 'approved', 'changes_requested')"
         }
       }
+    },
+    "github_webhook_deliveries": {
+      "name": "github_webhook_deliveries",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "event": {
+          "name": "event",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "github_webhook_deliveries_created_idx": {
+          "name": "github_webhook_deliveries_created_idx",
+          "columns": ["created_at"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
     },
     "audit_log": {
       "name": "audit_log",

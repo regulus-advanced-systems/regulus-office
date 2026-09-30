@@ -106,7 +106,9 @@ describe("ClaudeCodeAdapter", () => {
       providerSessionId: "sess-1",
     };
     const plan = adapter.buildAttachTui(agent, ctx);
-    expect(plan?.argv.slice(-2)).toEqual(["--resume", "sess-1"]);
+    expect(plan?.argv.slice(-4)).toEqual(["--resume", "sess-1", "--permission-mode", "auto"]);
+    const manual = adapter.buildAttachTui({ ...agent, permissionMode: "default" }, ctx);
+    expect(manual?.argv.slice(-2)).toEqual(["--permission-mode", "default"]);
     expect(plan?.argv).toContain("--settings");
     expect(plan?.tmuxSession).toBe("agent-a1");
     expect(

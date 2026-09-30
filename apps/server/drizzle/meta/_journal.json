@@ -47,8 +47,15 @@
     {
       "idx": 6,
       "version": "6",
-      "when": 1790775146382,
-      "tag": "0006_github_webhooks",
+      "when": 1790775113689,
+      "tag": "0006_agent_permission_mode",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1790776227169,
+      "tag": "0007_github_webhooks",
       "breakpoints": true
     }
   ]

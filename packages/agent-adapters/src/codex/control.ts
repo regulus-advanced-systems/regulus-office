@@ -18,7 +18,7 @@ import type {
 } from "../types.ts";
 import { approvalResponse } from "./approvals.ts";
 import { type ApprovalRequest, CodexEventMapper, isApprovalRequest } from "./events.ts";
-import type { ThreadStartParams, UserInput } from "./generated/v2/index.ts";
+import type { AskForApproval, ThreadStartParams, UserInput } from "./generated/v2/index.ts";
 import { clip } from "./items.ts";
 import { RPC_METHOD_NOT_FOUND } from "./jsonrpc.ts";
 import { type CodexNotification, CodexRpcClient, type CodexServerRequest } from "./rpc.ts";
@@ -165,15 +165,22 @@ export class CodexControl implements AgentControl {
       await client.initialize();
       const timeout = this.#opts.threadTimeoutMs ?? THREAD_TIMEOUT_MS;
       const resumeId = this.#plan.providerSessionId;
+      // The robot's approval policy (#166) on both, so a resume keeps it.
+      const approval = this.#approvalPolicy();
       const res = resumeId
         ? await client.request(
             "thread/resume",
-            { threadId: resumeId, cwd: this.#plan.cwd },
+            { threadId: resumeId, cwd: this.#plan.cwd, ...approval },
             timeout,
           )
         : await client.request(
             "thread/start",
-            { ...DEFAULT_THREAD_START, ...this.#opts.threadStart, cwd: this.#plan.cwd },
+            {
+              ...DEFAULT_THREAD_START,
+              ...this.#opts.threadStart,
+              ...approval,
+              cwd: this.#plan.cwd,
+            },
             timeout,
           );
       this.#mapper.threadId = res.thread.id;
@@ -185,6 +192,12 @@ export class CodexControl implements AgentControl {
       await this.close();
       throw error;
     }
+  }
+
+  /** `approvalPolicy` from the plan (validated by `buildSpawn`); none = the defaults. */
+  #approvalPolicy(): { approvalPolicy?: AskForApproval } {
+    const mode = this.#plan.permissionMode;
+    return mode === "on-request" || mode === "never" ? { approvalPolicy: mode } : {};
   }
 
   /** Best effort: API-key accounts have no ChatGPT limits and get an error. */

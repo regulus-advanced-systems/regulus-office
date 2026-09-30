@@ -29,7 +29,7 @@ import { hookFiles } from "./forwarders.ts";
 import { mapHookPayload, payloadSessionId } from "./hooks.ts";
 import { ensureClaudeOnboarding } from "./onboarding.ts";
 import { PermissionBroker } from "./permissions.ts";
-import { baseEnv, buildClaudeSpawn, checkModel } from "./spawn.ts";
+import { baseEnv, buildClaudeSpawn, checkModel, permissionModeArgs } from "./spawn.ts";
 import { limitSamplesFromStatusline, StatuslineUsageTracker } from "./statusline.ts";
 import { scanTranscripts } from "./transcript.ts";
 
@@ -158,7 +158,7 @@ export class ClaudeCodeAdapter implements AgentAdapter {
     const { files, settingsPath } = hookFiles(agent.agentId, ctx, this.permissionHoldSeconds);
     const argv = [this.#command];
     if (settingsPath) argv.push("--settings", settingsPath);
-    argv.push("--resume", sessionId);
+    argv.push("--resume", sessionId, ...permissionModeArgs(agent.permissionMode));
     if (agent.model) argv.push("--model", checkModel(agent.model));
     return {
       agentId: agent.agentId,

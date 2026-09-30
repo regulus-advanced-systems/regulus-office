@@ -1,0 +1,1 @@
+ALTER TABLE `agents` ADD `permission_mode` text;
