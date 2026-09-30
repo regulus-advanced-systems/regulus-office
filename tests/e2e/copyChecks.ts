@@ -151,18 +151,27 @@ export async function checkLaptopCopy(page: Page, seatId: string): Promise<void>
   await expect(live).toHaveCount(1);
   await expect(live.locator(".xterm-screen")).toHaveCount(1);
   const panel = page.locator("section.rg-agent-panel");
-  if (await panel.isVisible())
-    await panel
-      .getByRole("button", { name: /Close/ })
-      .first()
-      .click()
-      .catch(() => {});
 
-  const box = await live.boundingBox();
-  if (!box) throw new Error("live laptop panel has no box");
-  // The laptop opens the robot's terminal.
-  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  // The laptop opens the robot's terminal: E at the desk, or a click on the laptop's screen or
+  // body (the seated robot may be in front of it at the iso angle).
   const dialog = page.getByRole("dialog").filter({ hasText: /In control|Watching/ });
+  let attempt = 0;
+  await expect(async () => {
+    const way = attempt++ % 3;
+    if (await panel.isVisible())
+      await panel.getByRole("button", { name: /Close/ }).first().click({ timeout: 2_000 });
+    if (way === 0) {
+      await page.keyboard.press("e");
+    } else {
+      const box = way === 1 ? await live.boundingBox({ timeout: 1_000 }).catch(() => null) : null;
+      const point = box
+        ? { x: box.x + box.width / 2, y: box.y + box.height / 2 }
+        : await scenePoint(page, `laptop-${seatId}`);
+      if (!point) throw new Error("laptop not in view");
+      await page.mouse.click(point.x, point.y);
+    }
+    await expect(dialog).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 45_000 });
   await expect(dialog.getByTestId("terminal-screen")).toHaveAttribute("data-status", "open");
   const screen = await copied(page, dialog, "laptop → Copy screen", () =>
     dialog.getByTestId("terminal-copy-screen").click(),
