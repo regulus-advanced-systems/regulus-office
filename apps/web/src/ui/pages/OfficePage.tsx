@@ -6,6 +6,7 @@ import { BoardLayer } from "../../scene/boards/BoardLayer.tsx";
 import { floorViewFor } from "../../scene/floorView.ts";
 import { MovementController } from "../../scene/movement/MovementController.tsx";
 import { OfficeCanvas } from "../../scene/OfficeCanvas.tsx";
+import { QueueLayer } from "../../scene/queue/QueueClipboard.tsx";
 import { RobotLayer } from "../../scene/robots/RobotLayer.tsx";
 import { DepartingRobots } from "../../scene/robots/sendHome/DepartingRobots.tsx";
 import { useBuildingStore } from "../../state/building.ts";
@@ -57,6 +58,7 @@ export function OfficePage() {
           <Suspense fallback={null}>
             <RobotLayer key={view.key} template={view.template} />
             <BoardLayer key={`boards-${view.key}`} template={view.template} />
+            <QueueLayer key={`queue-${view.key}`} template={view.template} />
           </Suspense>
         )}
       </OfficeCanvas>

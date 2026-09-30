@@ -61,6 +61,7 @@ export function RobotsHarness({ search }: { search: string }) {
         services: {},
         whiteboardVersion: 0,
         carriedCards: {},
+        queueSettings: { maxRunning: 2, maxPerOwner: 2 },
       },
     });
   }, [tick, n, mode, template, allSeats]);

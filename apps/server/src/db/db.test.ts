@@ -51,6 +51,7 @@ const EXTRA_TABLES = [
   "workflows",
   "workflow_runs",
   "workflow_events",
+  "floor_queue_settings",
 ] as const;
 
 /** Better Auth's remaining core tables (`users` is in SPEC_TABLES); see schema/auth.ts. */

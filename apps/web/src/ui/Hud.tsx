@@ -21,6 +21,7 @@ import { TopBar } from "./hud/TopBar.tsx";
 import { WorkCounters } from "./hud/WorkCounters.tsx";
 import { NotificationsHost } from "./notifications/NotificationsHost.tsx";
 import { ProvidersPanelHost } from "./providers/ProvidersPanel.tsx";
+import { QueueHost } from "./queue/QueueHost.tsx";
 import { RunningApps } from "./services/RunningApps.tsx";
 import { SettingsForm } from "./settings/SettingsPanel.tsx";
 import { SpawnDialogHost } from "./spawn/SpawnDialog.tsx";
@@ -101,6 +102,7 @@ export function Hud() {
       <HudDialogs />
       <AgentHost />
       <BoardsHost />
+      <QueueHost />
       <NotificationsHost />
       <Toaster />
     </div>

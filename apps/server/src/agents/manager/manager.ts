@@ -59,7 +59,15 @@ export class AgentManager extends AgentRuntime {
 
   // ---- Spawn ---------------------------------------------------------------
 
-  async spawn(actor: FloorActor, input: SpawnInput): Promise<{ agentId: string; seatId: string }> {
+  /**
+   * `hooks.onAdmitted` runs once the agent row and desk are claimed, before
+   * anything starts (the task queue links its task to the robot, #37).
+   */
+  async spawn(
+    actor: FloorActor,
+    input: SpawnInput,
+    hooks?: { onAdmitted?(agentId: string): void },
+  ): Promise<{ agentId: string; seatId: string }> {
     const admitted = admitSpawn(
       {
         db: this.opts.db,
@@ -72,6 +80,7 @@ export class AgentManager extends AgentRuntime {
       this.now(),
     );
     const { agentId, seatId } = admitted;
+    hooks?.onAdmitted?.(agentId);
     const live = this.trackRow(this.row(agentId));
     this.publishLive(live);
     this.countersChanged();

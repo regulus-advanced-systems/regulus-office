@@ -42,13 +42,16 @@ const SPEC_COMMANDS = [
  * Commands beyond the SPEC §6 list, each with its source: `agent.interrupt`
  * is SPEC §7 `AgentControl.interrupt`; `agent.sendHome` and `agent.worktree`
  * are the send-home and PR dialogs of issue #33; `agent.emergencyStop` is the
- * office owner/admin stop of D12 (#138).
+ * office owner/admin stop of D12 (#138); `queue.retry` and `queue.settings`
+ * are the task queue's retry and concurrency settings (#37).
  */
 const EXTENSION_COMMANDS = [
   "agent.interrupt",
   "agent.sendHome",
   "agent.worktree",
   "agent.emergencyStop",
+  "queue.retry",
+  "queue.settings",
 ] as const;
 
 const valid: Record<ClientCommandType, Record<string, unknown>> = {
@@ -85,6 +88,8 @@ const valid: Record<ClientCommandType, Record<string, unknown>> = {
   },
   "queue.reorder": { taskId: "q1", position: 0 },
   "queue.cancel": { taskId: "q1" },
+  "queue.retry": { taskId: "q1" },
+  "queue.settings": { maxRunning: 1, maxPerOwner: 1 },
   "card.pick": { cardKind: "pr", repoId: "r1", number: 71 },
   "card.drop": { seatId: "seat-2" },
   "decor.place": { kind: "picture", wallId: "north", uploadId: "up1", x: 1, y: 1, w: 1, h: 0.5 },
@@ -160,6 +165,28 @@ describe("ClientCommand", () => {
     expect(parseClientCommand("queue.add", { ...base, kind: "issue" }).success).toBe(false);
     expect(parseClientCommand("queue.add", { ...base, kind: "pr" }).success).toBe(false);
     expect(parseClientCommand("queue.add", { ...base, kind: "freeform" }).success).toBe(true);
+  });
+
+  test("queue.add: a freeform task needs a prompt, an issue task gets one later", () => {
+    const base = valid["queue.add"];
+    for (const prompt of [undefined, "", "  "]) {
+      expect(parseClientCommand("queue.add", { ...base, kind: "freeform", prompt }).success).toBe(
+        false,
+      );
+    }
+    const issue = parseClientCommand("queue.add", { ...base, kind: "issue", prompt: undefined });
+    expect(issue.success && issue.data.type === "queue.add" && issue.data.prompt).toBe("");
+    expect(parseClientCommand("queue.add", { ...base, permissionMode: "yolo" }).success).toBe(
+      false,
+    );
+  });
+
+  test("queue.settings stays within its bounds", () => {
+    for (const bad of [0, 17, 1.5]) {
+      expect(
+        parseClientCommand("queue.settings", { maxRunning: bad, maxPerOwner: 1 }).success,
+      ).toBe(false);
+    }
   });
 
   test("payload type cannot override the message type", () => {
