@@ -200,8 +200,10 @@ describe("TerminalModal", () => {
       await serverHello("watch");
       const host = FakeHost.all.at(-1) as FakeHost;
       host.selection = "npm test\nall green";
+      // The drag starts in the terminal and ends outside it (#164): still copied.
       await act(async () => {
-        xtermEl().dispatchEvent(new MouseEvent("mouseup", { bubbles: true, button: 0 }));
+        xtermEl().dispatchEvent(new MouseEvent("mousedown", { bubbles: true, button: 0 }));
+        document.body.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, button: 0 }));
       });
       await settle();
       expect(written).toEqual(["npm test\nall green"]);

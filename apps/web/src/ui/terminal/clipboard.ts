@@ -11,7 +11,10 @@
  *   the browser's own paste reaches xterm, which brackets it when the
  *   program asked for bracketed paste. Plain Ctrl+V still goes to the
  *   program (Claude Code uses it to paste images);
- * - a right-click menu with Copy and Paste.
+ * - a right-click menu with Copy and Paste;
+ * - "Copy selection" and "Copy screen" buttons, and when the browser refuses
+ *   every way to write the clipboard, the text shown selected to copy by hand
+ *   (#164).
  *
  * Nothing here logs the text or sends it anywhere but the clipboard and,
  * for a paste, the controller's own terminal.
@@ -65,12 +68,15 @@ const browserClipboard = (): ClipboardApi | undefined =>
   typeof navigator === "undefined" ? undefined : navigator.clipboard;
 
 /**
- * Puts `text` on the clipboard. Uses the async Clipboard API, falling back to
- * a hidden textarea and `execCommand("copy")` where it is missing (plain http).
+ * Puts `text` on the clipboard: the async Clipboard API first, then the copy
+ * command ({@link copyWithCommand}) where the API is missing (plain http) or
+ * refused (no permission, #164). True only when one of them took the text.
+ * Call it from a click or key press: browsers allow both only then.
  */
 export async function copyText(
   text: string,
   clipboard: ClipboardApi | undefined = browserClipboard(),
+  options: CopyCommandOptions = {},
 ): Promise<boolean> {
   if (!text) return false;
   if (clipboard?.writeText) {
@@ -78,30 +84,76 @@ export async function copyText(
       await clipboard.writeText(text);
       return true;
     } catch {
-      // fall through to the legacy path
+      // refused: fall through to the copy command
     }
   }
-  return legacyCopy(text);
+  return copyWithCommand(text, options);
 }
 
-function legacyCopy(text: string): boolean {
-  if (typeof document === "undefined") return false;
-  const previous = document.activeElement as HTMLElement | null;
-  const area = document.createElement("textarea");
+export interface CopyCommandOptions {
+  doc?: Document;
+  /**
+   * Where the hidden textarea goes: inside the open dialog, whose focus trap would
+   * otherwise pull focus out of a textarea on <body> before the copy (#164).
+   */
+  container?: HTMLElement | null;
+}
+
+/**
+ * `execCommand("copy")`, twice over. First with a `copy` listener that hands the
+ * browser `text` (no focus or selection change; `beforecopy` is cancelled so Chromium
+ * enables Copy without a selection). If no copy event carried it, a hidden textarea in
+ * `container` is selected and copied. True only when the browser ran the copy with `text`.
+ */
+export function copyWithCommand(text: string, options: CopyCommandOptions = {}): boolean {
+  const doc = options.doc ?? (typeof document === "undefined" ? undefined : document);
+  if (!doc || !text) return false;
+  let delivered = false;
+  const enable = (event: Event) => event.preventDefault();
+  const onCopy = (event: Event) => {
+    const data = (event as ClipboardEvent).clipboardData;
+    if (!data) return;
+    data.setData("text/plain", text);
+    event.preventDefault();
+    // xterm's own copy handler would put its selection there instead.
+    event.stopPropagation();
+    delivered = true;
+  };
+  doc.addEventListener("beforecopy", enable, true);
+  doc.addEventListener("copy", onCopy, true);
+  try {
+    if (runCopy(doc) && delivered) return true;
+  } finally {
+    doc.removeEventListener("beforecopy", enable, true);
+    doc.removeEventListener("copy", onCopy, true);
+  }
+  return copyFromTextarea(text, doc, options.container ?? doc.body);
+}
+
+function runCopy(doc: Document): boolean {
+  try {
+    return doc.execCommand("copy");
+  } catch {
+    return false;
+  }
+}
+
+function copyFromTextarea(text: string, doc: Document, container: HTMLElement): boolean {
+  const previous = doc.activeElement as HTMLElement | null;
+  const area = doc.createElement("textarea");
   area.value = text;
   area.setAttribute("readonly", "");
-  area.style.position = "fixed";
-  area.style.opacity = "0";
-  document.body.appendChild(area);
+  area.setAttribute("aria-hidden", "true");
+  area.tabIndex = -1;
+  Object.assign(area.style, { position: "fixed", top: "0", left: "0", opacity: "0" });
+  container.appendChild(area);
+  area.focus({ preventScroll: true });
   area.select();
-  let ok = false;
-  try {
-    ok = document.execCommand("copy");
-  } catch {
-    ok = false;
-  }
+  // A focus trap may have taken focus back: then the copy would not take this text.
+  const selected = doc.activeElement === area && area.selectionEnd - area.selectionStart > 0;
+  const ok = selected && runCopy(doc);
   area.remove();
-  previous?.focus?.();
+  previous?.focus?.({ preventScroll: true });
   return ok;
 }
 

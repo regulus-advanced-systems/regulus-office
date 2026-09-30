@@ -1,9 +1,13 @@
 /**
  * The dark terminal box shared by the robot's terminal modal and the login
  * terminal: the xterm element, the connecting / ended overlays, the "Copied"
- * flash, the right-click menu (Copy, Paste) and a one-line help (#156).
+ * flash, the right-click menu (Copy, Paste) and a one-line help (#156), and
+ * the "Copy selection" / "Copy screen" buttons that always work from a click,
+ * with the text shown to copy by hand when the browser refuses (#164).
  */
 import { type CSSProperties, useEffect, useRef } from "react";
+import { Button } from "../components/Button.tsx";
+import { CopyFailed } from "./CopyFailed.tsx";
 import type { TerminalHost } from "./host.ts";
 import type { TerminalUiState } from "./terminalState.ts";
 import { type ClipboardDeps, useTerminalClipboard } from "./useTerminalClipboard.ts";
@@ -56,6 +60,9 @@ export function TerminalScreen({
             {clip.flash}
           </span>
         )}
+        {clip.failed !== null && (
+          <CopyFailed text={clip.failed} mac={clip.mac} onClose={clip.dismissFailed} />
+        )}
         {clip.menu && (
           <TerminalMenu
             x={clip.menu.x}
@@ -68,10 +75,33 @@ export function TerminalScreen({
           />
         )}
       </div>
-      <p className="rg-term__help" data-testid="terminal-help">
-        Select text to copy it ({copyKey} copies too).{" "}
-        {readOnly ? "" : `${paste} or right-click to paste. `}Click a link to open it.
-      </p>
+      <div className="rg-term__foot">
+        <p className="rg-term__help" data-testid="terminal-help">
+          Select text to copy it ({copyKey} copies too).{" "}
+          {readOnly ? "" : `${paste} or right-click to paste. `}Click a link to open it.
+        </p>
+        <div className="rg-term__copy" role="group" aria-label="Copy from the terminal">
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={!host || !clip.hasSelection}
+            data-testid="terminal-copy-selection"
+            onClick={() => void clip.copySelection()}
+          >
+            Copy selection
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={!host}
+            title="Copy the text on the screen"
+            data-testid="terminal-copy-screen"
+            onClick={() => void clip.copyScreen()}
+          >
+            Copy screen
+          </Button>
+        </div>
+      </div>
     </>
   );
 }

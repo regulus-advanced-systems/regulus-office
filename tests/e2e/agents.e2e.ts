@@ -4,8 +4,9 @@
  * animates by action and raises its hand; the permission prompt reaches the owner but not a
  * second member's browser; approving lets the agent commit; the one-click PR reaches a fake
  * GitHub with `Closes #n`; restarting office-server re-adopts the same tmux session, whose
- * terminal still opens, copies, expands and reflows (#156); sending the robot home frees the desk
- * and deletes the branch as chosen.
+ * terminal still opens, copies, expands and reflows (#156); copying works in every terminal
+ * surface while the fake turns on mouse tracking like Claude Code (#164); sending the robot
+ * home frees the desk and deletes the branch as chosen.
  *
  * The agent is the fake `claude` in tests/e2e/runner (never the real CLI, no account, no
  * network beyond the office's hook URL), run by the production `docker` runner backend in a
@@ -26,6 +27,7 @@ import {
 } from "./agentOffice.ts";
 import { collectTerminalOutput, history, recordRobots, robots, scenePoint } from "./agentProbes.ts";
 import { boneSegments, recordBones, sampleBones } from "./boneProbes.ts";
+import { checkLaptopCopy, checkLoginTerminalCopy, checkRobotTerminalCopy } from "./copyChecks.ts";
 import { type FakeGitHub, startFakeGitHub } from "./fakeGitHub.ts";
 import { createRemoteRepo } from "./gitRemote.ts";
 import { freeDeskPoint, OFFICE_PROBE_PATH, waitForScene } from "./probes.ts";
@@ -549,6 +551,23 @@ test("7b. the robot's terminal expands, copies a selection and reflows tmux in c
       .getByRole("button", { name: "Open terminal" })
       .click();
   });
+});
+
+test("7c. copying works in the robot's terminal, on the laptop and in the login terminal (#164)", async () => {
+  await checkRobotTerminalCopy(
+    ownerPage,
+    ownerCtx,
+    async () => {
+      await openRobotPanel(ownerPage);
+      await ownerPage
+        .locator("section.rg-agent-panel")
+        .getByRole("button", { name: "Open terminal" })
+        .click();
+    },
+    () => ownerTerminal.text(),
+  );
+  await checkLaptopCopy(ownerPage, seatId);
+  await checkLoginTerminalCopy(ownerPage);
 });
 
 test("8. send home frees the desk and deletes the branch as chosen", async () => {
