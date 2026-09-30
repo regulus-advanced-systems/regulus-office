@@ -37,6 +37,10 @@ export function fitsAndFills(inner: Box, outer: Box, fill = 0.9): boolean {
   return within && (inner.width >= outer.width * fill || inner.height >= outer.height * fill);
 }
 
+/** `a` is larger than `b` (cell widths round to whole pixels, so one side may stay the same). */
+export const bigger = (a: Box, b: Box): boolean =>
+  a.width >= b.width && a.height >= b.height && a.width * a.height > b.width * b.height;
+
 /** Drags across the top rows of the terminal, like selecting text with the mouse. */
 export async function dragAcrossTop(page: Page, screen: Box, rows = 3): Promise<void> {
   const lineHeight = screen.height / 45;
@@ -89,7 +93,7 @@ export async function checkRobotTerminal(
     await expect
       .poll(async () => {
         const fit = await terminalFit(terminal);
-        const ok = fitsAndFills(fit.screen, fit.box, 0.8) && fit.screen.width > normal.screen.width;
+        const ok = fitsAndFills(fit.screen, fit.box, 0.8) && bigger(fit.screen, normal.screen);
         return ok || `screen ${JSON.stringify(fit.screen)} in box ${JSON.stringify(fit.box)}`;
       })
       .toBe(true);
