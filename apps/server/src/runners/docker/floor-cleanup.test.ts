@@ -8,6 +8,8 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, readdir, rm, stat, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { createLogger } from "../../logging.ts";
+import { floorDirRemover } from "../../worktrees/floor-dirs.ts";
 import { DockerRunner } from "./docker-runner.ts";
 import { EngineClient } from "./engine.ts";
 import { JANITOR_ROLE } from "./floor-cleanup.ts";
@@ -142,5 +144,28 @@ describe("removeFloorAreas", () => {
     await runner.removeFloorAreas("absent");
     expect(fake.requests).toEqual([]);
     expect(await exists(join(elsewhere, "u1"))).toBe(true);
+  });
+
+  test("without a runner image the office still removes what it can itself", async () => {
+    fake.images.clear();
+    const runner = new DockerRunner({
+      engine: new EngineClient(fake.dockerHost),
+      image: IMAGE,
+      prefix: "office",
+      user: "1001:1001",
+      home: "/home/runner",
+      floorRoots: [root],
+      pull: false,
+    });
+    await area("doomed", "u1");
+    await expect(runner.removeFloorAreas("doomed")).rejects.toThrow();
+    const remover = floorDirRemover({
+      projectsDir: join(root, "projects"),
+      worktreesDir: root,
+      runner,
+      logger: createLogger({ level: "silent" }),
+    });
+    expect(await remover.removeFloorDirs("doomed")).toEqual([join(root, "doomed")]);
+    expect(await exists(join(root, "doomed"))).toBe(false);
   });
 });

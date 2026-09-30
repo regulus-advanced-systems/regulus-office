@@ -109,7 +109,14 @@ export function floorDirRemover(deps: FloorDirsDeps): FloorDirRemover {
   return {
     async removeFloorDirs(slug) {
       checkFloorSlug(slug);
-      await docker.removeFloorAreas(slug);
+      try {
+        await docker.removeFloorAreas(slug);
+      } catch (err) {
+        // E.g. no runner image for the janitor. The office's own rm below still
+        // removes what it can, and fails the delete if anything is left.
+        const reason = err instanceof Error ? err.message : String(err);
+        logger.warn({ slug, err: reason.slice(0, 500) }, "runner-side floor cleanup failed");
+      }
       const removed = await office.removeFloorDirs(slug);
       void reconcileAll(docker).catch((err) =>
         logger.warn({ err: String(err) }, "runner mounts not reconciled after a floor delete"),
