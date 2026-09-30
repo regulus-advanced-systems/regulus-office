@@ -343,7 +343,8 @@ test("2. the owner spawns Claude Code at a free desk with their login and a prom
   );
   await dialog.getByLabel("Task title").fill(TASK);
   await dialog.getByLabel("Issue").fill(String(ISSUE));
-  await dialog.getByLabel(/^Prompt/).fill("Add a FAKE_CLAUDE.md that says hello");
+  // The fake holds the edit until step 3 has seen the robot type (tests/e2e/runner/claude, #179).
+  await dialog.getByLabel(/^Prompt/).fill("Add a FAKE_CLAUDE.md that says hello [hold the edit]");
   await dialog.getByRole("button", { name: "Spawn robot" }).click();
   // The dialog stays pending until our robot sits down at that desk, then closes.
   await expect(dialog).toHaveCount(0, { timeout: 60_000 });

@@ -6,9 +6,9 @@
 # Claude adapter generated and runs the registered hooks the way Claude Code does
 # (claude-hooks.sh, next to this script): command hooks get the payload on stdin, and http hooks
 # to a private or link-local address are refused with Claude Code's own error (#162). Payloads:
-#   SessionStart, UserPromptSubmit, PreToolUse(Edit), then (once the spec creates
-#   $HOME/.fake-claude-ask) PermissionRequest(Edit), whose response is held by the office until
-#   someone answers the permission prompt.
+#   SessionStart, UserPromptSubmit, PreToolUse(Edit), then (for a "[hold the edit]" prompt,
+#   once the spec creates $HOME/.fake-claude-ask) PermissionRequest(Edit), whose response is
+#   held by the office until someone answers the permission prompt.
 # On "allow" it makes the edit, commits it in its worktree (the cwd) and posts PostToolUse and
 # Stop. Then it idles so the tmux session stays alive across an office restart.
 # `claude auth status` (the office's login check, credentials/cli-status.ts): report a login
@@ -140,15 +140,21 @@ hook "{$base,\"hook_event_name\":\"UserPromptSubmit\",\"prompt\":\"$(json_escape
 sleep 1
 echo "FAKE CLAUDE editing $file"
 hook "{$base,\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"Edit\",\"tool_use_id\":\"toolu_fake_1\",\"tool_input\":$edit}" > /dev/null
-# Keep editing until the spec has seen the robot type (#159): it follows a new action only
-# once it has held for 1.5 s, and a slow CI browser sees the status late and draws few frames,
-# so a fixed pause was sometimes over before the typing clip had moved a bone (#179). The spec
-# says when by creating $ask; after two minutes without it, ask anyway (a manual run).
-ask="${HOME:-/tmp}/.fake-claude-ask"
-ticks=600
-while [ ! -e "$ask" ] && [ "$ticks" -gt 0 ]; do sleep 0.2; ticks=$((ticks - 1)); done
-trace "asking for permission ($([ -e "$ask" ] && echo "told to" || echo "not told"))"
-rm -f "$ask"
+# With "[hold the edit]" in the prompt, keep editing until the spec has seen the robot type
+# (#159): it follows a new action only once it has held for 1.5 s, and a slow CI browser sees
+# the status late and draws few frames, so a fixed pause was sometimes over before the typing
+# clip had moved a bone (#179). The spec says when by creating $ask; after two minutes without
+# it, ask anyway (a manual run). Other prompts (the queued tasks) edit for 6 s.
+case "$prompt" in
+  *"[hold the edit]"*)
+    ask="${HOME:-/tmp}/.fake-claude-ask"
+    ticks=600
+    while [ ! -e "$ask" ] && [ "$ticks" -gt 0 ]; do sleep 0.2; ticks=$((ticks - 1)); done
+    trace "asking for permission ($([ -e "$ask" ] && echo "told to" || echo "not told"))"
+    rm -f "$ask"
+    ;;
+  *) sleep 6 ;;
+esac
 echo "FAKE CLAUDE asking for permission"
 answer=$(hook "{$base,\"hook_event_name\":\"PermissionRequest\",\"tool_name\":\"Edit\",\"tool_input\":$edit}")
 if printf '%s' "$answer" | grep -q '"behavior" *: *"allow"'; then
