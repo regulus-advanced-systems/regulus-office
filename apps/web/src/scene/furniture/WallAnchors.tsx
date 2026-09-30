@@ -1,7 +1,8 @@
 /**
  * Things hung on wall anchors (SPEC §9.4), as static placeholders: whiteboard,
  * usage-tracker wall, picture frames, and the lounge TV (Kenney model). Live
- * content for each is its own issue; this only reserves the space.
+ * content for each is its own issue; this only reserves the space. Issue and
+ * PR boards are drawn by scene/boards (#36) on their anchors.
  */
 import {
   type FloorTemplate,
@@ -118,9 +119,7 @@ function Anchor({
       {anchor.kind === "whiteboard" && <Whiteboard w={anchor.w} h={anchor.h} m={m} />}
       {anchor.kind === "usage_wall" && <UsageWall w={anchor.w} h={anchor.h} m={m} />}
       {anchor.kind === "picture" && <Picture w={anchor.w} h={anchor.h} m={m} />}
-      {(anchor.kind === "issue_board" ||
-        anchor.kind === "pr_board" ||
-        anchor.kind === "queue_clipboard") && <Picture w={anchor.w} h={anchor.h} m={m} />}
+      {anchor.kind === "queue_clipboard" && <Picture w={anchor.w} h={anchor.h} m={m} />}
     </group>
   );
 }

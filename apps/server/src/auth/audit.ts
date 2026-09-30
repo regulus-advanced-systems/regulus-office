@@ -37,6 +37,11 @@ export const AUDIT_ACTIONS = {
   providerLoginFinish: "provider_login.finish",
   githubConnect: "github.connect",
   githubDisconnect: "github.disconnect",
+  /** Board write actions (#36): a floor manager acted on GitHub through the office credential. */
+  githubBoardComment: "github.board_comment",
+  githubBoardAssign: "github.board_assign",
+  githubBoardMerge: "github.board_merge",
+  githubBoardClose: "github.board_close",
   notificationChannelCreate: "notification_channel.create",
   notificationChannelUpdate: "notification_channel.update",
   notificationChannelDelete: "notification_channel.delete",
@@ -57,6 +62,7 @@ export interface AuditEntry {
     | "credential_profile"
     | "provider_login"
     | "github_connection"
+    | "github_card"
     | "notification_channel";
   targetId: string | null;
   meta?: Record<string, unknown>;

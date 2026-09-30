@@ -2,6 +2,7 @@ import { LOBBY_FLOOR_ID } from "@regulus/protocol";
 import { Suspense, useEffect } from "react";
 import { getOfficeClient } from "../../net/index.ts";
 import { AvatarLayer } from "../../scene/avatars/AvatarLayer.tsx";
+import { BoardLayer } from "../../scene/boards/BoardLayer.tsx";
 import { floorViewFor } from "../../scene/floorView.ts";
 import { MovementController } from "../../scene/movement/MovementController.tsx";
 import { OfficeCanvas } from "../../scene/OfficeCanvas.tsx";
@@ -55,6 +56,7 @@ export function OfficePage() {
         {floorId && view.key !== "lobby" && (
           <Suspense fallback={null}>
             <RobotLayer key={view.key} template={view.template} />
+            <BoardLayer key={`boards-${view.key}`} template={view.template} />
           </Suspense>
         )}
       </OfficeCanvas>

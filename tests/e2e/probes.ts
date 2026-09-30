@@ -71,12 +71,14 @@ export const distance = (a: Pos, b: Pos) => Math.hypot(a.x - b.x, a.z - b.z);
 
 /**
  * Viewport point of the free-desk click target nearest the middle of the
- * canvas (scene/robots `desk-hotspot-<seatId>` meshes), or null.
+ * canvas (scene/robots `desk-hotspot-<seatId>` meshes), or null. `skip`
+ * leaves out seats known to be taken.
  */
 export function freeDeskPoint(
   page: Page,
+  skip: readonly string[] = [],
 ): Promise<{ x: number; y: number; seatId: string } | null> {
-  return page.evaluate(() => {
+  return page.evaluate((skipped) => {
     type V = { x: number; y: number; z: number; clone(): V; project(c: unknown): V };
     type Obj = { name: string; getWorldPosition(v: V): V; position: V };
     const r3f = (
@@ -93,6 +95,7 @@ export function freeDeskPoint(
     let best: { x: number; y: number; seatId: string; d: number } | null = null;
     r3f.scene.traverse((o) => {
       if (!o.name.startsWith("desk-hotspot-")) return;
+      if (skipped.includes(o.name.slice("desk-hotspot-".length))) return;
       const p = o.getWorldPosition(o.position.clone()).project(camera);
       const x = rect.left + ((p.x + 1) / 2) * rect.width;
       const y = rect.top + ((1 - p.y) / 2) * rect.height;
@@ -101,7 +104,7 @@ export function freeDeskPoint(
     });
     const found = best as { x: number; y: number; seatId: string } | null;
     return found ? { x: found.x, y: found.y, seatId: found.seatId } : null;
-  });
+  }, skip);
 }
 
 export interface LocalPose extends Pos {
@@ -217,4 +220,44 @@ export const headingToward = (from: Pos, to: Pos) =>
 export function angleBetween(a: number, b: number): number {
   const d = Math.abs(a - b) % (Math.PI * 2);
   return d > Math.PI ? Math.PI * 2 - d : d;
+}
+
+/** Viewport point of a board's click target (scene/boards `board-hotspot-<anchorId>`), or null. */
+export function boardPoint(page: Page, anchorId: string): Promise<{ x: number; y: number } | null> {
+  return page.evaluate((name) => {
+    type V = { x: number; y: number; z: number; clone(): V; project(c: unknown): V };
+    type Obj = { getWorldPosition(v: V): V; position: V };
+    const r3f = (
+      window as unknown as {
+        __regulusR3F?: {
+          scene: { getObjectByName(n: string): Obj | undefined };
+          get(): { camera: unknown; gl: { domElement: HTMLCanvasElement } };
+        };
+      }
+    ).__regulusR3F;
+    const o = r3f?.scene.getObjectByName(name);
+    if (!r3f || !o) return null;
+    const { camera, gl } = r3f.get();
+    const rect = gl.domElement.getBoundingClientRect();
+    const p = o.getWorldPosition(o.position.clone()).project(camera);
+    return {
+      x: rect.left + ((p.x + 1) / 2) * rect.width,
+      y: rect.top + ((1 - p.y) / 2) * rect.height,
+    };
+  }, `board-hotspot-${anchorId}`);
+}
+
+/** Names of the carried-card objects the scene draws (`carried-card-<sessionId>`). */
+export function carriedCardsInScene(page: Page): Promise<string[]> {
+  return page.evaluate(() => {
+    type Obj = { name: string; visible: boolean };
+    const r3f = (
+      window as unknown as { __regulusR3F?: { scene: { traverse(f: (o: Obj) => void): void } } }
+    ).__regulusR3F;
+    const out: string[] = [];
+    r3f?.scene.traverse((o) => {
+      if (o.name.startsWith("carried-card-") && o.visible) out.push(o.name);
+    });
+    return out;
+  });
 }

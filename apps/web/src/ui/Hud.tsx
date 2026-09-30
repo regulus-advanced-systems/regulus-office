@@ -6,6 +6,7 @@
  */
 import { useUiStore } from "../state/ui.ts";
 import { AgentHost } from "./agent/AgentHost.tsx";
+import { BoardsHost } from "./boards/BoardsHost.tsx";
 import { ChatPanel } from "./chat/ChatPanel.tsx";
 import { Button } from "./components/Button.tsx";
 import { GearIcon, QuestionIcon } from "./components/icons.tsx";
@@ -93,6 +94,7 @@ export function Hud() {
       </div>
       <HudDialogs />
       <AgentHost />
+      <BoardsHost />
       <NotificationsHost />
       <Toaster />
     </div>
