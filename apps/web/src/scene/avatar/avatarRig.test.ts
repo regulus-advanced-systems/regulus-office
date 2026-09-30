@@ -47,6 +47,20 @@ describe("avatarRig", () => {
     expect(source.tracks).toHaveLength(4);
   });
 
+  test("the raised hand is held still at the wave's hand-up moment, not waving (#159)", () => {
+    const up = [Math.sin(0.6), 0, 0, Math.cos(0.6)];
+    const down = [0, 0, 0, 1];
+    const source = new AnimationClip("RobotArmature|Robot_Wave", 1.8, [
+      new QuaternionKeyframeTrack("LowerArmR.quaternion", [0, 0.9, 1.8], [...down, ...up, ...down]),
+    ]);
+    const arm = armOnlyClip(source, 0.9);
+    const track = arm.tracks[0];
+    expect(track?.times).toHaveLength(2);
+    const values = Array.from(track?.values ?? []);
+    expect(values.slice(0, 4)).toEqual(values.slice(4));
+    values.slice(0, 4).forEach((v, i) => expect(v).toBeCloseTo(up[i] ?? 0, 5));
+  });
+
   test("findBone skips the same-named mesh and returns the bone", () => {
     const root = new Group();
     const bone = new Bone();

@@ -1,7 +1,7 @@
 /**
  * Dev-only page (apps/web/dev/robots.html): the Office L2 floor with fake
  * robots at their desks, bubbles flying to the HUD counters and an fps probe.
- * Query: n=<robots> (default 12), mode=working|mixed|waiting, rate=<counter ticks/s>,
+ * Query: n=<robots> (default 12), mode=working|mixed|waiting|idle|flap, rate=<ticks/s>,
  * reduced=1. Not part of the production build.
  */
 import { officeL2Template } from "@regulus/floor-layout";
@@ -15,7 +15,7 @@ import { AvatarLayer } from "../../avatars/AvatarLayer.tsx";
 import { MovementController } from "../../movement/MovementController.tsx";
 import { OfficeCanvas } from "../../OfficeCanvas.tsx";
 import { RobotLayer } from "../RobotLayer.tsx";
-import { fakeRobots } from "./fakeRobots.ts";
+import { fakeRobots, harnessMode } from "./fakeRobots.ts";
 import "../../../ui/globals.css";
 import "../../../ui/hud.css";
 
@@ -25,8 +25,7 @@ const noSend = () => {};
 export function RobotsHarness({ search }: { search: string }) {
   const params = new URLSearchParams(search);
   const n = Number(params.get("n") ?? 12);
-  const m = params.get("mode");
-  const mode = m === "mixed" || m === "waiting" ? m : "working";
+  const mode = harnessMode(params.get("mode"));
   const rate = Number(params.get("rate") ?? 2);
   const [tick, setTick] = useState(0);
   const [robots, setRobots] = useState<Record<string, RobotState>>({});

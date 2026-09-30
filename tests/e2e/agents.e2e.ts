@@ -25,6 +25,7 @@ import {
   sh,
 } from "./agentOffice.ts";
 import { collectTerminalOutput, history, recordRobots, robots, scenePoint } from "./agentProbes.ts";
+import { boneSegments, recordBones, sampleBones } from "./boneProbes.ts";
 import { type FakeGitHub, startFakeGitHub } from "./fakeGitHub.ts";
 import { createRemoteRepo } from "./gitRemote.ts";
 import { freeDeskPoint, OFFICE_PROBE_PATH, waitForScene } from "./probes.ts";
@@ -275,6 +276,7 @@ test("2. the owner spawns Claude Code at a free desk with their login and a prom
   await ownerPage.bringToFront();
   await recordRobots(ownerPage);
   await recordRobots(memberPage);
+  await recordBones(ownerPage);
   await expect.poll(() => freeDeskPoint(ownerPage)).not.toBeNull();
   const desk = await freeDeskPoint(ownerPage);
   if (!desk) throw new Error("no free desk in the scene");
@@ -352,6 +354,37 @@ test("3. the robot's status and action change (editing) and it raises its hand",
     .toContainEqual(expect.stringMatching(/^waiting_permission\/.*\/hand$/));
 });
 
+test("3b. the robot's bones move while it works and hold still while it waits (#159)", async () => {
+  // The recorder has watched the robot since before the spawn: starting, working, then
+  // waiting_permission with its hand up. Wait until the calm, hand-up pose has had a while.
+  await expect
+    .poll(
+      async () =>
+        (await boneSegments(ownerPage, agentId)).some(
+          (s) => /^waiting_permission\/\w+\/sit_idle\/hand$/.test(s.key) && s.ms >= 1500,
+        ),
+      { timeout: 20_000 },
+    )
+    .toBe(true);
+  const segments = await boneSegments(ownerPage, agentId);
+  const report = JSON.stringify(segments);
+  // The status/action stream and how far the bones moved in each state, for the report.
+  await test.info().attach("bone-segments.json", {
+    body: JSON.stringify({ history: await history(ownerPage), segments }, null, 1),
+    contentType: "application/json",
+  });
+  // Working at the laptop (typing/editing) animates the arms and head.
+  const working = segments.filter((s) => /^working\/\w+\/sit_type\//.test(s.key) && s.ms >= 500);
+  expect(working.length, report).toBeGreaterThan(0);
+  expect(Math.max(...working.map((s) => s.maxDeg)), report).toBeGreaterThan(3);
+  // Seated and not working (starting, idle, waiting with the hand up): still, to a tenth of a degree.
+  const calm = segments.filter(
+    (s) => /^(starting|idle|waiting_permission)\/\w+\/sit_idle\//.test(s.key) && s.frames > 5,
+  );
+  expect(calm.length, report).toBeGreaterThan(0);
+  for (const s of calm) expect(s.maxDeg, report).toBeLessThan(0.1);
+});
+
 test("4. the permission prompt reaches the owner, not the member", async () => {
   // A fresh request opens the prompt for the robot's controllers by itself.
   const prompt = ownerPage.getByRole("dialog", { name: "Permission needed" });
@@ -402,6 +435,20 @@ test("5. the owner approves; the robot commits and finishes", async () => {
   expect(worktreeGit(["rev-list", "--count", `origin/${REPO.branch}..HEAD`])).toBe("1");
   expect(worktreeGit(["status", "--porcelain"])).toBe("");
   cloneGitDir = worktreeGit(["rev-parse", "--path-format=absolute", "--git-common-dir"]);
+});
+
+test("5b. once the celebration is over the done robot sits still (#159)", async () => {
+  await expect
+    .poll(async () => (await robotOn(ownerPage))?.animation, { timeout: 20_000 })
+    .toBe("sit_idle");
+  // Past the crossfade back into the chair.
+  await ownerPage.waitForTimeout(500);
+  const still = await sampleBones(ownerPage, agentId, 2_000);
+  expect(still.keys, JSON.stringify(still)).toEqual([
+    expect.stringMatching(/^done\/\w+\/sit_idle\/-$/),
+  ]);
+  expect(still.frames, JSON.stringify(still)).toBeGreaterThan(5);
+  expect(still.maxDeg, JSON.stringify(still)).toBeLessThan(0.1);
 });
 
 test("6. Open PR pushes the branch and sends a correct PR to GitHub", async () => {

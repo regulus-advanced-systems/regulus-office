@@ -8,9 +8,13 @@
  *   → read (seated, with papers); thinking → think (seated, head tilt);
  * - failing (action) or error (status) → facepalm; celebrating or done →
  *   celebrate (stands up, spins, confetti). Both are one-shots: after
- *   `ONE_SHOT_MS` the robot sits back down (`settleOneShot`);
- * - everything else (starting, idle, waiting, exited, offline) → sit_idle.
- *   Waiting robots raise a hand on top (`handRaised`).
+ *   `ONE_SHOT_MS` the robot sits back down (animationSettle.ts);
+ * - everything else (starting, idle, waiting, exited, offline) → sit_idle,
+ *   which is a still seated pose (#159). A robot waiting for permission
+ *   raises a hand on top (`raisedHandFor`), and is otherwise still.
+ *
+ * With reduced motion every robot is still in its chair (`calmFor`); the
+ * antenna bulb still tells the status.
  */
 import type { AgentAction, AgentStatus, AvatarAnimation, RobotState } from "@regulus/protocol";
 
@@ -61,17 +65,21 @@ export const ONE_SHOT_MS: Readonly<Partial<Record<AvatarAnimation, number>>> = {
   facepalm: 2500,
 };
 
+/** Seated and still: the pose of every robot that is not working (#159). */
+export const STILL: AvatarAnimation = "sit_idle";
+
+/** The animation to play: with reduced motion the robot stays still in its chair. */
+export function calmFor(animation: AvatarAnimation, reducedMotion: boolean): AvatarAnimation {
+  return reducedMotion ? STILL : animation;
+}
+
 /**
- * The animation to show `now`, given when the current one started: one-shots
- * give way to `sit_idle` once their time is up.
+ * Whether the avatar raises its hand: only while waiting for permission
+ * (#159). `waiting_input` sits still like idle, although `RobotState.handRaised`
+ * (and the ding) covers it too.
  */
-export function settleOneShot(
-  animation: AvatarAnimation,
-  startedAt: number,
-  now: number,
-): AvatarAnimation {
-  const limit = ONE_SHOT_MS[animation];
-  return limit !== undefined && now - startedAt >= limit ? "sit_idle" : animation;
+export function raisedHandFor(robot: Pick<RobotState, "status" | "handRaised">): boolean {
+  return robot.status === "waiting_permission" && robot.handRaised;
 }
 
 export interface RobotLook {
@@ -90,15 +98,6 @@ export function robotLookFor(animation: AvatarAnimation): RobotLook {
     papers: animation === "read",
     spin: animation === "celebrate",
   };
-}
-
-/** A status transition that should burst confetti (reduced motion permitting). */
-export function celebrates(
-  prev: Pick<RobotState, "status" | "action"> | undefined,
-  next: Pick<RobotState, "status" | "action">,
-): boolean {
-  if (!prev) return false;
-  return robotAnimationFor(next) === "celebrate" && robotAnimationFor(prev) !== "celebrate";
 }
 
 /** A transition into a raised hand: play the ding. */

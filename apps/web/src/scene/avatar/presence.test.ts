@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { HumanPresence } from "@regulus/protocol";
 import { ROBOT_CLIPS } from "./clips.ts";
 import { avatarAnimationFor, presenceAnimation } from "./presence.ts";
+import { SEATED_CLIPS } from "./seatedClips.ts";
 
 const humanFixture: HumanPresence = {
   sessionId: "s1",
@@ -50,9 +51,13 @@ describe("presence", () => {
   });
 
   test("clip names come from the available list", () => {
+    // A seated human holds the still seated pose (#159), not the sit-down transition.
     expect(avatarAnimationFor({ animation: "idle", doing: "", seatId: "d1" })).toBe(
-      ROBOT_CLIPS.sitting,
+      SEATED_CLIPS.idle,
     );
+    expect(
+      avatarAnimationFor({ animation: "idle", doing: "", seatId: "d1" }, [ROBOT_CLIPS.sitting]),
+    ).toBe(ROBOT_CLIPS.sitting);
     expect(
       avatarAnimationFor({ animation: "celebrate", doing: "", seatId: "" }, [ROBOT_CLIPS.idle]),
     ).toBe(ROBOT_CLIPS.idle);

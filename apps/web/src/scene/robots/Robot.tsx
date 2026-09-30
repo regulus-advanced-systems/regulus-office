@@ -9,12 +9,13 @@
 import { type ThreeEvent, useFrame } from "@react-three/fiber";
 import type { Seat } from "@regulus/floor-layout";
 import type { RobotState } from "@regulus/protocol";
-import { memo, useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef } from "react";
 import type { Group } from "three";
 import { RobotAvatar } from "../avatar/index.ts";
-import { ONE_SHOT_MS, robotAnimationFor, robotLookFor, settleOneShot } from "./robotAnimation.ts";
+import { calmFor, raisedHandFor, robotAnimationFor, robotLookFor } from "./robotAnimation.ts";
 import { robotAvatarLook } from "./robotLook.ts";
 import { robotPlacement } from "./seatPlacement.ts";
+import { useSettledAnimation } from "./useSettledAnimation.ts";
 
 /** One full turn at the start of a celebration, seconds. */
 const SPIN_SECONDS = 0.9;
@@ -24,6 +25,8 @@ export interface RobotProps {
   seat: Seat;
   reducedMotion: boolean;
   onSelect?: (agentId: string) => void;
+  /** The robot starts its celebration (not on first sight): burst confetti over its seat. */
+  onCelebrate?: (seat: Seat) => void;
 }
 
 function Papers() {
@@ -41,22 +44,16 @@ function Papers() {
   );
 }
 
-function RobotImpl({ robot, seat, reducedMotion, onSelect }: RobotProps) {
-  const derived = robotAnimationFor(robot);
-  // When the current animation started, so one-shots can settle.
-  const [since, setSince] = useState(() => ({ animation: derived, at: performance.now() }));
-  if (since.animation !== derived) setSince({ animation: derived, at: performance.now() });
-  const [, tick] = useState(0);
-  useEffect(() => {
-    const limit = ONE_SHOT_MS[since.animation];
-    if (limit === undefined) return;
-    const left = since.at + limit - performance.now();
-    const timer = setTimeout(() => tick((n) => n + 1), Math.max(0, left) + 20);
-    return () => clearTimeout(timer);
-  }, [since]);
-
-  const animation = settleOneShot(derived, since.at, performance.now());
+function RobotImpl({ robot, seat, reducedMotion, onSelect, onCelebrate }: RobotProps) {
+  // Status/action → animation, held until it has settled (no flapping), one-shots once (#159).
+  const animation = useSettledAnimation(calmFor(robotAnimationFor(robot), reducedMotion));
   const look = robotLookFor(animation);
+
+  const shownBefore = useRef(animation);
+  useEffect(() => {
+    if (animation === "celebrate" && shownBefore.current !== "celebrate") onCelebrate?.(seat);
+    shownBefore.current = animation;
+  }, [animation, onCelebrate, seat]);
   const place = robotPlacement(seat, look.seated);
   const avatar = robotAvatarLook(robot);
 
@@ -107,7 +104,7 @@ function RobotImpl({ robot, seat, reducedMotion, onSelect }: RobotProps) {
           animation={animation}
           seated={look.seated}
           status={robot.status}
-          handRaised={robot.handRaised}
+          handRaised={raisedHandFor(robot)}
           chestLight={avatar.chestLight}
         />
         {look.papers && look.seated && <Papers />}
@@ -123,6 +120,7 @@ export const Robot = memo(
     a.seat === b.seat &&
     a.reducedMotion === b.reducedMotion &&
     a.onSelect === b.onSelect &&
+    a.onCelebrate === b.onCelebrate &&
     a.robot.agentId === b.robot.agentId &&
     a.robot.status === b.robot.status &&
     a.robot.action === b.robot.action &&

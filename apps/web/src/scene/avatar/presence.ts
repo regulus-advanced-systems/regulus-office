@@ -5,7 +5,7 @@
  * standing clip and "typing at the whiteboard" reads as typing.
  */
 import type { AvatarAnimation, HumanPresence } from "@regulus/protocol";
-import { ROBOT_CLIP_NAMES, resolveClip } from "./clips.ts";
+import { AVATAR_CLIP_NAMES, resolveClip } from "./clips.ts";
 
 export type PresenceLike = Pick<HumanPresence, "animation"> &
   Partial<Pick<HumanPresence, "doing" | "seatId">>;
@@ -40,7 +40,7 @@ export function presenceAnimation(presence: PresenceLike): AvatarAnimation {
 /** Clip name (in `available`) to play for a presence. */
 export function avatarAnimationFor(
   presence: PresenceLike,
-  available: readonly string[] = ROBOT_CLIP_NAMES,
+  available: readonly string[] = AVATAR_CLIP_NAMES,
 ): string {
   return resolveClip(presenceAnimation(presence), available);
 }

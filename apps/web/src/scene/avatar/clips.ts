@@ -5,6 +5,7 @@
  * model does not ship.
  */
 import type { AvatarAnimation } from "@regulus/protocol";
+import { SEATED_CLIPS } from "./seatedClips.ts";
 
 /** Clips that exist in robot.glb (Quaternius Animated LowPoly Robot). */
 export const ROBOT_CLIPS = {
@@ -27,6 +28,15 @@ export const ROBOT_CLIPS = {
 export const ROBOT_CLIP_NAMES: readonly string[] = Object.values(ROBOT_CLIPS);
 
 /**
+ * Every clip a `RobotAvatar` has: the GLB's plus the seated clips it builds
+ * from `Robot_Sitting` (seatedClips.ts, #159).
+ */
+export const AVATAR_CLIP_NAMES: readonly string[] = [
+  ...ROBOT_CLIP_NAMES,
+  ...Object.values(SEATED_CLIPS),
+];
+
+/**
  * Candidate clips per avatar animation, best first. Names that are not in the
  * loaded GLB are skipped, so a future re-export with dedicated clips (for
  * example `RobotArmature|Robot_SitType`) is picked up without code changes.
@@ -34,8 +44,9 @@ export const ROBOT_CLIP_NAMES: readonly string[] = Object.values(ROBOT_CLIPS);
 export const CLIP_CANDIDATES: Record<AvatarAnimation, readonly string[]> = {
   idle: [ROBOT_CLIPS.idle, ROBOT_CLIPS.standing],
   walk: [ROBOT_CLIPS.walking, ROBOT_CLIPS.running],
-  sit_type: ["RobotArmature|Robot_SitType", ROBOT_CLIPS.sitting],
-  sit_idle: ["RobotArmature|Robot_SitIdle", ROBOT_CLIPS.sitting],
+  // Robot_Sitting is a sit-down transition, not a loop: only a last resort (#159).
+  sit_type: ["RobotArmature|Robot_SitType", SEATED_CLIPS.type, ROBOT_CLIPS.sitting],
+  sit_idle: ["RobotArmature|Robot_SitIdle", SEATED_CLIPS.idle, ROBOT_CLIPS.sitting],
   read: ["RobotArmature|Robot_Read", ROBOT_CLIPS.idle],
   think: ["RobotArmature|Robot_Think", ROBOT_CLIPS.idle],
   celebrate: ["RobotArmature|Robot_Celebrate", ROBOT_CLIPS.dance],
@@ -66,7 +77,7 @@ export const SEATED_ANIMATIONS: ReadonlySet<AvatarAnimation> = new Set(["sit_typ
 /** Resolve one animation to a clip that exists in `available`. */
 export function resolveClip(
   animation: AvatarAnimation,
-  available: readonly string[] = ROBOT_CLIP_NAMES,
+  available: readonly string[] = AVATAR_CLIP_NAMES,
 ): string {
   const set = new Set(available);
   for (const candidate of CLIP_CANDIDATES[animation]) {
@@ -78,7 +89,7 @@ export function resolveClip(
 
 /** Full animation → clip table for one loaded model. */
 export function clipTable(
-  available: readonly string[] = ROBOT_CLIP_NAMES,
+  available: readonly string[] = AVATAR_CLIP_NAMES,
 ): Record<AvatarAnimation, string> {
   const table = {} as Record<AvatarAnimation, string>;
   for (const animation of Object.keys(CLIP_CANDIDATES) as AvatarAnimation[]) {
@@ -92,18 +103,27 @@ export function isFallbackClip(animation: AvatarAnimation, clip: string): boolea
   return CLIP_CANDIDATES[animation][0] !== clip;
 }
 
+/** Seated stand-ins for animations the model only has standing (or not at all). */
+const SEATED_STAND_INS: Partial<Record<AvatarAnimation, string>> = {
+  read: SEATED_CLIPS.read,
+  think: SEATED_CLIPS.think,
+};
+
 /**
  * Clip for a robot that stays in its chair: seated animations whose own clip
- * is missing (read, think) fall back to the sitting clip instead of a
- * standing idle, so the robot does not stand up to read. Procedural layers
- * (the think head tilt, papers) still apply on top.
+ * is missing (read, think) use a seated stand-in (seatedClips.ts), else the
+ * still seated pose, instead of a standing idle, so the robot does not stand
+ * up to read. Procedural layers (the think head tilt, papers) still apply on
+ * top.
  */
 export function resolveSeatedClip(
   animation: AvatarAnimation,
-  available: readonly string[] = ROBOT_CLIP_NAMES,
+  available: readonly string[] = AVATAR_CLIP_NAMES,
 ): string {
   if (SEATED_ANIMATIONS.has(animation)) return resolveClip(animation, available);
   const own = CLIP_CANDIDATES[animation][0];
   if (own && available.includes(own)) return own;
+  const standIn = SEATED_STAND_INS[animation];
+  if (standIn && available.includes(standIn)) return standIn;
   return resolveClip("sit_idle", available);
 }
