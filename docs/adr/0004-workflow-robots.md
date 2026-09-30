@@ -27,10 +27,19 @@ text (PR titles, bodies, diffs, comments), and nobody is watching it.
   symlinks), and it is removed after the run.
 - **Robot.** One headless CLI run (`claude -p` / `codex exec`) with a JSON
   schema for the answer, via `Runner.spawnPiped`, with a timeout. Claude:
-  `--tools Read,Grep,Glob`, `--permission-mode dontAsk`, `--setting-sources
-  user`, `--strict-mcp-config`. Codex: `--sandbox read-only`,
+  `--tools Read,Grep,Glob` allowed only as `Read(./**)`, `Grep(./**)`,
+  `Glob(./**)`, deny rules for `//proc/**`, `//sys/**`, `//etc/**`, `~/**`,
+  `blockReadsOutsideWorkingDirectories`, `--permission-mode dontAsk`,
+  `--setting-sources user`, `--strict-mcp-config`. Codex: `--sandbox read-only`,
   `approval_policy="never"`, shell and hooks disabled. "Run PR code" adds Bash
   / the shell (workspace-write) for same-repo PRs only.
+- **Scrub.** The robot's env holds the model key and it reads attacker text,
+  so its answer is checked before anything is posted, logged or stored: the
+  run's secrets (office key, installation token) plain, split by invisible
+  characters, base64 at any alignment, URL-encoded or hex, and generic
+  provider key shapes. A hit fails the run with `secret_in_output` (audited)
+  and posts nothing. Codex cannot scope reads, and Claude with "run PR code"
+  has Bash, so for those the scrub is the defence.
 - **Posting.** The office, not the robot, posts: inline comments only on
   changed lines, labels only from the allow-list, mentions defused. Approve
   only if an office admin turned it on; forks get a comment review at most.

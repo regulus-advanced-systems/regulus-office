@@ -31,9 +31,10 @@ import { matchWorkflow } from "./match.ts";
 import { officeKey } from "./office-key.ts";
 import { checkSummary, plannedActions, postResult } from "./post.ts";
 import { renderPrompt } from "./prompt.ts";
-import { parseRobotOutput } from "./robot-output.ts";
+import { parseRobotOutput, type RobotReview } from "./robot-output.ts";
 import { buildRobotPlan } from "./robot-plan.ts";
 import type { RunRow, RunStore } from "./runs.ts";
+import { type SecretMatch, SecretScrubber } from "./scrub.ts";
 import type { StoredWorkflow } from "./store.ts";
 import { resolveTarget } from "./target.ts";
 import type { UsageRecorder } from "./usage.ts";
@@ -65,12 +66,15 @@ export interface ExecutorDeps {
 
 class RunLog {
   readonly lines: string[] = [];
+  /** Redacts the run's secrets and key shapes from every line (#155 review). */
+  scrubber = new SecretScrubber();
   constructor(
     private readonly now: () => number,
     private readonly persist: (lines: string[]) => void,
   ) {}
   add(line: string): void {
-    this.lines.push(`${new Date(this.now()).toISOString().slice(11, 19)} ${line.slice(0, 900)}`);
+    const clean = this.scrubber.redact(line.slice(0, 900));
+    this.lines.push(`${new Date(this.now()).toISOString().slice(11, 19)} ${clean}`);
     this.persist(this.lines);
   }
 }
@@ -86,6 +90,22 @@ async function readCapped(stream: ReadableStream<Uint8Array>, cap: number): Prom
     size += value.length;
   }
   return Buffer.concat(chunks).toString("utf8");
+}
+
+/** A secret anywhere in what the robot answered (summary, inline comments, paths, labels). */
+export function findSecret(scrubber: SecretScrubber, review: RobotReview): SecretMatch | null {
+  const texts = [
+    review.summary,
+    ...review.comments.flatMap((c) => [c.path, c.body]),
+    ...review.labels,
+    // Pieces spread over several fields.
+    [review.summary, ...review.comments.map((c) => c.body), ...review.labels].join(""),
+  ];
+  for (const t of texts) {
+    const hit = scrubber.find(t);
+    if (hit) return hit;
+  }
+  return null;
 }
 
 export class WorkflowExecutor {
@@ -122,10 +142,11 @@ export class WorkflowExecutor {
       reason: string | null,
       extra: Partial<Parameters<RunStore["finish"]>[1]> = {},
     ) => {
-      if (reason) log.add(`${status}: ${reason}`);
+      const clean = reason === null ? null : log.scrubber.redact(reason);
+      if (clean) log.add(`${status}: ${clean}`);
       deps.runs.finish(row.id, {
         status,
-        reason,
+        reason: clean,
         now: deps.now(),
         log: log.lines,
         links,
@@ -148,6 +169,7 @@ export class WorkflowExecutor {
       if (!floor) throw new WorkflowRefusal("floor_gone", "the floor was deleted");
       const { client, token } = await appClientFor(deps.connection, ctx.repo);
       appClient = client;
+      log.scrubber = new SecretScrubber({ installation_token: token });
       log.add("GitHub App token ready (installation token, this repo only)");
 
       const target = await resolveTarget(client, spec, ctx);
@@ -188,6 +210,11 @@ export class WorkflowExecutor {
       log.add(`will post: ${plannedActions(spec, { kind: target.kind, fork }).join("; ")}`);
 
       const apiKey = officeKey(deps.db, deps.keyring, spec.robot.provider);
+      const scrubber = new SecretScrubber({
+        office_key: apiKey.reveal(),
+        installation_token: token,
+      });
+      log.scrubber = scrubber;
       log.add(`model key: the office's ${spec.robot.provider} API key (usage → office)`);
 
       const checkout = await prepareCheckout(deps.git, {
@@ -305,6 +332,23 @@ export class WorkflowExecutor {
         });
       }
       if (!result.review) return finish("failed", result.error ?? "no review", { usage });
+      // The robot read attacker-written text with the model key in its env: nothing it
+      // wrote is posted, logged or stored if it carries a secret (#155 review).
+      const leak = findSecret(scrubber, result.review);
+      if (leak) {
+        writeAudit(deps.db, {
+          userId: null,
+          action: AUDIT_ACTIONS.workflowRunSecretBlocked,
+          targetKind: "workflow_run",
+          targetId: row.id,
+          meta: { kind: leak.kind, repo: target.view.repo, number: target.number },
+        });
+        return finish(
+          "failed",
+          `secret_in_output: the robot's answer contained a secret (${leak.kind}); nothing was posted`,
+          { usage },
+        );
+      }
 
       const posted = await postResult(
         {
@@ -333,7 +377,10 @@ export class WorkflowExecutor {
     } catch (err) {
       if (err instanceof WorkflowRefusal) return finish("refused", `${err.code}: ${err.message}`);
       const detail = err instanceof Error ? err.message : String(err);
-      deps.logger.warn({ runId: row.id, err: detail.slice(0, 300) }, "workflow run failed");
+      deps.logger.warn(
+        { runId: row.id, err: log.scrubber.redact(detail.slice(0, 300)) },
+        "workflow run failed",
+      );
       finish("failed", detail.slice(0, 300));
     } finally {
       if (check && checkOpen && appClient) {

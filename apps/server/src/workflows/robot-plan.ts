@@ -5,10 +5,21 @@
  * Claude Code (`claude -p`, https://code.claude.com/docs/en/cli-reference,
  * https://code.claude.com/docs/en/headless):
  * - `--tools Read,Grep,Glob` makes only those built-in tools exist (no Bash,
- *   Edit, Write, WebFetch, WebSearch); `--allowedTools` pre-approves them and
- *   `--disallowedTools` denies the rest by name as a second lock;
- * - `--permission-mode dontAsk` denies anything not pre-approved instead of
- *   asking (https://code.claude.com/docs/en/permission-modes);
+ *   Edit, Write, WebFetch, WebSearch); `--disallowedTools` denies the rest by
+ *   name as a second lock;
+ * - reads are scoped to the checkout (https://code.claude.com/docs/en/permissions,
+ *   "Read and Edit" rules): the allow rules are path rules relative to the
+ *   working directory (`Read(./**)`, `Grep(./**)`, `Glob(./**)`), never a
+ *   bare `Read` that would pre-approve any path; `--permission-mode dontAsk`
+ *   auto-denies every read outside the working directory, which would
+ *   otherwise prompt (https://code.claude.com/docs/en/permission-modes);
+ *   deny rules, which win over any allow, block `/proc`, `/sys`, `/etc` and
+ *   HOME (`//` is the filesystem root, `~/` the home directory; a single `/`
+ *   would be relative to the settings source), also through symlinks; and
+ *   `permissions.blockReadsOutsideWorkingDirectories` makes the file tools
+ *   refuse other paths in every mode. So the robot cannot read
+ *   `/proc/self/environ` (the model key) with its tools; with "run PR code"
+ *   Bash could, and the output scrub (scrub.ts) is what stops it then;
  * - `--setting-sources user` ignores the checkout's `.claude/settings*.json`
  *   (the PR could add hooks there, which would run commands), and
  *   `--strict-mcp-config` with no `--mcp-config` ignores its `.mcp.json`;
@@ -27,6 +38,10 @@
  *   so by default Codex reviews from the diff in the prompt only;
  *   `--disable hooks` and `web_search="disabled"` as well;
  * - `--output-schema` for the answer, `--json` for events and token usage.
+ * Codex cannot scope reads: its read-only sandbox may read the whole
+ * filesystem. By default that does not matter, as Codex has no tool to read
+ * files with (the shell is off); with "execute PR code" the shell could read
+ * `/proc/<pid>/environ`, and the output scrub (scrub.ts) is the defence.
  * With "execute PR code" the shell stays on in a `workspace-write` sandbox
  * (network still off).
  *
@@ -54,6 +69,16 @@ export const CLAUDE_DENIED_TOOLS = [
   "WebSearch",
   "Task",
 ] as const;
+/** Path-scoped allow rules: the checkout (the working directory) only. */
+export const CLAUDE_READ_ALLOW = ["Read(./**)", "Grep(./**)", "Glob(./**)"] as const;
+/** Deny rules win over allow rules; `//` = filesystem root, `~/` = HOME. */
+export const CLAUDE_READ_DENY = [
+  "Read(//proc/**)",
+  "Read(//sys/**)",
+  "Read(//etc/**)",
+  "Read(~/**)",
+] as const;
+const CLAUDE_SETTINGS = { permissions: { blockReadsOutsideWorkingDirectories: true } };
 const CLAUDE_EFFORTS = new Set(["low", "medium", "high", "xhigh", "max"]);
 const CODEX_EFFORTS = new Set(["minimal", "low", "medium", "high", "xhigh"]);
 const OPENAI_BASE_URL = "https://api.openai.com/v1";
@@ -87,7 +112,12 @@ function baseEnv(input: RobotPlanInput): SecretEnv {
 
 export function claudeArgv(input: Omit<RobotPlanInput, "apiKey">): string[] {
   const tools = input.runCommands ? [...CLAUDE_READ_TOOLS, "Bash"] : [...CLAUDE_READ_TOOLS];
-  const denied = input.runCommands ? [...CLAUDE_DENIED_TOOLS] : [...CLAUDE_DENIED_TOOLS, "Bash"];
+  const allowed = input.runCommands ? [...CLAUDE_READ_ALLOW, "Bash"] : [...CLAUDE_READ_ALLOW];
+  const denied = [
+    ...CLAUDE_DENIED_TOOLS,
+    ...(input.runCommands ? [] : ["Bash"]),
+    ...CLAUDE_READ_DENY,
+  ];
   const argv = [
     input.command ?? "claude",
     "-p",
@@ -99,12 +129,14 @@ export function claudeArgv(input: Omit<RobotPlanInput, "apiKey">): string[] {
     "--tools",
     tools.join(","),
     "--allowedTools",
-    tools.join(","),
+    allowed.join(","),
     "--disallowedTools",
     denied.join(","),
     "--setting-sources",
     "user",
     "--strict-mcp-config",
+    "--settings",
+    JSON.stringify(CLAUDE_SETTINGS),
     "--json-schema",
     JSON.stringify(REVIEW_OUTPUT_SCHEMA),
   ];

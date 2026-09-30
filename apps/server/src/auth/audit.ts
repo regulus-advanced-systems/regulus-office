@@ -46,6 +46,8 @@ export const AUDIT_ACTIONS = {
   /** A workflow run wrote to GitHub as the office's App (review, comment, labels, check run). */
   workflowRunGitHubWrite: "workflow_run.github_write",
   workflowRunCancel: "workflow_run.cancel",
+  /** A robot's answer held a secret and was not posted (#155). */
+  workflowRunSecretBlocked: "workflow_run.secret_blocked",
 } as const;
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];
 

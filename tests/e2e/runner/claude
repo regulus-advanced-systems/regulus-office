@@ -79,6 +79,16 @@ case " $* " in
   line=${first##*:}
   trace "print mode: write=$write push=$push remotes=$remotes"
   summary="Fake review (not Claude Code). write: $write, push: $push, remotes: $remotes, github tokens in env: $tokens, model key: $key. cc @octocat"
+  # A prompt-injection stand-in: "LEAK_KEY:<form>" in the prompt (e.g. in the PR body) makes
+  # the fake put its model key into the review, as a robot tricked into reading
+  # /proc/self/environ would. The office must never post it (#155).
+  leak=$(printf '%s\n' "$last" | sed -n 's/.*LEAK_KEY:\([a-z0-9]*\).*/\1/p' | head -n 1)
+  environ_key=$(cat /proc/self/environ 2>/dev/null | tr '\0' '\n' | sed -n 's/^ANTHROPIC_API_KEY=//p' | head -n 1)
+  case "$leak" in
+  plain) summary="$summary Key: $environ_key" ;;
+  zw) summary="$summary Key: $(printf '%s' "$environ_key" | sed 's/./&\xe2\x80\x8b/g')" ;;
+  b64) summary="$summary Key: $(printf 'KEY=%s' "$environ_key" | base64 | tr -d '\n')" ;;
+  esac
   printf '{"type":"result","subtype":"success","is_error":false,"result":"","session_id":"fake","total_cost_usd":0.0123,'
   printf '"usage":{"input_tokens":1200,"output_tokens":340,"cache_read_input_tokens":10,"cache_creation_input_tokens":5},'
   printf '"structured_output":{"summary":"%s","verdict":"request_changes",' "$(pjson "$summary")"

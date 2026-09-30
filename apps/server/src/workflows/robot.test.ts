@@ -35,7 +35,18 @@ describe("robot plans", () => {
     const plan = buildRobotPlan({ ...base, provider: "claude-code", runCommands: false });
     const argv = plan.argv.join(" ");
     expect(plan.argv.slice(0, 2)).toEqual(["claude", "-p"]);
-    expect(argv).toContain("--tools Read,Grep,Glob --allowedTools Read,Grep,Glob");
+    expect(argv).toContain(
+      "--tools Read,Grep,Glob --allowedTools Read(./**),Grep(./**),Glob(./**)",
+    );
+    const deny = plan.argv[plan.argv.indexOf("--disallowedTools") + 1] ?? "";
+    for (const rule of ["Read(//proc/**)", "Read(//sys/**)", "Read(//etc/**)", "Read(~/**)"]) {
+      expect(deny.split(",")).toContain(rule);
+    }
+    expect(plan.argv[plan.argv.indexOf("--settings") + 1]).toBe(
+      '{"permissions":{"blockReadsOutsideWorkingDirectories":true}}',
+    );
+    // Never a bare Read/Grep/Glob allow, which would pre-approve any path.
+    expect(plan.argv[plan.argv.indexOf("--allowedTools") + 1]?.split(",")).not.toContain("Read");
     expect(argv).toContain("--permission-mode dontAsk");
     expect(argv).toContain("--setting-sources user --strict-mcp-config");
     expect(plan.argv[plan.argv.indexOf("--disallowedTools") + 1]).toContain("Bash");

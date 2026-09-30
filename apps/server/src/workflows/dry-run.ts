@@ -10,6 +10,7 @@ import { loopReason } from "./engine.ts";
 import { matchWorkflow } from "./match.ts";
 import { plannedActions } from "./post.ts";
 import { renderPrompt } from "./prompt.ts";
+import { SecretScrubber } from "./scrub.ts";
 import { targetFromContext } from "./target.ts";
 
 const PROMPT_PREVIEW_MAX = 40_000;
@@ -79,7 +80,10 @@ export function dryRun(
     matched,
     reasons: reasons.map((r) => r.slice(0, 300)),
     target,
-    prompt: prompt.length > PROMPT_PREVIEW_MAX ? prompt.slice(0, PROMPT_PREVIEW_MAX) : prompt,
+    // PR text could carry keys; the preview never shows one.
+    prompt: new SecretScrubber().redact(
+      prompt.length > PROMPT_PREVIEW_MAX ? prompt.slice(0, PROMPT_PREVIEW_MAX) : prompt,
+    ),
     actions: plannedActions(spec, {
       kind: target?.kind ?? "commit",
       fork: ctx.pr?.fork ?? false,
