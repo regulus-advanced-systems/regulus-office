@@ -1,9 +1,11 @@
 #!/bin/sh
 # Stand-in for the `claude` binary in hook integration tests. It is NOT
-# Claude Code: it reads the --settings file the adapter generated, POSTs a
-# documented SessionStart hook payload to the http hook URL with the
-# configured Authorization header (read from the file, never printed), then
-# pipes a statusline payload through the generated statusline command.
+# Claude Code: it reads the --settings file the adapter generated, runs the
+# SessionStart hook it registers the way Claude Code does (through
+# tests/e2e/runner/claude-hooks.sh, shared with the e2e fake: command hooks get
+# the payload on stdin, and http hooks to a private or link-local address are
+# refused, #162), then pipes a statusline payload through the generated
+# statusline command. Nothing it prints holds the hook token.
 settings=""
 session=""
 while [ $# -gt 0 ]; do
@@ -15,12 +17,12 @@ while [ $# -gt 0 ]; do
 done
 [ -r "$settings" ] || { echo "FAKE CLAUDE no settings"; exit 1; }
 dir=$(dirname "$settings")
-url=$(sed -n 's/.*"url": "\([^"]*\)".*/\1/p' "$settings" | head -n 1)
-sed -n 's/.*"Authorization": "\([^"]*\)".*/Authorization: \1/p' "$settings" | head -n 1 > "$dir/fake-hook.headers"
-printf '{"session_id":"%s","cwd":"%s","hook_event_name":"SessionStart","source":"startup"}' "$session" "$PWD" |
-  curl -s -o /dev/null -w 'FAKE CLAUDE hook %{http_code}\n' -H 'Content-Type: application/json' \
-    -H "@$dir/fake-hook.headers" --data-binary @- "$url"
-rm -f "$dir/fake-hook.headers"
+. "$(dirname "$0")/../../../../../../tests/e2e/runner/claude-hooks.sh"
+claude_hooks_error() { echo "FAKE CLAUDE $*"; }
+claude_hooks_trace() { echo "FAKE CLAUDE $*"; }
+claude_hooks_init "$settings"
+claude_hook SessionStart \
+  "$(printf '{"session_id":"%s","cwd":"%s","hook_event_name":"SessionStart","source":"startup"}' "$session" "$PWD")"
 printf '{"session_id":"%s","model":{"display_name":"Fake"},"cost":{"total_cost_usd":0.5},"rate_limits":{"five_hour":{"used_percentage":12,"resets_at":1738425600}}}' "$session" |
   sh "$dir/statusline.sh"
 echo "FAKE CLAUDE DONE"

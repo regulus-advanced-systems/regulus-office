@@ -46,7 +46,7 @@ describe("ClaudeCodeAdapter", () => {
     if (login.kind !== "pty_paste_code") return;
     expect(login.instructions).toContain("/login");
     expect(login.plan.argv).toEqual(["claude"]);
-    expect(login.plan.env.names()).toEqual(["HOME"]);
+    expect(login.plan.env.names()).toEqual(["DISABLE_AUTOUPDATER", "HOME"]);
     expect(login.plan.files).toEqual([]);
   });
 

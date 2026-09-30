@@ -1,13 +1,10 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { describe, expect, test } from "bun:test";
 import { Secret } from "../secret.ts";
 import { createFakeRunnerContext } from "../testing/fake-runner-context.ts";
-import type { PlannedFile, SpawnRequest } from "../types.ts";
+import type { AgentRecord, PlannedFile, SpawnRequest } from "../types.ts";
 import { ClaudeCodeAdapter } from "./adapter.ts";
-import { CLAUDE_HOOK_EVENTS } from "./hooks.ts";
-import { credentialEnv, hookUrl, settingsDir, statuslineScript, statuslineUrl } from "./spawn.ts";
+import { settingsDir } from "./forwarders.ts";
+import { credentialEnv } from "./spawn.ts";
 
 const TOKEN = "hook-token-DO-NOT-LEAK";
 const API_KEY = "sk-ant-api-DO-NOT-LEAK";
@@ -70,43 +67,6 @@ describe("buildSpawn", () => {
     expect(() => adapter.buildSpawn(request({ effort: "extreme" }), ctx)).toThrow();
   });
 
-  test("settings register an http hook per event with the bearer token", () => {
-    const plan = adapter.buildSpawn(request(), ctx);
-    const settingsFile = plan.files.find((f) => f.path.endsWith("/settings.json"));
-    expect(settingsFile?.contents).toBeInstanceOf(Secret);
-    expect(settingsFile?.mode).toBe(0o600);
-    const settings = JSON.parse(reveal(settingsFile as PlannedFile));
-    expect(Object.keys(settings.hooks).sort()).toEqual([...CLAUDE_HOOK_EVENTS].sort());
-    for (const event of CLAUDE_HOOK_EVENTS) {
-      const [group] = settings.hooks[event];
-      expect(group.hooks).toEqual([
-        {
-          type: "http",
-          url: hookUrl(ctx.officeUrl, "a1"),
-          headers: { Authorization: `Bearer ${TOKEN}` },
-          timeout: event === "PermissionRequest" ? adapter.permissionHoldSeconds + 5 : 10,
-        },
-      ]);
-    }
-    expect(settings.statusLine).toEqual({
-      type: "command",
-      command: `'${settingsDir(ctx.home, "a1")}/statusline.sh'`,
-      padding: 0,
-    });
-    expect(hookUrl(ctx.officeUrl, "a1")).toBe("http://office.test/api/agents/a1/hooks/claude");
-  });
-
-  test("statusline script has no token; the headers file does and is 0600", () => {
-    const plan = adapter.buildSpawn(request(), ctx);
-    const script = plan.files.find((f) => f.path.endsWith("/statusline.sh")) as PlannedFile;
-    const headers = plan.files.find((f) => f.path.endsWith("/statusline.headers")) as PlannedFile;
-    expect(script.mode).toBe(0o700);
-    expect(reveal(script)).not.toContain(TOKEN);
-    expect(headers.contents).toBeInstanceOf(Secret);
-    expect(headers.mode).toBe(0o600);
-    expect(reveal(headers)).toBe(`Authorization: Bearer ${TOKEN}\n`);
-  });
-
   test("without an agent token there are no hook files and no --settings", () => {
     const plan = adapter.buildSpawn(request(), createFakeRunnerContext());
     expect(plan.files).toEqual([]);
@@ -122,7 +82,28 @@ describe("buildSpawn", () => {
 describe("credential env (SPEC §8)", () => {
   test("cli_login injects no Anthropic credential", () => {
     const plan = adapter.buildSpawn(request(), ctx);
-    expect(plan.env.names()).toEqual(["HOME"]);
+    expect(plan.env.names()).toEqual(["DISABLE_AUTOUPDATER", "HOME"]);
+  });
+
+  test("the in-runner auto-updater is off for spawns, resumes and login terminals (#162)", () => {
+    const record: AgentRecord = {
+      agentId: "a1",
+      ownerUserId: "u1",
+      provider: "claude-code",
+      profileId: "p1",
+      status: "idle",
+      workdir: "/w",
+      tmuxSession: "agent-a1",
+      providerSessionId: "abc-123",
+    };
+    const login = adapter.loginFlow(ctx);
+    const plans = [
+      adapter.buildSpawn(request(), ctx),
+      adapter.buildAttachTui(record, ctx),
+      login.kind === "pty_paste_code" ? login.plan : undefined,
+    ];
+    expect(plans.every(Boolean)).toBe(true);
+    for (const plan of plans) expect(plan?.env.reveal().DISABLE_AUTOUPDATER).toBe("1");
   });
 
   test("docker backend sets IS_SANDBOX", () => {
@@ -195,63 +176,5 @@ describe("credential env (SPEC §8)", () => {
     expect(dumped).not.toContain(PLAN_KEY);
     expect(dumped).not.toContain(TOKEN);
     expect(dumped).toContain("ANTHROPIC_AUTH_TOKEN");
-  });
-});
-
-describe.skipIf(!Bun.which("curl"))("statusline forwarder script", () => {
-  let dir: string;
-  let received: { auth: string | null; body: unknown }[] = [];
-  let server: ReturnType<typeof Bun.serve>;
-
-  beforeAll(async () => {
-    dir = await mkdtemp(join(tmpdir(), "rgo-statusline-"));
-    server = Bun.serve({
-      port: 0,
-      hostname: "127.0.0.1",
-      async fetch(req) {
-        received.push({ auth: req.headers.get("authorization"), body: await req.json() });
-        return new Response(null, { status: 204 });
-      },
-    });
-  });
-
-  afterAll(async () => {
-    server.stop(true);
-    await rm(dir, { recursive: true, force: true });
-  });
-
-  async function runScript(url: string): Promise<{ code: number; out: string; err: string }> {
-    const script = join(dir, "statusline.sh");
-    await writeFile(script, statuslineScript("a1", url), { mode: 0o700 });
-    await writeFile(join(dir, "statusline.headers"), `Authorization: Bearer ${TOKEN}\n`, {
-      mode: 0o600,
-    });
-    const proc = Bun.spawn(["sh", script], { stdin: "pipe", stdout: "pipe", stderr: "pipe" });
-    proc.stdin.write(JSON.stringify({ session_id: "s1", model: { display_name: "Opus" } }));
-    await proc.stdin.end();
-    const [out, err, code] = await Promise.all([
-      new Response(proc.stdout).text(),
-      new Response(proc.stderr).text(),
-      proc.exited,
-    ]);
-    return { code, out, err };
-  }
-
-  test("POSTs the JSON with the bearer header and prints only a status line", async () => {
-    received = [];
-    const res = await runScript(statuslineUrl(`http://127.0.0.1:${server.port}`, "a1"));
-    expect(res.code).toBe(0);
-    expect(res.out).toBe("Regulus Office | Opus\n");
-    expect(`${res.out}${res.err}`).not.toContain(TOKEN);
-    expect(received).toEqual([
-      { auth: `Bearer ${TOKEN}`, body: { session_id: "s1", model: { display_name: "Opus" } } },
-    ]);
-  });
-
-  test("an unreachable office does not fail the statusline", async () => {
-    const res = await runScript("http://127.0.0.1:1/api/agents/a1/statusline");
-    expect(res.code).toBe(0);
-    expect(res.out).toBe("Regulus Office | Opus\n");
-    expect(`${res.out}${res.err}`).not.toContain(TOKEN);
   });
 });

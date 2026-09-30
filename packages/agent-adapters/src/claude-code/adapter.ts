@@ -2,8 +2,9 @@
  * Claude Code adapter (SPEC §7 row "Claude Code", §8 credential rules).
  *
  * Runs the unmodified `claude` binary in the human's runner, TUI in tmux as
- * the primary surface, observed through http hooks and a statusline
- * forwarder registered with `--settings`. The office never reads, stores,
+ * the primary surface, observed through command hooks and a statusline
+ * command registered with `--settings`, both forwarding to the office
+ * (forwarders.ts). The office never reads, stores,
  * copies or forwards Claude OAuth credentials: subscription users log in
  * with `/login` in their own terminal (`pty_paste_code`), and only API keys
  * or base-URL plan keys, handed in as `Secret`, reach the process env.
@@ -24,10 +25,11 @@ import type {
   SpawnRequest,
 } from "../types.ts";
 import { ClaudeControl } from "./control.ts";
+import { hookFiles } from "./forwarders.ts";
 import { mapHookPayload, payloadSessionId } from "./hooks.ts";
 import { ensureClaudeOnboarding } from "./onboarding.ts";
 import { PermissionBroker } from "./permissions.ts";
-import { baseEnv, buildClaudeSpawn, checkModel, hookFiles } from "./spawn.ts";
+import { baseEnv, buildClaudeSpawn, checkModel } from "./spawn.ts";
 import { limitSamplesFromStatusline, StatuslineUsageTracker } from "./statusline.ts";
 import { scanTranscripts } from "./transcript.ts";
 

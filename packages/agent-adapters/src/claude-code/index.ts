@@ -1,8 +1,9 @@
 /**
  * Claude Code adapter (`claude-code`): unmodified `claude` TUI in tmux,
- * observed through http hooks and a statusline forwarder (SPEC §7, §8).
+ * observed through command-hook and statusline forwarders (SPEC §7, §8).
  */
 export * from "./adapter.ts";
+export * from "./forwarders.ts";
 export * from "./hooks.ts";
 export * from "./onboarding.ts";
 export * from "./permissions.ts";

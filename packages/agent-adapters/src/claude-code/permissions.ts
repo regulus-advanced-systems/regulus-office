@@ -2,12 +2,14 @@
  * Office approvals for a TUI-driven Claude Code session.
  *
  * Claude Code runs `PermissionRequest` hooks "when it's about to ask you for
- * permission", and an http hook answers by returning a 2xx JSON body with
+ * permission", and a hook answers with the JSON output
  * `hookSpecificOutput.decision.behavior` = `allow` | `deny`
  * (https://code.claude.com/docs/en/hooks#permissionrequest-decision-control).
  * That is the documented way to answer from outside the terminal, so the
  * office holds the hook's HTTP response open until `respondPermission` is
- * called (or a bounded hold expires) and then answers through it. Sending
+ * called (or a bounded hold expires) and then answers through it; the
+ * command hook forwarder (forwarders.ts) prints that body to its stdout,
+ * which Claude parses as the hook's JSON output. Sending
  * keystrokes to the permission dialog in the tmux pane is not used: the
  * dialog's options and key bindings are not a documented interface.
  *
@@ -103,7 +105,7 @@ export class PermissionBroker {
 }
 
 /**
- * The http hook response body for a decision.
+ * The hook response body for a decision (relayed to Claude by hook.sh).
  *
  * - `allow_once`: `behavior: "allow"`.
  * - `allow_always`: `allow` plus the request's own `permission_suggestions`

@@ -127,7 +127,7 @@ test.afterAll(async ({}, testInfo) => {
   }
   await ownerCtx?.close();
   await memberCtx?.close();
-  await office?.stop();
+  await office?.close();
   if (prefix) cleanupRunners(prefix);
   await github?.close();
   if (dataDir) rmSync(dataDir, { recursive: true, force: true });
