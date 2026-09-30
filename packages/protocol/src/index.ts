@@ -7,6 +7,7 @@
  * - building-state.ts  BuildingRoom state shapes (zod + inferred types)
  * - floor-state.ts     FloorRoom state shapes (zod + inferred types)
  * - floors-api.ts      REST shapes for floors, repos and floor members
+ * - boards-api.ts      REST shapes for the issue/PR board panel and its write actions (#36)
  * - github-api.ts      REST shapes for the office GitHub connection, its repo list and board sync
  * - notifications.ts   desktop/tab-badge messages, per-user prefs, team webhook channels
  * - credentials-api.ts read-only credential profile list (ids and labels only)
@@ -23,6 +24,7 @@
 export * from "./acl.ts";
 export * from "./agent-events.ts";
 export * from "./agent-messages.ts";
+export * from "./boards-api.ts";
 export * from "./building-state.ts";
 export * from "./commands/index.ts";
 export * from "./common.ts";

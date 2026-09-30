@@ -23,6 +23,9 @@ import { defineConfig, devices } from "@playwright/test";
 
 const external = process.env.E2E_BASE_URL?.replace(/\/+$/, "");
 const port = Number(process.env.E2E_PORT ?? 4610);
+/** The fake GitHub REST API the office e2e starts for its board step (#36); nothing real. */
+if (!process.env.E2E_GITHUB_PORT) process.env.E2E_GITHUB_PORT = String(port + 1);
+const githubPort = Number(process.env.E2E_GITHUB_PORT);
 const baseURL = external ?? `http://127.0.0.1:${port}`;
 const ci = Boolean(process.env.CI);
 const agents = process.env.E2E_AGENTS === "1";
@@ -89,6 +92,8 @@ export default defineConfig({
           // Humans' clones and worktrees stay in the throwaway dir too (deleting a floor removes them).
           OFFICE_WORKTREES_DIR: join(process.env.E2E_DATA_DIR ?? "", "worktrees"),
           OFFICE_GITHUB_REMOTE_BASE: `file://${join(process.env.E2E_DATA_DIR ?? "", "remotes")}`,
+          // Only reached once the board step connects a (fake) org token; see tests/e2e/fakeGitHub.ts.
+          OFFICE_GITHUB_API_BASE: `http://127.0.0.1:${githubPort}`,
           OFFICE_LOG_LEVEL: process.env.OFFICE_LOG_LEVEL ?? "warn",
           BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET ?? secret(),
           OFFICE_MASTER_KEY: process.env.OFFICE_MASTER_KEY ?? secret(),

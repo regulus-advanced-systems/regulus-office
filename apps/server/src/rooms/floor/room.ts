@@ -35,6 +35,7 @@ import {
   rejection as reject,
 } from "./agent-commands.ts";
 import { type BoardCards, parseBoard, syncBoard } from "./board.ts";
+import { dropCarriedOnLeave, handleCardCommand, isCardCommand } from "./cards.ts";
 import { FloorPermissions } from "./permissions.ts";
 import type { FloorRoomSource } from "./source.ts";
 import { type FloorRoomState, syncRobots, writeSnapshot } from "./state.ts";
@@ -171,6 +172,12 @@ export function createFloorRooms(deps: FloorRoomsDeps): FloorRooms {
         spawn(room.state.floorId, client, parsed.data);
         return;
       }
+      if (parsed.success && isCardCommand(parsed.data)) {
+        const floorId = room.state.floorId;
+        const access = source.accessOf?.(client.user, floorId) ?? null;
+        handleCardCommand({ state: room.state, client, access }, parsed.data);
+        return;
+      }
       if (parsed.success && isAgentControl(parsed.data)) {
         const floorId = room.state.floorId;
         handleAgentControl(
@@ -190,6 +197,10 @@ export function createFloorRooms(deps: FloorRoomsDeps): FloorRooms {
         ? "not handled by the floor room yet"
         : `invalid ${type}: ${parsed.error.issues[0]?.message ?? "malformed"}`;
       client.send(COMMAND_REJECTED_MESSAGE, reject(type, reason));
+    },
+
+    onLeave(room, client) {
+      dropCarriedOnLeave(room.state, client.sessionId);
     },
 
     onDispose(room) {
