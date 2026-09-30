@@ -6,6 +6,7 @@
 }
 .rg-term__bar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 10px;
   min-height: 34px;
@@ -36,6 +37,7 @@
 }
 .rg-term__people {
   margin-left: auto;
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -93,6 +95,65 @@
   background: rgba(22, 22, 29, 0.75);
 }
 .rg-term__notice {
+  margin: 0;
+  font-size: 12px;
+  color: var(--rg-color-ink-muted, #5a5a66);
+}
+.rg-term__expand {
+  flex: none;
+}
+.rg-term__bar .rg-term__people + .rg-term__expand {
+  margin-left: 0;
+}
+.rg-term__screen {
+  flex: none;
+  max-width: 100%;
+}
+/* "Copied" over the terminal's top-right corner (#156). */
+.rg-term__flash {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  z-index: 2;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #16161d;
+  background: var(--rg-color-gold, #f5c542);
+  pointer-events: none;
+}
+.rg-term__menu {
+  position: absolute;
+  z-index: 3;
+  display: grid;
+  min-width: 110px;
+  padding: 4px;
+  border: 2px solid var(--rg-color-gold, #f5c542);
+  border-radius: 8px;
+  background: var(--rg-color-modal-surface, #fff9ef);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
+}
+.rg-term__menu button {
+  padding: 6px 12px;
+  border: 0;
+  border-radius: 5px;
+  background: none;
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  color: var(--rg-color-ink, #1c2448);
+  cursor: pointer;
+}
+.rg-term__menu button:hover:not(:disabled),
+.rg-term__menu button:focus-visible {
+  background: rgba(45, 191, 232, 0.2);
+}
+.rg-term__menu button:disabled {
+  color: var(--rg-color-ink-muted, #5a5a66);
+  cursor: default;
+}
+.rg-term__help {
   margin: 0;
   font-size: 12px;
   color: var(--rg-color-ink-muted, #5a5a66);

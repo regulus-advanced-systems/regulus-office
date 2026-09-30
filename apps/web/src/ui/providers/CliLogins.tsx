@@ -205,7 +205,9 @@ function FlowView({
   return (
     <div className="rg-providers__login">
       <p className="rg-field__hint">{flow.instructions}</p>
-      {flow.terminalId && <LoginTerminal terminalId={flow.terminalId} deps={terminalDeps} />}
+      {flow.terminalId && (
+        <LoginTerminal terminalId={flow.terminalId} provider={flow.provider} deps={terminalDeps} />
+      )}
     </div>
   );
 }

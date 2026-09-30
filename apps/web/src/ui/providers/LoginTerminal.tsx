@@ -2,20 +2,33 @@
  * The human's own login terminal (`/ws/term/login-<id>`, control mode): the
  * unmodified CLI's sign-in in their runner. Only they can open it (the server
  * refuses everyone else). Keys typed here go to the terminal, not the dialog.
+ *
+ * #156: the CLI's sign-in link is found in the terminal (in the browser only)
+ * and shown above it with Open and Copy; the terminal copies, pastes and
+ * opens links, fills its box (tmux reflows to it) and can be expanded.
  */
+import type { CliLoginProvider } from "@regulus/protocol";
 import { useEffect, useState } from "react";
+import { ExpandButton } from "../terminal/ExpandButton.tsx";
+import { useTerminalExpanded, useViewportSize } from "../terminal/expand.ts";
 import { defaultTerminalDeps, type TerminalDeps } from "../terminal/host.ts";
 import { PANEL_PRIORITY, usePanelBudget } from "../terminal/panelBudget.ts";
+import { TerminalScreen } from "../terminal/TerminalScreen.tsx";
 import { useTerminal } from "../terminal/useTerminal.ts";
 import "../terminal/terminal.css";
+import { loginTerminalSize } from "./loginLayout.ts";
+import { useProvidersPanel } from "./providersStore.ts";
+import { SignInLinkBar, useSignInLink } from "./SignInLinkBar.tsx";
 
 const PANEL_ID = "provider-login";
 
 export function LoginTerminal({
   terminalId,
+  provider,
   deps = defaultTerminalDeps,
 }: {
   terminalId: string;
+  provider: CliLoginProvider;
   deps?: TerminalDeps;
 }) {
   const [element, setElement] = useState<HTMLDivElement | null>(null);
@@ -27,13 +40,22 @@ export function LoginTerminal({
     return () => release(PANEL_ID);
   }, [request, release]);
 
-  const { state } = useTerminal({
+  const addLoginTerminal = useProvidersPanel((s) => s.addLoginTerminal);
+  useEffect(() => {
+    addLoginTerminal(1);
+    return () => addLoginTerminal(-1);
+  }, [addLoginTerminal]);
+
+  const { state, host } = useTerminal({
     agentId: terminalId,
     mode: "control",
     element: granted ? element : null,
     deps,
     autoFocus: true,
   });
+  const link = useSignInLink(host, provider);
+  const [expanded, toggleExpanded] = useTerminalExpanded();
+  const box = loginTerminalSize(useViewportSize(), expanded);
 
   useEffect(() => {
     if (!element) return;
@@ -42,19 +64,27 @@ export function LoginTerminal({
     return () => element.removeEventListener("keydown", stop);
   }, [element]);
 
+  // Expanding makes the panel taller than its body: bring the terminal into view.
+  useEffect(() => {
+    if (expanded) element?.parentElement?.scrollIntoView?.({ block: "nearest" });
+  }, [expanded, element]);
+
   return (
-    <div
-      className="rg-term__screen rg-providers__term"
-      data-testid="login-terminal"
-      data-status={state.status}
-    >
-      <div className="rg-term__xterm" ref={setElement} />
-      {!granted && <p className="rg-term__overlay">Too many live terminals open.</p>}
-      {granted && state.status !== "open" && (
-        <p className="rg-term__overlay" role="status">
-          {state.notice ?? (state.status === "connecting" ? "Connecting…" : "Reconnecting…")}
-        </p>
-      )}
+    <div className="rg-providers__terminal" data-expanded={expanded || undefined}>
+      <div className="rg-providers__term-bar">
+        <SignInLinkBar url={link} />
+        <ExpandButton expanded={expanded} onToggle={toggleExpanded} />
+      </div>
+      <TerminalScreen
+        state={state}
+        host={host}
+        element={element}
+        setElement={setElement}
+        granted={granted}
+        className="rg-providers__term"
+        style={{ height: box.height }}
+        testId="login-terminal"
+      />
     </div>
   );
 }

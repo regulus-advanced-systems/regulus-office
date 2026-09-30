@@ -5,53 +5,13 @@ import { useFloorStore } from "../../state/floor.ts";
 import { useSessionStore } from "../../state/session.ts";
 import { useUiStore } from "../../state/ui.ts";
 import { click, type Mounted, mount, useDom } from "../a11y/dom.ts";
+import { FakeHost } from "./fakeHost.ts";
 import { FakeSocket } from "./fakeSocket.ts";
-import type { TerminalDeps, TerminalHost } from "./host.ts";
+import type { TerminalDeps } from "./host.ts";
 import { PANEL_PRIORITY, usePanelBudget } from "./panelBudget.ts";
 import { MODAL_PANEL_ID, TerminalModal } from "./TerminalModal.tsx";
 
 useDom();
-
-class FakeHost implements TerminalHost {
-  static all: FakeHost[] = [];
-  readonly renderer = "dom" as const;
-  written = "";
-  resets = 0;
-  readOnly = true;
-  disposed = false;
-  grid: [number, number] | null = null;
-  #listener: ((data: string) => void) | null = null;
-  constructor() {
-    FakeHost.all.push(this);
-  }
-  write(bytes: Uint8Array) {
-    this.written += new TextDecoder().decode(bytes);
-  }
-  reset() {
-    this.resets += 1;
-    this.written = "";
-  }
-  setGrid(cols: number, rows: number) {
-    this.grid = [cols, rows];
-  }
-  fit() {}
-  setReadOnly(readOnly: boolean) {
-    this.readOnly = readOnly;
-  }
-  focus() {}
-  onData(listener: (data: string) => void) {
-    this.#listener = listener;
-    return () => {
-      this.#listener = null;
-    };
-  }
-  type(data: string) {
-    this.#listener?.(data);
-  }
-  dispose() {
-    this.disposed = true;
-  }
-}
 
 const deps: TerminalDeps = {
   createHost: async () => new FakeHost(),
@@ -122,6 +82,8 @@ describe("TerminalModal", () => {
     expect(FakeHost.all[0]?.written).toBe("hello world");
     expect(FakeHost.all[0]?.readOnly).toBe(true);
     expect(FakeHost.all[0]?.grid).toEqual([160, 45]);
+    // Watchers keep the fixed size: nothing (no resize) goes to the server.
+    expect(FakeSocket.last().sent).toEqual([]);
 
     await act(async () => FakeSocket.last().text({ type: "typing", userId: "rita", name: "Rita" }));
     expect(text("terminal-typing")).toBe("Rita is typing…");
@@ -146,10 +108,15 @@ describe("TerminalModal", () => {
     expect(text("terminal-mode")).toBe("In control");
     const host = FakeHost.all.at(-1) as FakeHost;
     expect(host.readOnly).toBe(false);
+    // In control the terminal fills its box and tmux reflows to it, within the agent's size.
+    expect(second?.sent[0]).toBe(JSON.stringify({ type: "resize", cols: 120, rows: 30 }));
     host.type("ls\r");
-    expect(new TextDecoder().decode(second?.sent[0] as Uint8Array)).toBe("ls\r");
+    expect(new TextDecoder().decode(second?.sent[1] as Uint8Array)).toBe("ls\r");
     await click(button("Release control") as HTMLElement);
     await settle();
+    // Leaving control puts the shared window back to the size watchers expect.
+    expect(second?.sent.at(-1)).toBe(JSON.stringify({ type: "resize", cols: 160, rows: 45 }));
+    expect(second?.closedWith).toBe(1000);
     expect(FakeSocket.last().url).toEndWith("mode=watch");
     await m.unmount();
   });
@@ -206,5 +173,142 @@ describe("TerminalModal", () => {
     expect(useUiStore.getState().overlay).toBeNull();
     budget.release("laptop-x");
     budget.release("laptop-y");
+  });
+
+  describe("copy, paste and expand (#156)", () => {
+    let written: string[] = [];
+    let clipboardText = "";
+    beforeEach(() => {
+      written = [];
+      clipboardText = "code-from-clipboard";
+      Object.defineProperty(navigator, "clipboard", {
+        configurable: true,
+        value: {
+          writeText: async (t: string) => void written.push(t),
+          readText: async () => clipboardText,
+        },
+      });
+      localStorage.clear();
+    });
+    const xtermEl = () => document.querySelector(".rg-term__xterm") as HTMLElement;
+    const flash = () => text("terminal-flash");
+
+    test("a watcher selects text: it is copied, with a Copied flash", async () => {
+      signIn("mo", "member");
+      const m = await openModal();
+      await serverHello("watch");
+      const host = FakeHost.all.at(-1) as FakeHost;
+      host.selection = "npm test\nall green";
+      await act(async () => {
+        xtermEl().dispatchEvent(new MouseEvent("mouseup", { bubbles: true, button: 0 }));
+      });
+      await settle();
+      expect(written).toEqual(["npm test\nall green"]);
+      expect(flash()).toBe("Copied");
+      // Ctrl+C copies for a watcher (no interrupt to send) and stays out of the dialog.
+      const ctrlC = new KeyboardEvent("keydown", {
+        key: "c",
+        ctrlKey: true,
+        bubbles: true,
+        cancelable: true,
+      });
+      await act(async () => void xtermEl().dispatchEvent(ctrlC));
+      await settle();
+      expect(ctrlC.defaultPrevented).toBe(true);
+      expect(written).toHaveLength(2);
+      // Right-click offers Copy but no Paste.
+      await act(async () => {
+        xtermEl().dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      });
+      const items = Array.from(document.querySelectorAll('[role="menuitem"]')).map(
+        (b) => b.textContent,
+      );
+      expect(items).toEqual(["Copy"]);
+      expect(host.pasted).toEqual([]);
+      await m.unmount();
+    });
+
+    test("a controller copies with Ctrl+Shift+C and pastes only in control", async () => {
+      signIn("rita", "member");
+      const m = await openModal();
+      await serverHello("watch");
+      await click(button("Take control") as HTMLElement);
+      await settle();
+      await serverHello("control");
+      const host = FakeHost.all.at(-1) as FakeHost;
+      host.selection = "https://example.com/x";
+      const copy = new KeyboardEvent("keydown", {
+        key: "C",
+        ctrlKey: true,
+        shiftKey: true,
+        bubbles: true,
+        cancelable: true,
+      });
+      await act(async () => void xtermEl().dispatchEvent(copy));
+      await settle();
+      expect(copy.defaultPrevented).toBe(true);
+      expect(written).toEqual(["https://example.com/x"]);
+      // Ctrl+Shift+V: kept from xterm (not ^V) but the browser's paste is not prevented.
+      const paste = new KeyboardEvent("keydown", {
+        key: "V",
+        ctrlKey: true,
+        shiftKey: true,
+        bubbles: true,
+        cancelable: true,
+      });
+      let reachedTerminal = false;
+      const inner = document.createElement("textarea");
+      xtermEl().appendChild(inner);
+      inner.addEventListener("keydown", () => {
+        reachedTerminal = true;
+      });
+      await act(async () => void inner.dispatchEvent(paste));
+      expect(paste.defaultPrevented).toBe(false);
+      expect(reachedTerminal).toBe(false);
+      // Plain Ctrl+C still reaches the terminal (the interrupt).
+      const ctrlC = new KeyboardEvent("keydown", {
+        key: "c",
+        ctrlKey: true,
+        bubbles: true,
+        cancelable: true,
+      });
+      await act(async () => void inner.dispatchEvent(ctrlC));
+      expect(reachedTerminal).toBe(true);
+      // The menu's Paste types the clipboard into the terminal.
+      await act(async () => {
+        xtermEl().dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      });
+      await click(Array.from(document.querySelectorAll('[role="menuitem"]')).at(-1) as HTMLElement);
+      await settle();
+      expect(host.pasted).toEqual(["code-from-clipboard"]);
+      const sent = FakeSocket.last().sent.filter((f): f is Uint8Array => typeof f !== "string");
+      expect(new TextDecoder().decode(sent.at(-1))).toBe("code-from-clipboard");
+      await m.unmount();
+    });
+
+    test("expand grows the dialog, is remembered per user and applied next time", async () => {
+      signIn("mo", "member");
+      window.innerWidth = 1920;
+      window.innerHeight = 1080;
+      const m = await openModal();
+      const frame = () => document.querySelector(".rg-modal") as HTMLElement;
+      const screen = () => document.querySelector('[data-testid="terminal-screen"]') as HTMLElement;
+      expect(frame().style.getPropertyValue("--rg-modal-width")).toBe("1040px");
+      expect(screen().style.height).toBe("560px");
+      await click(document.querySelector('[data-testid="terminal-expand"]') as HTMLElement);
+      expect(frame().style.getPropertyValue("--rg-modal-width")).toBe(`${1152 + 60}px`);
+      expect(screen().style.height).toBe("648px");
+      expect(localStorage.getItem("regulus.terminal.expanded.mo")).toBe("1");
+      await m.unmount();
+      const again = await openModal();
+      expect(document.querySelector('[data-expanded="true"]')).not.toBeNull();
+      expect(screen().style.height).toBe("648px");
+      await click(document.querySelector('[data-testid="terminal-expand"]') as HTMLElement);
+      expect(screen().style.height).toBe("560px");
+      expect(localStorage.getItem("regulus.terminal.expanded.mo")).toBeNull();
+      await again.unmount();
+      window.innerWidth = 1024;
+      window.innerHeight = 768;
+    });
   });
 });
