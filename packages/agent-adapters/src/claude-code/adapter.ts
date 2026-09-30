@@ -16,6 +16,8 @@ import type {
   AgentRecord,
   LoginFlowPlan,
   OutOfBandInput,
+  PreparedSpawn,
+  PrepareSpawnInfo,
   ReadUsageOptions,
   RunnerContext,
   SpawnPlan,
@@ -23,6 +25,7 @@ import type {
 } from "../types.ts";
 import { ClaudeControl } from "./control.ts";
 import { mapHookPayload, payloadSessionId } from "./hooks.ts";
+import { ensureClaudeOnboarding } from "./onboarding.ts";
 import { PermissionBroker } from "./permissions.ts";
 import { baseEnv, buildClaudeSpawn, checkModel, hookFiles } from "./spawn.ts";
 import { limitSamplesFromStatusline, StatuslineUsageTracker } from "./statusline.ts";
@@ -38,6 +41,18 @@ export interface ClaudeCodeAdapterOptions {
   permissionHoldSeconds?: number;
   newSessionId?: () => string;
   newRequestId?: () => string;
+  /**
+   * Before a spawn, mark the robot's own office-created worktree trusted in
+   * the runner's `~/.claude.json` (`OFFICE_CLAUDE_TRUST_WORKTREES`, default
+   * true). Onboarding is marked complete either way (#158).
+   */
+  trustWorktrees?: boolean;
+  /** How often a new robot's pane is checked for sign-in/trust screens, ms (default 2000; 0 = never). */
+  screenPollMs?: number;
+  /** How long after a spawn that check runs without a hook, ms (default 15 min). */
+  screenWatchMs?: number;
+  /** Limit for the onboarding step in the runner, ms (default 10 s). */
+  onboardingTimeoutMs?: number;
 }
 
 export const CLAUDE_CODE_CAPABILITIES: AdapterCapabilities = {
@@ -64,7 +79,12 @@ export class ClaudeCodeAdapter implements AgentAdapter {
   /** Held PermissionRequest hooks; shared by the hook route and every control. */
   readonly permissions = new PermissionBroker();
   readonly permissionHoldSeconds: number;
+  readonly trustWorktrees: boolean;
   readonly #command: string;
+  readonly #options: ClaudeCodeAdapterOptions;
+  /** Bumped by every hook/statusline input; per agent, the value at its latest one. */
+  #hookSeq = 0;
+  readonly #hookMarks = new Map<string, number>();
   readonly #newSessionId: () => string;
   readonly #newRequestId: () => string;
   readonly #usage = new StatuslineUsageTracker();
@@ -75,6 +95,8 @@ export class ClaudeCodeAdapter implements AgentAdapter {
 
   constructor(options: ClaudeCodeAdapterOptions = {}) {
     this.#command = options.command ?? "claude";
+    this.#options = options;
+    this.trustWorktrees = options.trustWorktrees ?? true;
     this.permissionHoldSeconds = Math.max(1, Math.floor(options.permissionHoldSeconds ?? 120));
     this.#newSessionId = options.newSessionId ?? (() => crypto.randomUUID());
     this.#newRequestId = options.newRequestId ?? (() => `perm-${crypto.randomUUID()}`);
@@ -89,7 +111,36 @@ export class ClaudeCodeAdapter implements AgentAdapter {
   }
 
   connect(plan: SpawnPlan, ctx: RunnerContext): ClaudeControl {
-    return new ClaudeControl(plan, ctx, this.permissions, () => this.#sessions.get(plan.agentId));
+    const intervalMs = this.#options.screenPollMs ?? 2_000;
+    const screens =
+      intervalMs > 0
+        ? {
+            intervalMs,
+            maxMs: this.#options.screenWatchMs ?? 15 * 60_000,
+            hookMark: () => this.#hookMarks.get(plan.agentId) ?? 0,
+          }
+        : undefined;
+    return new ClaudeControl(
+      plan,
+      ctx,
+      this.permissions,
+      () => this.#sessions.get(plan.agentId),
+      screens,
+    );
+  }
+
+  /**
+   * Before every spawn: Claude Code's onboarding complete in the runner, and
+   * the robot's own worktree trusted when {@link trustWorktrees} is on
+   * (onboarding.ts). Never throws; never touches `~/.claude/`.
+   */
+  prepareSpawn(
+    _plan: SpawnPlan,
+    ctx: RunnerContext,
+    info: PrepareSpawnInfo,
+  ): Promise<PreparedSpawn> {
+    const trust = this.trustWorktrees && info.worktree ? [info.worktree] : [];
+    return ensureClaudeOnboarding(ctx, { trust, timeoutMs: this.#options.onboardingTimeoutMs });
   }
 
   /**
@@ -151,6 +202,9 @@ export class ClaudeCodeAdapter implements AgentAdapter {
   ingest(input: OutOfBandInput, ctx: RunnerContext): AgentEvent[] {
     const sessionId = payloadSessionId(input.payload);
     if (sessionId) this.#sessions.set(input.agentId, sessionId);
+    if (input.channel === "hook" || input.channel === "statusline") {
+      this.#hookMarks.set(input.agentId, ++this.#hookSeq);
+    }
     const now = ctx.now();
     if (input.channel === "hook") {
       return mapHookPayload(input.payload, { now, newRequestId: this.#newRequestId });
@@ -170,6 +224,7 @@ export class ClaudeCodeAdapter implements AgentAdapter {
   /** Forget per-agent state once the agent is gone. */
   forget(agentId: string): void {
     this.#sessions.delete(agentId);
+    this.#hookMarks.delete(agentId);
     this.#usage.forget(agentId);
     this.permissions.cancelAgent(agentId);
   }

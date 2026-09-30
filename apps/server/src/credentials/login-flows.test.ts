@@ -4,6 +4,7 @@
  * a private tmux server (LocalTmuxRunner). No real CLI, no real HOME.
  */
 import { afterAll, afterEach, beforeAll, describe, expect, test } from "bun:test";
+import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   LoginFlowInfo,
@@ -144,6 +145,12 @@ describe.skipIf(!hasTmux())("provider logins", () => {
     const terminalId = started.terminalId ?? "";
     expect(office.logins.has(terminalId)).toBe(true);
     const session = { userId: olga.id, name: `agent-${terminalId}` };
+    // A credentials file the office must never read or change (#158: the post-login step).
+    const home = (await runner.provision({ userId: olga.id })).home;
+    await mkdir(join(home, ".claude"), { recursive: true, mode: 0o700 });
+    const secret = join(home, ".claude", ".credentials.json");
+    await writeFile(secret, '{"claudeAiOauth":"FAKE-NOT-A-TOKEN"}', { mode: 0o600 });
+    const secretBefore = await stat(secret);
     await until(
       () => runner.capturePane(session, 50),
       (text) => text.includes("Paste code here"),
@@ -163,6 +170,12 @@ describe.skipIf(!hasTmux())("provider logins", () => {
       await (await office.send("GET", BASE, olga.cookie)).json(),
     );
     expect(status.providers.find((p) => p.provider === "claude-code")?.connected).toBe(true);
+    // #158: `auth login` leaves onboarding open; the office marks it complete, nothing else.
+    expect(JSON.parse(await readFile(join(home, ".claude.json"), "utf8"))).toEqual({
+      hasCompletedOnboarding: true,
+    });
+    expect((await stat(secret)).mtimeMs).toBe(secretBefore.mtimeMs);
+    expect(await readFile(secret, "utf8")).toBe('{"claudeAiOauth":"FAKE-NOT-A-TOKEN"}');
   });
 
   test("Claude: cancel kills the login session; a closed session fails the flow", async () => {

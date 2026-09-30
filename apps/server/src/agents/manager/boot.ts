@@ -37,7 +37,7 @@ export interface AgentsBootOptions {
 
 export async function createAgents(opts: AgentsBootOptions): Promise<AgentManager> {
   const runner = opts.runner;
-  const claude = new ClaudeCodeAdapter();
+  const claude = new ClaudeCodeAdapter({ trustWorktrees: opts.config.claudeTrustWorktrees });
   const manager = new AgentManager({
     db: opts.db,
     runner,

@@ -69,6 +69,12 @@ describe("loadConfig", () => {
     );
   });
 
+  test("OFFICE_CLAUDE_TRUST_WORKTREES defaults on and can be turned off (#158)", () => {
+    expect(loadConfig({}).claudeTrustWorktrees).toBe(true);
+    expect(loadConfig({ OFFICE_CLAUDE_TRUST_WORKTREES: "" }).claudeTrustWorktrees).toBe(true);
+    expect(loadConfig({ OFFICE_CLAUDE_TRUST_WORKTREES: "false" }).claudeTrustWorktrees).toBe(false);
+  });
+
   test("parses OFFICE_OPEN_SIGNUP as a boolean", () => {
     expect(loadConfig({ OFFICE_OPEN_SIGNUP: "true" }).openSignup).toBe(true);
     expect(loadConfig({ OFFICE_OPEN_SIGNUP: "1" }).openSignup).toBe(true);

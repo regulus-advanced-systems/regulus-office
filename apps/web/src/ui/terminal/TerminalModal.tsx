@@ -9,6 +9,8 @@
  *
  * Copy, paste and links work for watchers and controllers alike, and the
  * expand button grows the dialog to about 60 % of the window (#156).
+ * When the robot's CLI asks its owner to sign in, the owner gets the
+ * sign-in link bar above the terminal (#158).
  */
 import { TERMINAL_DEFAULT_SIZE, type TerminalMode } from "@regulus/protocol";
 import { useEffect, useState } from "react";
@@ -27,6 +29,7 @@ import {
 } from "./expand.ts";
 import { defaultTerminalDeps, type TerminalDeps } from "./host.ts";
 import { PANEL_PRIORITY, usePanelBudget } from "./panelBudget.ts";
+import { RobotSignInLink } from "./RobotSignInLink.tsx";
 import { TerminalPeople } from "./TerminalPeople.tsx";
 import { TerminalScreen } from "./TerminalScreen.tsx";
 import { useTerminalModal } from "./terminalStore.ts";
@@ -136,6 +139,11 @@ export function TerminalModal({
           />
           <ExpandButton expanded={expanded} onToggle={toggleExpanded} />
         </div>
+        <RobotSignInLink
+          host={host}
+          provider={robot?.provider}
+          isOwner={!!user && user.id === robot?.ownerUserId}
+        />
         <TerminalScreen
           state={state}
           host={host}

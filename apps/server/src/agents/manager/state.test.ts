@@ -1,5 +1,6 @@
 /** State machine, RobotState reducer and the heuristic rungs of the status ladder. */
 import { describe, expect, test } from "bun:test";
+import { CLAUDE_SIGN_IN_REASON, CLAUDE_TRUST_REASON } from "@regulus/agent-adapters";
 import { AGENT_STATUSES, type AgentEvent, RobotState } from "@regulus/protocol";
 import { deriveHeuristicStatus } from "./ladder.ts";
 import { type AgentView, applyEvent, robotState, setStatus } from "./robot.ts";
@@ -153,6 +154,32 @@ describe("robot reducer", () => {
     v.statusReason = "stale";
     expect(setStatus(v, "starting", 5)).toBe(true);
     expect(robotState(v).statusReason).toBe("");
+  });
+
+  test("waiting_input shows only an adapter's fixed human reason (#158)", () => {
+    const v = view();
+    applyEvent(v, { kind: "status", ts, status: "waiting_input", reason: CLAUDE_TRUST_REASON }, 1);
+    expect(robotState(v)).toMatchObject({
+      status: "waiting_input",
+      handRaised: true,
+      statusReason: CLAUDE_TRUST_REASON,
+    });
+    // Still waiting, now for the sign-in: the reason follows.
+    applyEvent(
+      v,
+      { kind: "status", ts, status: "waiting_input", reason: CLAUDE_SIGN_IN_REASON },
+      2,
+    );
+    expect(robotState(v).statusReason).toBe(CLAUDE_SIGN_IN_REASON);
+    // Any other text (e.g. from a hook) is never shown.
+    applyEvent(v, { kind: "status", ts, status: "waiting_input", reason: "/home/x secret" }, 3);
+    expect(robotState(v).statusReason).toBe(CLAUDE_SIGN_IN_REASON);
+    // The first hook (SessionStart → idle) clears it.
+    applyEvent(v, { kind: "status", ts, status: "idle" }, 4);
+    expect(robotState(v).statusReason).toBe("");
+    applyEvent(v, { kind: "status", ts, status: "waiting_input", reason: "elicitation" }, 5);
+    expect(robotState(v)).toMatchObject({ status: "waiting_input", statusReason: "" });
+    expect(RobotState.safeParse(robotState(v)).success).toBe(true);
   });
 
   test("usage does not count as activity", () => {

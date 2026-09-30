@@ -158,6 +158,7 @@ export const envSchema = z.object({
   GITHUB_CLIENT_ID: z.preprocess(emptyToUndefined, str().optional()),
   GITHUB_CLIENT_SECRET: z.preprocess(emptyToUndefined, secretStr().optional()),
   OFFICE_OPEN_SIGNUP: bool(false),
+  OFFICE_CLAUDE_TRUST_WORKTREES: bool(true),
   // Runner backend (SPEC §8, D6): docker (Compose default), linux-user (bare
   // install), or local (dev/test only: agents run as the office user).
   OFFICE_RUNNER_BACKEND: z.preprocess(emptyToUndefined, z.enum(RUNNER_BACKENDS).optional()),
@@ -279,6 +280,12 @@ export interface OfficeConfig {
    * `http://127.0.0.1:<port>`, suits the linux-user backend where runners share the host.
    */
   runnerOfficeUrl: string;
+  /**
+   * `OFFICE_CLAUDE_TRUST_WORKTREES` (default true): before a Claude Code robot starts, mark its
+   * own office-created worktree trusted in the runner's `~/.claude.json`, so Claude's workspace
+   * trust dialog does not hold the robot (#158). Never the human's clone or any other folder.
+   */
+  claudeTrustWorktrees: boolean;
   /** Docker runner backend settings; only used when that backend is selected. */
   docker: DockerBackendConfig;
 }
@@ -390,6 +397,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
       /\/+$/,
       "",
     ),
+    claudeTrustWorktrees: e.OFFICE_CLAUDE_TRUST_WORKTREES,
     docker: {
       dockerHost: e.DOCKER_HOST,
       image: e.OFFICE_RUNNER_IMAGE,

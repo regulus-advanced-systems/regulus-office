@@ -39,6 +39,8 @@ services:
       # but not docker-proxy or Caddy. Adapters write this URL into hook and statusline configs.
       OFFICE_DOCKER_RUNNER_NETWORK: ${COMPOSE_PROJECT_NAME}_runners
       OFFICE_RUNNER_OFFICE_URL: ${OFFICE_RUNNER_OFFICE_URL:-http://office:4600}
+      # Trust each Claude Code robot's own worktree before it starts (#158); false to turn off.
+      OFFICE_CLAUDE_TRUST_WORKTREES: ${OFFICE_CLAUDE_TRUST_WORKTREES:-true}
       # Floor dirs live in these named volumes; runners mount `<root>/<floor>` of them with a
       # volume subpath at the same path the office uses (needs Docker Engine 26+).
       OFFICE_DOCKER_VOLUME_MAP: /srv/office/projects=${COMPOSE_PROJECT_NAME}_projects,/srv/office/worktrees=${COMPOSE_PROJECT_NAME}_worktrees

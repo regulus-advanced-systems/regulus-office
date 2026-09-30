@@ -285,4 +285,28 @@ export interface AgentAdapter {
   readUsage(ctx: RunnerContext, opts?: ReadUsageOptions): AsyncIterable<UsageSample | LimitSample>;
   /** Map hook / statusline / notify payloads to events; [] when irrelevant. */
   ingest?(input: OutOfBandInput, ctx: RunnerContext): AgentEvent[];
+  /**
+   * Put the CLI's own first-run state in the human's runner in order before
+   * `plan` runs (Claude Code: onboarding complete, and trust for the robot's
+   * own office-created worktree when the office allows it). Must not throw
+   * and must never touch credentials; a failure only means the CLI shows its
+   * first-run screens.
+   */
+  prepareSpawn?(
+    plan: SpawnPlan,
+    ctx: RunnerContext,
+    info: PrepareSpawnInfo,
+  ): Promise<PreparedSpawn>;
+}
+
+export interface PrepareSpawnInfo {
+  /** The robot's own worktree in the runner; absent when it works in its owner's clone. */
+  worktree?: string;
+}
+
+export interface PreparedSpawn {
+  /** Short, fixed outcome word for logs (e.g. `changed`, `unchanged`, `no_runtime`). */
+  outcome: string;
+  /** How many folders were marked trusted. */
+  trusted: number;
 }

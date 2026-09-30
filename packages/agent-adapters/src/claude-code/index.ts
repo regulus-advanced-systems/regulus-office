@@ -4,7 +4,9 @@
  */
 export * from "./adapter.ts";
 export * from "./hooks.ts";
+export * from "./onboarding.ts";
 export * from "./permissions.ts";
+export * from "./sign-in-screen.ts";
 export * from "./spawn.ts";
 export * from "./statusline.ts";
 export * from "./transcript.ts";

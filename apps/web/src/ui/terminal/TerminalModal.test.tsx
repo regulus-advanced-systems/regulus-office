@@ -23,6 +23,7 @@ const robot = (ownerUserId: string): RobotState =>
   ({
     agentId: "a1",
     ownerUserId,
+    provider: "claude-code",
     ownerName: "Rita",
     seatId: "s1",
     taskTitle: "Fix login",
@@ -310,5 +311,39 @@ describe("TerminalModal", () => {
       window.innerWidth = 1024;
       window.innerHeight = 768;
     });
+  });
+  test("#158: the robot's owner gets the sign-in link bar when Claude asks to sign in; watchers never", async () => {
+    const url = "https://claude.ai/oauth/authorize?code=true&client_id=FAKE&state=FAKEstate";
+    const printLink = async () => {
+      const host = FakeHost.all.at(-1) as FakeHost;
+      host.cols = 160;
+      host.lines = [
+        { text: " Select login method:", wrapped: false },
+        { text: url, wrapped: false },
+      ];
+      await act(async () => FakeSocket.last().bytes("output"));
+      await act(async () => new Promise((r) => setTimeout(r, 350)));
+    };
+    const bar = () => document.querySelector('[data-testid="robot-sign-in-link"]');
+
+    signIn("mo", "member");
+    let m = await openModal();
+    await serverHello("watch");
+    await printLink();
+    expect(bar()).toBeNull();
+    await m.unmount();
+    document.body.innerHTML = "";
+
+    signIn("rita", "member");
+    m = await openModal();
+    await serverHello("watch");
+    expect(bar()).toBeNull(); // nothing until the CLI prints a link
+    await printLink();
+    const open = bar()?.querySelector("a") as HTMLAnchorElement;
+    expect(open.getAttribute("href")).toBe(url);
+    expect(open.getAttribute("rel")).toBe("noopener noreferrer");
+    const frames = FakeSocket.last().sent.filter((f) => typeof f === "string");
+    expect(frames.every((f) => !String(f).includes("claude.ai"))).toBe(true);
+    await m.unmount();
   });
 });
