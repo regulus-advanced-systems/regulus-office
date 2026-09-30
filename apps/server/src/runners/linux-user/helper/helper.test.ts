@@ -40,6 +40,9 @@ const accepted: string[][] = [
   ["exec", "u1", "a1", "/srv/x y", "--", "sh", "-c", "echo $HOME; rm -rf /"],
   ["spawn-piped", "u1", "a_1-B", "/", "--", "codex", "app-server"],
   ["kill", "u1", "a1"],
+  ["sandbox-up", "u1", "a1", "0", "2147483648", "200", "1024", "u1"],
+  ["sandbox-up", "u1", "a_1-B", "64999", "10000000", "1", "10", "0f8c2d9e-5b6a.x_y"],
+  ["sandbox-list"],
   ["sockets", "u1", "a1"],
   ["capture", "u1", "agent-a1", "200"],
   ["pane-title", "u1", "agent-a1"],
@@ -116,6 +119,23 @@ const rejected: string[][] = [
   ["exec", "u1", "a1", "relative", "--", "sh"],
   ["exec", "u1", "a1", "/w\nx", "--", "sh"],
   ["kill", "u1", "a1:0"],
+  // #169: every sandbox-up argument is numeric and bounded, or an id.
+  ["sandbox-up", "u1", "a1", "0", "2147483648", "200", "1024"],
+  ["sandbox-up", "u1", "a1", "0", "2147483648", "200", "1024", "u1", "extra"],
+  ["sandbox-up", "u1", "a.1", "0", "2147483648", "200", "1024", "u1"],
+  ["sandbox-up", "U1", "a1", "0", "2147483648", "200", "1024", "u1"],
+  ["sandbox-up", "u1", "a1", "65000", "2147483648", "200", "1024", "u1"],
+  ["sandbox-up", "u1", "a1", "01", "2147483648", "200", "1024", "u1"],
+  ["sandbox-up", "u1", "a1", "-1", "2147483648", "200", "1024", "u1"],
+  ["sandbox-up", "u1", "a1", "0", "1024", "200", "1024", "u1"],
+  ["sandbox-up", "u1", "a1", "0", "2g", "200", "1024", "u1"],
+  ["sandbox-up", "u1", "a1", "0", "2147483648", "0", "1024", "u1"],
+  ["sandbox-up", "u1", "a1", "0", "2147483648", "1.5", "1024", "u1"],
+  ["sandbox-up", "u1", "a1", "0", "2147483648", "200", "5", "u1"],
+  ["sandbox-up", "u1", "a1", "0", "2147483648", "200", "1024", "../u1"],
+  ["sandbox-up", "u1", "a1", "0", "2147483648", "200", "1024", "u 1"],
+  ["sandbox-up", "u1", "a1", "0", "2147483648", "200", "1024", ""],
+  ["sandbox-list", "u1"],
   ["kill", "u1", "*"],
   ["sockets", "u1", ""],
   ["capture", "u1", "agent-a1", "-5"],
@@ -161,7 +181,7 @@ describe("sudoers rules", () => {
     const verbs = rules
       .map((r) => r.match(/office-runner-helper ([a-z-]+) \*$/)?.[1])
       .filter((v): v is string => v !== undefined);
-    expect(verbs.length).toBe(18);
+    expect(verbs.length).toBe(20);
     for (const verb of verbs) expect(script).toContain(`  ${verb}`);
   });
 });

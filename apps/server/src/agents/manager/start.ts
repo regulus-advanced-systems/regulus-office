@@ -1,9 +1,10 @@
 /**
  * Starting an agent process (spawn, resume, boot relaunch): provision the
  * owner's runner, mount the owner's own clone and the agent's workdir (#114:
- * never the floor mirror or anything of another human), issue a hook token, resolve (decrypt)
- * the credential, build the SpawnPlan, then `Runner.exec` and/or `connect`
- * per the provider's launch profile (launch.ts).
+ * never the floor mirror or anything of another human), give the robot its own
+ * sandbox when the backend has them (D18, #169), issue a hook token, resolve
+ * (decrypt) the credential, build the SpawnPlan, then `Runner.exec` and/or
+ * `connect` per the provider's launch profile (launch.ts).
  *
  * SPEC §8: every runner call is bound to the agent's owner; the decrypted
  * key exists only inside the returned plan's `SecretEnv` (and the adapter's
@@ -58,6 +59,21 @@ export async function startAgent(
     row.workdir === opts.clonePath
       ? mounted.workdir
       : (await deps.runner.mountProject(user, { ...repo, workdir: row.workdir })).workdir;
+  // Its own processes, ports and limits (D18); `exec`/`connect` below then run in it.
+  const sandbox = await deps.runner.sandbox?.(
+    { userId: row.ownerUserId, agentId: row.id },
+    { workdir },
+  );
+  if (sandbox) {
+    deps.logger?.info(
+      {
+        agentId: row.id,
+        host: sandbox.host,
+        ports: `${sandbox.ports.first}-${sandbox.ports.last}`,
+      },
+      "agent sandbox ready",
+    );
+  }
   const ctx: RunnerContext = {
     backend: deps.runner.backend,
     userId: row.ownerUserId,

@@ -145,11 +145,12 @@ test.afterAll(async ({}, testInfo) => {
 
 const bare = () => join(dataDir, "remotes", REPO.owner, `${REPO.name}.git`);
 const tmuxSocket = () => `/run/office/tmux/${ownerId}.sock`;
-const runnerName = () => `${prefix}-runner-${ownerId}`;
+/** The robot's own sandbox container (#169); its tmux server has the robot's session. */
+const sandboxName = () => `${prefix}-sbx-${agentId}`;
 
-/** `tmux` inside the owner's runner container, as the runner user. */
-function runnerTmux(args: string[]): string {
-  return sh("docker", ["exec", runnerName(), "tmux", "-S", tmuxSocket(), ...args]);
+/** `tmux` inside the robot's sandbox, as the runner user. */
+function robotTmux(args: string[]): string {
+  return sh("docker", ["exec", sandboxName(), "tmux", "-S", tmuxSocket(), ...args]);
 }
 
 /**
@@ -521,7 +522,7 @@ test("6. Open PR pushes the branch and sends a correct PR to GitHub", async () =
 
 test("7. after an office-server restart the robot and its tmux session are still there", async () => {
   const session = `=agent-${agentId}:`;
-  const before = runnerTmux([
+  const before = robotTmux([
     "display-message",
     "-p",
     "-t",
@@ -535,7 +536,7 @@ test("7. after an office-server restart the robot and its tmux session are still
 
   // Same pane process, same session: re-adopted, not re-run.
   expect(
-    runnerTmux(["display-message", "-p", "-t", session, "#{pane_pid} #{session_created}"]),
+    robotTmux(["display-message", "-p", "-t", session, "#{pane_pid} #{session_created}"]),
   ).toBe(before);
   for (const page of [ownerPage, memberPage]) {
     await page.goto(OFFICE_PROBE_PATH);
@@ -568,7 +569,7 @@ test("7. after an office-server restart the robot and its tmux session are still
 
 test("7b. the robot's terminal expands, copies a selection and reflows tmux in control (#156)", async () => {
   const windowSize = () =>
-    runnerTmux([
+    robotTmux([
       "display-message",
       "-p",
       "-t",
@@ -615,8 +616,10 @@ test("8. send home frees the desk and deletes the branch as chosen", async () =>
   for (const page of [ownerPage, memberPage]) {
     await expect.poll(() => robotOn(page), { timeout: 30_000 }).toBeUndefined();
   }
-  // The tmux session is gone, the worktree removed, the branch deleted here and on the remote.
-  expect(() => runnerTmux(["has-session", "-t", `=agent-${agentId}`])).toThrow();
+  // The sandbox and its tmux session are gone, the worktree removed, the branch deleted here
+  // and on the remote.
+  expect(() => robotTmux(["has-session", "-t", `=agent-${agentId}`])).toThrow();
+  expect(sh("docker", ["ps", "-aq", "--filter", `name=^${sandboxName()}$`])).toBe("");
   expect(worktreePath()).toBeNull();
   expect(sh("git", ["--git-dir", cloneGitDir, "branch", "--list", branch])).toBe("");
   expect(sh("git", ["--git-dir", bare(), "branch", "--list", branch])).toBe("");

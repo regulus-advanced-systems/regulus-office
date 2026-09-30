@@ -49,6 +49,36 @@ describe("loadConfig", () => {
     expect(() => loadConfig({ OFFICE_RUNNER_BACKEND: "k8s" })).toThrow(/OFFICE_RUNNER_BACKEND/);
   });
 
+  test("per-agent sandboxes (#169): on by default with limits for the 16 GB VM, configurable", () => {
+    expect(loadConfig({}).sandbox).toEqual({
+      memoryBytes: 2 * 1024 ** 3,
+      cpus: 2,
+      pids: 1024,
+      portBase: 20_000,
+      portSpan: 10,
+      portSlots: 2000,
+    });
+    const c = loadConfig({
+      OFFICE_SANDBOX_MEMORY: "3g",
+      OFFICE_SANDBOX_CPUS: "1.5",
+      OFFICE_SANDBOX_PIDS: "512",
+      OFFICE_SANDBOX_PORT_BASE: "30000",
+      OFFICE_SANDBOX_PORT_SPAN: "20",
+      OFFICE_SANDBOX_PORT_SLOTS: "100",
+    });
+    expect(c.sandbox).toEqual({
+      memoryBytes: 3 * 1024 ** 3,
+      cpus: 1.5,
+      pids: 512,
+      portBase: 30_000,
+      portSpan: 20,
+      portSlots: 100,
+    });
+    expect(loadConfig({ OFFICE_SANDBOXES: "false" }).sandbox).toBeNull();
+    expect(() => loadConfig({ OFFICE_SANDBOX_PORT_BASE: "60000" })).toThrow(ConfigError);
+    expect(() => loadConfig({ OFFICE_SANDBOX_CPUS: "0" })).toThrow(/OFFICE_SANDBOX_CPUS/);
+  });
+
   test("GitHub remote base defaults to github.com and accepts local bare repos", () => {
     expect(loadConfig({}).githubRemoteBase).toBe("https://github.com");
     expect(loadConfig({ OFFICE_GITHUB_REMOTE_BASE: "file:///tmp/remotes/" }).githubRemoteBase).toBe(

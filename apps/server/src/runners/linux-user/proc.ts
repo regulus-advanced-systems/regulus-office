@@ -2,8 +2,8 @@
  * Process and port discovery for the linux-user backend (research 01 §12):
  * every agent runs in its own systemd scope, so its processes are exactly the
  * PIDs in that scope's `cgroup.procs` (world-readable), and its listening
- * ports are the `/proc/net/tcp{,6}` sockets in state LISTEN (0A) whose inode
- * is held by one of those PIDs. Mapping inodes to PIDs needs `/proc/<pid>/fd`,
+ * ports are the `/proc/<pid>/net/tcp{,6}` sockets (its network namespace) in
+ * state LISTEN (0A) whose inode is held by one of those PIDs. Mapping inodes to PIDs needs `/proc/<pid>/fd`,
  * which only the owner can read, so the helper's `sockets` verb supplies it.
  */
 import { readdir, readFile } from "node:fs/promises";
@@ -145,14 +145,22 @@ export async function listeningPorts(
   pidByInode: Map<number, number>,
 ): Promise<PortInfo[]> {
   if (pidByInode.size === 0) return [];
+  // The tables of the agent's own network namespace (a sandbox has one, #169): all
+  // its processes share it, so the first one still alive tells. `/proc/net` is the
+  // office's own namespace, which is the same when the agent has no sandbox.
+  const bases = [...new Set(pidByInode.values())].map((pid) => join(procRoot, String(pid), "net"));
   const ports: PortInfo[] = [];
   for (const table of ["tcp", "tcp6"]) {
-    let text: string;
-    try {
-      text = await readFile(join(procRoot, "net", table), "utf8");
-    } catch {
-      continue;
+    let text: string | undefined;
+    for (const base of [...bases, join(procRoot, "net")]) {
+      try {
+        text = await readFile(join(base, table), "utf8");
+        break;
+      } catch {
+        // exited, or no such table here
+      }
     }
+    if (text === undefined) continue;
     for (const s of parseProcNetTcp(text)) {
       const pid = pidByInode.get(s.inode);
       if (pid !== undefined) ports.push({ port: s.port, address: s.address, pid });

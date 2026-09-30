@@ -14,7 +14,8 @@ import { LocalTmuxRunner } from "../../runners/testing/local-tmux-runner.ts";
 import type { Runner } from "../../runners/types.ts";
 
 export async function createRunner(
-  config: Pick<OfficeConfig, "runnerBackend" | "docker" | "dataDir">,
+  config: Pick<OfficeConfig, "runnerBackend" | "docker" | "dataDir"> &
+    Partial<Pick<OfficeConfig, "sandbox">>,
   production: boolean,
   logger?: Logger,
 ): Promise<Runner> {
@@ -35,10 +36,13 @@ export async function createRunner(
         volumeMap: d.volumeMap,
         // Recreated broken or outdated runner containers (#151).
         logger: logger?.child({ component: "docker-runner" }),
+        // One container per coding robot (D18, #169).
+        sandboxes: config.sandbox ?? undefined,
       });
     }
     case "linux-user":
-      return new LinuxUserRunner();
+      // One scope and network/pid namespace per coding robot (D18, #169).
+      return new LinuxUserRunner({ sandboxes: config.sandbox ?? undefined });
     case "local":
       if (production) throw new Error("the local runner backend is not allowed in production");
       return LocalTmuxRunner.open(join(config.dataDir, "local-runner"));

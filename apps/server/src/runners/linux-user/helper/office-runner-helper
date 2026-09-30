@@ -33,6 +33,12 @@ TMUX_DIR=/run/office/tmux
 PROJECTS_ROOT=/srv/office/projects
 WORKTREES_ROOT=/srv/office/worktrees
 SERVER_USER=office
+# Per-agent sandboxes (#169): records, the bridge's /16, the office port forwarded into them.
+readonly SANDBOX_DIR=/run/office/sandboxes
+readonly BRIDGE=office-sbx0
+readonly OWNER_RE='^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$'
+SANDBOX_NET=10.231
+OFFICE_PORT=4600
 
 # Runs inside the agent's tmux pane or piped scope, as the runner user. Waits
 # until the process sits in its own scope (exec adopts the pane pid after tmux
@@ -68,11 +74,17 @@ usage: office-runner-helper <verb> <args>
   reclaim <dir>                           give a pre-#114 shared dir back to the office only
   remove-floor <slug>                     delete <projects>/<slug> and <worktrees>/<slug> (floor deleted)
   exec <rid> <agentId> <cwd> -- <argv..>  tmux session agent-<agentId> in scope agent-<agentId>
-                                          (stdin: env script, NUL-terminated)
+                                          (stdin: env script, NUL-terminated); in the agent's
+                                          sandbox when it has one
   spawn-piped <rid> <agentId> <cwd> -- <argv..>
                                           piped process in scope agent-<agentId>.io-<n>
                                           (stdin: env script, NUL, then the process stdin)
-  kill <rid> <agentId>                    kill the session and every agent-<agentId> scope
+  kill <rid> <agentId>                    kill the session and every agent-<agentId> scope,
+                                          remove the agent's sandbox
+  sandbox-up <rid> <agentId> <slot> <memory bytes> <cpu %> <tasks> <owner>
+                                          the agent's sandbox: network namespace on the
+                                          sandbox bridge, limits for its scopes
+  sandbox-list                            "<agentId> <rid> <slot> <address> <owner>" per sandbox
   sockets <rid> <agentId>                 "<pid> <inode>" for sockets of the agent's processes
   capture <rid> <session> <lines>         tmux capture-pane
   pane-title <rid> <session>              tmux pane title
@@ -141,6 +153,11 @@ load_conf() {
         [[ $value =~ $CONF_PATH_RE && ! $value =~ /\.\.?(/|$) ]] || die "bad $key in $CONF"
         ;;
       OFFICE_SERVER_USER) [[ $value =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || die "bad $key in $CONF" ;;
+      OFFICE_SANDBOX_NET)
+        [[ $value =~ ^(10\.[0-9]{1,3}|172\.(1[6-9]|2[0-9]|3[01])|192\.168)$ ]] || die "bad $key in $CONF"
+        [[ ${value#*.} -le 255 ]] || die "bad $key in $CONF"
+        ;;
+      OFFICE_PORT) [[ $value =~ ^[1-9][0-9]{0,4}$ && $value -le 65535 ]] || die "bad $key in $CONF" ;;
       *) die "unknown key $key in $CONF" ;;
     esac
     case $key in
@@ -148,6 +165,8 @@ load_conf() {
       OFFICE_PROJECTS_ROOT) PROJECTS_ROOT=$value ;;
       OFFICE_WORKTREES_ROOT) WORKTREES_ROOT=$value ;;
       OFFICE_SERVER_USER) SERVER_USER=$value ;;
+      OFFICE_SANDBOX_NET) SANDBOX_NET=$value ;;
+      OFFICE_PORT) OFFICE_PORT=$value ;;
     esac
   done <"$CONF"
 }
@@ -240,16 +259,239 @@ unit_pids() {
 }
 
 # True when every process of the unit belongs to the runner uid (or the unit is already gone).
+# A sandbox's scope (#169) also holds the root `unshare` that is the parent of its pid namespace.
 unit_owned() {
-  local pid procs
+  local pid procs unshare
+  unshare=$(readlink -f -- "$(command -v unshare)")
   procs=$(cat "$CGROUP_DIR/$1/cgroup.procs" 2>/dev/null) || return 0
   while read -r pid; do
     [[ -n $pid ]] || continue
     local owner
     owner=$(stat -c %u "/proc/$pid" 2>/dev/null) || continue
-    [[ $owner == "$R_UID" ]] || return 1
+    [[ $owner == "$R_UID" ]] && continue
+    [[ $owner == 0 && $(readlink -- "/proc/$pid/exe" 2>/dev/null) == "$unshare" ]] || return 1
   done <<<"$procs"
   return 0
+}
+
+# ---- Per-agent sandboxes (SPEC §8, D18, #169) --------------------------------
+# A robot's sandbox is a root-only record $SANDBOX_DIR/<agentId> (its runner,
+# slot, limits and office owner), a network namespace office-sbx<slot> whose
+# eth0 is a veth on the bridge $BRIDGE, and, while the robot runs, its own tmux
+# server: pid 1 of a fresh pid namespace (with its own /proc) inside that
+# network namespace, in scope agent-<agentId>.scope with the record's limits.
+# Slot n has the address $SANDBOX_NET.<(n+2)/256>.<(n+2)%256>/16; the bridge is
+# $SANDBOX_NET.0.1. Bridge ports are isolated from each other; the host routes
+# and masquerades the sandboxes' traffic, and forwards 127.0.0.1:$OFFICE_PORT
+# (the office, for hooks) and a loopback DNS stub into every sandbox.
+
+sandbox_addr() {
+  local n=$(($1 + 2))
+  printf '%s.%s.%s' "$SANDBOX_NET" $((n / 256)) $((n % 256))
+}
+
+# Sets S_RID S_SLOT S_MEM S_CPU S_TASKS S_OWNER from agent $1's record; 1 if it has none.
+load_sandbox() {
+  local f="$SANDBOX_DIR/$1" key value
+  [[ -f $f && ! -L $f ]] || return 1
+  S_RID='' S_SLOT='' S_MEM='' S_CPU='' S_TASKS='' S_OWNER=''
+  while IFS='=' read -r key value; do
+    case $key in
+      rid) S_RID=$value ;;
+      slot) S_SLOT=$value ;;
+      mem) S_MEM=$value ;;
+      cpu) S_CPU=$value ;;
+      tasks) S_TASKS=$value ;;
+      owner) S_OWNER=$value ;;
+    esac
+  done <"$f"
+  [[ $S_RID =~ $RID_RE && $S_SLOT =~ ^[0-9]{1,5}$ && $S_MEM =~ ^[0-9]{1,15}$ &&
+    $S_CPU =~ ^[0-9]{1,5}$ && $S_TASKS =~ ^[0-9]{1,7}$ && $S_OWNER =~ $OWNER_RE ]] ||
+    die "corrupt sandbox record $f"
+  LIMITS=(-p "MemoryMax=$S_MEM" -p MemorySwapMax=0 -p "CPUQuota=$S_CPU%" -p "TasksMax=$S_TASKS")
+}
+
+# Agent $AID's sandbox of runner $RID (sets S_*); 1 if it has none, dies if another runner's.
+own_sandbox() {
+  load_sandbox "$AID" || return 1
+  [[ $S_RID == "$RID" ]] || die "agent $AID has a sandbox of another runner"
+}
+
+sandbox_sock() { printf '%s/%s.sbx%s.sock' "$TMUX_DIR" "$RID" "$S_SLOT"; }
+
+# Session verbs: a session of a sandboxed agent lives on the sandbox's own tmux server.
+use_session_sock() {
+  AID=${SESSION#agent-}
+  if own_sandbox; then SOCK=$(sandbox_sock); fi
+  return 0
+}
+
+# Every sandbox record: prints agent ids.
+sandbox_ids() {
+  local rec
+  [[ -d $SANDBOX_DIR ]] || return 0
+  for rec in "$SANDBOX_DIR"/*; do
+    [[ -f $rec && ${rec##*/} =~ $AID_RE ]] && printf '%s\n' "${rec##*/}"
+  done
+  return 0
+}
+
+sandbox_lock() {
+  install -d -m 0700 -o root -g root -- "$SANDBOX_DIR"
+  exec 9>"$SANDBOX_DIR/.lock"
+  flock 9
+}
+
+# The loopback resolver of the host (e.g. systemd-resolved's 127.0.0.53), if any.
+loopback_dns() {
+  sed -n 's/^nameserver[[:space:]]\{1,\}\(127\.[0-9.]*\)[[:space:]]*$/\1/p' /etc/resolv.conf 2>/dev/null |
+    head -n 1
+}
+
+# The bridge, forwarding and NAT on the host (idempotent; the nft table is replaced whole).
+net_host_up() {
+  local gw="$SANDBOX_NET.0.1" dns rules=""
+  if ! ip link show dev "$BRIDGE" >/dev/null 2>&1; then
+    ip link add "$BRIDGE" type bridge
+    ip addr add "$gw/16" dev "$BRIDGE"
+  fi
+  ip link set "$BRIDGE" up
+  sysctl -qw net.ipv4.ip_forward=1
+  # The office and the DNS stub listen on loopback; DNAT to 127/8 needs this on the bridge.
+  sysctl -qw "net.ipv4.conf.$BRIDGE.route_localnet=1"
+  dns=$(loopback_dns)
+  [[ -n $dns ]] && rules="iifname \"$BRIDGE\" ip daddr $gw meta l4proto { tcp, udp } th dport 53 dnat to $dns:53"
+  nft -f - <<NFT || die "could not set up the sandbox NAT (nft)"
+table ip office_sandbox
+delete table ip office_sandbox
+table ip office_sandbox {
+  chain prerouting {
+    type nat hook prerouting priority dstnat; policy accept;
+    iifname "$BRIDGE" ip daddr $gw tcp dport $OFFICE_PORT dnat to 127.0.0.1:$OFFICE_PORT
+    $rules
+  }
+  chain postrouting {
+    type nat hook postrouting priority srcnat; policy accept;
+    ip saddr $SANDBOX_NET.0.0/16 oifname != "$BRIDGE" masquerade
+  }
+}
+NFT
+  # Docker sets the FORWARD policy to DROP; its DOCKER-USER chain is where hosts allow more.
+  if command -v iptables >/dev/null && iptables -S DOCKER-USER >/dev/null 2>&1; then
+    iptables -C DOCKER-USER -i "$BRIDGE" -j ACCEPT 2>/dev/null ||
+      iptables -I DOCKER-USER -i "$BRIDGE" -j ACCEPT
+    iptables -C DOCKER-USER -o "$BRIDGE" -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT \
+      2>/dev/null ||
+      iptables -I DOCKER-USER -o "$BRIDGE" -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+  fi
+}
+
+# Network namespace office-sbx<slot> for the sandbox in S_* (replaces a stale one).
+net_sandbox_up() {
+  local ns="office-sbx$S_SLOT" veth="osb$S_SLOT" gw="$SANDBOX_NET.0.1" addr dns rules=""
+  addr=$(sandbox_addr "$S_SLOT")
+  ip netns del "$ns" 2>/dev/null || true
+  ip link del "$veth" 2>/dev/null || true
+  ip netns add "$ns"
+  ip link add "$veth" type veth peer name eth0 netns "$ns"
+  ip link set "$veth" master "$BRIDGE"
+  # Isolated bridge ports cannot reach each other, only the host.
+  bridge link set dev "$veth" isolated on
+  ip link set "$veth" up
+  ip -n "$ns" link set lo up
+  ip -n "$ns" addr add "$addr/16" dev eth0
+  ip -n "$ns" link set eth0 up
+  ip -n "$ns" route add default via "$gw"
+  # 127.0.0.1:$OFFICE_PORT and the loopback DNS stub inside go to the host.
+  nsenter --net="/run/netns/$ns" sysctl -qw net.ipv4.conf.all.route_localnet=1
+  dns=$(loopback_dns)
+  [[ -n $dns ]] && rules="ip daddr $dns meta l4proto { tcp, udp } th dport 53 dnat to $gw:53"
+  nsenter --net="/run/netns/$ns" nft -f - <<NFT || die "could not set up the sandbox NAT (nft)"
+table ip office_sandbox {
+  chain output {
+    type nat hook output priority dstnat; policy accept;
+    ip daddr 127.0.0.1 tcp dport $OFFICE_PORT dnat to $gw:$OFFICE_PORT
+    $rules
+  }
+  chain postrouting {
+    type nat hook postrouting priority srcnat; policy accept;
+    ip saddr 127.0.0.0/8 oifname "eth0" masquerade
+  }
+}
+NFT
+}
+
+# Remove the sandbox in S_* of agent $AID (its scopes are already gone). Holds the lock.
+sandbox_down() {
+  rm -f -- "$(sandbox_sock)"
+  ip netns del "office-sbx$S_SLOT" 2>/dev/null || true
+  ip link del "osb$S_SLOT" 2>/dev/null || true
+  rm -f -- "${SANDBOX_DIR:?}/$AID"
+}
+
+cmd_sandbox_up() {
+  load_user
+  sandbox_lock
+  local id
+  if load_sandbox "$AID"; then
+    [[ $S_RID == "$RID" ]] || die "agent $AID has a sandbox of another runner"
+    [[ $S_SLOT == "$SLOT" ]] || die "agent $AID already has sandbox slot $S_SLOT"
+  else
+    for id in $(sandbox_ids); do
+      load_sandbox "$id" && [[ $S_SLOT == "$SLOT" ]] && die "sandbox slot $SLOT is taken" 3
+    done
+  fi
+  printf 'rid=%s\nslot=%s\nmem=%s\ncpu=%s\ntasks=%s\nowner=%s\n' \
+    "$RID" "$SLOT" "$MEM" "$CPU" "$TASKS" "$OWNER" >"$SANDBOX_DIR/.new"
+  mv -f -- "$SANDBOX_DIR/.new" "$SANDBOX_DIR/$AID"
+  load_sandbox "$AID"
+  net_host_up
+  if [[ ! -e /run/netns/office-sbx$SLOT ]] || ! ip link show dev "osb$SLOT" >/dev/null 2>&1; then
+    net_sandbox_up
+  fi
+  printf 'address=%s\nslot=%s\n' "$(sandbox_addr "$SLOT")" "$SLOT"
+}
+
+cmd_sandbox_list() {
+  local id
+  for id in $(sandbox_ids); do
+    load_sandbox "$id" || continue
+    printf '%s %s %s %s %s\n' "$id" "$S_RID" "$S_SLOT" "$(sandbox_addr "$S_SLOT")" "$S_OWNER"
+  done
+}
+
+# exec into the sandbox in S_*: its tmux server starts with the session and ends with it.
+exec_in_sandbox() {
+  local session="agent-$AID" unit="agent-$AID" ns="office-sbx$S_SLOT" envfile
+  SOCK=$(sandbox_sock)
+  [[ -e /run/netns/$ns ]] || die "the sandbox of agent $AID has no network namespace; set it up again"
+  [[ -d $CGROUP_DIR/$unit.scope ]] && die "$unit.scope is still running; kill the agent first"
+  envfile=$(write_env_file)
+  rm -f -- "$SOCK"
+  (
+    cd -- "$R_HOME"
+    user_env_args
+    exec </dev/null >/dev/null 2>&1
+    exec systemd-run --quiet --collect --scope --slice=system.slice --unit="$unit" \
+      --description="Regulus Office sandbox of agent $AID of $U" "${LIMITS[@]}" -- \
+      nsenter --net="/run/netns/$ns" -- \
+      unshare --pid --fork --kill-child --mount-proc -- \
+      setpriv --reuid="$R_UID" --regid="$R_GID" --init-groups --no-new-privs -- \
+      "${USER_ENV[@]}" TERM=xterm-256color tmux -D -S "$SOCK" -f /dev/null
+  ) &
+  for _ in $(seq 1 100); do
+    sock_ok && break
+    sleep 0.05
+  done
+  if ! sock_ok || ! as_user tmux -S "$SOCK" new-session -d -s "$session" -x 160 -y 45 -c "$CWD" -- \
+    /bin/sh -c "$WRAPPER" office-agent "$unit.scope" "$envfile" "$CWD" "${ARGV[@]}"; then
+    systemctl kill --signal=SIGKILL -- "$unit.scope" 2>/dev/null || true
+    rm -f -- "$envfile" "$SOCK"
+    die "could not start the sandbox of agent $AID"
+  fi
+  # From now on the server, and with it the scope, ends with the robot's session.
+  as_user tmux -S "$SOCK" set-option -g exit-empty on >/dev/null 2>&1 || true
+  printf 'unit=%s\nsandbox=%s\n' "$unit.scope" "$(sandbox_addr "$S_SLOT")"
 }
 
 cmd_provision() {
@@ -280,6 +522,11 @@ cmd_deprovision() {
     sleep 0.1
   done
   rm -f -- "$SOCK"
+  local id
+  sandbox_lock
+  for id in $(sandbox_ids); do
+    load_sandbox "$id" && [[ $S_RID == "$RID" ]] && AID=$id && sandbox_down
+  done
   userdel --remove "$U" 2>/dev/null || [[ $? -eq 12 ]] || die "userdel $U failed"
   if getent group "$U" >/dev/null; then groupdel "$U"; fi
 }
@@ -350,6 +597,10 @@ cmd_remove_floor() {
 
 cmd_exec() {
   load_user
+  if own_sandbox; then
+    exec_in_sandbox
+    return
+  fi
   ensure_server
   local session="agent-$AID" unit="agent-$AID.scope" envfile pid
   if as_user tmux -S "$SOCK" has-session -t "=$session" 2>/dev/null; then
@@ -380,12 +631,25 @@ cmd_exec() {
 
 cmd_spawn_piped() {
   load_user
-  local envfile nonce unit
+  local envfile nonce unit sandboxed=0
+  if own_sandbox; then
+    sandboxed=1
+    [[ -e /run/netns/office-sbx$S_SLOT ]] || die "the sandbox of agent $AID has no network namespace"
+  fi
   envfile=$(write_env_file)
   nonce=$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n')
   unit="agent-$AID.io-$nonce"
   cd -- "$R_HOME"
   user_env_args
+  if ((sandboxed)); then
+    # In the robot's sandbox (#169): its network namespace and limits, a pid namespace of its own.
+    exec systemd-run --quiet --collect --scope --slice=system.slice --unit="$unit" \
+      --description="Regulus Office agent $AID of $U (piped, sandboxed)" "${LIMITS[@]}" -- \
+      nsenter --net="/run/netns/office-sbx$S_SLOT" -- \
+      unshare --pid --fork --kill-child --mount-proc -- \
+      setpriv --reuid="$R_UID" --regid="$R_GID" --init-groups --no-new-privs -- \
+      "${USER_ENV[@]}" /bin/sh -c "$WRAPPER" office-agent "$unit.scope" "$envfile" "$CWD" "${ARGV[@]}"
+  fi
   exec "${USER_ENV[@]}" systemd-run --quiet --collect --scope --slice=system.slice --unit="$unit" \
     --description="Regulus Office agent $AID of $U (piped)" --uid="$R_UID" --gid="$R_GID" -- \
     /bin/sh -c "$WRAPPER" office-agent "$unit.scope" "$envfile" "$CWD" "${ARGV[@]}"
@@ -396,7 +660,8 @@ cmd_kill() {
   getent passwd "$U" >/dev/null || return 0
   load_user
   if server_alive; then as_user tmux -S "$SOCK" kill-session -t "=agent-$AID" 2>/dev/null || true; fi
-  local unit
+  local unit sandboxed=0
+  if own_sandbox; then sandboxed=1; fi
   for unit in $(agent_units); do
     unit_owned "$unit" || die "$unit has processes of another account"
     systemctl kill --signal=SIGKILL -- "$unit" 2>/dev/null || true
@@ -406,7 +671,22 @@ cmd_kill() {
     sleep 0.05
   done
   for unit in $(agent_units); do systemctl reset-failed -- "$unit" 2>/dev/null || true; done
+  if ((sandboxed)); then
+    sandbox_lock
+    own_sandbox && sandbox_down
+  fi
   return 0
+}
+
+cmd_list_sessions() {
+  load_user
+  if server_alive; then as_user tmux -S "$SOCK" list-sessions -F '#{session_name}' 2>/dev/null || true; fi
+  local id
+  for id in $(sandbox_ids); do
+    load_sandbox "$id" && [[ $S_RID == "$RID" ]] || continue
+    SOCK=$(sandbox_sock)
+    if server_alive; then as_user tmux -S "$SOCK" list-sessions -F '#{session_name}' 2>/dev/null || true; fi
+  done
 }
 
 cmd_sockets() {
@@ -440,6 +720,7 @@ paste_buffer() {
 
 cmd_send_keys() {
   load_user
+  use_session_sock
   local buf
   buf="office-keys-$(od -An -N8 -tx1 /dev/urandom | tr -d ' \n')"
   tmux_u load-buffer -b "$buf" - || die "load-buffer failed"
@@ -453,6 +734,7 @@ cmd_send_keys() {
 
 cmd_attach() {
   load_user
+  use_session_sock
   sock_ok || die "tmux server of $U is not running" 3
   local term=${TERM:-xterm-256color} ro=()
   [[ $term =~ ^[A-Za-z0-9._+-]{1,64}$ ]] || term=xterm-256color
@@ -511,6 +793,20 @@ main() {
       check_aid "$2"
       AID=$2
       ;;
+    sandbox-up)
+      [[ $# -eq 7 ]] || usage
+      check_rid "$1"
+      check_aid "$2"
+      [[ $3 =~ ^(0|[1-9][0-9]{0,4})$ && $3 -le 64999 ]] || bad "sandbox slot"
+      [[ $4 =~ ^[1-9][0-9]{7,14}$ ]] || bad "memory limit (bytes, at least 10000000)"
+      [[ $5 =~ ^[1-9][0-9]{0,4}$ ]] || bad "cpu limit (percent)"
+      [[ $6 =~ ^[1-9][0-9]{1,6}$ ]] || bad "tasks limit"
+      [[ $7 =~ $OWNER_RE ]] || bad "owner"
+      AID=$2 SLOT=$3 MEM=$4 CPU=$5 TASKS=$6 OWNER=$7
+      ;;
+    sandbox-list)
+      [[ $# -eq 0 ]] || usage
+      ;;
     capture)
       [[ $# -eq 3 ]] || usage
       check_rid "$1"
@@ -554,7 +850,7 @@ main() {
       ;;
     *) usage ;;
   esac
-  RID=$1
+  RID=${1-}
   # 2. Only then require root.
   [[ $EUID -eq 0 ]] || die "must run as root (sudo -n office-runner-helper ...)"
   case $verb in
@@ -566,11 +862,13 @@ main() {
     exec) cmd_exec ;;
     spawn-piped) cmd_spawn_piped ;;
     kill) cmd_kill ;;
+    sandbox-up) cmd_sandbox_up ;;
+    sandbox-list) cmd_sandbox_list ;;
     sockets) cmd_sockets ;;
-    capture) load_user && tmux_u capture-pane -p -J -t "=$SESSION:" -S "-$LINES_" ;;
-    pane-title) load_user && tmux_u display-message -p -t "=$SESSION:" '#{pane_title}' ;;
-    has-session) load_user && server_alive && as_user tmux -S "$SOCK" has-session -t "=$SESSION" 2>/dev/null ;;
-    list-sessions) load_user && { ! server_alive || as_user tmux -S "$SOCK" list-sessions -F '#{session_name}'; } ;;
+    capture) load_user && use_session_sock && tmux_u capture-pane -p -J -t "=$SESSION:" -S "-$LINES_" ;;
+    pane-title) load_user && use_session_sock && tmux_u display-message -p -t "=$SESSION:" '#{pane_title}' ;;
+    has-session) load_user && use_session_sock && server_alive && as_user tmux -S "$SOCK" has-session -t "=$SESSION" 2>/dev/null ;;
+    list-sessions) cmd_list_sessions ;;
     send-keys) cmd_send_keys ;;
     attach) cmd_attach ;;
     write-file) cmd_write_file ;;
