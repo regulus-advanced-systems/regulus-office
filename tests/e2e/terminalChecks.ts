@@ -4,7 +4,7 @@
  * robot-terminal step ({@link checkRobotTerminal}).
  */
 import { expect, type Locator, type Page } from "@playwright/test";
-import { insideViewport, settledDialogLayout } from "./dialogLayout.ts";
+import { dialogSettled, insideViewport, settledDialogLayout } from "./dialogLayout.ts";
 
 export interface Box {
   x: number;
@@ -73,6 +73,9 @@ export async function checkRobotTerminal(
     const terminal = page.getByRole("dialog").filter({ hasText: /In control|Watching/ });
     await expect(terminal.getByTestId("terminal-mode")).toHaveText("Watching");
     await expect(terminal.getByTestId("terminal-screen")).toHaveAttribute("data-status", "open");
+    // `normal` is the size to come back to: measured once the dialog has popped in fully, not
+    // scaled mid-animation (#176).
+    await dialogSettled(page, terminal);
     // The watcher's grid has been scaled into the normal box before it is measured.
     await expect
       .poll(async () => {
