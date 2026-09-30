@@ -6,6 +6,29 @@ Walk around an isometric office drawn in the spirit of Game Dev Tycoon. Each flo
 
 Status: **M0 Foundations**. Humans can sign in, walk around the lobby together, chat and switch to first person; no agents yet. Read [`docs/SPEC.md`](docs/SPEC.md) for the full design and [`docs/research/`](docs/research/) for the research behind it.
 
+## Install on your server
+
+For an existing Linux VM (reference: Ubuntu 24.04, see [Recommended machine](#recommended-machine)) with a DNS record pointing at it. Nothing is provisioned for you: clone the repo on the VM and run the setup script.
+
+```sh
+git clone https://github.com/regulus-advanced-systems/regulus-office.git
+cd regulus-office
+scripts/setup.sh --domain office.example.com
+```
+
+The script is safe to re-run. It:
+
+1. checks the machine: Docker 27+ with Compose and Buildx, free ports 80/443, RAM, disk, swap and whether the domain resolves here, and prints the exact fix command for anything missing (`--install-docker` installs Docker from Docker's apt repository on Ubuntu, after asking);
+2. creates `deploy/.env` (mode 600) if absent, generates `BETTER_AUTH_SECRET` and `OFFICE_MASTER_KEY`, never overwrites existing secrets, and refuses to start with one that looks truncated (each must be 44 base64 characters, 32 bytes);
+3. builds the office image from the checkout (or pulls the release images when the checkout is on a release tag; `--images build|pull` to choose), and builds the runner image, which takes about 7 minutes and 3 GB the first time and is skipped afterwards while `runner/` is unchanged. If Docker's build cache is corrupted (`parent snapshot … does not exist`), it explains the error and offers `docker builder prune`;
+4. runs `docker compose up -d --wait` and checks `/healthz` through Caddy;
+5. optionally creates the owner account and an invite (`--owner-email you@example.com`, needs `bun` on the host); otherwise the first account registered at `/login` becomes the owner;
+6. prints next steps: connecting the GitHub App (below) and notification webhooks.
+
+If ports 80/443 are taken, it asks for other ports (or pass `--http-port 8080 --https-port 8443`), stores them as `OFFICE_HTTP_PORT`/`OFFICE_HTTPS_PORT` and sets `OFFICE_PUBLIC_URL` to match. Let's Encrypt still needs 80/443 to reach Caddy, so on a public domain forward them. `--non-interactive` never prompts (for automation; CI runs it this way). `--domain localhost` serves `https://localhost` with Caddy's internal CA.
+
+Upgrade with `scripts/setup.sh --upgrade`: it fast-forwards a clean checkout, rebuilds what changed and restarts the office; robots keep running in their runner containers. `scripts/setup.sh --help` lists every option. The plain Compose steps below keep working if you prefer them.
+
 ## Quickstart (Docker Compose)
 
 Needs Docker with Compose v2 and free ports 80 and 443.
@@ -32,7 +55,7 @@ bun run seed --url https://localhost --email you@example.com --name "Your Name"
 
 It prints a generated password once (pass `--password` to choose one) and the invite URL. Run again with `--password` to mint more invites (`--role admin|member|viewer`); it never creates a second owner.
 
-For a real server set `OFFICE_DOMAIN` in `deploy/.env` to a hostname pointing at the machine; Caddy then gets a Let's Encrypt certificate and the office is served at `https://<domain>`. Tagged releases publish images to `ghcr.io/regulus-advanced-systems/regulus-office` and `…/regulus-office-runner`; `docker compose pull && docker compose up -d` without `--build` uses them.
+For a real server set `OFFICE_DOMAIN` in `deploy/.env` to a hostname pointing at the machine (or use [`scripts/setup.sh`](#install-on-your-server)); Caddy then gets a Let's Encrypt certificate and the office is served at `https://<domain>`. Tagged releases publish images to `ghcr.io/regulus-advanced-systems/regulus-office` and `…/regulus-office-runner`; `docker compose pull && docker compose up -d` without `--build` uses them.
 
 **Docker access.** Agents run in one runner container per human, which the office creates through the Docker Engine API. Only the `docker-proxy` service mounts `/var/run/docker.sock`; it forwards an allowlist of container, exec, image, volume and network-read calls to the office alone and answers 403 to everything else (build, swarm, secrets, system info, network changes, bind mounts outside `/srv/office`). The office runs as a non-root user without the socket, and runners never get the socket (SPEC §8). The allowlist and the reason for each entry are in `deploy/docker-compose.yml`; `docker compose exec -T office bun run - < docker-proxy-check.ts` checks it. The proxy narrows what a compromised office process could do but is not a sandbox: the office can still create containers. For rootless Docker set `DOCKER_SOCKET` in `deploy/.env`.
 
