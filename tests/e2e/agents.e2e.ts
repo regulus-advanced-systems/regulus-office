@@ -5,7 +5,8 @@
  * second member's browser, nor an office admin's, who gets only the emergency stop (#138); approving lets the agent commit; the one-click PR reaches a fake
  * GitHub with `Closes #n`; restarting office-server re-adopts the same tmux session, whose
  * terminal still opens, copies, expands and reflows (#156); copying works in every terminal
- * surface while the fake turns on mouse tracking like Claude Code (#164); sending the robot
+ * surface while the fake turns on mouse tracking like Claude Code (#164); a member finds the
+ * robot's output with search and jumps from the lobby to its desk (#41); sending the robot
  * home frees the desk and deletes the branch as chosen.
  *
  * The agent is the fake `claude` in tests/e2e/runner (never the real CLI, no account, no
@@ -628,6 +629,58 @@ test("7c. copying works in the robot's terminal, on the laptop and in the login 
   );
   await checkLaptopCopy(ownerPage, seatId);
   await checkLoginTerminalCopy(ownerPage);
+});
+
+test("7d. a member searches the robot's terminal from the lobby and jumps to its desk (#41)", async () => {
+  const page = memberPage;
+  await page.bringToFront();
+  const elevator = page.getByRole("navigation", { name: "Elevator" });
+  await elevator.getByRole("button", { name: /0\. Lobby/ }).click();
+  await expect(page.locator(".rg-topbar__floor")).toHaveText("Lobby");
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  await page.keyboard.press("/");
+  const box = page.getByTestId("search-input");
+  await expect(box).toBeFocused();
+  const group = page.locator(`[data-group="robot:${agentId}"]`);
+  // Scrollback is snapshotted every 15 s and indexed every 15 s: search again until it is in.
+  await expect(async () => {
+    await box.fill("");
+    await box.fill('"FAKE CLAUDE DONE"');
+    await expect(group.getByTestId("search-hit").first()).toBeVisible({ timeout: 3_000 });
+  }).toPass({ timeout: 90_000, intervals: [3_000] });
+  await expect(group).toContainText(FLOOR);
+  await expect(group.locator("mark").first()).toHaveText(/FAKE/);
+  await group.getByTestId("search-hit").first().click();
+
+  // Quick travel to the robot's floor, a walk to its desk, then its terminal at the match.
+  await expect(page.locator(".rg-topbar__floor")).toHaveText(FLOOR, { timeout: 20_000 });
+  const terminal = page.getByTestId("terminal-modal");
+  await expect(terminal).toBeVisible({ timeout: 40_000 });
+  const reveal = terminal.getByTestId("search-reveal");
+  await expect(reveal.locator("[data-match]")).toContainText("FAKE CLAUDE DONE");
+  const gap = await page.evaluate((id) => {
+    type V = { x: number; z: number };
+    type Obj = { position: V; getWorldPosition(v: V): V };
+    const r3f = (
+      window as unknown as {
+        __regulusR3F?: { scene: { getObjectByName(n: string): Obj | undefined } };
+      }
+    ).__regulusR3F;
+    const me = r3f?.scene.getObjectByName("local-human");
+    const bot = r3f?.scene.getObjectByName(`robot-${id}`);
+    if (!me || !bot) return null;
+    const Vec = me.position.constructor as new () => V;
+    const a = me.getWorldPosition(new Vec());
+    const b = bot.getWorldPosition(new Vec());
+    return Math.hypot(a.x - b.x, a.z - b.z);
+  }, agentId);
+  expect(gap).not.toBeNull();
+  expect(gap ?? 99).toBeLessThan(3);
+  await reveal.getByRole("button", { name: "Back to live" }).click();
+  await expect(reveal).toHaveCount(0);
+  await expect(terminal.getByTestId("terminal-mode")).toHaveText("Watching");
+  await page.keyboard.press("Escape");
+  await expect(terminal).toHaveCount(0);
 });
 
 test("8. send home frees the desk and deletes the branch as chosen", async () => {

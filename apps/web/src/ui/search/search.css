@@ -1,0 +1,142 @@
+/* Search dialog and the terminal's search match (#41). */
+
+.rg-search {
+  display: grid;
+  gap: 8px;
+}
+.rg-search__input {
+  width: 100%;
+  font-size: 16px;
+}
+.rg-search__status {
+  margin: 0;
+  min-height: 18px;
+  font-size: 12px;
+  color: var(--rg-color-ink-muted, #5a5a66);
+}
+.rg-search__results {
+  display: grid;
+  gap: 12px;
+  max-height: min(56vh, 520px);
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.rg-search__group-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 4px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--rg-color-ink, #1f2233);
+}
+.rg-search__kind {
+  padding: 1px 8px;
+  border-radius: var(--rg-radius-chip, 999px);
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  background: var(--rg-color-blue, #2d7ff9);
+}
+.rg-search__kind--scrollback {
+  background: var(--rg-color-navy, #1f2a44);
+}
+.rg-search__hits {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+.rg-search__hit {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  text-align: left;
+  padding: 6px 10px;
+  border: 1px solid var(--rg-color-panel-border, #d9d2c3);
+  border-radius: var(--rg-radius-button, 8px);
+  background: #fff;
+  color: var(--rg-color-ink, #1f2233);
+  cursor: pointer;
+  font: inherit;
+}
+.rg-search__hit:hover,
+.rg-search__hit:focus-visible {
+  border-color: var(--rg-color-blue, #2d7ff9);
+  background: #eaf2ff;
+  outline: none;
+}
+.rg-search__meta {
+  font-size: 11px;
+  color: var(--rg-color-ink-muted, #5a5a66);
+}
+.rg-search__snippet {
+  font-family: "JetBrains Mono", "DejaVu Sans Mono", Menlo, Consolas, monospace;
+  font-size: 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.rg-search__snippet mark {
+  background: var(--rg-color-gold, #f5c542);
+  color: inherit;
+  border-radius: 2px;
+}
+.rg-search__help {
+  margin: 0;
+  font-size: 12px;
+  color: var(--rg-color-ink-muted, #5a5a66);
+}
+
+/* The match over the live terminal. */
+.rg-search-reveal-host {
+  position: relative;
+}
+.rg-search-reveal {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #16161d;
+  color: #e8e6e3;
+}
+.rg-search-reveal__bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: #23232d;
+}
+.rg-search-reveal__title {
+  flex: 1;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rg-search-reveal__note {
+  margin: 12px;
+  font-size: 13px;
+}
+.rg-search-reveal__lines {
+  list-style: none;
+  margin: 0;
+  padding: 6px 10px;
+  overflow-y: auto;
+}
+.rg-search-reveal__lines li {
+  min-height: 1.3em;
+}
+.rg-search-reveal__lines .rg-search__snippet {
+  font-size: 13px;
+}
+.rg-search-reveal__line--match {
+  background: rgba(245, 197, 66, 0.18);
+  box-shadow: inset 3px 0 0 var(--rg-color-gold, #f5c542);
+}
+.rg-search-reveal .rg-search__snippet mark {
+  color: #16161d;
+}

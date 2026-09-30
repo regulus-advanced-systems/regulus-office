@@ -18,6 +18,7 @@
  * - agent-messages.ts  FloorRoom server→client robot messages (permissions, results)
  * - acl.ts             who may control a robot, who may emergency-stop it (D12)
  * - permission-modes.ts per-provider robot permission modes (#166)
+ * - search-api.ts     search across chat and terminal scrollback (#41)
  * - schema/            @colyseus/schema classes mirroring the state shapes
  * - terminal.ts        terminal WebSocket control messages and constants
  * - terminal-screens.ts laptop screen feed (plain-text screens per floor)
@@ -41,6 +42,7 @@ export * from "./permission-modes.ts";
 export * from "./provider-connect.ts";
 export * from "./rooms.ts";
 export * from "./schema/index.ts";
+export * from "./search-api.ts";
 export * from "./terminal.ts";
 export * from "./terminal-screens.ts";
 export * from "./usage-api.ts";

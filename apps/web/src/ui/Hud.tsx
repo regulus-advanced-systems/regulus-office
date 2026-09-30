@@ -21,6 +21,7 @@ import { TopBar } from "./hud/TopBar.tsx";
 import { WorkCounters } from "./hud/WorkCounters.tsx";
 import { NotificationsHost } from "./notifications/NotificationsHost.tsx";
 import { ProvidersPanelHost } from "./providers/ProvidersPanel.tsx";
+import { SearchHost } from "./search/SearchHost.tsx";
 import { RunningApps } from "./services/RunningApps.tsx";
 import { SettingsForm } from "./settings/SettingsPanel.tsx";
 import { SpawnDialogHost } from "./spawn/SpawnDialog.tsx";
@@ -59,6 +60,7 @@ export function HudDialogs() {
       <ProvidersPanelHost />
       <SpawnDialogHost />
       <TerminalModalHost />
+      <SearchHost />
     </>
   );
 }

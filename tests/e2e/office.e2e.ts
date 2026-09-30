@@ -2,7 +2,7 @@
  * M0 smoke test (docs/SPEC.md §10 M0 exit criteria): the owner registers,
  * mints an invite in the UI, a second browser joins through the link, both
  * reach /office and see each other, one walks and the other sees it move,
- * chat crosses between them, the first-person view toggles on V and back,
+ * chat crosses between them and `/` search finds it (#41), the first-person view toggles on V and back,
  * the owner's robot turns to follow the mouse and walks face-first to a click,
  * the owner adds a floor bound to a (local) repo and rides to it, Floor
  * settings and Add floor fit a 1280×720 window with the round X in view
@@ -177,6 +177,36 @@ test("chat from one browser arrives in the other", async () => {
   ).toBeVisible();
   await input.press("Escape");
   await memberInput.press("Escape");
+});
+
+test("/ opens search; chat is found, highlighted, for everyone who saw it (#41)", async () => {
+  const word = `zephyr${run}`;
+  const input = ownerPage.getByTestId("chat-input");
+  await input.fill(`the ${word} deploy is green`);
+  await input.press("Enter");
+  await expect(input).toHaveValue("");
+  await input.press("Escape");
+  for (const page of [ownerPage, memberPage]) {
+    await page.bringToFront();
+    await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+    await page.keyboard.press("/");
+    const dialog = page.getByRole("dialog", { name: "Search" });
+    await expect(dialog).toBeVisible();
+    const box = page.getByTestId("search-input");
+    await expect(box).toBeFocused();
+    // Typed the way people do, including FTS5 syntax that must stay plain text.
+    await box.pressSequentially(`${word} OR "`);
+    await box.fill(word.slice(0, -2));
+    const group = page.locator('[data-group="chat:lobby"]');
+    await expect(group).toContainText("Chat · Lobby");
+    const hit = group.getByTestId("search-hit").filter({ hasText: `the ${word} deploy` });
+    await expect(hit).toBeVisible();
+    await expect(hit.locator("mark")).toHaveText(word);
+    await box.fill(`${word} "no such phrase anywhere"`);
+    await expect(page.getByTestId("search-status")).toHaveText("No matches you can see.");
+    await page.keyboard.press("Escape");
+    await expect(dialog).toHaveCount(0);
+  }
 });
 
 test("the status box unfolds the viewer's own usage (#40)", async () => {
