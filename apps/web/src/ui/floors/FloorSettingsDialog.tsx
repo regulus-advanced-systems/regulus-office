@@ -3,7 +3,8 @@
  * and how (view / spawn robots / manage), without touching the API by hand.
  * Opened from the elevator (gear beside a floor), from the top bar while on
  * the floor, and right after "Add floor". Shown only to people the floor list
- * says may manage the floor; the server checks every call again.
+ * says may manage the floor; the server checks every call again. Office
+ * owners and admins also get the Danger zone: archive and delete (#150).
  */
 import type { FloorAccess, FloorMemberInfo, OfficeUserInfo } from "@regulus/protocol";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -15,6 +16,7 @@ import type { ApiFailure, ApiResult } from "../auth/api.ts";
 import { Button } from "../components/Button.tsx";
 import { Modal } from "../components/Modal.tsx";
 import { createFloorsApi, describeFloorError, type FloorsApi } from "./api.ts";
+import { FloorDangerZone } from "./FloorDangerZone.tsx";
 import { AddPeople, MemberList, OfficeManagersNote } from "./FloorMembers.tsx";
 import {
   ACCESS_HINT,
@@ -119,6 +121,7 @@ export function FloorSettingsBody({ floorId, api }: { floorId: string; api: Floo
       <div role="status" aria-live="polite" className="rg-floor-settings__status">
         {status}
       </div>
+      {floor && <FloorDangerZone floor={floor} api={api} />}
     </div>
   );
 }

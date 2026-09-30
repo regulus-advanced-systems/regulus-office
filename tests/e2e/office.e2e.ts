@@ -6,12 +6,15 @@
  * the owner's robot turns to follow the mouse and walks face-first to a click,
  * the owner adds a floor bound to a (local) repo and rides to it, Floor
  * settings and Add floor fit a 1280×720 window with the round X in view
- * (#149), and clicking a free desk there opens the spawn dialog, whose agent.spawn gets
- * an answer from the server (no agent CLI runs in e2e).
+ * (#149), clicking a free desk there opens the spawn dialog, whose agent.spawn gets
+ * an answer from the server (no agent CLI runs in e2e), and a second floor
+ * is archived, restored and deleted for good, files included (#150).
  *
  * Runs against office-server in production mode (see playwright.config.ts),
  * so room joins are authorised by the Better Auth session cookie only.
  */
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { type BrowserContext, expect, type Page, test } from "@playwright/test";
 import { insideViewport, settledDialogLayout } from "./dialogLayout.ts";
 import { createRemoteRepo } from "./gitRemote.ts";
@@ -351,4 +354,60 @@ test("clicking a free desk opens the spawn dialog and the server answers agent.s
   if (await dialog.isVisible())
     await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
   await expect(dialog).toHaveCount(0);
+});
+
+test("the owner archives, restores and deletes a floor; its files go with it", async () => {
+  test.skip(!process.env.E2E_DATA_DIR, "needs the locally started server (local git remotes)");
+  const dataDir = process.env.E2E_DATA_DIR ?? "";
+  await ownerPage.bringToFront();
+  const elevator = ownerPage.getByRole("navigation", { name: "Elevator" });
+  await elevator.getByRole("button", { name: "Add floor…" }).click();
+  const create = ownerPage.getByRole("dialog", { name: "Add floor" });
+  await create.getByLabel("Floor name").fill("Hermes");
+  await create.getByLabel("Repo 1", { exact: true }).fill("octo/hello");
+  await create.getByRole("button", { name: "Create floor" }).click();
+  const added = ownerPage.getByRole("dialog", { name: "Floor added" });
+  await expect(added.getByText("Ready on trunk")).toBeVisible();
+  await added.getByRole("button", { name: "Done" }).click();
+  const hermes = elevator.getByRole("button", { name: /\d+\. Hermes/ });
+  await expect(hermes).toBeVisible();
+  const mirror = join(dataDir, "projects", "hermes");
+  expect(existsSync(join(mirror, "hello", ".git"))).toBe(true);
+  // A human's area on the floor, as a spawn would leave it.
+  const area = join(dataDir, "worktrees", "hermes", "u1", "_clones", "hello");
+  mkdirSync(area, { recursive: true });
+  writeFileSync(join(area, "work.txt"), "work\n");
+
+  // Archive from the Danger zone of Floor settings: gone from the elevator, files kept.
+  const settings = ownerPage.getByRole("dialog", { name: "Floor settings" });
+  await elevator.getByRole("button", { name: "Floor settings: Hermes" }).click();
+  await settings.getByRole("button", { name: "Archive floor" }).click();
+  await expect(settings).toBeHidden();
+  await expect(hermes).toHaveCount(0);
+  expect(existsSync(mirror)).toBe(true);
+
+  // Restore from Settings → Floors.
+  await ownerPage.getByRole("button", { name: "Settings", exact: true }).click();
+  const panel = ownerPage.getByRole("dialog", { name: "Settings", exact: true });
+  await expect(panel.getByRole("list", { name: "Archived floors" })).toContainText("Hermes");
+  await panel.getByRole("button", { name: "Restore Hermes" }).click();
+  await expect(panel.getByText("Hermes is back in the elevator.")).toBeVisible();
+  await ownerPage.keyboard.press("Escape");
+  await expect(panel).toBeHidden();
+  await expect(hermes).toBeVisible();
+
+  // Delete for good, after typing the name.
+  await elevator.getByRole("button", { name: "Floor settings: Hermes" }).click();
+  await settings.getByRole("button", { name: "Delete floor…" }).click();
+  const confirm = settings.getByRole("button", { name: "Delete floor", exact: true });
+  await expect(confirm).toBeDisabled();
+  await settings.getByLabel("Type the floor name to confirm").fill("Hermes");
+  await confirm.click();
+  await expect(settings).toBeHidden();
+  await expect(hermes).toHaveCount(0);
+  expect(existsSync(mirror)).toBe(false);
+  expect(existsSync(join(dataDir, "worktrees", "hermes"))).toBe(false);
+  // The other floor is untouched.
+  expect(existsSync(join(dataDir, "projects", "apollo", "hello", ".git"))).toBe(true);
+  await expect(elevator.getByRole("button", { name: /1\. Apollo/ })).toBeVisible();
 });

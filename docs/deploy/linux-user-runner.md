@@ -199,6 +199,14 @@ each other's worktrees. Install the new helper and sudoers file (they add the
    fails (an old helper or sudoers file), the office logs an error and tries
    again on the next boot.
 
+## Upgrading for floor deletion (#150)
+
+Deleting a floor in the office uses the `remove-floor` verb. Install the
+current helper and sudoers file before upgrading. With an older helper the
+delete fails: the floor stays archived with its files and rows, the office
+logs the helper error, and the delete can be retried from Settings → Floors
+once the helper is installed.
+
 ## Verifying
 
 `bun test apps/server/src/runners/linux-user` runs the unit tests (helper

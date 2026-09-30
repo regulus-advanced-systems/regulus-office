@@ -1,21 +1,31 @@
 /**
  * Browser client for the floors REST API (SPEC §5, §9.1): list the floors
  * the signed-in user can see, create one (owner/admin), retry a failed
- * clone, and list, grant, change and revoke floor members. Repo tokens go out in request bodies only; responses never carry
- * them (the server returns `hasCredential`), and nothing is stored here.
+ * clone, list, grant, change and revoke floor members, and (owners and
+ * admins, #150) archive, restore, send robots home and delete. Repo tokens go
+ * out in request bodies only; responses never carry them (the server returns
+ * `hasCredential`), and nothing is stored here.
  */
 import {
   type CreateFloorRequest,
   FLOORS_API_PATH,
+  FLOORS_ARCHIVED_API_PATH,
   type FloorAccess,
+  FloorHasRobotsResponse,
   FloorInfo,
   FloorListResponse,
   FloorMembersResponse,
   FloorRepoInfo,
+  type FloorRobotInfo,
   OFFICE_USERS_API_PATH,
   OfficeUsersResponse,
+  SendFloorHomeResponse,
 } from "@regulus/protocol";
 import type { ApiFailure, ApiResult } from "../auth/api.ts";
+
+/** A failed floors call; a refused delete also names the robots still on the floor. */
+export type FloorsFailure = ApiFailure & { robots?: FloorRobotInfo[] };
+export type FloorsResult<T> = { ok: true; data: T } | FloorsFailure;
 
 /** The slice of a zod schema used here (the web app does not depend on zod directly). */
 interface Parser<T> {
@@ -38,10 +48,12 @@ async function readJson(res: Response): Promise<unknown> {
   }
 }
 
-function failure(status: number, body: unknown): ApiFailure {
+function failure(status: number, body: unknown): FloorsFailure {
   const b = body && typeof body === "object" ? (body as Record<string, unknown>) : {};
   const code = typeof b.error === "string" ? b.error.toLowerCase() : `http_${status}`;
-  const out: ApiFailure = { ok: false, status, code };
+  const out: FloorsFailure = { ok: false, status, code };
+  const robots = FloorHasRobotsResponse.safeParse(body);
+  if (robots.success) out.robots = robots.data.robots;
   if (typeof b.repo === "number") out.reason = `repo ${b.repo + 1}`;
   if (Array.isArray(b.fields))
     out.reason = b.fields.filter((f) => typeof f === "string").join(", ");
@@ -56,7 +68,7 @@ export function createFloorsApi(options: FloorsApiOptions = {}) {
     path: string,
     schema: Parser<T>,
     body?: unknown,
-  ): Promise<ApiResult<T>> {
+  ): Promise<FloorsResult<T>> {
     const doFetch = options.fetch ?? fetch;
     let res: Response;
     try {
@@ -76,6 +88,8 @@ export function createFloorsApi(options: FloorsApiOptions = {}) {
     return { ok: true, data: parsed.data };
   }
 
+  const floorPath = (floorId: string, suffix = "") =>
+    `${FLOORS_API_PATH}/${encodeURIComponent(floorId)}${suffix}`;
   const memberPath = (floorId: string, userId?: string) =>
     `${FLOORS_API_PATH}/${encodeURIComponent(floorId)}/members${
       userId === undefined ? "" : `/${encodeURIComponent(userId)}`
@@ -98,6 +112,17 @@ export function createFloorsApi(options: FloorsApiOptions = {}) {
       call<void>("PUT", memberPath(floorId, userId), NO_CONTENT, { access }),
     removeMember: (floorId: string, userId: string) =>
       call<void>("DELETE", memberPath(floorId, userId), NO_CONTENT),
+    /** Owners and admins (#150): archived floors, newest first. */
+    archived: () => call<FloorListResponse>("GET", FLOORS_ARCHIVED_API_PATH, FloorListResponse),
+    archive: (floorId: string) => call<void>("POST", floorPath(floorId, "/archive"), NO_CONTENT),
+    restore: (floorId: string) =>
+      call<FloorInfo>("POST", floorPath(floorId, "/restore"), FloorInfo),
+    /** Send every robot on the floor home, keeping their branches. */
+    sendHome: (floorId: string) =>
+      call<SendFloorHomeResponse>("POST", floorPath(floorId, "/send-home"), SendFloorHomeResponse),
+    /** Permanent; `confirmName` must be the floor's name. 409 carries `robots`. */
+    remove: (floorId: string, confirmName: string) =>
+      call<void>("DELETE", floorPath(floorId), NO_CONTENT, { confirmName }),
     /** Office people to grant (floor managers only; emails for owners and admins). */
     people: () => call<OfficeUsersResponse>("GET", OFFICE_USERS_API_PATH, OfficeUsersResponse),
   };
@@ -111,7 +136,21 @@ export function describeFloorError(err: ApiFailure): string {
     case "network_error":
       return "Could not reach the office server. Check your connection and try again.";
     case "owner_or_admin_required":
-      return "Only owners and admins can add floors.";
+      return "Only office owners and admins can do that.";
+    case "floor_has_robots":
+      return "Robots are still on this floor. Send them home first, then delete it.";
+    case "floor_cloning":
+      return "A repo of this floor is still cloning. Wait until it has finished, then try again.";
+    case "floor_busy":
+      return "This floor is being deleted already.";
+    case "floor_not_archived":
+      return "That floor is not archived.";
+    case "confirm_name_mismatch":
+      return "The name you typed does not match the floor's name.";
+    case "floor_files_not_removed":
+      return "The floor's files could not all be removed, so it was archived instead. The server log has the details; try again from Settings → Floors.";
+    case "robots_unavailable":
+      return "Robots cannot be sent home right now. Try again in a moment.";
     case "invalid_repo":
       return `${err.reason ?? "A repo"} is not a GitHub repo. Use owner/name or https://github.com/owner/name.`;
     case "unsupported_host":
