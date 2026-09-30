@@ -20,6 +20,7 @@ import { closeDatabase, databasePathFor, openDatabase, runMigrations } from "./d
 import { createFloors, mountFloorRoutes } from "./floors/index.ts";
 import { mountGitHubRoutes } from "./github/routes.ts";
 import { createGitHubConnection } from "./github/setup.ts";
+import { createGitHubSync, type GitHubSync, mountGitHubSyncRoutes } from "./github/sync.ts";
 import { createOfficeServer } from "./http/server.ts";
 import { WsRouter } from "./http/ws-router.ts";
 import { createShutdownController, installSignalHandlers } from "./lifecycle.ts";
@@ -154,7 +155,15 @@ async function main(): Promise<void> {
     console.error(`Invalid GitHub App configuration: ${(err as Error).message}`);
     process.exit(2);
   }
-  mountGitHubRoutes(server.router, { auth, db, logger, ...github });
+  // Board sync (#35): created after the floors (it needs their repo access); set below.
+  let githubSync: GitHubSync | undefined;
+  mountGitHubRoutes(server.router, {
+    auth,
+    db,
+    logger,
+    ...github,
+    onConnectionChanged: () => githubSync?.connectionChanged(),
+  });
   // Runner backend from OFFICE_RUNNER_BACKEND (SPEC §8): agents run only in their human's runner.
   const runner = await createRunner(config, production, logger);
   logger.info({ backend: config.runnerBackend }, "agent runner backend selected");
@@ -173,8 +182,22 @@ async function main(): Promise<void> {
     }),
     onChange: (floorId) => {
       rooms.floorChanged(floorId).catch((err) => logger.error({ err }, "floor refresh failed"));
+      githubSync?.floorChanged(floorId);
     },
   });
+  // Webhooks (signed, no session), polling fallback, board cache → FloorRoom summaries (#35).
+  githubSync = createGitHubSync({
+    db,
+    connection: github.connection,
+    repos: floors.repos,
+    boards: rooms.floors,
+    publicUrl: config.publicUrl,
+    apiBase: config.githubApiBase,
+    polling: config.githubSync.polling,
+    pollIntervalMs: config.githubSync.pollIntervalMs,
+    logger: logger.child({ module: "github-sync" }),
+  });
+  mountGitHubSyncRoutes(server.router, { auth, sync: githubSync });
   mountFloorRoutes(server.router, {
     auth,
     floors: floors.service,
@@ -241,6 +264,8 @@ async function main(): Promise<void> {
     )
     .catch((err) => logger.error({ err }, "per-human clone migration failed"));
   floors.cloner.resumePending().catch((err) => logger.error({ err }, "resuming clones failed"));
+  githubSync.start();
+  shutdown.register("github-sync", () => githubSync?.stop());
   shutdown.register("rooms", () => rooms.transport.shutdown());
   shutdown.register("terminals", () => terminals.shutdown());
   shutdown.register("provider-logins", () => credentialPanel.shutdown());

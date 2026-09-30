@@ -161,6 +161,21 @@ export class ConnectionStore {
     });
   }
 
+  /** Store a (new) webhook secret for the stored app; false when there is no stored app. */
+  setWebhookSecret(secret: string): boolean {
+    const row = this.row();
+    if (!row || row.kind !== "app") return false;
+    this.#db
+      .update(githubConnection)
+      .set({
+        encryptedWebhookSecret: this.#seal(secret, "app_webhook_secret"),
+        updatedAt: new Date(),
+      })
+      .where(eq(githubConnection.id, CONNECTION_ROW_ID))
+      .run();
+    return true;
+  }
+
   savePat(token: string, login: string | null): void {
     this.#replace({ kind: "pat", encryptedToken: this.#seal(token, "org_pat"), tokenLogin: login });
   }
