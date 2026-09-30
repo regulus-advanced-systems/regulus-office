@@ -1,0 +1,98 @@
+/* Task queue panel (SPEC §9.4 clipboard; #37): a clipboard's paper list on the GDT modal. */
+.rg-queue {
+  display: grid;
+  gap: 12px;
+}
+.rg-queue__intro {
+  margin: 0;
+  color: var(--rg-color-ink-muted);
+}
+.rg-queue__section {
+  display: grid;
+  gap: 6px;
+}
+.rg-queue__heading {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+.rg-queue__count,
+.rg-queue__empty {
+  color: var(--rg-color-ink-muted);
+  font-weight: 400;
+}
+.rg-queue__empty {
+  margin: 0;
+  font-size: 13px;
+}
+.rg-queue__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.rg-queue__task {
+  display: grid;
+  gap: 2px;
+  padding: 8px 10px;
+  border: 1px solid var(--rg-color-panel-border);
+  border-radius: 6px;
+  background: var(--rg-color-panel-surface);
+}
+.rg-queue__task-head {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  min-width: 0;
+}
+.rg-queue__title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rg-queue__ref,
+.rg-queue__task-meta {
+  color: var(--rg-color-ink-muted);
+  font-size: 12px;
+}
+.rg-queue__state {
+  font-size: 12px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: #e8e1d2;
+}
+.rg-queue__state--running {
+  background: #cfe3ff;
+}
+.rg-queue__state--done {
+  background: #d4f0d4;
+}
+.rg-queue__state--failed {
+  background: #f8d0c8;
+}
+.rg-queue__reason {
+  font-size: 12px;
+  color: #8a4b12;
+}
+.rg-queue__task-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+.rg-queue__task-actions:empty {
+  display: none;
+}
+.rg-queue__settings {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  border-top: 1px solid var(--rg-color-panel-border);
+  padding-top: 10px;
+}
+.rg-queue__settings select {
+  min-width: 56px;
+}

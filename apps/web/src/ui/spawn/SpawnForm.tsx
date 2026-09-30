@@ -50,6 +50,9 @@ export interface SpawnFormProps {
   onCancel: () => void;
   /** "Connect <provider>": open the providers panel (#32) on that provider. */
   onConnect: (provider: SpawnFormValues["provider"]) => void;
+  /** The queue dialog (#37) reuses the form: its own labels, More options open. */
+  labels?: { form: string; submit: string; pending: string };
+  moreOpen?: boolean;
 }
 
 export function SpawnForm(props: SpawnFormProps) {
@@ -57,7 +60,10 @@ export function SpawnForm(props: SpawnFormProps) {
   const [values, setValues] = useState<SpawnFormValues>(() => initialSpawnValues(repos, prefill));
   const [errors, setErrors] = useState<SpawnFormErrors>({});
   const [moreOpen, setMoreOpen] = useState(
-    () => loadMoreOptionsOpen(userId) || Boolean(prefill?.prompt || prefill?.taskTitle),
+    () =>
+      props.moreOpen ||
+      loadMoreOptionsOpen(userId) ||
+      Boolean(prefill?.prompt || prefill?.taskTitle),
   );
   const modelTouched = useRef(false);
   const { access, loaded } = useProviderAccess(api);
@@ -137,7 +143,13 @@ export function SpawnForm(props: SpawnFormProps) {
 
   const moreId = `${id}-more`;
   return (
-    <form ref={formRef} className="rg-spawn" aria-label="Spawn robot" onSubmit={submit} noValidate>
+    <form
+      ref={formRef}
+      className="rg-spawn"
+      aria-label={props.labels?.form ?? "Spawn robot"}
+      onSubmit={submit}
+      noValidate
+    >
       <div className="rg-spawn__scroll rg-scroll-shadows">
         <fieldset className="rg-spawn__fields" disabled={pending}>
           {repos.length !== 1 && (
@@ -210,7 +222,9 @@ export function SpawnForm(props: SpawnFormProps) {
           {pending ? "Close" : "Cancel"}
         </Button>
         <Button variant="primary" type="submit" disabled={pending} aria-busy={pending}>
-          {pending ? "Spawning…" : "Spawn robot"}
+          {pending
+            ? (props.labels?.pending ?? "Spawning…")
+            : (props.labels?.submit ?? "Spawn robot")}
         </Button>
       </div>
     </form>

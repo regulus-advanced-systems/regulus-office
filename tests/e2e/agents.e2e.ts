@@ -664,3 +664,54 @@ test("8. send home frees the desk and deletes the branch as chosen", async () =>
   await spawn.getByRole("button", { name: "Cancel", exact: true }).click();
   await expect(spawn).toHaveCount(0);
 });
+
+test("9. two queued tasks with concurrency 1 run one after the other, as their owner (#37)", async () => {
+  await ownerPage.bringToFront();
+  const panel = ownerPage.getByRole("dialog", { name: "Task queue" });
+  // The queue clipboard hangs on the wall next to the boards.
+  await expect(async () => {
+    const point = await scenePoint(ownerPage, "queue-hotspot-queue-clipboard");
+    if (!point) throw new Error("queue clipboard not in view");
+    await ownerPage.mouse.click(point.x, point.y);
+    await expect(panel).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
+  await panel.getByLabel("Tasks running at once").selectOption("1");
+  await panel.getByRole("button", { name: "Save" }).click();
+  await expect(panel).toContainText("(1 at once");
+  const titles = ["Queued hello one", "Queued hello two"];
+  for (const title of titles) {
+    await panel.getByRole("button", { name: "Queue a task…" }).click();
+    const dialog = ownerPage.getByRole("dialog", { name: "Queue a task" });
+    await dialog.getByLabel("Task title").fill(title);
+    await dialog.getByLabel(/^Prompt/).fill(`${title}: add a FAKE_CLAUDE.md`);
+    await dialog.getByRole("button", { name: "Queue task" }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(panel).toBeVisible();
+  }
+  const running = panel.getByRole("region", { name: "Running" });
+  const queued = panel.getByRole("region", { name: "Queued" });
+  await expect(running).toContainText(titles[0] ?? "");
+  await expect(queued).toContainText(titles[1] ?? "");
+  await expect(queued).toContainText("waiting for a free slot in this room");
+  await ownerPage.keyboard.press("Escape");
+  await expect(panel).toHaveCount(0);
+
+  // Each robot is the owner's (their login, their runner): the owner answers its request.
+  for (const title of titles) {
+    const prompt = ownerPage.getByRole("dialog", { name: "Permission needed" });
+    await expect(prompt).toContainText(`“${title}” wants to use`, { timeout: 60_000 });
+    await prompt.getByRole("button", { name: "Allow once" }).click();
+    await expect(prompt).toHaveCount(0);
+  }
+  await expect
+    .poll(async () => Object.values(await robots(ownerPage)).filter((r) => r.status === "done"))
+    .toHaveLength(2);
+  const point = await scenePoint(ownerPage, "queue-hotspot-queue-clipboard");
+  if (!point) throw new Error("queue clipboard not in view");
+  await ownerPage.mouse.click(point.x, point.y);
+  const recent = panel.getByRole("region", { name: "Recent" });
+  for (const title of titles) {
+    await expect(recent.locator(".rg-queue__task", { hasText: title })).toContainText("Done");
+  }
+  await ownerPage.keyboard.press("Escape");
+});

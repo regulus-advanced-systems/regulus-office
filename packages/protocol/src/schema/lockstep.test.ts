@@ -31,6 +31,7 @@ const pairs: Array<[string, z.ZodObject, SchemaClass]> = [
   ["DeskState", floor.DeskState, schemas.DeskStateSchema],
   ["DecorState", floor.DecorState, schemas.DecorStateSchema],
   ["QueueTask", floor.QueueTask, schemas.QueueTaskSchema],
+  ["QueueSettings", floor.QueueSettings, schemas.QueueSettingsSchema],
   ["IssueCard", floor.IssueCard, schemas.IssueCardSchema],
   ["PullCard", floor.PullCard, schemas.PullCardSchema],
   ["ServiceState", floor.ServiceState, schemas.ServiceStateSchema],
