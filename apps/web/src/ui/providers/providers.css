@@ -91,3 +91,8 @@
 .rg-providers__term {
   height: 320px;
 }
+.rg-providers__failed {
+  display: grid;
+  gap: 6px;
+  justify-items: start;
+}

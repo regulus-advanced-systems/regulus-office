@@ -14,9 +14,11 @@
  * `NAME=value` pairs and long token-like runs.
  */
 
+import { CliMissingError } from "../../credentials/cli-probe.ts";
 import { redactGitOutput } from "../../github/git.ts";
 import { DockerApiError } from "../../runners/docker/engine.ts";
 import { HijackError } from "../../runners/docker/hijack.ts";
+import { RunnerImageMissingError } from "../../runners/docker/image.ts";
 import { MountRefusedError, RunnerBusyError } from "../../runners/docker/mounts.ts";
 import { HelperError } from "../../runners/linux-user/helper-client.ts";
 import { WorkspaceError, type WorkspaceErrorCode } from "../../worktrees/types.ts";
@@ -29,7 +31,9 @@ export type StartFailureCode =
   | "runner_busy"
   | "mount_refused"
   | "runner_api"
+  | "runner_image_missing"
   | "runner_helper"
+  | "cli_missing"
   | WorkspaceErrorCode
   | "bad_request"
   | "forbidden"
@@ -90,6 +94,14 @@ export function startFailure(err: unknown): StartFailure {
   if (err instanceof MountRefusedError) {
     return { code: "mount_refused", message: "the workdir is outside its owner's own area" };
   }
+  if (err instanceof RunnerImageMissingError) {
+    // The image name comes from the office's config, not from any human.
+    return {
+      code: "runner_image_missing",
+      message: `the runner image ${err.image} is not on the Docker host and could not be pulled`,
+    };
+  }
+  if (err instanceof CliMissingError) return { code: "cli_missing", message: err.message };
   if (err instanceof DockerApiError || err instanceof HijackError) {
     return { code: "runner_api", message: `Docker Engine: ${err.message}` };
   }

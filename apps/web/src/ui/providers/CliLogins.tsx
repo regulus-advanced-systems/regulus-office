@@ -31,6 +31,8 @@ export function CliLogins({ api, pollMs = 2000, focus, terminalDeps }: CliLogins
   const [statuses, setStatuses] = useState<Statuses | null>(null);
   const [flows, setFlows] = useState<Partial<Record<CliLoginProvider, LoginFlowInfo>>>({});
   const [error, setError] = useState<string | null>(null);
+  /** Why a sign-in could not start, per provider (#151), shown with "Try again". */
+  const [startErrors, setStartErrors] = useState<Partial<Record<CliLoginProvider, string>>>({});
   const pending = useRef(new Set<string>());
 
   const refresh = useCallback(async () => {
@@ -82,9 +84,10 @@ export function CliLogins({ api, pollMs = 2000, focus, terminalDeps }: CliLogins
 
   const start = async (provider: CliLoginProvider) => {
     setError(null);
+    setStartErrors((e) => ({ ...e, [provider]: undefined }));
     const res = await api.startLogin(provider);
     if (!res.ok) {
-      setError(describeProvidersError(res));
+      setStartErrors((e) => ({ ...e, [provider]: describeProvidersError(res) }));
       return;
     }
     pending.current.add(res.data.loginId);
@@ -131,7 +134,17 @@ export function CliLogins({ api, pollMs = 2000, focus, terminalDeps }: CliLogins
                 </Button>
               )}
             </div>
-            {flow && <FlowView flow={flow} terminalDeps={terminalDeps} />}
+            {startErrors[provider] ? (
+              <StartError message={startErrors[provider]} onRetry={() => void start(provider)} />
+            ) : (
+              flow && (
+                <FlowView
+                  flow={flow}
+                  terminalDeps={terminalDeps}
+                  onRetry={() => void start(provider)}
+                />
+              )
+            )}
           </div>
         );
       })}
@@ -156,7 +169,26 @@ function StatusBadge({ status, loading }: { status?: ProviderLoginStatus; loadin
   );
 }
 
-function FlowView({ flow, terminalDeps }: { flow: LoginFlowInfo; terminalDeps?: TerminalDeps }) {
+function StartError({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <div className="rg-providers__failed" data-testid="login-start-error">
+      <FormAlert>{message}</FormAlert>
+      <Button size="sm" onClick={onRetry}>
+        Try again
+      </Button>
+    </div>
+  );
+}
+
+function FlowView({
+  flow,
+  terminalDeps,
+  onRetry,
+}: {
+  flow: LoginFlowInfo;
+  terminalDeps?: TerminalDeps;
+  onRetry: () => void;
+}) {
   if (flow.state === "succeeded") {
     return (
       <p className="rg-providers__done" role="status">
@@ -165,7 +197,9 @@ function FlowView({ flow, terminalDeps }: { flow: LoginFlowInfo; terminalDeps?: 
     );
   }
   if (flow.state !== "pending") {
-    return <FormAlert>{flow.reason ?? "The sign-in did not complete."}</FormAlert>;
+    return (
+      <StartError message={flow.reason ?? "The sign-in did not complete."} onRetry={onRetry} />
+    );
   }
   if (flow.kind === "device_code") return <DeviceCode flow={flow} />;
   return (

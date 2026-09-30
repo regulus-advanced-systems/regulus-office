@@ -35,6 +35,8 @@ export function pipedLabel(argv: readonly string[]): string {
 export class PipedTracker {
   readonly #live = new Map<string, Map<Promise<unknown>, string>>();
   readonly #holds = new Map<string, Promise<unknown>>();
+  /** tmux sessions being created (`DockerRunner.exec`), not yet in `list-sessions` maybe. */
+  readonly #starting = new Map<string, Map<Promise<unknown>, string>>();
 
   /** `drainMs`: how long {@link drain} waits at most. */
   constructor(readonly drainMs = DEFAULT_PIPED_DRAIN_MS) {}
@@ -66,11 +68,27 @@ export class PipedTracker {
     const begin = () => {
       const proc = start();
       this.#add(
+        this.#live,
         userId,
         pipedLabel(argv),
         proc.then((p) => p.exited),
       );
       return proc;
+    };
+    const held = this.#holds.get(userId);
+    return held ? held.catch(() => {}).then(begin) : begin();
+  }
+
+  /**
+   * Create a tmux session with `start`: after any mount change in progress,
+   * and counted as a session by {@link busy} until `start` settles, so a
+   * recreate can never slip between a session check and the session (#151).
+   */
+  session<T>(userId: string, name: string, start: () => Promise<T>): Promise<T> {
+    const begin = () => {
+      const run = start();
+      this.#add(this.#starting, userId, name, run);
+      return run;
     };
     const held = this.#holds.get(userId);
     return held ? held.catch(() => {}).then(begin) : begin();
@@ -91,12 +109,17 @@ export class PipedTracker {
     listSessions: () => Promise<string[]>,
     wait: boolean,
   ): Promise<{ sessions: string[]; piped: string[] }> {
-    const sessions = await listSessions();
+    const sessions = this.#withStarting(userId, await listSessions());
     if (!wait || sessions.length > 0 || this.labels(userId).length === 0) {
       return { sessions, piped: this.labels(userId) };
     }
     const piped = await this.drain(userId);
-    return { sessions: await listSessions(), piped };
+    return { sessions: this.#withStarting(userId, await listSessions()), piped };
+  }
+
+  #withStarting(userId: string, sessions: string[]): string[] {
+    const starting = [...(this.#starting.get(userId)?.values() ?? [])];
+    return [...new Set([...sessions, ...starting])];
   }
 
   /**
@@ -120,14 +143,19 @@ export class PipedTracker {
     }
   }
 
-  #add(userId: string, label: string, exited: Promise<unknown>): void {
-    const live = this.#live.get(userId) ?? new Map<Promise<unknown>, string>();
-    this.#live.set(userId, live);
+  #add(
+    into: Map<string, Map<Promise<unknown>, string>>,
+    userId: string,
+    label: string,
+    exited: Promise<unknown>,
+  ): void {
+    const live = into.get(userId) ?? new Map<Promise<unknown>, string>();
+    into.set(userId, live);
     live.set(exited, label);
     exited
       .finally(() => {
         live.delete(exited);
-        if (live.size === 0 && this.#live.get(userId) === live) this.#live.delete(userId);
+        if (live.size === 0 && into.get(userId) === live) into.delete(userId);
       })
       .catch(() => {});
   }

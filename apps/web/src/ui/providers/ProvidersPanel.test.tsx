@@ -161,6 +161,45 @@ describe("subscriptions", () => {
   });
 });
 
+describe("a sign-in that cannot start (#151)", () => {
+  test("shows the classified reason and Try again starts it again", async () => {
+    signedInAs("member");
+    let attempts = 0;
+    const device = { verificationUrl: "https://auth.openai.com/codex/device", userCode: "WXYZ-9" };
+    const fake = await render({
+      "GET /api/provider-logins": status(null, null),
+      "POST /api/provider-logins/codex": () => {
+        attempts += 1;
+        if (attempts === 1) {
+          return {
+            status: 502,
+            body: {
+              error: "login_unavailable",
+              cause: "runner_api",
+              reason:
+                "Docker Engine: POST <path>: 500 RWLayer of container [redacted] is unexpectedly nil",
+            },
+          };
+        }
+        return { status: 201, body: flow(device) };
+      },
+      "GET /api/provider-logins/flows/L1": { body: flow(device) },
+    });
+    await click(rowButton("codex", "Connect") as HTMLElement);
+    await settle();
+    const shown = row("codex").textContent ?? "";
+    expect(shown).toContain("Your runner could not start");
+    expect(shown).toContain("RWLayer of container [redacted] is unexpectedly nil");
+    expect(shown).not.toContain("Is the CLI installed");
+    await click(rowButton("codex", "Try again") as HTMLElement);
+    await settle();
+    expect(attempts).toBe(2);
+    expect(row("codex").textContent).toContain("WXYZ-9");
+    expect(row("codex").querySelector('[data-testid="login-start-error"]')).toBeNull();
+    expect(fake.calls.filter((c) => c.path === "/api/provider-logins/codex")).toHaveLength(2);
+  });
+});
+
 describe("keys", () => {
   test("adds a key, clears the field, never keeps it in the page", async () => {
     signedInAs("member");
