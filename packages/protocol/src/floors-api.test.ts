@@ -2,6 +2,8 @@ import { describe, expect, test } from "bun:test";
 import { FLOOR_ACCESSES, REPO_CLONE_STATUSES } from "./enums.ts";
 import {
   CreateFloorRequest,
+  DeleteFloorRequest,
+  FloorHasRobotsResponse,
   FloorInfo,
   hasFloorAccess,
   MAX_REPOS_PER_FLOOR,
@@ -57,5 +59,27 @@ describe("floors REST shapes", () => {
     expect(FLOOR_ACCESSES.filter((a) => hasFloorAccess(a, "spawn"))).toEqual(["manage", "spawn"]);
     expect(hasFloorAccess("view", "view")).toBe(true);
     expect(hasFloorAccess(null, "view")).toBe(false);
+  });
+
+  test("delete needs the typed name; a refusal lists the robots on the floor", () => {
+    expect(DeleteFloorRequest.safeParse({}).success).toBe(false);
+    expect(DeleteFloorRequest.parse({ confirmName: "Apollo" })).toEqual({ confirmName: "Apollo" });
+    const refused = FloorHasRobotsResponse.parse({
+      error: "floor_has_robots",
+      robots: [
+        {
+          agentId: "a1",
+          ownerUserId: "u1",
+          ownerName: "Ben",
+          status: "working",
+          taskTitle: "Fix it",
+          running: true,
+        },
+      ],
+    });
+    expect(refused.robots[0]?.status).toBe("working");
+    expect(FloorHasRobotsResponse.safeParse({ error: "floor_busy", robots: [] }).success).toBe(
+      false,
+    );
   });
 });
