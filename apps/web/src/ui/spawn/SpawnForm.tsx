@@ -138,7 +138,7 @@ export function SpawnForm(props: SpawnFormProps) {
   const moreId = `${id}-more`;
   return (
     <form ref={formRef} className="rg-spawn" aria-label="Spawn robot" onSubmit={submit} noValidate>
-      <div className="rg-spawn__scroll">
+      <div className="rg-spawn__scroll rg-scroll-shadows">
         <fieldset className="rg-spawn__fields" disabled={pending}>
           {repos.length !== 1 && (
             <RepoPicker

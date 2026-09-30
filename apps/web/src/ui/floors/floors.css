@@ -9,6 +9,9 @@
   padding: 0;
   min-width: 0;
 }
+.rg-floor-form__repos > legend {
+  padding: 0;
+}
 .rg-floor-form__repo {
   display: grid;
   grid-template-columns: 3fr 2fr auto;
