@@ -140,6 +140,15 @@ export class LinuxUserRunner implements Runner {
     return found;
   }
 
+  async sandboxOf(agent: AgentRef): Promise<SandboxInfo | null> {
+    if (!this.#settings) return null;
+    await this.#load();
+    const known = this.#sandboxes.get(agent.agentId);
+    if (!known || known.userId !== agent.userId) return null;
+    const { slot: _slot, ...info } = known;
+    return info;
+  }
+
   /** `sandbox-list`: `<agentId> <rid> <slot> <address> <owner>` lines. */
   async #readSandboxes(): Promise<KnownSandbox[]> {
     const s = this.#settings;

@@ -7,7 +7,10 @@ import { id, jsonText, timestampMs, timestamps } from "./_columns.ts";
 import { agents } from "./agents.ts";
 import { users } from "./users.ts";
 
-/** Listening ports discovered inside a robot's cgroup (SPEC §9.4 services board). */
+/**
+ * Dev servers listening in a robot's sandbox (SPEC §9.4 services board, #39), one row
+ * per robot and port, kept current by services/scanner.ts.
+ */
 export const services = sqliteTable(
   "services",
   {
@@ -17,9 +20,11 @@ export const services = sqliteTable(
       .references(() => agents.id, { onDelete: "cascade" }),
     pid: integer("pid").notNull(),
     port: integer("port").notNull(),
-    /** Authenticated proxy URL, `/p/<floor>/port/<n>/`. */
+    /** Authenticated proxy path, `/p/<floorId>/a/<agentId>/port/<n>/`. */
     url: text("url").notNull(),
     title: text("title"),
+    /** Bind address inside the sandbox (`0.0.0.0`, `::`, `127.0.0.1`, ...). */
+    address: text("address").notNull().default(""),
     firstSeenAt: timestampMs("first_seen_at").notNull(),
     lastSeenAt: timestampMs("last_seen_at").notNull(),
     ...timestamps(),

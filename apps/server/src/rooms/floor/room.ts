@@ -23,6 +23,7 @@ import {
   type PendingPermission,
   parseClientCommand,
   RobotState,
+  type ServiceState,
 } from "@regulus/protocol";
 import type { Logger } from "../../logging.ts";
 import type { RoomClient, RoomDefinition, RoomHandle } from "../transport.ts";
@@ -35,7 +36,9 @@ import {
   rejection as reject,
 } from "./agent-commands.ts";
 import { type BoardCards, parseBoard, syncBoard } from "./board.ts";
+import { dropCarriedOnLeave, handleCardCommand, isCardCommand } from "./cards.ts";
 import { FloorPermissions } from "./permissions.ts";
+import { parseServices, syncServices } from "./services.ts";
 import type { FloorRoomSource } from "./source.ts";
 import { type FloorRoomState, syncRobots, writeSnapshot } from "./state.ts";
 
@@ -81,6 +84,8 @@ export interface FloorRooms {
   publishBoard(floorId: string, board: BoardCards): void;
   /** The board last published for a floor. */
   boardOn(floorId: string): BoardCards;
+  /** Replace a floor's running apps (#39; validated against the protocol shape). */
+  publishServices(floorId: string, services: readonly ServiceState[]): void;
   /** Re-read the floor (name, repos, desks); closes the room if it was archived. */
   refreshFloor(floorId: string): void;
   /** Floor ids with a live room instance. */
@@ -99,6 +104,7 @@ export function createFloorRooms(deps: FloorRoomsDeps): FloorRooms {
   const live = new Map<string, RoomHandle<FloorRoomState>>();
   const robots = new Map<string, Map<string, RobotState>>();
   const boards = new Map<string, BoardCards>();
+  const services = new Map<string, ServiceState[]>();
 
   const robotsFor = (floorId: string) => {
     let map = robots.get(floorId);
@@ -154,6 +160,8 @@ export function createFloorRooms(deps: FloorRoomsDeps): FloorRooms {
       sync(snap.floorId);
       const board = boards.get(snap.floorId);
       if (board) syncBoard(room.state, board);
+      const apps = services.get(snap.floorId);
+      if (apps) syncServices(room.state, apps);
       logger.info({ roomId: room.roomId, floorId: snap.floorId }, "floor room created");
     },
 
@@ -169,6 +177,12 @@ export function createFloorRooms(deps: FloorRoomsDeps): FloorRooms {
       const parsed = parseClientCommand(type, payload);
       if (parsed.success && parsed.data.type === "agent.spawn") {
         spawn(room.state.floorId, client, parsed.data);
+        return;
+      }
+      if (parsed.success && isCardCommand(parsed.data)) {
+        const floorId = room.state.floorId;
+        const access = source.accessOf?.(client.user, floorId) ?? null;
+        handleCardCommand({ state: room.state, client, access }, parsed.data);
         return;
       }
       if (parsed.success && isAgentControl(parsed.data)) {
@@ -190,6 +204,10 @@ export function createFloorRooms(deps: FloorRoomsDeps): FloorRooms {
         ? "not handled by the floor room yet"
         : `invalid ${type}: ${parsed.error.issues[0]?.message ?? "malformed"}`;
       client.send(COMMAND_REJECTED_MESSAGE, reject(type, reason));
+    },
+
+    onLeave(room, client) {
+      dropCarriedOnLeave(room.state, client.sessionId);
     },
 
     onDispose(room) {
@@ -231,6 +249,14 @@ export function createFloorRooms(deps: FloorRoomsDeps): FloorRooms {
     },
 
     boardOn: (floorId) => boards.get(floorId) ?? { issues: [], pulls: [] },
+
+    publishServices(floorId, list) {
+      const parsed = parseServices(list);
+      if (parsed.length > 0) services.set(floorId, parsed);
+      else services.delete(floorId);
+      const room = live.get(floorId);
+      if (room) syncServices(room.state, parsed);
+    },
 
     refreshFloor(floorId) {
       const room = live.get(floorId);

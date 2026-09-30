@@ -24,6 +24,7 @@ import { useRobotOverrides } from "../../state/robotOverrides.ts";
 import { useSpawnStore } from "../../state/spawn.ts";
 import { selectReducedMotion, useUiStore } from "../../state/ui.ts";
 import { openAgentPanel } from "../../ui/agent/agentStore.ts";
+import { carriedPrefill, dropCard, useMyCarried } from "../../ui/boards/carry.ts";
 import { useHotkeyEvents } from "../../ui/hotkeys/useHotkeys.ts";
 import { FALLBACK_ANCHOR, sitAnchors } from "../furniture/sitAnchor.ts";
 import { type BubbleSource, WorkBubbles } from "./bubbles/WorkBubbles.tsx";
@@ -42,21 +43,28 @@ export interface RobotLayerProps {
   robots?: Readonly<Record<string, RobotState>>;
 }
 
-/** Open the spawn dialog at a free desk, if this human may spawn on the floor. */
+/** Open the spawn dialog at a free desk (prefilled from a carried card), if this human may spawn here. */
 export function useOpenSpawn() {
   const openSpawn = useSpawnStore((s) => s.openSpawn);
   const toast = useUiStore((s) => s.toast);
   const floorId = useFloorStore((s) => s.floorId);
   const access = useFloorsStore((s) => s.floors?.find((f) => f.floorId === floorId)?.access);
+  const carried = useMyCarried();
   return useCallback(
     (seatId: string) => {
       if (access && !hasFloorAccess(access, "spawn")) {
         toast({ kind: "info", message: "You can watch on this floor but not spawn robots." });
         return;
       }
+      // A carried board card goes down on the desk and prefills the dialog (#36).
+      if (carried) {
+        dropCard(seatId);
+        openSpawn(seatId, carriedPrefill(carried));
+        return;
+      }
       openSpawn(seatId);
     },
-    [openSpawn, toast, access],
+    [openSpawn, toast, access, carried],
   );
 }
 

@@ -25,8 +25,12 @@ const STATUSES: ConnectionStatus[] = [
 const USAGE: UsageSummary = {
   todayInputTokens: 81_200,
   todayOutputTokens: 12_500,
+  todayCacheTokens: 640_000,
   todayCostUsdEstimate: 4.32,
+  officeKeysCostUsdEstimate: 0.8,
+  activeHumans: 3,
   topRobots: [],
+  dayStart: 0,
   observedAt: 0,
 };
 

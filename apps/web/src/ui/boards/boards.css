@@ -1,0 +1,280 @@
+/* Issue and PR board panel (SPEC §9.4, §12; #36): columns of paper cards on
+   the GDT modal, a card detail with a sanitised markdown body, and the
+   "carrying a card" chip. */
+.rg-board__columns {
+  display: grid;
+  grid-template-columns: repeat(var(--rg-board-cols, 3), minmax(160px, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+@media (max-width: 720px) {
+  .rg-board__columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.rg-board__column {
+  min-width: 0;
+  background: #f3e2c0;
+  border: 1px solid #d9c49a;
+  border-radius: 10px;
+  padding: 8px;
+}
+.rg-board__column-title {
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 600;
+  display: flex;
+  justify-content: space-between;
+}
+.rg-board__count {
+  color: var(--rg-color-ink-muted);
+  font-weight: 400;
+}
+.rg-board__cards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.rg-board__card {
+  width: 100%;
+  display: grid;
+  gap: 4px;
+  text-align: left;
+  padding: 8px 10px;
+  border: 1px solid var(--rg-color-panel-border);
+  border-radius: 6px;
+  background: var(--rg-color-panel-surface);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+  cursor: pointer;
+}
+.rg-board__card:hover {
+  border-color: var(--rg-color-amber);
+}
+.rg-board__card-head,
+.rg-board__card-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  font-size: 12px;
+}
+.rg-board__card-title {
+  font-size: 13px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.rg-board__number {
+  font-weight: 700;
+  color: var(--rg-color-navy);
+}
+.rg-board__chip {
+  padding: 1px 8px;
+  border-radius: var(--rg-radius-chip);
+  background: #e8eefb;
+  color: var(--rg-color-navy);
+  font-size: 12px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rg-board__people {
+  color: var(--rg-color-ink-muted);
+}
+.rg-board__badge {
+  padding: 1px 8px;
+  border-radius: var(--rg-radius-chip);
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+  background: #8a8a8a;
+}
+.rg-board__badge--green {
+  background: var(--rg-color-green);
+}
+.rg-board__badge--red {
+  background: var(--rg-color-crimson);
+}
+.rg-board__badge--amber {
+  background: #c7831a;
+}
+.rg-board__badge--blue {
+  background: var(--rg-color-blue);
+}
+.rg-board__empty {
+  color: var(--rg-color-ink-muted);
+}
+
+/* Card detail. */
+.rg-card {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+.rg-card__nav,
+.rg-card__meta,
+.rg-card__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.rg-card__nav {
+  justify-content: space-between;
+}
+.rg-card__row--end {
+  justify-content: flex-end;
+}
+.rg-card__row .rg-input {
+  flex: 1 1 160px;
+  min-width: 0;
+  width: auto;
+}
+.rg-card__title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 400;
+  overflow-wrap: anywhere;
+}
+.rg-card__muted {
+  color: var(--rg-color-ink-muted);
+  font-size: 13px;
+}
+.rg-card__error {
+  margin: 0;
+  color: var(--rg-color-crimson);
+}
+.rg-card__label {
+  padding: 1px 8px;
+  border-radius: var(--rg-radius-chip);
+  border: 1px solid var(--rg-color-panel-border);
+  font-size: 12px;
+}
+.rg-card__branch {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+}
+.rg-card__section {
+  margin: 4px 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+.rg-card__body,
+.rg-card__comment {
+  background: var(--rg-color-panel-surface);
+  border: 1px solid var(--rg-color-panel-border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  min-width: 0;
+}
+.rg-card__comment-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.rg-card__comment-head {
+  font-size: 13px;
+}
+.rg-card__actions {
+  border-top: 1px solid var(--rg-color-panel-border);
+  padding-top: 8px;
+}
+.rg-card__fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+}
+.rg-card__assignees {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.rg-card__comment-input {
+  width: 100%;
+  resize: vertical;
+}
+
+/* Sanitised markdown. */
+.rg-md {
+  overflow-wrap: anywhere;
+}
+.rg-md > :first-child {
+  margin-top: 0;
+}
+.rg-md > :last-child {
+  margin-bottom: 0;
+}
+.rg-md pre {
+  background: #f4f1ea;
+  border-radius: 6px;
+  padding: 8px;
+  overflow-x: auto;
+  white-space: pre-wrap;
+}
+.rg-md code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+}
+.rg-md blockquote {
+  margin: 0;
+  padding-left: 10px;
+  border-left: 3px solid var(--rg-color-panel-border);
+  color: var(--rg-color-ink-muted);
+}
+.rg-md ul,
+.rg-md ol {
+  padding-left: 22px;
+}
+.rg-md__task {
+  list-style: none;
+  margin-left: -20px;
+}
+.rg-md__task > input {
+  margin: 0 6px 0 0;
+  vertical-align: middle;
+}
+.rg-md__image {
+  font-style: italic;
+}
+.rg-md--empty {
+  color: var(--rg-color-ink-muted);
+  margin: 0;
+}
+
+/* "Carrying a card" chip, bottom centre of the HUD. */
+.rg-carry {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  max-width: calc(100% - 32px);
+}
+.rg-carry__card {
+  width: 18px;
+  height: 24px;
+  flex: none;
+  background: #fffdf5;
+  border: 2px solid var(--rg-color-amber);
+  border-radius: 3px;
+  transform: rotate(-8deg);
+}
+.rg-carry__text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

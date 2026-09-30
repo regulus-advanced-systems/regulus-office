@@ -18,6 +18,7 @@ import { auditLog, floorMembers, floorRepos, floors } from "../db/schema/index.t
 import type { RepoCheckout } from "../github/repo-access.ts";
 import { createLogger } from "../logging.ts";
 import type { Runner } from "../runners/types.ts";
+import { UsageTracker } from "../usage/index.ts";
 import type { WorkflowContext } from "./context.ts";
 import { createWorkflows, type Workflows } from "./setup.ts";
 
@@ -89,6 +90,7 @@ beforeAll(async () => {
     },
     repos: { getRepo: () => repo, listFloorRepos: (f) => (f === "f1" ? [repo] : []) },
     runner: {} as Runner,
+    usage: new UsageTracker(office.db),
   });
   workflows.mount(office.server.router, office.auth);
 });

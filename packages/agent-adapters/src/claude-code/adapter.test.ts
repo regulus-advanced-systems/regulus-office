@@ -1,7 +1,11 @@
 import { describe, expect, test } from "bun:test";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { AgentEvent } from "@regulus/protocol";
 import { Secret } from "../secret.ts";
 import { createFakeRunnerContext, createFakeRunnerOps } from "../testing/fake-runner-context.ts";
+import { localSpawnPiped } from "../testing/local-piped.ts";
 import type { AgentRecord } from "../types.ts";
 import { ClaudeCodeAdapter } from "./adapter.ts";
 import hooks from "./fixtures/hooks.json";
@@ -156,37 +160,32 @@ describe("ClaudeCodeAdapter", () => {
     expect(adapter.ingest({ channel: "statusline", agentId: "a1", payload: "x" }, ctx)).toEqual([]);
   });
 
-  test("readUsage: latest limits plus deduped transcript usage, never touching credentials", async () => {
-    const { adapter, ctx, runner } = setup();
-    const root = transcriptRoot(ctx.home);
-    runner.files.set(`${root}/-w/sess-1.jsonl`, transcript);
-    runner.files.set(`${root}/-w/notes.txt`, "ignored");
-    runner.files.set(`${ctx.home}/.claude/.credentials.json`, "SECRET-OAUTH");
-    const read: string[] = [];
-    const listed: string[] = [];
-    const readTextFile = runner.readTextFile.bind(runner);
-    const listDir = runner.listDir.bind(runner);
-    runner.readTextFile = async (p) => {
-      read.push(p);
-      return readTextFile(p);
-    };
-    runner.listDir = async (p) => {
-      listed.push(p);
-      return listDir(p);
-    };
-    adapter.ingest({ channel: "statusline", agentId: "a1", payload: statusline }, ctx);
-    const samples = [];
-    for await (const s of adapter.readUsage(ctx)) samples.push(s);
-    expect(samples.filter((s) => "windowKind" in s)).toHaveLength(2);
-    const usage = samples.filter((s) => "inputTokens" in s);
-    expect(usage).toHaveLength(2);
-    expect(usage[0]).toMatchObject({
-      inputTokens: 100,
-      cacheReadTokens: 4000,
-      source: "transcript",
-    });
-    expect(read).toEqual([`${root}/-w/sess-1.jsonl`]);
-    expect(listed.every((p) => p.startsWith(root))).toBe(true);
+  test("readUsage: latest limits plus deduped transcript usage scanned in the runner", async () => {
+    const home = await mkdtemp(join(tmpdir(), "rg40-adapter-"));
+    try {
+      const runner = createFakeRunnerOps(localSpawnPiped);
+      const ctx = createFakeRunnerContext({ runner, home });
+      const adapter = new ClaudeCodeAdapter();
+      await mkdir(`${transcriptRoot(home)}/-w`, { recursive: true });
+      await writeFile(`${transcriptRoot(home)}/-w/sess-1.jsonl`, transcript);
+      adapter.ingest({ channel: "statusline", agentId: "a1", payload: statusline }, ctx);
+      const samples = [];
+      for await (const s of adapter.readUsage(ctx)) samples.push(s);
+      expect(samples.filter((s) => "windowKind" in s)).toHaveLength(2);
+      const usage = samples.filter((s) => "inputTokens" in s);
+      expect(usage).toHaveLength(2);
+      expect(usage[0]).toMatchObject({
+        inputTokens: 100,
+        cacheReadTokens: 4000,
+        source: "transcript",
+        model: "claude-opus-5-5",
+        sessionId: "sess-1",
+        dedupeKey: "msg_1:req_1",
+      });
+      expect(runner.piped[0]?.argv.slice(0, 2)).toEqual(["sh", "-c"]);
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
   });
 
   test("transcript parsing honours since", () => {

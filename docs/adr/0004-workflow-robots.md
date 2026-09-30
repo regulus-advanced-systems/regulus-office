@@ -17,7 +17,8 @@ text (PR titles, bodies, diffs, comments), and nobody is watching it.
 - **Credentials (D2).** Only an office-wide `api_key` credential profile of
   the provider (`userId` null), decrypted right before the plan is built and
   injected as env. Never a CLI login, never a base-URL plan key, never a
-  GitHub token. Usage goes to `usage_samples` with `userId` null (`office`).
+  GitHub token. Usage goes through the usage tracker's `recordUsage` (#40)
+  attributed to `office`, with one dedupe key per run.
 - **GitHub.** Every read and write uses a one-hour installation token
   narrowed to the one repo; a PAT connection is refused. Posts carry "via
   Regulus Office" and a hidden marker. Every write is audited.

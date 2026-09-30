@@ -18,6 +18,8 @@ import { ConfigError, loadConfig, redactConfig } from "./config.ts";
 import { mountCredentialPanel } from "./credentials/panel.ts";
 import { closeDatabase, databasePathFor, openDatabase, runMigrations } from "./db/index.ts";
 import { createFloors, mountFloorRoutes } from "./floors/index.ts";
+import { createBoardGitHub } from "./github/board-actions.ts";
+import { mountBoardRoutes } from "./github/board-routes.ts";
 import { mountGitHubRoutes } from "./github/routes.ts";
 import { createGitHubConnection } from "./github/setup.ts";
 import { createGitHubSync, type GitHubSync, mountGitHubSyncRoutes } from "./github/sync.ts";
@@ -34,7 +36,9 @@ import {
   type RoomAuth,
 } from "./rooms/index.ts";
 import { loadMasterKeyring, type MasterKeyring } from "./secrets/index.ts";
+import { createServices, type Services } from "./services/index.ts";
 import { createTerminals } from "./terminals/index.ts";
+import { createUsage } from "./usage/index.ts";
 import { createWorkflows } from "./workflows/setup.ts";
 import {
   createWorktrees,
@@ -129,11 +133,28 @@ async function main(): Promise<void> {
     dataDir: config.dataDir,
     originPolicy: originPolicyFor(config.publicUrl, production),
   });
+  // Running apps proxy (#39): first in the router, so app hosts never reach the office's routes.
+  let services: Services;
+  try {
+    services = createServices({
+      db,
+      floors: rooms.floors,
+      sessions: auth,
+      originPolicy: originPolicyFor(config.publicUrl, production),
+      officePort: config.port,
+      appDomain: process.env.OFFICE_SERVICES_DOMAIN,
+      logger,
+    });
+  } catch (err) {
+    console.error(`Invalid services configuration: ${(err as Error).message}`);
+    process.exit(2);
+  }
   const server = createOfficeServer({
     config,
     logger,
     version,
     attach: new WsRouter()
+      .use(services.route)
       .use(terminals.bridge)
       .use(terminals.screens)
       .use(rooms.transport.attachment),
@@ -158,6 +179,10 @@ async function main(): Promise<void> {
     personal: rooms.building,
   });
   notifications.mount(server.router, auth);
+  // Usage tracker (#40): robots' usage/limit events, transcript scans, the viewer's summary.
+  const usage = createUsage({ db, logger });
+  usage.mount(server.router, auth);
+  usage.publishTo(rooms.building);
   // Office GitHub connection (#141): App or org PAT; clones and PRs use it for repos it covers.
   let github: ReturnType<typeof createGitHubConnection>;
   try {
@@ -209,6 +234,15 @@ async function main(): Promise<void> {
     logger: logger.child({ module: "github-sync" }),
   });
   mountGitHubSyncRoutes(server.router, { auth, sync: githubSync });
+  // Board panel (#36): card detail, and assign/comment/merge/close with the office credential.
+  mountBoardRoutes(server.router, {
+    auth,
+    db,
+    officeToken: (owner, name) => github.connection.tokenFor(owner, name),
+    github: createBoardGitHub({ apiBase: config.githubApiBase }),
+    sync: githubSync,
+    logger: logger.child({ module: "github-boards" }),
+  });
   // Merged robot PRs notify their owners (#42), from webhooks or polling.
   notifications.followGitHub(githubSync.events);
   // GitHub workflows (#155): events → robots in the workflow runner → posts as the office's App.
@@ -220,6 +254,7 @@ async function main(): Promise<void> {
     connection: github.connection,
     repos: floors.repos,
     runner,
+    usage: usage.tracker,
   });
   workflows.follow(githubSync.events);
   workflows.mount(server.router, auth);
@@ -251,6 +286,7 @@ async function main(): Promise<void> {
       openPullRequest: (agentId, options) => worktrees.openPullRequest(agentId, options),
     },
     observer: notifications.center,
+    usage: usage.tracker,
   });
   // "Send all home" before deleting a floor (#150): branches are kept, GitHub is not touched.
   // An office owner/admin clears everyone's robots, which is not robot control (D12, #138).
@@ -290,15 +326,22 @@ async function main(): Promise<void> {
       }),
     )
     .catch((err) => logger.error({ err }, "per-human clone migration failed"));
+  const claudeAdapter = agents.adapters.find("claude-code");
+  if (claudeAdapter) {
+    usage.startScanning({ runner, adapter: claudeAdapter, officeUrl: config.runnerOfficeUrl });
+  }
   floors.cloner.resumePending().catch((err) => logger.error({ err }, "resuming clones failed"));
   githubSync.start();
   workflows.start();
   shutdown.register("github-sync", () => githubSync?.stop());
   shutdown.register("workflows", () => workflows.close());
+  services.start(runner);
+  shutdown.register("services", () => services.stop());
   shutdown.register("rooms", () => rooms.transport.shutdown());
   shutdown.register("terminals", () => terminals.shutdown());
   shutdown.register("provider-logins", () => credentialPanel.shutdown());
   shutdown.register("notifications", () => notifications.close());
+  shutdown.register("usage", () => usage.close());
   // Detach only: agents keep running in their runners' tmux (SPEC §11).
   shutdown.register("agents", () => agents.close());
   installSignalHandlers(shutdown, (code) => {

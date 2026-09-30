@@ -17,13 +17,13 @@ import type { Router } from "../http/router.ts";
 import type { Logger } from "../logging.ts";
 import type { Runner } from "../runners/types.ts";
 import type { MasterKeyring } from "../secrets/index.ts";
+import type { UsageRecorder } from "../usage/index.ts";
 import { WorkflowEngine } from "./engine.ts";
 import { EventLog } from "./event-log.ts";
 import { WorkflowExecutor } from "./executor.ts";
 import { mountWorkflowRoutes } from "./routes.ts";
 import { RunStore } from "./runs.ts";
 import { WorkflowStore } from "./store.ts";
-import { dbUsageRecorder, type UsageRecorder } from "./usage.ts";
 
 export interface WorkflowsDeps {
   db: Db;
@@ -34,7 +34,8 @@ export interface WorkflowsDeps {
   repos: Pick<RepoAccess, "getRepo" | "listFloorRepos">;
   runner: Runner;
   git?: GitRunner;
-  usage?: UsageRecorder;
+  /** The usage tracker (#40): workflow usage is attributed to `office`. */
+  usage: UsageRecorder;
   now?: () => number;
   maxParallel?: number;
   tickMs?: number;
@@ -70,7 +71,7 @@ export function createWorkflows(deps: WorkflowsDeps): Workflows {
     git: deps.git ?? runGit,
     keyring: deps.keyring,
     worktreesDir: deps.config.worktreesDir,
-    usage: deps.usage ?? dbUsageRecorder(deps.db),
+    usage: deps.usage,
     logger,
     now,
     commands: deps.commands,

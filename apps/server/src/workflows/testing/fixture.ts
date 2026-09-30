@@ -24,6 +24,7 @@ import { signWebhookBody } from "../../github/webhook-signature.ts";
 import { createLogger } from "../../logging.ts";
 import { LocalTmuxRunner } from "../../runners/testing/local-tmux-runner.ts";
 import { encryptSecret } from "../../secrets/index.ts";
+import { UsageTracker } from "../../usage/index.ts";
 import { createWorkflows } from "../setup.ts";
 import { type FakePull, fakeWorkflowGitHub } from "./fake-github-workflows.ts";
 
@@ -205,6 +206,7 @@ export async function workflowFixture(opts: { pulls?: (headSha: string) => FakeP
     connection: github.connection,
     repos,
     runner,
+    usage: new UsageTracker(db),
     commands: { "claude-code": FAKE_CLAUDE },
     tickMs: 3_600_000,
   });

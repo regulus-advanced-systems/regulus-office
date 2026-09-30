@@ -26,6 +26,7 @@ import type { RepoAccess } from "../github/repo-access.ts";
 import type { Logger } from "../logging.ts";
 import type { Runner } from "../runners/types.ts";
 import type { MasterKeyring } from "../secrets/index.ts";
+import type { UsageRecorder } from "../usage/index.ts";
 import { type AppRepoClient, appClientFor, canWrite, WorkflowRefusal } from "./github-app.ts";
 import { matchWorkflow } from "./match.ts";
 import { officeKey } from "./office-key.ts";
@@ -37,7 +38,6 @@ import type { RunRow, RunStore } from "./runs.ts";
 import { type SecretMatch, SecretScrubber } from "./scrub.ts";
 import type { StoredWorkflow } from "./store.ts";
 import { resolveTarget } from "./target.ts";
-import type { UsageRecorder } from "./usage.ts";
 import {
   checkoutDir,
   makeReadOnly,
@@ -316,12 +316,25 @@ export class WorkflowExecutor {
       });
       const result = parseRobotOutput(spec.robot.provider, stdout);
       const usage = result.usage;
-      deps.usage.record({
-        ...usage,
-        provider: spec.robot.provider,
-        ts: deps.now(),
-        attributedTo: "office",
-      });
+      // Office usage (D2) through the usage tracker (#40); one sample per run, so a
+      // retried or re-finished run is never counted twice.
+      if (usage.inputTokens + usage.outputTokens > 0) {
+        deps.usage.recordUsage({
+          attributedTo: "office",
+          provider: spec.robot.provider,
+          model: spec.robot.model,
+          sample: {
+            ts: deps.now(),
+            inputTokens: usage.inputTokens,
+            outputTokens: usage.outputTokens,
+            cacheReadTokens: usage.cacheReadTokens,
+            cacheWriteTokens: usage.cacheWriteTokens,
+            ...(usage.costUsd > 0 ? { costUsdEstimate: usage.costUsd } : {}),
+            source: "inband",
+            dedupeKey: `workflow_run:${row.id}`,
+          },
+        });
+      }
       log.add(
         `robot exited ${code ?? "by signal"}: ${usage.inputTokens} in / ${usage.outputTokens} out tokens`,
       );
