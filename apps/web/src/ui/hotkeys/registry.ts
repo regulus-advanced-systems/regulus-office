@@ -1,6 +1,6 @@
 /**
  * Keyboard shortcut registry (SPEC §9.2: F floor quick menu, V view toggle,
- * E interact; T / Enter focus the lobby chat). The registry is pure: it maps a key press to a binding id and
+ * E interact; T / Enter focus the lobby chat; / search, #41). The registry is pure: it maps a key press to a binding id and
  * `dispatchHotkey` publishes a `regulus:hotkey` CustomEvent on `window`. The
  * elevator (#15) and camera/interaction work (#17) consume those events; the
  * HUD itself only handles the help overlay.
@@ -46,6 +46,7 @@ export const DEFAULT_HOTKEYS: readonly HotkeyBinding[] = [
     group: "Chat",
     idleOnly: true,
   },
+  { id: "search", key: "/", description: "Search chat and robots' terminals", group: "Search" },
   { id: "help", key: "?", description: "Show keyboard shortcuts", group: "Help" },
 ];
 

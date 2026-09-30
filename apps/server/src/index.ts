@@ -37,6 +37,7 @@ import {
   createSessionRoomAuth,
   type RoomAuth,
 } from "./rooms/index.ts";
+import { createSearch } from "./search/index.ts";
 import { loadMasterKeyring, type MasterKeyring } from "./secrets/index.ts";
 import { createServices, type Services } from "./services/index.ts";
 import { createTerminals } from "./terminals/index.ts";
@@ -185,6 +186,10 @@ async function main(): Promise<void> {
   const usage = createUsage({ db, logger });
   usage.mount(server.router, auth);
   usage.publishTo(rooms.building);
+  // Search (#41): chat and robots' scrollback snapshots, under the floor/terminal ACL.
+  const search = createSearch({ db, logger, dataDir: config.dataDir });
+  search.mount(server.router, auth);
+  search.start();
   // Office GitHub connection (#141): App or org PAT; clones and PRs use it for repos it covers.
   let github: ReturnType<typeof createGitHubConnection>;
   try {
@@ -358,6 +363,7 @@ async function main(): Promise<void> {
   shutdown.register("provider-logins", () => credentialPanel.shutdown());
   shutdown.register("notifications", () => notifications.close());
   shutdown.register("usage", () => usage.close());
+  shutdown.register("search", () => search.stop());
   // Detach only: agents keep running in their runners' tmux (SPEC §11).
   shutdown.register("agents", () => agents.close());
   // Runs before the agents detach (hooks run last-registered-first): no new starts.
