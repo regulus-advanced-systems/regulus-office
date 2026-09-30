@@ -296,7 +296,8 @@ jobs:
             -proxyport=2375 -allowbindmountfrom=/tmp "${allow[@]}"
           for i in $(seq 1 30); do curl -fsS http://127.0.0.1:2375/_ping && break; sleep 1; done
           test "$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:2375/build)" = 403
-      - run: bun test apps/server/src/runners/docker
+      # Runner suites, and services discovery + proxy against a real sandbox (#39).
+      - run: bun test apps/server/src/runners/docker apps/server/src/services/docker-sandbox.integration.test.ts
         env:
           REGULUS_DOCKER_TESTS: "1"
           REGULUS_DOCKER_RUNNER_HOST: tcp://127.0.0.1:2375

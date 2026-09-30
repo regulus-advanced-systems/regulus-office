@@ -18,6 +18,8 @@ import { ConfigError, loadConfig, redactConfig } from "./config.ts";
 import { mountCredentialPanel } from "./credentials/panel.ts";
 import { closeDatabase, databasePathFor, openDatabase, runMigrations } from "./db/index.ts";
 import { createFloors, mountFloorRoutes } from "./floors/index.ts";
+import { createBoardGitHub } from "./github/board-actions.ts";
+import { mountBoardRoutes } from "./github/board-routes.ts";
 import { mountGitHubRoutes } from "./github/routes.ts";
 import { createGitHubConnection } from "./github/setup.ts";
 import { createGitHubSync, type GitHubSync, mountGitHubSyncRoutes } from "./github/sync.ts";
@@ -34,6 +36,7 @@ import {
   type RoomAuth,
 } from "./rooms/index.ts";
 import { loadMasterKeyring, type MasterKeyring } from "./secrets/index.ts";
+import { createServices, type Services } from "./services/index.ts";
 import { createTerminals } from "./terminals/index.ts";
 import { createUsage } from "./usage/index.ts";
 import {
@@ -129,11 +132,28 @@ async function main(): Promise<void> {
     dataDir: config.dataDir,
     originPolicy: originPolicyFor(config.publicUrl, production),
   });
+  // Running apps proxy (#39): first in the router, so app hosts never reach the office's routes.
+  let services: Services;
+  try {
+    services = createServices({
+      db,
+      floors: rooms.floors,
+      sessions: auth,
+      originPolicy: originPolicyFor(config.publicUrl, production),
+      officePort: config.port,
+      appDomain: process.env.OFFICE_SERVICES_DOMAIN,
+      logger,
+    });
+  } catch (err) {
+    console.error(`Invalid services configuration: ${(err as Error).message}`);
+    process.exit(2);
+  }
   const server = createOfficeServer({
     config,
     logger,
     version,
     attach: new WsRouter()
+      .use(services.route)
       .use(terminals.bridge)
       .use(terminals.screens)
       .use(rooms.transport.attachment),
@@ -213,6 +233,15 @@ async function main(): Promise<void> {
     logger: logger.child({ module: "github-sync" }),
   });
   mountGitHubSyncRoutes(server.router, { auth, sync: githubSync });
+  // Board panel (#36): card detail, and assign/comment/merge/close with the office credential.
+  mountBoardRoutes(server.router, {
+    auth,
+    db,
+    officeToken: (owner, name) => github.connection.tokenFor(owner, name),
+    github: createBoardGitHub({ apiBase: config.githubApiBase }),
+    sync: githubSync,
+    logger: logger.child({ module: "github-boards" }),
+  });
   // Merged robot PRs notify their owners (#42), from webhooks or polling.
   notifications.followGitHub(githubSync.events);
   mountFloorRoutes(server.router, {
@@ -290,6 +319,8 @@ async function main(): Promise<void> {
   floors.cloner.resumePending().catch((err) => logger.error({ err }, "resuming clones failed"));
   githubSync.start();
   shutdown.register("github-sync", () => githubSync?.stop());
+  services.start(runner);
+  shutdown.register("services", () => services.stop());
   shutdown.register("rooms", () => rooms.transport.shutdown());
   shutdown.register("terminals", () => terminals.shutdown());
   shutdown.register("provider-logins", () => credentialPanel.shutdown());

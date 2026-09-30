@@ -225,6 +225,45 @@ describe("FloorRoom over the wire", () => {
     ).toThrow();
   });
 
+  test("a carried card is seen by everyone on the floor and goes back when its carrier leaves", async () => {
+    const repoId = floors.service.get({ id: users.owner.userId, role: "owner" }, floorId)?.repos[0]
+      ?.repoId as string;
+    rooms.floors.publishBoard(floorId, {
+      issues: [
+        {
+          repoId,
+          number: 12,
+          title: "Carry me",
+          state: "open",
+          labels: [],
+          assignees: [],
+          author: "olga",
+          url: "https://github.com/octo/hello/issues/12",
+          updatedAt: 1_790_000_000_000,
+        },
+      ],
+      pulls: [],
+    });
+    const watcher = await joinFloor(users.member, floorId);
+    const carrier = await joinFloor(users.owner, floorId);
+    await waitFor(() => carrier.state.issues.has(`${repoId}#12`), "card on the board");
+    const refused: CommandRejected[] = [];
+    watcher.onMessage(COMMAND_REJECTED_MESSAGE, (m: CommandRejected) => refused.push(m));
+    // The member only has view access: no carrying.
+    watcher.send("card.pick", { cardKind: "issue", repoId, number: 12 });
+    await waitFor(() => refused.length === 1, "view access refused");
+    carrier.send("card.pick", { cardKind: "issue", repoId, number: 12 });
+    await waitFor(() => watcher.state.carriedCards.has(carrier.sessionId), "carried card seen");
+    expect(watcher.state.carriedCards.get(carrier.sessionId)?.userId).toBe(users.owner.userId);
+    const seatId = smallTemplate.seats.find((s) => s.kind === "desk")?.id ?? "";
+    carrier.send("card.drop", { seatId });
+    await waitFor(() => watcher.state.carriedCards.size === 0, "dropped on a desk");
+    carrier.send("card.pick", { cardKind: "issue", repoId, number: 12 });
+    await waitFor(() => watcher.state.carriedCards.size === 1, "picked again");
+    await carrier.leave();
+    await waitFor(() => watcher.state.carriedCards.size === 0, "put back on leave");
+  });
+
   test("floor commands are rejected until their issues land", async () => {
     const room = await joinFloor(users.member, floorId);
     const rejected = new Promise<CommandRejected>((resolve) =>

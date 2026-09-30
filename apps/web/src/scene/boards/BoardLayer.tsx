@@ -1,0 +1,78 @@
+/**
+ * The floor's issue and PR boards (SPEC §9.4; #36), one per `issue_board` /
+ * `pr_board` wall anchor, painted from the FloorRoom's board summaries
+ * (#35). A click, or `E` near one, opens its 2D panel (ui/boards). Also the
+ * cards being carried around the floor (CarriedCards).
+ */
+import type { FloorTemplate } from "@regulus/floor-layout";
+import type { IssueCard, PullCard, RepoSummary, RobotState } from "@regulus/protocol";
+import { useCallback, useMemo } from "react";
+import { useShallow } from "zustand/react/shallow";
+import { useFloorStore } from "../../state/floor.ts";
+import { usePlayerStore } from "../../state/player.ts";
+import { useBoardStore } from "../../ui/boards/boardStore.ts";
+import { buildBoard } from "../../ui/boards/columns.ts";
+import { useHotkeyEvents } from "../../ui/hotkeys/useHotkeys.ts";
+import { BoardObject } from "./BoardObject.tsx";
+import { boardAnchors, boardInReach } from "./boardAnchors.ts";
+import { CarriedCards } from "./CarriedCards.tsx";
+import type { BoardLook } from "./CorkBoardLook.tsx";
+
+const NO_ISSUES: Readonly<Record<string, IssueCard>> = {};
+const NO_PULLS: Readonly<Record<string, PullCard>> = {};
+const NO_REPOS: readonly RepoSummary[] = [];
+const NO_ROBOTS: Readonly<Record<string, RobotState>> = {};
+
+export function BoardLayer({ template, look }: { template: FloorTemplate; look?: BoardLook }) {
+  const boards = useMemo(() => boardAnchors(template), [template]);
+  const openBoard = useBoardStore((s) => s.openBoard);
+  const state = useFloorStore(
+    useShallow((s) => ({
+      issues: s.state?.issues ?? NO_ISSUES,
+      pulls: s.state?.pulls ?? NO_PULLS,
+      repos: s.state?.repos ?? NO_REPOS,
+      robots: s.state?.robots ?? NO_ROBOTS,
+    })),
+  );
+  const columns = useMemo(() => {
+    const input = { ...state, robots: Object.values(state.robots) };
+    return { issue: buildBoard("issue", input), pr: buildBoard("pr", input) };
+  }, [state]);
+  const reachId = usePlayerStore((s) =>
+    s.spawned ? (boardInReach(boards, s)?.anchor.id ?? null) : null,
+  );
+
+  useHotkeyEvents(
+    useCallback(
+      (detail: { id: string }) => {
+        if (detail.id !== "interact") return;
+        const player = usePlayerStore.getState();
+        if (!player.spawned) return;
+        const board = boardInReach(boards, player);
+        if (board) openBoard(board.kind);
+      },
+      [boards, openBoard],
+    ),
+  );
+
+  return (
+    <group name="boards">
+      {boards.map((b) => (
+        <BoardObject
+          key={b.anchor.id}
+          wall={b.wall}
+          anchor={b.anchor}
+          columns={columns[b.kind]}
+          inReach={reachId === b.anchor.id}
+          onOpen={() => {
+            // Walk over to the board while its panel is up, like a desk click.
+            usePlayerStore.getState().setTarget(b.stand.x, b.stand.z);
+            openBoard(b.kind);
+          }}
+          look={look}
+        />
+      ))}
+      <CarriedCards />
+    </group>
+  );
+}

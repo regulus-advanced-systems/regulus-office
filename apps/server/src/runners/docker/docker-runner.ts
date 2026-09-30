@@ -84,6 +84,7 @@ export class DockerRunner extends DockerSessionOps implements Runner {
   readonly #piped: PipedTracker;
   readonly #refresh: RefreshDeps;
   readonly #remountDeps: RemountDeps;
+  readonly #hostNetwork: boolean;
 
   constructor(opts: DockerRunnerOptions) {
     const [uid, gid] = opts.user.split(":").map(Number);
@@ -101,6 +102,7 @@ export class DockerRunner extends DockerSessionOps implements Runner {
     );
     this.#ids = this.router.ids;
     this.#floorRoots = opts.floorRoots ?? DEFAULT_FLOOR_ROOTS;
+    this.#hostNetwork = opts.network === "host";
     this.#volumeMap = opts.volumeMap ?? [];
     this.#piped = new PipedTracker(opts.pipedDrainMs);
     this.#refresh = {
@@ -177,6 +179,14 @@ export class DockerRunner extends DockerSessionOps implements Runner {
 
   async listSandboxes(): Promise<SandboxInfo[]> {
     return (await this.sandboxes?.list())?.map(sandboxInfo) ?? [];
+  }
+
+  /** On the `host` network (the e2e office) a sandbox's ports are the host's own. */
+  async sandboxOf(agent: AgentRef): Promise<SandboxInfo | null> {
+    const route = await this.sandboxes?.route(agent.agentId);
+    if (!route || route.userId !== agent.userId || !route.running) return null;
+    const info = sandboxInfo(route);
+    return this.#hostNetwork ? { ...info, host: "127.0.0.1" } : info;
   }
 
   /**

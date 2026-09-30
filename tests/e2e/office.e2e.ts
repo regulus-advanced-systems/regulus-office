@@ -8,7 +8,9 @@
  * settings and Add floor fit a 1280×720 window with the round X in view
  * (#149), clicking a free desk there opens the spawn dialog, whose agent.spawn gets
  * an answer from the server (no agent CLI runs in e2e), and a second floor
- * is archived, restored and deleted for good, files included (#150).
+ * is archived, restored and deleted for good, files included (#150). Last, with a (fake) org
+ * token connected, the issue board fills from GitHub, a card is opened and carried to a free
+ * desk, and the spawn dialog opens prefilled from it (#36).
  *
  * Runs against office-server in production mode (see playwright.config.ts),
  * so room joins are authorised by the Better Auth session cookie only.
@@ -17,10 +19,13 @@ import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { type BrowserContext, expect, type Page, test } from "@playwright/test";
 import { insideViewport, settledDialogLayout } from "./dialogLayout.ts";
+import { type FakeGitHub, startFakeGitHub } from "./fakeGitHub.ts";
 import { createRemoteRepo } from "./gitRemote.ts";
 import {
   angleBetween,
+  boardPoint,
   cameraType,
+  carriedCardsInScene,
   distance,
   floorSize,
   freeDeskPoint,
@@ -50,6 +55,8 @@ let memberCtx: BrowserContext;
 let ownerPage: Page;
 let memberPage: Page;
 let inviteUrl = "";
+/** The desk the spawn step used. */
+let spawnSeat = "";
 
 test.beforeAll(async ({ browser }) => {
   ownerCtx = await browser.newContext();
@@ -352,6 +359,8 @@ test("clicking a free desk opens the spawn dialog and the server answers agent.s
   await expect.poll(() => freeDeskPoint(ownerPage)).not.toBeNull();
   const desk = await freeDeskPoint(ownerPage);
   if (!desk) throw new Error("no free desk in the scene");
+  // A runner may take the spawn (the robot then sits there); the board step picks another desk.
+  spawnSeat = desk.seatId;
   await ownerPage.mouse.click(desk.x, desk.y);
   const dialog = ownerPage.getByRole("dialog", { name: "Spawn a robot" });
   await expect(dialog).toBeVisible();
@@ -425,4 +434,100 @@ test("the owner archives, restores and deletes a floor; its files go with it", a
   // The other floor is untouched.
   expect(existsSync(join(dataDir, "projects", "apollo", "hello", ".git"))).toBe(true);
   await expect(elevator.getByRole("button", { name: /1\. Apollo/ })).toBeVisible();
+});
+
+test("a card from the issue board carried to a free desk opens the spawn dialog prefilled", async () => {
+  test.skip(!process.env.E2E_DATA_DIR, "needs the locally started server and its fake GitHub");
+  const orgToken = "github_pat_E2Eboards_0123456789abcdefghij";
+  const issue = {
+    number: 7,
+    title: "Fix the lift doors",
+    state: "open",
+    labels: [{ name: "bug" }],
+    assignees: [],
+    user: { login: "olga" },
+    html_url: "https://github.com/octo/hello/issues/7",
+    body: "The doors stick.\n\n- [ ] oil them\n\n<script>alert(1)</script>",
+    updated_at: new Date().toISOString(),
+  };
+  const pull = {
+    ...issue,
+    number: 8,
+    title: "Oil the lift doors",
+    body: "Fixes #7",
+    html_url: "https://github.com/octo/hello/pull/8",
+    draft: false,
+    merged_at: null,
+    requested_reviewers: [{ login: "olga" }],
+    requested_teams: [],
+    head: { ref: "office/oil", sha: "e2e8" },
+    base: { ref: "trunk" },
+  };
+  let gh: FakeGitHub | undefined;
+  try {
+    gh = await startFakeGitHub(
+      { orgToken, repos: [{ owner: "octo", name: "hello", defaultBranch: "trunk" }] },
+      {
+        port: Number(process.env.E2E_GITHUB_PORT),
+        boards: { "octo/hello": { issues: [issue], pulls: [pull] } },
+      },
+    );
+    await ownerPage.bringToFront();
+    const origin = new URL(ownerPage.url()).origin;
+    const connect = await ownerPage.request.put("/api/github/pat", {
+      data: { token: orgToken },
+      headers: { origin },
+    });
+    expect(connect.status()).toBe(200);
+
+    const elevator = ownerPage.getByRole("navigation", { name: "Elevator" });
+    await elevator.getByRole("button", { name: /1\. Apollo/ }).click();
+    await expect(ownerPage.locator(".rg-topbar__floor")).toHaveText("Apollo");
+    await expect.poll(() => boardPoint(ownerPage, "issue-board")).not.toBeNull();
+    const board = await boardPoint(ownerPage, "issue-board");
+    if (!board) throw new Error("issue board missing from the scene");
+    await ownerPage.mouse.click(board.x, board.y);
+    const panel = ownerPage.getByRole("dialog", { name: "Issue board" });
+    await expect(panel).toBeVisible();
+    // The poller fills the board from the fake GitHub shortly after the connection.
+    const card = panel.getByRole("button", { name: "#7 Fix the lift doors" });
+    await expect(card).toBeVisible({ timeout: 45_000 });
+    await expect(panel.getByRole("region", { name: "Open" })).toContainText("#7");
+    await card.click();
+    await expect(panel.getByRole("region", { name: "Description" })).toContainText(
+      "The doors stick.",
+    );
+    // Raw HTML in the body is text, not markup.
+    await expect(panel.getByRole("region", { name: "Description" })).toContainText(
+      "<script>alert(1)</script>",
+    );
+    await expect(panel.locator("script")).toHaveCount(0);
+    await panel.getByRole("button", { name: "Carry to a desk" }).click();
+    await expect(panel).toHaveCount(0);
+    const chip = ownerPage.getByRole("status", { name: "Carried card" });
+    await expect(chip).toContainText("#7");
+    await expect.poll(() => carriedCardsInScene(ownerPage)).toHaveLength(1);
+
+    const desk = await freeDeskPoint(ownerPage, [spawnSeat]);
+    if (!desk) throw new Error("no free desk in the scene");
+    await ownerPage.mouse.click(desk.x, desk.y);
+    const dialog = ownerPage.getByRole("dialog", { name: "Spawn a robot" });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByText(desk.seatId)).toBeVisible();
+    await expect(dialog.getByLabel("Task title")).toHaveValue("#7 Fix the lift doors");
+    await expect(dialog.getByLabel("Issue", { exact: true })).toHaveValue("7");
+    await expect(dialog.getByLabel(/Prompt/)).toHaveValue(
+      /^Work on issue #7 in octo\/hello: Fix the lift doors/,
+    );
+    // The card went down on the desk.
+    await expect(chip).toHaveCount(0);
+    await expect.poll(() => carriedCardsInScene(ownerPage)).toHaveLength(0);
+    await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+  } finally {
+    await ownerPage.request
+      .delete("/api/github/connection", { headers: { origin: new URL(ownerPage.url()).origin } })
+      .catch(() => undefined);
+    await gh?.close();
+  }
 });

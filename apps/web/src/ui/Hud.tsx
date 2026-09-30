@@ -6,6 +6,7 @@
  */
 import { useUiStore } from "../state/ui.ts";
 import { AgentHost } from "./agent/AgentHost.tsx";
+import { BoardsHost } from "./boards/BoardsHost.tsx";
 import { ChatPanel } from "./chat/ChatPanel.tsx";
 import { Button } from "./components/Button.tsx";
 import { GearIcon, QuestionIcon } from "./components/icons.tsx";
@@ -20,6 +21,7 @@ import { TopBar } from "./hud/TopBar.tsx";
 import { WorkCounters } from "./hud/WorkCounters.tsx";
 import { NotificationsHost } from "./notifications/NotificationsHost.tsx";
 import { ProvidersPanelHost } from "./providers/ProvidersPanel.tsx";
+import { RunningApps } from "./services/RunningApps.tsx";
 import { SettingsForm } from "./settings/SettingsPanel.tsx";
 import { SpawnDialogHost } from "./spawn/SpawnDialog.tsx";
 import { TerminalModalHost } from "./terminal/TerminalModal.tsx";
@@ -72,6 +74,7 @@ export function Hud() {
       <StatusBox />
       <div className="rg-hud__left">
         <ElevatorPanel />
+        <RunningApps />
       </div>
       <ChatPanel />
       <div className="rg-hud__corner">
@@ -95,6 +98,7 @@ export function Hud() {
       </div>
       <HudDialogs />
       <AgentHost />
+      <BoardsHost />
       <NotificationsHost />
       <Toaster />
     </div>

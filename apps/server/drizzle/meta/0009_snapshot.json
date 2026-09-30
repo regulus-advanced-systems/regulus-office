@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "ceab578c-13ef-4bd8-a9c7-f1d55a91fa19",
+  "id": "63e4b63a-6b2a-4d7d-aca5-03affb450fa9",
   "prevId": "a370779a-125c-4839-9d02-d4a1c6973d52",
   "tables": {
     "agent_events": {
@@ -2224,6 +2224,14 @@
           "notNull": false,
           "autoincrement": false
         },
+        "address": {
+          "name": "address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
+        },
         "first_seen_at": {
           "name": "first_seen_at",
           "type": "integer",
@@ -2469,27 +2477,6 @@
           "notNull": true,
           "autoincrement": false
         },
-        "model": {
-          "name": "model",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "session_id": {
-          "name": "session_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "dedupe_key": {
-          "name": "dedupe_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "integer",
@@ -2510,21 +2497,6 @@
           "name": "usage_samples_user_ts_idx",
           "columns": ["user_id", "ts"],
           "isUnique": false
-        },
-        "usage_samples_ts_idx": {
-          "name": "usage_samples_ts_idx",
-          "columns": ["ts"],
-          "isUnique": false
-        },
-        "usage_samples_session_idx": {
-          "name": "usage_samples_session_idx",
-          "columns": ["session_id"],
-          "isUnique": false
-        },
-        "usage_samples_dedupe_key_unique": {
-          "name": "usage_samples_dedupe_key_unique",
-          "columns": ["dedupe_key"],
-          "isUnique": true
         },
         "usage_samples_agent_ts_idx": {
           "name": "usage_samples_agent_ts_idx",

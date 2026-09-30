@@ -1,0 +1,32 @@
+/* Running apps panel (SPEC §9.4, #39). */
+.rg-apps {
+  max-height: 220px;
+  overflow-y: auto;
+}
+.rg-apps__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 0;
+}
+.rg-apps__text {
+  display: grid;
+  min-width: 0;
+  font-size: 12px;
+}
+.rg-apps__title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rg-apps__note {
+  font-size: 11px;
+  color: var(--rg-color-ink-muted);
+}
+.rg-apps__note[data-kind="localhost"] {
+  color: var(--rg-color-crimson);
+}
+.rg-apps__note code {
+  font-size: 11px;
+}

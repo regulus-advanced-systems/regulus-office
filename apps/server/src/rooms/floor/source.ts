@@ -3,6 +3,7 @@
  * Drizzle implementation reads `floors`, `floor_repos` and `desks`; access
  * follows apps/server/src/floors/access.ts (view or better).
  */
+import type { FloorAccess } from "@regulus/protocol";
 import { and, asc, eq, isNull } from "drizzle-orm";
 import type { Db } from "../../db/index.ts";
 import { desks, floorRepos, floors } from "../../db/schema/index.ts";
@@ -15,6 +16,8 @@ export interface FloorRoomSource {
   loadFloor(floorId: string): FloorSnapshot | undefined;
   /** True when `user` has at least `view` access to the live floor. */
   canEnter(user: RoomAuthUser, floorId: string): boolean;
+  /** The user's access to the live floor (card carry needs `spawn`, #36); null: none. */
+  accessOf?(user: RoomAuthUser, floorId: string): FloorAccess | null;
 }
 
 export class DrizzleFloorRoomSource implements FloorRoomSource {
@@ -62,6 +65,10 @@ export class DrizzleFloorRoomSource implements FloorRoomSource {
   }
 
   canEnter(user: RoomAuthUser, floorId: string): boolean {
-    return floorAccessFor(this.#db, { id: user.userId, role: user.role }, floorId) !== null;
+    return this.accessOf(user, floorId) !== null;
+  }
+
+  accessOf(user: RoomAuthUser, floorId: string): FloorAccess | null {
+    return floorAccessFor(this.#db, { id: user.userId, role: user.role }, floorId);
   }
 }

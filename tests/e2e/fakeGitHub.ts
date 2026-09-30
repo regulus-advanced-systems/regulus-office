@@ -4,6 +4,8 @@
  * `POST /repos/{o}/{r}/pulls` creates PR #1, #2, … and `GET /repos/{o}/{r}/pulls` lists them.
  * With `orgToken`, it also plays the office GitHub connection's org PAT (#141): `GET /user` and
  * `GET /user/repos` answer for that token only, listing `repos`.
+ * With `boards` (#36), it also serves those repos' issues and PRs to the board poller (#35)
+ * and the board panel: lists, comments, reviews, check suites and assignable users.
  * Listens on 127.0.0.1 only; nothing here talks to the real GitHub.
  */
 import { createServer, type Server } from "node:http";
@@ -30,7 +32,36 @@ export interface FakeOrgConnection {
   repos: { owner: string; name: string; defaultBranch: string }[];
 }
 
-export async function startFakeGitHub(org?: FakeOrgConnection): Promise<FakeGitHub> {
+/** Board data per `owner/name` (#36): raw GitHub issue and PR objects. */
+export interface FakeBoards {
+  [repo: string]: { issues: Record<string, unknown>[]; pulls: Record<string, unknown>[] };
+}
+
+const BOARD = /^\/repos\/([^/]+)\/([^/]+)\/(.+)$/;
+
+/** Board reads for the poller and the panel; undefined when `path` is not one of them. */
+function boardAnswer(boards: FakeBoards, path: string, url: URL): unknown {
+  const m = BOARD.exec(path);
+  const repo = m ? boards[`${m[1]}/${m[2]}`.toLowerCase()] : undefined;
+  if (!m || !repo) return undefined;
+  const rest = m[3] ?? "";
+  const first = (url.searchParams.get("page") ?? "1") === "1";
+  const state = url.searchParams.get("state") ?? "open";
+  const pick = (list: Record<string, unknown>[]) =>
+    first ? list.filter((i) => state === "all" || i.state === state) : [];
+  if (rest === "issues") return pick(repo.issues);
+  if (rest === "pulls") return pick(repo.pulls);
+  if (rest === "assignees") return [{ login: "org-bot" }];
+  if (/^issues\/\d+\/comments$/.test(rest)) return [];
+  if (/^pulls\/\d+\/reviews$/.test(rest)) return [];
+  if (/^commits\/[^/]+\/check-suites$/.test(rest)) return { total_count: 0, check_suites: [] };
+  return undefined;
+}
+
+export async function startFakeGitHub(
+  org?: FakeOrgConnection,
+  options: { port?: number; boards?: FakeBoards } = {},
+): Promise<FakeGitHub> {
   const requests: RecordedRequest[] = [];
   const pulls: { number: number; html_url: string; draft: boolean; head: string }[] = [];
   const server: Server = createServer((req, res) => {
@@ -69,6 +100,11 @@ export async function startFakeGitHub(org?: FakeOrgConnection): Promise<FakeGitH
           })),
         );
       }
+      if (options.boards && req.method === "GET") {
+        if (!authorized) return send(401, { message: "Bad credentials" });
+        const answer = boardAnswer(options.boards, url.pathname, url);
+        if (answer !== undefined) return send(200, answer);
+      }
       const m = PULLS.exec(url.pathname);
       if (!m) return send(404, { message: "Not Found" });
       const [, owner, repo] = m;
@@ -86,7 +122,7 @@ export async function startFakeGitHub(org?: FakeOrgConnection): Promise<FakeGitH
       return send(201, pull);
     });
   });
-  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  await new Promise<void>((resolve) => server.listen(options.port ?? 0, "127.0.0.1", resolve));
   const { port } = server.address() as AddressInfo;
   return {
     url: `http://127.0.0.1:${port}`,

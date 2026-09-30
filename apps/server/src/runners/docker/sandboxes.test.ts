@@ -86,14 +86,14 @@ const tmuxish: ExecHandler = async (exec, io) => {
   return 0;
 };
 
-function runner(opts: { sandboxes?: SandboxSettings | null } = {}): DockerRunner {
+function runner(opts: { sandboxes?: SandboxSettings | null; network?: string } = {}): DockerRunner {
   return new DockerRunner({
     engine: new EngineClient(fake.dockerHost),
     image: IMAGE,
     prefix: "office",
     user: "1001:1001",
     home: "/home/runner",
-    network: "office_runners",
+    network: opts.network ?? "office_runners",
     floorRoots: [join(root, "worktrees")],
     volumeMap: [{ path: join(root, "worktrees"), volume: "office_worktrees" }],
     sandboxes: opts.sandboxes === null ? undefined : (opts.sandboxes ?? settings),
@@ -203,6 +203,23 @@ describe("sandbox()", () => {
     expect(fake.calls("POST", "/containers/create").length).toBe(3); // runner + 2 sandboxes
     expect(a2?.ports.first).not.toBe(a1?.ports.first);
     expect(await r.listSandboxes()).toHaveLength(2);
+  });
+
+  test("sandboxOf: the robot's running sandbox, by name; 127.0.0.1 on the host network (#39)", async () => {
+    const r = runner();
+    expect(await r.sandboxOf({ userId: "u1", agentId: "a1" })).toBeNull();
+    const a1 = await r.sandbox({ userId: "u1", agentId: "a1" }, { workdir: workdir("a1") });
+    const creates = fake.calls("POST", "/containers/create").length;
+    expect(await r.sandboxOf({ userId: "u1", agentId: "a1" })).toMatchObject({
+      host: a1?.host ?? "",
+      ports: a1?.ports ?? { first: 0, last: 0 },
+    });
+    expect(await r.sandboxOf({ userId: "u2", agentId: "a1" })).toBeNull();
+    expect(fake.calls("POST", "/containers/create").length).toBe(creates);
+    const hostNet = runner({ network: "host" });
+    await hostNet.sandbox({ userId: "u1", agentId: "a1" }, { workdir: workdir("a1") });
+    expect((await hostNet.sandboxOf({ userId: "u1", agentId: "a1" }))?.host).toBe("127.0.0.1");
+    expect(await runner({ sandboxes: null }).sandboxOf({ userId: "u1", agentId: "a1" })).toBeNull();
   });
 
   test("refuses a workdir outside the human's own area", async () => {
