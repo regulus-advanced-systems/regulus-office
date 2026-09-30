@@ -28,6 +28,8 @@ export const WALL_ANCHOR_KINDS = [
   "usage_wall",
   "tv",
   "picture",
+  /** The merge gong (#43), rung on PR merges; hung in its own frame. */
+  "gong",
 ] as const;
 export type WallAnchorKind = (typeof WALL_ANCHOR_KINDS)[number];
 

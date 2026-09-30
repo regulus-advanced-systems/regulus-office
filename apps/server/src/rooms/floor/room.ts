@@ -8,7 +8,8 @@
  * the protocol schema and forwarded to the AgentManager (`setAgentCommands`);
  * failures come back as `command.rejected`, results as `agent.result`.
  * Pending permission requests go only to the robot's controllers
- * (permissions.ts, SPEC §8 rule 4).
+ * (permissions.ts, SPEC §8 rule 4). `gong.bang` goes to the merge gong
+ * (#43, `setGong`), which rings through `broadcast`.
  *
  * The returned {@link FloorRooms} is also the registry the AgentManager
  * (#26) uses: `publishRobot(floorId, robot)` / `removeRobot(floorId, id)`.
@@ -31,6 +32,7 @@ import {
 import type { Logger } from "../../logging.ts";
 import { type FloorQueueCommands, isQueueCommand } from "../../queue/commands.ts";
 import { syncQueue } from "../../queue/publish.ts";
+import type { RoomAuthUser } from "../auth.ts";
 import type { RoomClient, RoomDefinition, RoomHandle } from "../transport.ts";
 import {
   type AgentActor,
@@ -62,6 +64,11 @@ export interface FloorAgentCommands {
   ): Promise<{ ok: true } | { ok: false; reason: string }>;
   /** prompt / approve / interrupt / stop / resume / sendHome / pr / worktree. */
   control?(actor: AgentActor, command: AgentControlCommand): Promise<AgentControlOutcome>;
+}
+
+/** The merge gong's manual bang (#43; celebrations/service.ts). */
+export interface FloorGong {
+  bang(floorId: string, user: RoomAuthUser): { ok: true } | { ok: false; reason: string };
 }
 
 export type {
@@ -101,6 +108,10 @@ export interface FloorRooms {
   publishQueue(floorId: string, tasks: readonly QueueTask[], settings: QueueSettings): void;
   /** Route `queue.*` to the task queue (#37). */
   setQueueCommands(commands: FloorQueueCommands | undefined): void;
+  /** Send a message to everyone on a floor now; false when nobody is on it. */
+  broadcast(floorId: string, type: string, payload: unknown): boolean;
+  /** Route `gong.bang` to the merge gong (#43). */
+  setGong(gong: FloorGong | undefined): void;
 }
 
 export interface FloorRoomsDeps {
@@ -134,6 +145,7 @@ export function createFloorRooms(deps: FloorRoomsDeps): FloorRooms {
   const permissions = new FloorPermissions();
   const clientsOn = (floorId: string) => live.get(floorId)?.clients ?? [];
   let agentCommands: FloorAgentCommands | undefined;
+  let gong: FloorGong | undefined;
 
   const spawn = (floorId: string, client: RoomClient, command: SpawnCommand) => {
     if (command.floorId !== floorId) {
@@ -190,6 +202,14 @@ export function createFloorRooms(deps: FloorRoomsDeps): FloorRooms {
       const parsed = parseClientCommand(type, payload);
       if (parsed.success && parsed.data.type === "agent.spawn") {
         spawn(room.state.floorId, client, parsed.data);
+        return;
+      }
+      if (parsed.success && parsed.data.type === "gong.bang") {
+        const verdict = gong?.bang(room.state.floorId, client.user) ?? {
+          ok: false as const,
+          reason: "the gong is not available",
+        };
+        if (!verdict.ok) client.send(COMMAND_REJECTED_MESSAGE, reject(type, verdict.reason));
         return;
       }
       if (parsed.success && isCardCommand(parsed.data)) {
@@ -308,6 +328,17 @@ export function createFloorRooms(deps: FloorRoomsDeps): FloorRooms {
 
     setQueueCommands(commands) {
       queueCommands = commands;
+    },
+
+    broadcast(floorId, type, payload) {
+      const room = live.get(floorId);
+      if (!room || room.clients.length === 0) return false;
+      room.broadcast(type, payload);
+      return true;
+    },
+
+    setGong(next) {
+      gong = next;
     },
   };
 }

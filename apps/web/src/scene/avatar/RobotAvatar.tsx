@@ -35,17 +35,11 @@ import {
 
 export { MODEL_YAW };
 
-import {
-  CROSSFADE_SECONDS,
-  PROCEDURAL_HEAD_TILT,
-  ROBOT_CLIPS,
-  resolveClip,
-  resolveSeatedClip,
-} from "./clips.ts";
+import { avatarClip, CROSSFADE_SECONDS, PROCEDURAL_HEAD_TILT, ROBOT_CLIPS } from "./clips.ts";
 import { colorForRole, materialRoleFor, resolveLook } from "./colorSets.ts";
 import { NamePlate } from "./NamePlate.tsx";
 import type { NamePlateStyle } from "./namePlateTexture.ts";
-import { seatedClips } from "./seatedClips.ts";
+import { SEATED_CLIPS, seatedClips } from "./seatedClips.ts";
 import { bulbColorFor, bulbLitFor, handRaisedFor } from "./statusBulb.ts";
 import { toonMaterialFor } from "./toonMaterial.ts";
 
@@ -75,6 +69,8 @@ export type RobotAvatarProps = Omit<ThreeElements["group"], "ref" | "children"> 
   badge?: boolean;
   /** Stay in the chair: seated stand-ins for read/think instead of a standing idle (robots at desks). */
   seated?: boolean;
+  /** Seated robots dance in their chair for the merge gong (#43); ignored when standing. */
+  cheer?: boolean;
 };
 
 export function RobotAvatar({
@@ -87,6 +83,7 @@ export function RobotAvatar({
   plateStyle,
   badge = false,
   seated = false,
+  cheer = false,
   ...groupProps
 }: RobotAvatarProps) {
   const gltf = useGLTF(ROBOT_MODEL_URL);
@@ -122,7 +119,7 @@ export function RobotAvatar({
   }, [resolved.colors, instance]);
 
   // Animation: crossfade to the resolved clip whenever the animation changes.
-  const clip = seated ? resolveSeatedClip(animation, names) : resolveClip(animation, names);
+  const clip = avatarClip(animation, seated, cheer, names);
   const current = useRef<AnimationAction | null>(null);
   useEffect(() => {
     const next = actions[clip];
@@ -152,7 +149,7 @@ export function RobotAvatar({
   }, [actions, raised]);
 
   // Procedural head tilt for "think" (runs after useAnimations' mixer update).
-  const tilt = PROCEDURAL_HEAD_TILT.has(animation);
+  const tilt = PROCEDURAL_HEAD_TILT.has(animation) && clip !== SEATED_CLIPS.cheer;
   const tiltMemo = useRef(createPoseMemo());
   useFrame(() => {
     if (bones) applyPose(bones.head, HEAD_TILT, tiltMemo.current, tilt);
@@ -201,10 +198,12 @@ function avatarClips(animations: readonly AnimationClip[], model: Object3D): Ani
   if (cached) return cached;
   const wave = animations.find((c) => c.name === ROBOT_CLIPS.wave);
   const sitting = animations.find((c) => c.name === ROBOT_CLIPS.sitting);
+  const dance = animations.find((c) => c.name === ROBOT_CLIPS.dance);
+  const rest = (bone: string) => findBone(model, bone)?.quaternion.toArray();
   const clips = [
     ...animations,
     ...(wave ? [armOnlyClip(wave)] : []),
-    ...(sitting ? seatedClips(sitting, (bone) => findBone(model, bone)?.quaternion.toArray()) : []),
+    ...(sitting ? seatedClips(sitting, rest, dance) : []),
   ];
   builtClips.set(animations, clips);
   return clips;

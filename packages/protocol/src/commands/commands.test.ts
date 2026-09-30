@@ -43,7 +43,8 @@ const SPEC_COMMANDS = [
  * is SPEC §7 `AgentControl.interrupt`; `agent.sendHome` and `agent.worktree`
  * are the send-home and PR dialogs of issue #33; `agent.emergencyStop` is the
  * office owner/admin stop of D12 (#138); `queue.retry` and `queue.settings`
- * are the task queue's retry and concurrency settings (#37).
+ * are the task queue's retry and concurrency settings (#37);
+ * `gong.bang` is the manual bang of the merge gong (#43, D9).
  */
 const EXTENSION_COMMANDS = [
   "agent.interrupt",
@@ -52,6 +53,7 @@ const EXTENSION_COMMANDS = [
   "agent.emergencyStop",
   "queue.retry",
   "queue.settings",
+  "gong.bang",
 ] as const;
 
 const valid: Record<ClientCommandType, Record<string, unknown>> = {
@@ -92,6 +94,7 @@ const valid: Record<ClientCommandType, Record<string, unknown>> = {
   "queue.settings": { maxRunning: 1, maxPerOwner: 1 },
   "card.pick": { cardKind: "pr", repoId: "r1", number: 71 },
   "card.drop": { seatId: "seat-2" },
+  "gong.bang": {},
   "decor.place": { kind: "picture", wallId: "north", uploadId: "up1", x: 1, y: 1, w: 1, h: 0.5 },
   "decor.move": { decorId: "d1", x: 2, y: 1, w: 1, h: 0.5 },
   "decor.remove": { decorId: "d1" },

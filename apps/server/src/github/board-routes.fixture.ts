@@ -186,6 +186,7 @@ export async function boardRoutesFixture() {
   if (secretIssue) cache.upsertIssue([SECRET], secretIssue);
 
   const published: string[][] = [];
+  const merged: { repoIds: readonly string[]; number: number }[] = [];
   mountBoardRoutes(office.server.router, {
     auth: office.auth,
     db,
@@ -193,6 +194,7 @@ export async function boardRoutesFixture() {
     github: createBoardGitHub({ apiBase: gh.url }),
     sync: { cache, publish: (ids) => published.push([...ids]) },
     logger,
+    onMerged: (pull) => merged.push(pull),
   });
 
   const call = (method: string, path: string, cookie?: string, body?: unknown, origin?: string) =>
@@ -209,6 +211,8 @@ export async function boardRoutesFixture() {
     state,
     cache,
     published,
+    /** Merges reported to the merge gong (#43). */
+    merged,
     people: { owner, manager, spawner, viewer, stranger },
     call,
     /** GitHub calls other than the connection's own repo listing. */

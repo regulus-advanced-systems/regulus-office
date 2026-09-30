@@ -4,6 +4,7 @@ import { getOfficeClient } from "../../net/index.ts";
 import { AvatarLayer } from "../../scene/avatars/AvatarLayer.tsx";
 import { BoardLayer } from "../../scene/boards/BoardLayer.tsx";
 import { floorViewFor } from "../../scene/floorView.ts";
+import { GongLayer } from "../../scene/gong/GongLayer.tsx";
 import { MovementController } from "../../scene/movement/MovementController.tsx";
 import { OfficeCanvas } from "../../scene/OfficeCanvas.tsx";
 import { QueueLayer } from "../../scene/queue/QueueClipboard.tsx";
@@ -19,7 +20,8 @@ import { Hud } from "../Hud.tsx";
 /**
  * The office: R3F scene for the floor we are on (the lobby, or a project
  * floor's own template, palette and painted name), the local and remote
- * humans, the robots at their desks (scene/robots), the HUD on top.
+ * humans, the robots at their desks (scene/robots), the boards and the
+ * merge gong (#43) on the walls, the HUD on top.
  */
 export function OfficePage() {
   const fetchSession = useSessionStore((s) => s.fetchSession);
@@ -59,6 +61,7 @@ export function OfficePage() {
             <RobotLayer key={view.key} template={view.template} />
             <BoardLayer key={`boards-${view.key}`} template={view.template} />
             <QueueLayer key={`queue-${view.key}`} template={view.template} />
+            <GongLayer key={`gong-${view.key}`} template={view.template} />
           </Suspense>
         )}
       </OfficeCanvas>

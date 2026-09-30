@@ -127,3 +127,19 @@ export function resolveSeatedClip(
   if (standIn && available.includes(standIn)) return standIn;
   return resolveClip("sit_idle", available);
 }
+
+/**
+ * The clip an avatar plays: the seated cheer of the merge gong (#43) while a
+ * seated robot cheers (when the model has it), else its animation's clip,
+ * seated or standing. Once `cheer` ends it is the animation's clip again, so
+ * the robot crossfades back to exactly the seated pose it had.
+ */
+export function avatarClip(
+  animation: AvatarAnimation,
+  seated: boolean,
+  cheer: boolean,
+  available: readonly string[] = AVATAR_CLIP_NAMES,
+): string {
+  if (cheer && seated && available.includes(SEATED_CLIPS.cheer)) return SEATED_CLIPS.cheer;
+  return seated ? resolveSeatedClip(animation, available) : resolveClip(animation, available);
+}

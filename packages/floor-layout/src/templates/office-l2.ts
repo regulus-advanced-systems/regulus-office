@@ -125,7 +125,8 @@ export const officeL2TemplateInput: FloorTemplateInput = {
       h: 0.7,
     },
     { id: "usage-wall", kind: "usage_wall", wallId: "west", t: 10.75, y: 1.7, w: 1.4, h: 0.9 },
-    { id: "picture-w1", kind: "picture", wallId: "west", t: 12.75, y: 1.6, w: 0.7, h: 0.5 },
+    // The merge gong (#43) past the usage wall, where a picture anchor was.
+    { id: "gong", kind: "gong", wallId: "west", t: 12.25, y: 1.25, w: 1, h: 1.5 },
     { id: "picture-n1", kind: "picture", wallId: "north", t: 4.75, y: 1.6, w: 0.9, h: 0.6 },
     { id: "picture-n2", kind: "picture", wallId: "north", t: 11.75, y: 1.6, w: 0.9, h: 0.6 },
     { id: "picture-n3", kind: "picture", wallId: "north", t: 14.25, y: 1.6, w: 0.9, h: 0.6 },

@@ -225,12 +225,15 @@ describe("write actions (floor managers, office credential, audited)", () => {
       detail: "Pull Request is not mergeable",
     });
     expect(audits().filter((a) => a.action === "github.board_merge")).toEqual([]);
+    expect(f.merged).toEqual([]);
 
     res = await f.call("POST", pull9("merge"), f.people.manager.cookie, { method: "squash" });
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ merged: true, sha: "mergesha" });
     const merge = f.boardCalls().findLast((c) => c.method === "PUT");
     expect(merge?.body).toEqual({ merge_method: "squash" });
+    // The merge gong rings at once (#43), for every floor repo row of the repo.
+    expect(f.merged).toEqual([{ repoIds: [HELLO], number: 9 }]);
     const row = f.office.db
       .select()
       .from(githubPulls)

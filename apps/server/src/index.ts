@@ -14,6 +14,7 @@ import {
   type OfficeAuth,
   originPolicyFor,
 } from "./auth/index.ts";
+import { createCelebrations, watchQueueEmptied } from "./celebrations/index.ts";
 import { ChangesService, mountChangesRoutes } from "./changes/index.ts";
 import { ConfigError, loadConfig, redactConfig } from "./config.ts";
 import { mountCredentialPanel } from "./credentials/panel.ts";
@@ -241,6 +242,15 @@ async function main(): Promise<void> {
     logger: logger.child({ module: "github-sync" }),
   });
   mountGitHubSyncRoutes(server.router, { auth, sync: githubSync });
+  // Merge gong (#43): merged PRs, manual bangs and emptied task queues (#37) ring on the floor.
+  const celebrations = createCelebrations({
+    db,
+    floors: rooms.floors,
+    logger,
+    githubWebBase: config.githubWebBase,
+  });
+  celebrations.followGitHub(githubSync.events);
+  rooms.floors.setGong(celebrations);
   // Board panel (#36): card detail, and assign/comment/merge/close with the office credential.
   mountBoardRoutes(server.router, {
     auth,
@@ -249,6 +259,7 @@ async function main(): Promise<void> {
     github: createBoardGitHub({ apiBase: config.githubApiBase }),
     sync: githubSync,
     logger: logger.child({ module: "github-boards" }),
+    onMerged: (pull) => celebrations.boardMerged(pull),
   });
   // Merged robot PRs notify their owners (#42), from webhooks or polling.
   notifications.followGitHub(githubSync.events);
@@ -284,7 +295,12 @@ async function main(): Promise<void> {
     changes: new ChangesService({ db, runner, repos: floors.repos, clones: worktrees.workspaces }),
   });
   // Room task queues (#37): created before the manager, which reports robot status to it.
-  const tasks = createTaskQueue({ db, rooms: rooms.floors, logger });
+  // A room whose queue empties rings the merge gong three times (#43).
+  const tasks = createTaskQueue({
+    db,
+    rooms: watchQueueEmptied(rooms.floors, (floorId) => celebrations.queueEmptied(floorId)),
+    logger,
+  });
   tasks.queue.followGitHub(githubSync.events);
   // Agents (#26): the manager, its FloorRoom/terminal registration, Claude hook routes (#27).
   const agents = await createAgents({
@@ -362,6 +378,7 @@ async function main(): Promise<void> {
   shutdown.register("terminals", () => terminals.shutdown());
   shutdown.register("provider-logins", () => credentialPanel.shutdown());
   shutdown.register("notifications", () => notifications.close());
+  shutdown.register("celebrations", () => celebrations.close());
   shutdown.register("usage", () => usage.close());
   shutdown.register("search", () => search.stop());
   // Detach only: agents keep running in their runners' tmux (SPEC §11).

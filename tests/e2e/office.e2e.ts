@@ -10,7 +10,9 @@
  * an answer from the server (no agent CLI runs in e2e), and a second floor
  * is archived, restored and deleted for good, files included (#150). Last, with a (fake) org
  * token connected, the issue board fills from GitHub, a card is opened and carried to a free
- * desk, and the spawn dialog opens prefilled from it (#36).
+ * desk, and the spawn dialog opens prefilled from it (#36). And merging a PR on the PR board
+ * rings the merge gong, with confetti and any robots cheering and sitting back as they were;
+ * the gong can be banged by hand, rate-limited (#43).
  *
  * Runs against office-server in production mode (see playwright.config.ts),
  * so room joins are authorised by the Better Auth session cookie only.
@@ -21,6 +23,7 @@ import { type BrowserContext, expect, type Page, test } from "@playwright/test";
 import { insideViewport, settledDialogLayout } from "./dialogLayout.ts";
 import { type FakeGitHub, startFakeGitHub } from "./fakeGitHub.ts";
 import { createRemoteRepo } from "./gitRemote.ts";
+import { checkMergeGong } from "./gongChecks.ts";
 import {
   angleBetween,
   boardPoint,
@@ -560,4 +563,12 @@ test("a card from the issue board carried to a free desk opens the spawn dialog 
       .catch(() => undefined);
     await gh?.close();
   }
+});
+
+test("a PR merged on the board rings the gong; robots cheer and sit back as they were (#43)", async () => {
+  test.skip(!process.env.E2E_DATA_DIR, "needs the locally started server and its fake GitHub");
+  await checkMergeGong(ownerPage, {
+    githubPort: Number(process.env.E2E_GITHUB_PORT),
+    floor: "Apollo",
+  });
 });

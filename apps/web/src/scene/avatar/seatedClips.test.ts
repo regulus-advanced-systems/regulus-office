@@ -6,6 +6,8 @@ import {
   VectorKeyframeTrack,
 } from "three";
 import {
+  CHEER_BONES,
+  CHEER_SWAY,
   SEATED_CLIPS,
   SEATED_MOTIONS,
   sampleTrack,
@@ -21,6 +23,25 @@ function sitDown(): AnimationClip {
     new QuaternionKeyframeTrack("UpperLegL.quaternion", [0, 0.42], [...q(0), ...q(1.17)]),
     new QuaternionKeyframeTrack("LowerArmL.quaternion", [0, 0.42], [...q(0), ...q(0.3)]),
     new QuaternionKeyframeTrack("LowerArmR.quaternion", [0, 0.42], [...q(0), ...q(0.3)]),
+  ]);
+}
+
+/**
+ * A stand-in for `Robot_Dance`: arms and head swing (and return), and so do
+ * the body and a leg, which the seated cheer must not take.
+ */
+function dance(): AnimationClip {
+  const q = (angle: number) => [Math.sin(angle / 2), 0, 0, Math.cos(angle / 2)];
+  const swing = (name: string, a: number) =>
+    new QuaternionKeyframeTrack(name, [0, 0.5, 1], [...q(0), ...q(a), ...q(0)]);
+  return new AnimationClip("RobotArmature|Robot_Dance", 1, [
+    swing("Head.quaternion", 0.3),
+    swing("UpperArmL.quaternion", 1.2),
+    swing("UpperArmR.quaternion", -1.2),
+    swing("LowerArmL.quaternion", 0.8),
+    swing("LowerArmR.quaternion", 0.8),
+    swing("Body.quaternion", 0.4),
+    swing("UpperLegL.quaternion", 0.9),
   ]);
 }
 
@@ -51,7 +72,7 @@ function travel(track: KeyframeTrack, duration: number): number {
 }
 
 function clipsByName() {
-  return new Map(seatedClips(sitDown(), rest).map((c) => [c.name, c]));
+  return new Map(seatedClips(sitDown(), rest, dance()).map((c) => [c.name, c]));
 }
 
 describe("seated clips (#159)", () => {
@@ -91,6 +112,27 @@ describe("seated clips (#159)", () => {
     expect(travel(track("Head.quaternion"), type.duration)).toBeGreaterThan(0.02);
     expect(travel(track("UpperLegL.quaternion"), type.duration)).toBe(0);
     expect(travel(track("Body.position"), type.duration)).toBe(0);
+  });
+
+  test("the cheer (#43) dances the head and arms and sways in the chair; legs, hips and body stay seated", () => {
+    const clips = clipsByName();
+    const cheer = clips.get(SEATED_CLIPS.cheer) as AnimationClip;
+    const idle = clips.get(SEATED_CLIPS.idle) as AnimationClip;
+    expect(cheer.duration).toBe(1);
+    for (const track of cheer.tracks) {
+      const bone = track.name.replace(/\.quaternion$/, "");
+      const dances =
+        track.name.endsWith(".quaternion") &&
+        (CHEER_BONES.includes(bone) || bone === CHEER_SWAY.bone);
+      expect([track.name, travel(track, cheer.duration) > 0.1]).toEqual([track.name, dances]);
+      // Every other bone holds exactly the idle pose.
+      if (!dances) {
+        const still = idle.tracks.find((t) => t.name === track.name) as KeyframeTrack;
+        expect(sampleTrack(track, 0.5)).toEqual(sampleTrack(still, 0));
+      }
+    }
+    // Without the dance clip there is no cheer (an older GLB): the robot just sits.
+    expect(seatedClips(sitDown(), rest).map((c) => c.name)).not.toContain(SEATED_CLIPS.cheer);
   });
 
   test("reading and thinking move the head only", () => {

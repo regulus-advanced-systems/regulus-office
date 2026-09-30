@@ -3,7 +3,9 @@
  * robots at their desks, bubbles flying to the HUD counters and an fps probe.
  * Query: n=<robots> (default 12), mode=working|mixed|waiting|idle|flap, rate=<ticks/s>,
  * reduced=1, template=<template id> (default office-l2), seats=all (robots on
- * meeting, bistro, reception and lounge seats too). Not part of the production build.
+ * meeting, bistro, reception and lounge seats too). The merge gong (#43) hangs on its anchor;
+ * the buttons ring it once (a merge) or three times (the queue emptied). Not part of the
+ * production build.
  */
 import { officeL2Template, templateById } from "@regulus/floor-layout";
 import type { RobotState } from "@regulus/protocol";
@@ -13,6 +15,9 @@ import { useUiStore } from "../../../state/ui.ts";
 import { WorkCounters } from "../../../ui/hud/WorkCounters.tsx";
 import { FpsProbe } from "../../avatar/showcase/FpsProbe.tsx";
 import { AvatarLayer } from "../../avatars/AvatarLayer.tsx";
+import { GongLayer } from "../../gong/GongLayer.tsx";
+import { useGongStore } from "../../gong/gongStore.ts";
+import { playGong } from "../../gong/gongSynth.ts";
 import { MovementController } from "../../movement/MovementController.tsx";
 import { OfficeCanvas } from "../../OfficeCanvas.tsx";
 import { RobotLayer } from "../RobotLayer.tsx";
@@ -21,6 +26,16 @@ import "../../../ui/globals.css";
 import "../../../ui/hud.css";
 
 const noSend = () => {};
+
+function ring(strikes: number) {
+  const cause = strikes > 1 ? "queue_empty" : "merge";
+  useGongStore.getState().heard({ floorId: "dev", cause, strikes });
+  const ui = useUiStore.getState();
+  playGong(strikes, {
+    volume: ui.settings.volume,
+    reducedMotion: ui.settings.reducedMotion === true,
+  });
+}
 
 export function RobotsHarness({ search }: { search: string }) {
   const params = new URLSearchParams(search);
@@ -72,11 +87,20 @@ export function RobotsHarness({ search }: { search: string }) {
         <MovementController template={template} send={noSend} />
         <Suspense fallback={null}>
           <RobotLayer template={template} robots={robots} />
+          <GongLayer template={template} />
         </Suspense>
         <FpsProbe probe={false} />
       </OfficeCanvas>
       <div className="rg-hud">
         <WorkCounters />
+        <div style={{ position: "fixed", right: 16, bottom: 16, display: "flex", gap: 8 }}>
+          <button type="button" onClick={() => ring(1)}>
+            Ring the gong
+          </button>
+          <button type="button" onClick={() => ring(3)}>
+            Queue done (x3)
+          </button>
+        </div>
       </div>
     </div>
   );

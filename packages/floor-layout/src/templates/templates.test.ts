@@ -138,10 +138,17 @@ describe("tiers", () => {
   });
 
   test.each([...FLOOR_TIERS])(
-    "%s template has the boards, whiteboard, usage wall and pictures",
+    "%s template has the boards, whiteboard, usage wall, merge gong and pictures",
     (tier) => {
       const kinds = templateForTier(tier).wallAnchors.map((a) => a.kind);
-      for (const k of ["issue_board", "pr_board", "queue_clipboard", "whiteboard", "usage_wall"]) {
+      for (const k of [
+        "issue_board",
+        "pr_board",
+        "queue_clipboard",
+        "whiteboard",
+        "usage_wall",
+        "gong",
+      ]) {
         expect(kinds.filter((x) => x === k)).toHaveLength(1);
       }
       expect(kinds.filter((k) => k === "picture").length).toBeGreaterThanOrEqual(1);

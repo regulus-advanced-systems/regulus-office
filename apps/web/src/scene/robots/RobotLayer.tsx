@@ -10,6 +10,8 @@
  *
  * Robots with a `RobotOverride` (#33's walk home) are skipped: their
  * override owner draws them (scene/robots/sendHome).
+ * When the merge gong rings (#43) confetti bursts over every robot while
+ * they cheer in their chairs (Robot, cheer.ts).
  * Bubbles and confetti are not mounted with reduced motion (SPEC §11).
  */
 import type { ThreeEvent } from "@react-three/fiber";
@@ -27,6 +29,8 @@ import { openAgentPanel } from "../../ui/agent/agentStore.ts";
 import { carriedPrefill, dropCard, useMyCarried } from "../../ui/boards/carry.ts";
 import { useHotkeyEvents } from "../../ui/hotkeys/useHotkeys.ts";
 import { FALLBACK_ANCHOR, sitAnchors } from "../furniture/sitAnchor.ts";
+import { useGongStore } from "../gong/gongStore.ts";
+import { ROBOT_CONFETTI } from "../gong/timing.ts";
 import { type BubbleSource, WorkBubbles } from "./bubbles/WorkBubbles.tsx";
 import { Confetti, createConfettiBus } from "./Confetti.tsx";
 import { freeDeskAt } from "./deskInteraction.ts";
@@ -164,6 +168,23 @@ export function RobotLayer({ template, robots: given }: RobotLayerProps) {
     },
     [confetti, reducedMotion],
   );
+  // The merge gong rang: a little confetti over every robot on the floor.
+  const seatsOfRobots = useRef<Seat[]>([]);
+  useEffect(
+    () =>
+      useGongStore.subscribe((s, prev) => {
+        if (!s.ring || s.ring.id === prev.ring?.id || reducedMotion) return;
+        for (const seat of seatsOfRobots.current) {
+          confetti.pending.push({
+            x: seat.pose.x,
+            y: 1.9,
+            z: seat.pose.z,
+            count: ROBOT_CONFETTI,
+          });
+        }
+      }),
+    [confetti, reducedMotion],
+  );
   // A ding when a hand goes up.
   const ding = useMemo(() => createDingGate(), []);
   const prev = useRef<Readonly<Record<string, RobotState>>>({});
@@ -184,6 +205,7 @@ export function RobotLayer({ template, robots: given }: RobotLayerProps) {
     () => Object.values(robots).filter((r) => !(r.agentId in overrides) && seatsById.has(r.seatId)),
     [robots, overrides, seatsById],
   );
+  seatsOfRobots.current = visible.map((r) => seatsById.get(r.seatId) as Seat);
   const sources = useMemo<BubbleSource[]>(
     () =>
       visible.map((r) => ({

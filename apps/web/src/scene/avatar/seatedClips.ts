@@ -15,6 +15,10 @@
  * - `SEATED_CLIPS.read`: the head bowed to the papers, scanning side to side.
  * - `SEATED_CLIPS.think`: the head slowly rocking (the procedural tilt of
  *   `think` still applies on top).
+ * - `SEATED_CLIPS.cheer`: the merge gong's seated celebration (#43): the
+ *   head and arms of `Robot_Dance` and a side-to-side sway of the upper body
+ *   over the seated legs, hips and body, so the robot dances in its chair and
+ *   ends in exactly the pose it started in.
  *
  * Every wiggle is a sine whose period divides the clip's duration, so the
  * loops are seamless. Pure: no scene access, safe to unit test.
@@ -33,7 +37,24 @@ export const SEATED_CLIPS = {
   type: "Seated|Type",
   read: "Seated|Read",
   think: "Seated|Think",
+  cheer: "Seated|Cheer",
 } as const;
+
+/** Bones the seated cheer takes from the dance (#43); every other bone keeps the seated pose. */
+export const CHEER_BONES: readonly string[] = [
+  "Head",
+  "UpperArmL",
+  "UpperArmR",
+  "LowerArmL",
+  "LowerArmR",
+];
+
+/**
+ * The cheer's sway: the abdomen (above the hips, below the chest) leans left
+ * and right `cycles` times over the dance, so the upper body rocks while the
+ * legs and hips stay put. Local z is sideways for this bone in robot.glb.
+ */
+export const CHEER_SWAY = { bone: "Abdomen", axis: [0, 0, 1] as const, amp: 0.2, cycles: 4 };
 
 /** One bone's periodic rotation on top of the seated pose, in the bone's local space. */
 export interface Wiggle {
@@ -60,7 +81,7 @@ const Y = [0, 1, 0] as const;
 
 /** Local-axis motions per synthesised clip (the idle clip has none). */
 export const SEATED_MOTIONS: Readonly<
-  Record<Exclude<keyof typeof SEATED_CLIPS, "idle">, SeatedMotion>
+  Record<Exclude<keyof typeof SEATED_CLIPS, "idle" | "cheer">, SeatedMotion>
 > = {
   type: {
     duration: 1.2,
@@ -218,7 +239,11 @@ export function seatedPose(
   rest: RestRotation,
 ): Map<string, { track: KeyframeTrack; value: number[] }> {
   const pose = lastPose(sitting);
-  const moved = new Set(Object.values(SEATED_MOTIONS).flatMap((m) => m.wiggles.map((w) => w.bone)));
+  const moved = new Set([
+    ...Object.values(SEATED_MOTIONS).flatMap((m) => m.wiggles.map((w) => w.bone)),
+    ...CHEER_BONES,
+    CHEER_SWAY.bone,
+  ]);
   for (const bone of moved) {
     const name = `${bone}.quaternion`;
     const value = rest(bone);
@@ -231,13 +256,62 @@ export function seatedPose(
   return pose;
 }
 
-/** All seated clips, built from the GLB's sit-down clip and the model's rest pose. */
-export function seatedClips(sitting: AnimationClip, rest: RestRotation): AnimationClip[] {
+/**
+ * The seated cheer (#43): `dance`'s tracks for the {@link CHEER_BONES}, the
+ * seated pose held for every other track, as long as the dance.
+ */
+export function cheerClip(
+  pose: ReadonlyMap<string, { track: KeyframeTrack; value: number[] }>,
+  dance: AnimationClip,
+): AnimationClip {
+  const tracks: KeyframeTrack[] = [];
+  const sway: SeatedMotion = {
+    duration: dance.duration,
+    wiggles: [
+      {
+        bone: CHEER_SWAY.bone,
+        axis: CHEER_SWAY.axis,
+        bias: 0,
+        amp: CHEER_SWAY.amp,
+        period: dance.duration / CHEER_SWAY.cycles,
+        phase: 0,
+      },
+    ],
+  };
+  const swaying = motionClip(SEATED_CLIPS.cheer, pose, sway);
+  for (const [name, { track, value }] of pose) {
+    if (name === `${CHEER_SWAY.bone}.quaternion`) {
+      const swayTrack = swaying.tracks.find((t) => t.name === name);
+      if (swayTrack) {
+        tracks.push(swayTrack);
+        continue;
+      }
+    }
+    const bone = name.replace(/\.quaternion$/, "");
+    const source =
+      name.endsWith(".quaternion") && CHEER_BONES.includes(bone)
+        ? dance.tracks.find((t) => t.name === name)
+        : undefined;
+    tracks.push(source ? source.clone() : holdTrack(track, value, dance.duration));
+  }
+  return new AnimationClip(SEATED_CLIPS.cheer, dance.duration, tracks);
+}
+
+/**
+ * All seated clips, built from the GLB's sit-down clip and the model's rest
+ * pose; the cheer too when the GLB's dance clip is given.
+ */
+export function seatedClips(
+  sitting: AnimationClip,
+  rest: RestRotation,
+  dance?: AnimationClip,
+): AnimationClip[] {
   const pose = seatedPose(sitting, rest);
   return [
     holdClip(SEATED_CLIPS.idle, pose),
     motionClip(SEATED_CLIPS.type, pose, SEATED_MOTIONS.type),
     motionClip(SEATED_CLIPS.read, pose, SEATED_MOTIONS.read),
     motionClip(SEATED_CLIPS.think, pose, SEATED_MOTIONS.think),
+    ...(dance ? [cheerClip(pose, dance)] : []),
   ];
 }

@@ -2,7 +2,8 @@
  * One robot at its desk (SPEC §9.3): RobotAvatar seated at the seat pose,
  * antenna bulb by status, provider chest light, raised hand while waiting,
  * animation from status/action (one-shots settle back into the chair),
- * papers while reading, a spin when it celebrates. Clicking it opens the
+ * papers while reading, a spin when it celebrates, a dance in its chair
+ * when the merge gong rings (#43, cheer.ts). Clicking it opens the
  * robot panel (#33). Robots with a `RobotOverride` (the walk home) are drawn
  * by their override owner instead, not here.
  */
@@ -16,6 +17,7 @@ import type { SitAnchor } from "../avatar/seatedFit.ts";
 import { calmFor, raisedHandFor, robotAnimationFor, robotLookFor } from "./robotAnimation.ts";
 import { robotAvatarLook } from "./robotLook.ts";
 import { robotPlacement } from "./seatPlacement.ts";
+import { useCheer } from "./useCheer.ts";
 import { useSettledAnimation } from "./useSettledAnimation.ts";
 
 /** One full turn at the start of a celebration, seconds. */
@@ -51,6 +53,8 @@ function RobotImpl({ robot, seat, anchor, reducedMotion, onSelect, onCelebrate }
   // Status/action → animation, held until it has settled (no flapping), one-shots once (#159).
   const animation = useSettledAnimation(calmFor(robotAnimationFor(robot), reducedMotion));
   const look = robotLookFor(animation);
+  // The merge gong rang (#43): dance in the chair for a moment, then back to the same pose.
+  const cheer = useCheer(look.seated, reducedMotion);
 
   const shownBefore = useRef(animation);
   useEffect(() => {
@@ -94,6 +98,7 @@ function RobotImpl({ robot, seat, anchor, reducedMotion, onSelect, onCelebrate }
         animation,
         seated: look.seated,
         seatId: robot.seatId,
+        cheering: cheer,
       }}
       position={[place.position[0], place.position[1], place.position[2]]}
       rotation-y={place.rotationY}
@@ -106,6 +111,7 @@ function RobotImpl({ robot, seat, anchor, reducedMotion, onSelect, onCelebrate }
           look={avatar.look}
           animation={animation}
           seated={look.seated}
+          cheer={cheer}
           status={robot.status}
           handRaised={raisedHandFor(robot)}
           chestLight={avatar.chestLight}

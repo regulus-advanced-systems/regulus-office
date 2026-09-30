@@ -1,6 +1,7 @@
 /**
  * Renders the ConfettiField as one InstancedMesh of small quads. Bursts come
- * in through the `bus` the RobotLayer owns. Not mounted with reduced motion.
+ * in through a `bus` (the RobotLayer's, the merge gong's). Not mounted with
+ * reduced motion.
  */
 import { useFrame } from "@react-three/fiber";
 import { useEffect, useMemo, useRef } from "react";
@@ -18,14 +19,15 @@ import {
 import { CONFETTI_CAPACITY, CONFETTI_COLORS, ConfettiField } from "./confetti.ts";
 
 export interface ConfettiBus {
-  pending: { x: number; y: number; z: number }[];
+  /** Bursts to fire next frame; `count` defaults to CONFETTI_PER_BURST. */
+  pending: { x: number; y: number; z: number; count?: number }[];
 }
 
 export function createConfettiBus(): ConfettiBus {
   return { pending: [] };
 }
 
-export function Confetti({ bus }: { bus: ConfettiBus }) {
+export function Confetti({ bus, name = "confetti" }: { bus: ConfettiBus; name?: string }) {
   const mesh = useRef<InstancedMesh>(null);
   const field = useMemo(() => new ConfettiField(), []);
   const geometry = useMemo(() => new PlaneGeometry(0.1, 0.06), []);
@@ -55,8 +57,8 @@ export function Confetti({ bus }: { bus: ConfettiBus }) {
   useFrame((_, delta) => {
     const m = mesh.current;
     if (!m) return;
-    for (const origin of bus.pending.splice(0)) field.burst(origin);
-    field.step(Math.min(delta, 0.1));
+    for (const origin of bus.pending.splice(0)) field.burst(origin, origin.count);
+    field.step(delta);
     let n = 0;
     for (const p of field.particles) {
       if (!p.live) continue;
@@ -75,7 +77,7 @@ export function Confetti({ bus }: { bus: ConfettiBus }) {
   return (
     <instancedMesh
       ref={mesh}
-      name="confetti"
+      name={name}
       args={[geometry, material, CONFETTI_CAPACITY]}
       frustumCulled={false}
     />
