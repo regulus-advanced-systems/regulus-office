@@ -21,6 +21,7 @@ import {
   paletteById,
 } from "@regulus/floor-layout";
 import { type ReactNode, Suspense, useMemo } from "react";
+import { useFloorStore } from "../state/floor.ts";
 import { usePlayerStore } from "../state/player.ts";
 import { useViewStore } from "../state/view.ts";
 import { useViewHotkey } from "../ui/hud/ViewToggle.tsx";
@@ -107,7 +108,14 @@ export function OfficeCanvas({
         gl={{ alpha: true, antialias: true, powerPreference: "high-performance" }}
         camera={{ position: initialPosition, zoom: 50, near: CAMERA_NEAR, far: CAMERA_FAR }}
         style={{ position: "absolute", inset: 0 }}
-        onCreated={showStats ? (state) => (window.__regulusR3F = state) : undefined}
+        onCreated={
+          showStats
+            ? (state) => {
+                window.__regulusR3F = state;
+                window.__regulusFloorStore = useFloorStore;
+              }
+            : undefined
+        }
       >
         <IsoCamera room={room} enabled={!firstPerson} />
         {rigMounted && (

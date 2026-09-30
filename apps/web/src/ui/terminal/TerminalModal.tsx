@@ -19,6 +19,7 @@ import { useSessionStore } from "../../state/session.ts";
 import { useUiStore } from "../../state/ui.ts";
 import { Button } from "../components/Button.tsx";
 import { Modal } from "../components/Modal.tsx";
+import { SearchReveal } from "../search/SearchReveal.tsx";
 import { mayControlTerminal } from "./access.ts";
 import { ExpandButton } from "./ExpandButton.tsx";
 import {
@@ -149,15 +150,19 @@ export function TerminalModal({
           provider={robot?.provider}
           isOwner={!!user && user.id === robot?.ownerUserId}
         />
-        <TerminalScreen
-          state={state}
-          host={host}
-          element={element}
-          setElement={setElement}
-          granted={granted}
-          style={{ height: box.height }}
-          testId="terminal-screen"
-        />
+        <div className="rg-search-reveal-host">
+          <TerminalScreen
+            state={state}
+            host={host}
+            element={element}
+            setElement={setElement}
+            granted={granted}
+            style={{ height: box.height }}
+            testId="terminal-screen"
+          />
+          {/* Opened from a search result (#41): the match in the history, over the live view. */}
+          <SearchReveal agentId={agentId} />
+        </div>
         {state.status === "open" && state.notice && (
           <p className="rg-term__notice" role="status">
             {state.notice}
