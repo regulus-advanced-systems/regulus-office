@@ -4,7 +4,8 @@
  * animates by action and raises its hand; the permission prompt reaches the owner but not a
  * second member's browser; approving lets the agent commit; the one-click PR reaches a fake
  * GitHub with `Closes #n`; restarting office-server re-adopts the same tmux session, whose
- * terminal still opens; sending the robot home frees the desk and deletes the branch as chosen.
+ * terminal still opens, copies, expands and reflows (#156); sending the robot home frees the desk
+ * and deletes the branch as chosen.
  *
  * The agent is the fake `claude` in tests/e2e/runner (never the real CLI, no account, no
  * network beyond the office's hook URL), run by the production `docker` runner backend in a
@@ -27,6 +28,7 @@ import { collectTerminalOutput, history, recordRobots, robots, scenePoint } from
 import { type FakeGitHub, startFakeGitHub } from "./fakeGitHub.ts";
 import { createRemoteRepo } from "./gitRemote.ts";
 import { freeDeskPoint, OFFICE_PROBE_PATH, waitForScene } from "./probes.ts";
+import { checkRobotTerminal } from "./terminalChecks.ts";
 
 const run = Date.now().toString(36);
 const owner = { name: "Ada Owner", email: `owner-${run}@example.com`, password: `owner-pw-${run}` };
@@ -89,7 +91,11 @@ test.beforeAll(async ({ browser }) => {
   });
   createRemoteRepo(dataDir, REPO.owner, REPO.name, REPO.branch);
   await office.start();
-  ownerCtx = await browser.newContext({ baseURL: office.baseURL });
+  ownerCtx = await browser.newContext({
+    baseURL: office.baseURL,
+    // The terminal step (#156) checks what a selection put on the clipboard.
+    permissions: ["clipboard-read", "clipboard-write"],
+  });
   memberCtx = await browser.newContext({ baseURL: office.baseURL });
   ownerPage = await ownerCtx.newPage();
   memberPage = await memberCtx.newPage();
@@ -477,6 +483,24 @@ test("7. after an office-server restart the robot and its tmux session are still
   if (await terminal.isVisible())
     await terminal.getByRole("button", { name: /Close/ }).first().click();
   await expect(terminal).toHaveCount(0);
+});
+
+test("7b. the robot's terminal expands, copies a selection and reflows tmux in control (#156)", async () => {
+  const windowSize = () =>
+    runnerTmux([
+      "display-message",
+      "-p",
+      "-t",
+      `=agent-${agentId}:`,
+      "#{window_width}x#{window_height}",
+    ]);
+  await checkRobotTerminal(ownerPage, windowSize, async () => {
+    await openRobotPanel(ownerPage);
+    await ownerPage
+      .locator("section.rg-agent-panel")
+      .getByRole("button", { name: "Open terminal" })
+      .click();
+  });
 });
 
 test("8. send home frees the desk and deletes the branch as chosen", async () => {

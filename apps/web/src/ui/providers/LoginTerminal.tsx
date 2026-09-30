@@ -66,7 +66,8 @@ export function LoginTerminal({
 
   // Expanding makes the panel taller than its body: bring the terminal into view.
   useEffect(() => {
-    if (expanded) element?.parentElement?.scrollIntoView?.({ block: "nearest" });
+    if (expanded)
+      element?.closest(".rg-providers__terminal")?.scrollIntoView?.({ block: "nearest" });
   }, [expanded, element]);
 
   return (
