@@ -20,6 +20,13 @@ import { RUNNER_ID, runnerId } from "./linux-user/ids.ts";
 
 export { runnerId };
 
+/**
+ * A floor slug as `floors/naming.ts` makes it: the one path segment below a
+ * root that names a floor. No dots or slashes, so `<root>/<slug>` is always
+ * exactly one level below the root (#150 removes such dirs).
+ */
+export const FLOOR_SLUG = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/;
+
 /** Directory inside a human's area that holds their clones. */
 export const CLONES_DIR = "_clones";
 

@@ -34,6 +34,9 @@ const accepted: string[][] = [
   ["reclaim", `${P}/floor1`],
   ["reclaim", `${P}/floor1/repo-1`],
   ["reclaim", `${W}/floor1/0f8c2d9e-agent`],
+  ["remove-floor", "floor1"],
+  ["remove-floor", "apollo-moon-2"],
+  ["remove-floor", "a"],
   ["exec", "u1", "a1", "/srv/x y", "--", "sh", "-c", "echo $HOME; rm -rf /"],
   ["spawn-piped", "u1", "a_1-B", "/", "--", "codex", "app-server"],
   ["kill", "u1", "a1"],
@@ -90,6 +93,22 @@ const rejected: string[][] = [
   ["reclaim", `${P}/f/.git`],
   ["reclaim", `${P}evil`],
   ["reclaim", `${P}/f`, "extra"],
+  // #150: a floor slug only, never a path, dot segment or glob.
+  ["remove-floor"],
+  ["remove-floor", ""],
+  ["remove-floor", "."],
+  ["remove-floor", ".."],
+  ["remove-floor", "floor1/u1"],
+  ["remove-floor", "../etc"],
+  ["remove-floor", "/etc"],
+  ["remove-floor", `${W}/floor1`],
+  ["remove-floor", "Floor1"],
+  ["remove-floor", "-floor"],
+  ["remove-floor", "floor-"],
+  ["remove-floor", "floor.1"],
+  ["remove-floor", "*"],
+  ["remove-floor", "floor1", "extra"],
+  ["remove-floor", "a".repeat(65)],
   ["exec", "u1", "a1", "/w", "sh"],
   ["exec", "u1", "a1", "/w", "--"],
   ["exec", "u1", "a1", "/w", "--", ""],
@@ -142,7 +161,7 @@ describe("sudoers rules", () => {
     const verbs = rules
       .map((r) => r.match(/office-runner-helper ([a-z-]+) \*$/)?.[1])
       .filter((v): v is string => v !== undefined);
-    expect(verbs.length).toBe(17);
+    expect(verbs.length).toBe(18);
     for (const verb of verbs) expect(script).toContain(`  ${verb}`);
   });
 });

@@ -231,4 +231,20 @@ describe("LinuxUserRunner command construction", () => {
       ["reclaim", "/srv/office/projects"],
     ]);
   });
+
+  test("removeFloorDirs passes only a floor slug and reports what the helper removed", async () => {
+    const { runner, calls } = mocked({
+      "remove-floor": {
+        stdout: "removed=/srv/office/projects/apollo\nremoved=/srv/office/worktrees/apollo\n",
+      },
+    });
+    expect(await runner.removeFloorDirs("apollo")).toEqual([
+      "/srv/office/projects/apollo",
+      "/srv/office/worktrees/apollo",
+    ]);
+    for (const slug of ["", "..", "a/b", "/etc", "Apollo", "apollo-", "a.b"]) {
+      await expect(runner.removeFloorDirs(slug)).rejects.toThrow("invalid floor slug");
+    }
+    expect(calls.map((c) => c.argv.slice(3))).toEqual([["remove-floor", "apollo"]]);
+  });
 });

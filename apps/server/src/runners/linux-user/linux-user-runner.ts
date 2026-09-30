@@ -19,6 +19,7 @@ import type { PipedProcess, SpawnPlan } from "@regulus/agent-adapters";
 import { tmuxSessionName } from "@regulus/agent-adapters";
 import type { TerminalMode } from "@regulus/protocol";
 import { pasteMode } from "../keys.ts";
+import { FLOOR_SLUG } from "../layout.ts";
 import type {
   AgentRef,
   AttachArgv,
@@ -103,6 +104,20 @@ export class LinuxUserRunner implements Runner {
    */
   async reclaim(dir: string): Promise<void> {
     await this.helper.call("reclaim", [checkRunnerPath(dir)]);
+  }
+
+  /**
+   * Not part of `Runner`: a deleted floor's dirs (#150), `<projects>/<slug>`
+   * and `<worktrees>/<slug>` with every human's area in it. Root, because the
+   * areas hold files of runner accounts; the helper checks the slug first.
+   */
+  async removeFloorDirs(slug: string): Promise<string[]> {
+    if (!FLOOR_SLUG.test(slug)) throw new Error("invalid floor slug");
+    const res = await this.helper.call("remove-floor", [slug]);
+    return res.stdout
+      .split("\n")
+      .filter((l) => l.startsWith("removed="))
+      .map((l) => l.slice("removed=".length));
   }
 
   async exec(user: RunnerUser, plan: SpawnPlan): Promise<TmuxSessionRef> {

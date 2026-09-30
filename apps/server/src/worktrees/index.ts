@@ -24,6 +24,11 @@ import {
 } from "./pull-request.ts";
 import { GitWorktreeWorkspaces } from "./workspaces.ts";
 
+export {
+  type FloorDirRemover,
+  floorDirRemover,
+  OfficeFloorDirRemover,
+} from "./floor-dirs.ts";
 export { agentGitEnv, BRANCH_PREFIX, branchSlug } from "./git-ops.ts";
 export { type LegacyLayoutDeps, migrateLegacyLayout } from "./migrate.ts";
 export type { PruneResult } from "./prune.ts";

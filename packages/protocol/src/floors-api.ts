@@ -8,7 +8,13 @@
  */
 import { z } from "zod";
 import { Id, TimestampMs } from "./common.ts";
-import { FLOOR_ACCESSES, FLOOR_TEMPLATE_TIERS, REPO_CLONE_STATUSES, USER_ROLES } from "./enums.ts";
+import {
+  AGENT_STATUSES,
+  FLOOR_ACCESSES,
+  FLOOR_TEMPLATE_TIERS,
+  REPO_CLONE_STATUSES,
+  USER_ROLES,
+} from "./enums.ts";
 
 export const FLOORS_API_PATH = "/api/floors";
 
@@ -111,6 +117,50 @@ export type SetFloorMemberRequest = z.infer<typeof SetFloorMemberRequest>;
 /** Body of `POST /api/floors/:floorId/repos/:repoId/clone`: retry, optionally with a new PAT. */
 export const RetryCloneRequest = z.object({ token: RepoToken.optional() });
 export type RetryCloneRequest = z.infer<typeof RetryCloneRequest>;
+
+/**
+ * Floor lifecycle (#150), office owners and admins only:
+ *
+ *   GET    /api/floors/archived                archived floors (Settings → Floors)
+ *   POST   /api/floors/:floorId/archive        hide it; data and clones are kept
+ *   POST   /api/floors/:floorId/restore        bring an archived floor back
+ *   POST   /api/floors/:floorId/send-home      send every robot on it home (branches kept)
+ *   DELETE /api/floors/:floorId                delete for good (body: {@link DeleteFloorRequest})
+ *
+ * Delete is refused with 409 `floor_has_robots` (body: `{ error, robots }`)
+ * while robots are still on the floor. It never touches GitHub.
+ */
+export const FLOORS_ARCHIVED_API_PATH = `${FLOORS_API_PATH}/archived`;
+
+/** Body of `DELETE /api/floors/:floorId`: the floor's name, typed to confirm. */
+export const DeleteFloorRequest = z.object({ confirmName: z.string().max(200) });
+export type DeleteFloorRequest = z.infer<typeof DeleteFloorRequest>;
+
+/** A robot still on a floor that is about to be deleted. */
+export const FloorRobotInfo = z.object({
+  agentId: Id,
+  ownerUserId: Id,
+  ownerName: z.string().max(64),
+  status: z.enum(AGENT_STATUSES),
+  taskTitle: z.string().max(500),
+  /** True while its process is believed to be running (not exited, offline). */
+  running: z.boolean(),
+});
+export type FloorRobotInfo = z.infer<typeof FloorRobotInfo>;
+
+/** 409 body of a refused delete. */
+export const FloorHasRobotsResponse = z.object({
+  error: z.literal("floor_has_robots"),
+  robots: z.array(FloorRobotInfo),
+});
+export type FloorHasRobotsResponse = z.infer<typeof FloorHasRobotsResponse>;
+
+/** Result of `POST /api/floors/:floorId/send-home`. */
+export const SendFloorHomeResponse = z.object({
+  sentHome: z.number().int().nonnegative(),
+  failed: z.array(z.object({ agentId: Id, reason: z.string().max(500) })),
+});
+export type SendFloorHomeResponse = z.infer<typeof SendFloorHomeResponse>;
 
 /** Rank of each access level; higher includes everything below. */
 export const FLOOR_ACCESS_RANK: Readonly<Record<(typeof FLOOR_ACCESSES)[number], number>> = {

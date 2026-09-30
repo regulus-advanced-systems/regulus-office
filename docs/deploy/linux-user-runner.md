@@ -67,6 +67,7 @@ office ALL=(root) NOPASSWD: /usr/local/lib/office/office-runner-helper provision
 office ALL=(root) NOPASSWD: /usr/local/lib/office/office-runner-helper deprovision *
 office ALL=(root) NOPASSWD: /usr/local/lib/office/office-runner-helper mount-project *
 office ALL=(root) NOPASSWD: /usr/local/lib/office/office-runner-helper reclaim *
+office ALL=(root) NOPASSWD: /usr/local/lib/office/office-runner-helper remove-floor *
 office ALL=(root) NOPASSWD: /usr/local/lib/office/office-runner-helper exec *
 office ALL=(root) NOPASSWD: /usr/local/lib/office/office-runner-helper spawn-piped *
 office ALL=(root) NOPASSWD: /usr/local/lib/office/office-runner-helper kill *
@@ -94,6 +95,7 @@ greppable and lets an operator drop verbs they do not want.
 | `deprovision` | Kill every process of the account, stop its tmux scope, `userdel --remove`. Root. |
 | `mount-project` | `mount-project <rid> <dir>`: `setfacl` on the human's own clone or agent worktree so their group and the office user can read and write it. `<dir>` must be canonical and inside `<worktrees>/<floor>/<rid>`, that human's own area (#114); mirrors, floor dirs and other humans' areas are refused before anything runs. It also removes "other" access from the area. Root: files in a checkout may belong to the human's account. |
 | `reclaim` | `reclaim <dir>`: upgrade from the shared layout before #114. `<dir>` is the projects root (floor mirrors) or a per-agent worktree directly in a floor dir, `<worktrees>/<floor>/<agent>` (never a runner id there: that is a human's area). Everything in it becomes the office user's again (`chown -R -P -h`), every extended ACL entry is removed (`setfacl -R -P -b`), and "other" loses access to the top dir. Root: those files belong to runner accounts. |
+| `remove-floor` | `remove-floor <slug>`: a floor was deleted in the office (#150). Removes `<projects>/<slug>` (the floor mirrors) and `<worktrees>/<slug>` (every human's area on it: clones and agent worktrees). `<slug>` must be a floor slug (`^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$`: no dots or slashes), so the target is exactly one level below a configured root; both roots must be canonical and the target a real directory, not a symlink. `rm -r --one-file-system` never follows symlinks. The office refuses the delete while robots are on the floor. Root: the areas hold files owned by runner accounts. |
 | `exec` | Start `agent-<agentId>` on the human's tmux server as the human and move the pane into its own `agent-<agentId>.scope`. Root: acting as another uid, creating a system scope. |
 | `spawn-piped` | `systemd-run --uid --gid --scope` a stdio process (e.g. `codex app-server`) as the human. Root: same. |
 | `kill` | Kill the session and `systemctl kill` every `agent-<agentId>*` scope (only if all its processes are the human's). Root: the processes belong to another uid. |

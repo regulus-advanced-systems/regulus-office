@@ -7,6 +7,7 @@
 import { mkdir } from "node:fs/promises";
 import type { RunnerUser } from "../types.ts";
 import {
+  areaGone,
   isOwnArea,
   type MountSpec,
   RunnerBusyError,
@@ -34,13 +35,18 @@ export async function remount(
   missing: readonly string[],
   opts: { running: boolean; strict: boolean },
 ): Promise<boolean> {
-  const keep = current.filter((m) => isOwnArea(m, deps.floorRoots, user.userId));
-  const stale = current.filter((m) => !keep.includes(m)).map((m) => m.Target);
-  if (missing.length === 0 && stale.length === 0) return true;
+  const own = current.filter((m) => isOwnArea(m, deps.floorRoots, user.userId));
+  // An area whose floor was deleted (#150): harmless while mounted, dropped when idle
+  // (Docker cannot recreate a container whose mount source is gone).
+  const keep = own.filter((m) => !areaGone(m.Target, deps.floorRoots));
+  const stale = current.filter((m) => !own.includes(m)).map((m) => m.Target);
+  const needed = missing.length > 0 || stale.length > 0;
+  if (!needed && keep.length === own.length) return true;
 
   const list = () => (opts.running ? deps.listSessions(user) : Promise.resolve([]));
-  const { sessions, piped } = await deps.piped.busy(user.userId, list, opts.strict);
+  const { sessions, piped } = await deps.piped.busy(user.userId, list, needed && opts.strict);
   if (sessions.length > 0 || piped.length > 0) {
+    if (!needed) return true;
     if (!opts.strict) return false;
     const changes = [...missing, ...stale.map((t) => `-${t}`)];
     throw new RunnerBusyError(user.userId, sessions, changes, piped);
