@@ -11,3 +11,4 @@ export * from "./sign-in-screen.ts";
 export * from "./spawn.ts";
 export * from "./statusline.ts";
 export * from "./transcript.ts";
+export * from "./transcript-scan.ts";

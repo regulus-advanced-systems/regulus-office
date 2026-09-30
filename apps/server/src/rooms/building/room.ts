@@ -1,7 +1,8 @@
 /**
  * BuildingRoom (SPEC §6 channel 1): one per office. Human presence, chat,
- * the floor list with counters. Jukebox, usage summary and PM state are
- * part of the schema but stay at their defaults until their milestones.
+ * the floor list with counters, the office usage summary (#40). Jukebox and
+ * PM state are part of the schema but stay at their defaults until their
+ * milestones.
  *
  * Written against `RoomDefinition`, not Colyseus; see ../transport.ts.
  */
@@ -17,8 +18,10 @@ import {
   FloorSummarySchema,
   HumanPresenceSchema,
   LOBBY_FLOOR_ID,
+  type UsageSummary,
 } from "@regulus/protocol";
 import type { Logger } from "../../logging.ts";
+import { applyUsageSummary } from "../../usage/room-state.ts";
 import type { RoomAuthUser } from "../auth.ts";
 import { CHAT_REPLAY, type ChatStore } from "../chat/store.ts";
 import type { RoomClient, RoomDefinition, RoomHandle } from "../transport.ts";
@@ -54,6 +57,8 @@ export interface BuildingRoom extends RoomDefinition<BuildingState, BuildingJoin
   refreshFloors(): Promise<void>;
   /** Send a message to every connected client of one human (notifications, #42). */
   sendToUser(userId: string, type: string, payload: unknown): void;
+  /** Office usage totals and leaderboard for the usage wall (#40); never per-human data. */
+  setUsage(summary: UsageSummary): void;
 }
 
 interface ClientBookkeeping {
@@ -67,6 +72,7 @@ export function createBuildingRoom(deps: BuildingRoomDeps): BuildingRoom {
   const moveLimiter = new RateLimiter({ maxHz: MOVE_MAX_HZ, now: () => performance.now() });
   const books = new Map<string, ClientBookkeeping>();
   let known: FloorRecord[] = [];
+  let usage: UsageSummary | undefined;
   let handle: RoomHandle<BuildingState> | undefined;
 
   const reject = (client: RoomClient, type: string, reason: string) => {
@@ -221,6 +227,7 @@ export function createBuildingRoom(deps: BuildingRoomDeps): BuildingRoom {
       handle = room;
       await refreshFloors();
       for (const line of await chat.recent(CHAT_REPLAY)) room.state.chat.push(toSchema(line));
+      if (usage) applyUsageSummary(room.state.usage, usage);
       room.setInterval(sweep, SWEEP_MS);
       logger.info({ roomId: room.roomId, floors: known.length }, "building room created");
     },
@@ -270,6 +277,11 @@ export function createBuildingRoom(deps: BuildingRoomDeps): BuildingRoom {
       for (const client of handle?.clients ?? []) {
         if (client.user.userId === userId) client.send(type, payload);
       }
+    },
+
+    setUsage(summary) {
+      usage = summary;
+      if (handle) applyUsageSummary(handle.state.usage, summary);
     },
   };
 }

@@ -35,8 +35,12 @@ const emptyBuilding = (): BuildingState => ({
   usage: {
     todayInputTokens: 0,
     todayOutputTokens: 0,
+    todayCacheTokens: 0,
     todayCostUsdEstimate: 0,
+    officeKeysCostUsdEstimate: 0,
+    activeHumans: 0,
     topRobots: [],
+    dayStart: 0,
     observedAt: 0,
   },
   pm: {

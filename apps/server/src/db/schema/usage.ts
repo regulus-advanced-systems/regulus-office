@@ -31,10 +31,19 @@ export const usageSamples = sqliteTable(
     cacheWriteTokens: integer("cache_write_tokens").notNull().default(0),
     costUsdEstimate: real("cost_usd_estimate").notNull().default(0),
     source: enumText("source", USAGE_SOURCES).notNull(),
+    /** Provider model id when known; the price estimate was computed from it. */
+    model: text("model"),
+    /** Provider session (Claude session id), to tie transcript usage to a robot. */
+    sessionId: text("session_id"),
+    /** `<provider>:<source>:<scope>:<id>`; re-reading the same request is a no-op (#40). */
+    dedupeKey: text("dedupe_key"),
     ...timestamps(),
   },
   (t) => [
     index("usage_samples_user_ts_idx").on(t.userId, t.ts),
+    index("usage_samples_ts_idx").on(t.ts),
+    index("usage_samples_session_idx").on(t.sessionId),
+    uniqueIndex("usage_samples_dedupe_key_unique").on(t.dedupeKey),
     index("usage_samples_agent_ts_idx").on(t.agentId, t.ts),
     index("usage_samples_provider_ts_idx").on(t.provider, t.ts),
     check("usage_samples_provider_check", inEnum("provider", PROVIDER_IDS)),

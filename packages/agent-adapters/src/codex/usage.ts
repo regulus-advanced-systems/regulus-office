@@ -83,7 +83,8 @@ const count = (n: number | undefined) =>
 
 /**
  * Tracks cumulative thread usage so repeated notifications for the same
- * request are not counted twice. Emits the `last` breakdown (usage of the most
+ * request are not counted twice (and tags each sample with the thread total,
+ * so the office also drops a repeat after a reconnect). Emits the `last` breakdown (usage of the most
  * recent model request) whenever the thread total grows.
  *
  * OpenAI counts cached input inside `inputTokens`; the protocol's
@@ -106,6 +107,8 @@ export class TokenUsageTracker {
       cacheReadTokens: cached,
       cacheWriteTokens: count(last.cacheWriteInputTokens),
       source: "inband",
+      // The thread total only grows, so it names this request within the thread.
+      dedupeKey: `thread-total:${total}`,
     };
   }
 }

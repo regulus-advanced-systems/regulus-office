@@ -73,8 +73,20 @@ export const buildingFixture: BuildingState = {
   usage: {
     todayInputTokens: 120_000,
     todayOutputTokens: 30_000,
+    todayCacheTokens: 400_000,
     todayCostUsdEstimate: 1.25,
-    topRobots: [{ agentId: "a1", taskTitle: "Fix #8", provider: "claude-code", tokens: 90_000 }],
+    officeKeysCostUsdEstimate: 0.25,
+    activeHumans: 2,
+    topRobots: [
+      {
+        agentId: "a1",
+        name: "Ada's Claude Code robot",
+        ownerName: "Ada",
+        provider: "claude-code",
+        tokens: 90_000,
+      },
+    ],
+    dayStart: 1_699_920_000_000,
     observedAt: 1_700_000_002_000,
   },
   pm: {
