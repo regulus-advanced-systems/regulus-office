@@ -78,10 +78,12 @@ export async function checkRobotTerminal(
     expect(expanded.box.width).toBe(1152);
     expect(expanded.box.width).toBeGreaterThan(normal.box.width);
     // A watcher's fixed 160x45 grid is scaled to fit the bigger box (letterboxed, not cut).
+    // The font steps by 0.25 px and cell sizes round, so "fills" allows some slack.
     await expect
       .poll(async () => {
         const fit = await terminalFit(terminal);
-        return fitsAndFills(fit.screen, fit.box) && fit.screen.width > normal.screen.width;
+        const ok = fitsAndFills(fit.screen, fit.box, 0.8) && fit.screen.width > normal.screen.width;
+        return ok || `screen ${JSON.stringify(fit.screen)} in box ${JSON.stringify(fit.box)}`;
       })
       .toBe(true);
     const layout = await settledDialogLayout(page, terminal);
