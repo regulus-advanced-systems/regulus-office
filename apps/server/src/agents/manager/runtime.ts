@@ -60,6 +60,11 @@ export interface AgentObserver {
   ): void;
 }
 
+/** Usage tracker (#40): stores robots' `usage` and `limit` events. */
+export interface AgentUsageObserver {
+  agentEvent(agentId: string, event: AgentEvent): void;
+}
+
 /** Scrollback snapshots of running agents (terminals `ScrollbackRecorder`). */
 export interface ScrollbackTracker {
   track(target: TerminalTarget): () => void;
@@ -87,6 +92,8 @@ export interface AgentManagerOptions {
   launchProfiles?: Parameters<typeof launchProfile>[1];
   scrollback?: ScrollbackTracker;
   observer?: AgentObserver;
+  /** Usage tracker (#40): gets every `usage` / `limit` event. */
+  usage?: AgentUsageObserver;
   /** Session liveness / heuristic polling interval. */
   pollIntervalMs?: number;
   idleAfterMs?: number;
@@ -192,6 +199,9 @@ export class AgentRuntime implements AgentEventSink {
     const live = this.agents.get(agentId);
     if (!live) return;
     if (!(event.kind === "message" && event.partial)) this.store.appendEvent(agentId, event);
+    if (event.kind === "usage" || event.kind === "limit") {
+      this.#observe(() => this.opts.usage?.agentEvent(agentId, event));
+    }
     const previous = live.view.status;
     const result = applyEvent(live.view, event, this.now());
     if (result.refused) {

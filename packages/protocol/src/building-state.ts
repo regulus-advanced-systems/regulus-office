@@ -90,23 +90,36 @@ export const JukeboxState = z.object({
 });
 export type JukeboxState = z.infer<typeof JukeboxState>;
 
+/** A robot on the usage wall's leaderboard: its display name and owner only (#40). */
 export const TopRobotUsage = z.object({
   agentId: Id,
-  taskTitle: z.string().max(200),
+  name: z.string().max(120),
+  ownerName: z.string().max(64),
   provider: z.enum(PROVIDER_IDS),
+  /** All tokens today: input, output, cache reads and cache writes. */
   tokens: Count,
 });
 export type TopRobotUsage = z.infer<typeof TopRobotUsage>;
 
 /**
- * Office-wide usage totals shown on the tracker wall. Per-user limits are
- * private (SPEC §9.4) and are never part of shared room state.
+ * Office-wide usage totals shown on the tracker wall, for the office's day
+ * (from `dayStart`). Per-user limits and spend are private (SPEC §9.4) and
+ * are never part of shared room state; each human reads their own over REST
+ * (usage-api.ts).
  */
 export const UsageSummary = z.object({
   todayInputTokens: Count,
   todayOutputTokens: Count,
+  /** Cache reads plus cache writes. */
+  todayCacheTokens: Count,
   todayCostUsdEstimate: z.number().nonnegative(),
+  /** Of today's estimate, usage through office-wide keys (attributed to `office`, D2). */
+  officeKeysCostUsdEstimate: z.number().nonnegative(),
+  /** Humans with any usage today. */
+  activeHumans: Count,
   topRobots: z.array(TopRobotUsage),
+  /** Start of the office's day the totals count from; 0 until first published. */
+  dayStart: TimestampMs,
   observedAt: TimestampMs,
 });
 export type UsageSummary = z.infer<typeof UsageSummary>;

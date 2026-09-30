@@ -31,7 +31,7 @@ import { ensureClaudeOnboarding } from "./onboarding.ts";
 import { PermissionBroker } from "./permissions.ts";
 import { baseEnv, buildClaudeSpawn, checkModel, permissionModeArgs } from "./spawn.ts";
 import { limitSamplesFromStatusline, StatuslineUsageTracker } from "./statusline.ts";
-import { scanTranscripts } from "./transcript.ts";
+import { TranscriptScanner } from "./transcript-scan.ts";
 
 export interface ClaudeCodeAdapterOptions {
   /** Program to run, `claude` by default (tests point this at a fake script). */
@@ -94,6 +94,8 @@ export class ClaudeCodeAdapter implements AgentAdapter {
   readonly #sessions = new Map<string, string>();
   /** Latest statusline limit readings, per office user. */
   readonly #limits = new Map<string, LimitSample[]>();
+  /** Per-human read offsets of the in-runner transcript scan. */
+  readonly #transcripts = new TranscriptScanner();
 
   constructor(options: ClaudeCodeAdapterOptions = {}) {
     this.#command = options.command ?? "claude";
@@ -190,7 +192,7 @@ export class ClaudeCodeAdapter implements AgentAdapter {
     };
   }
 
-  /** Latest statusline limits for this human, then transcript usage. */
+  /** Latest statusline limits for this human, then new transcript usage (scanned in the runner). */
   async *readUsage(
     ctx: RunnerContext,
     opts: ReadUsageOptions = {},
@@ -198,7 +200,7 @@ export class ClaudeCodeAdapter implements AgentAdapter {
     for (const sample of this.#limits.get(ctx.userId) ?? []) {
       if (opts.since === undefined || sample.observedAt > opts.since) yield sample;
     }
-    yield* scanTranscripts(ctx.runner, ctx.home, opts);
+    yield* this.#transcripts.scan(ctx, opts);
   }
 
   ingest(input: OutOfBandInput, ctx: RunnerContext): AgentEvent[] {

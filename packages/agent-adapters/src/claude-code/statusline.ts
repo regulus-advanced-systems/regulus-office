@@ -64,6 +64,7 @@ export class StatuslineUsageTracker {
       ...tokens(obj(obj(payload, "context_window"), "current_usage")),
       costUsdEstimate: round(delta),
       source: "statusline",
+      ...(sessionId && sessionId.length <= 128 ? { sessionId } : {}),
     };
   }
 

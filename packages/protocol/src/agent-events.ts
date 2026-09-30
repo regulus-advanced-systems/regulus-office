@@ -57,6 +57,15 @@ export const UsageSample = z.object({
   cacheWriteTokens: Count,
   costUsdEstimate: z.number().nonnegative().optional(),
   source: z.enum(USAGE_SOURCES),
+  /** Provider model id when known (transcripts), for price estimates. */
+  model: z.string().max(128).optional(),
+  /** Provider session the usage belongs to (Claude session id), to find the robot. */
+  sessionId: z.string().max(128).optional(),
+  /**
+   * Stable id of the model request within its source (Claude message + request
+   * id, Codex thread total), so re-reading the same data never counts twice.
+   */
+  dedupeKey: z.string().max(256).optional(),
 });
 export type UsageSample = z.infer<typeof UsageSample>;
 
