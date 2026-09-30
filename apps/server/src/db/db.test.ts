@@ -48,6 +48,9 @@ const EXTRA_TABLES = [
   "notification_prefs",
   "notification_marks",
   "github_webhook_deliveries",
+  "workflows",
+  "workflow_runs",
+  "workflow_events",
   "floor_queue_settings",
 ] as const;
 

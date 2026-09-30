@@ -1,0 +1,117 @@
+/* GitHub workflows panel (#155). */
+.rg-workflows__tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+.rg-workflows__tabs button {
+  border: 1px solid var(--rg-border, #d0d4dc);
+  background: transparent;
+  border-radius: 8px;
+  padding: 6px 14px;
+  font: inherit;
+  cursor: pointer;
+}
+.rg-workflows__tabs button[aria-selected="true"] {
+  background: var(--rg-accent-soft, #ffe9d6);
+  font-weight: 600;
+}
+.rg-workflows__list {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 12px;
+  display: grid;
+  gap: 8px;
+}
+.rg-workflows__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 8px 10px;
+  border: 1px solid var(--rg-border, #d0d4dc);
+  border-radius: 10px;
+}
+.rg-workflows__item-main {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+.rg-workflows__heading {
+  margin: 18px 0 6px;
+  font-size: 0.95rem;
+}
+.rg-workflows__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 10px 0;
+}
+.rg-workflows__sub {
+  margin-left: 24px;
+}
+.rg-workflows__checks {
+  border: 0;
+  padding: 0;
+  margin: 0 0 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+}
+.rg-workflows__check {
+  white-space: nowrap;
+}
+.rg-workflows__number {
+  max-width: 160px;
+}
+.rg-workflows__patterns,
+.rg-workflows__prompt {
+  width: 100%;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85rem;
+}
+.rg-workflows__pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 320px;
+  overflow: auto;
+  font-size: 0.8rem;
+  background: var(--rg-code-bg, #f4f5f8);
+  padding: 8px;
+  border-radius: 8px;
+}
+.rg-workflows__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+.rg-workflows__table th,
+.rg-workflows__table td {
+  text-align: left;
+  vertical-align: top;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--rg-border, #e3e6ec);
+}
+.rg-workflows__runs {
+  overflow-x: auto;
+}
+.rg-workflows__linkish {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+  color: inherit;
+}
+.rg-workflows__link {
+  margin-right: 8px;
+}
+.rg-workflows__safety {
+  margin: 6px 0;
+  padding-left: 18px;
+  font-size: 0.85rem;
+}
+.rg-workflows__status {
+  min-height: 1.2em;
+}

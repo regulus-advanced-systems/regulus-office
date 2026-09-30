@@ -1,7 +1,8 @@
 /**
  * Top-centre HUD (research 03 §5): wide white rounded box with the office
  * name in light type, the current floor beneath, and a clock on the right.
- * On a floor the user manages, a "Floor settings" button sits by its name.
+ * On a floor the user manages, a "Floor settings" button sits by its name;
+ * on any floor, "Workflows" opens its GitHub workflows and run history (#155).
  */
 import { useEffect, useState } from "react";
 import { useBuildingStore } from "../../state/building.ts";
@@ -12,6 +13,7 @@ import { Button } from "../components/Button.tsx";
 import { GearIcon } from "../components/icons.tsx";
 import { canManageFloor, floorSettingsOverlay } from "../floors/floorSettings.ts";
 import { Panel } from "../Panel.tsx";
+import { openWorkflowsPanel } from "../workflows/WorkflowsPanel.tsx";
 import { currentFloorName } from "./floorName.ts";
 import { formatClock, msUntilNextMinute } from "./format.ts";
 
@@ -67,6 +69,16 @@ export function TopBar({
               onClick={() => openOverlay(floorSettingsOverlay(floorId))}
             >
               Floor settings
+            </Button>
+          )}
+          {floorId && (
+            <Button
+              variant="ghost"
+              size="sm"
+              aria-haspopup="dialog"
+              onClick={() => openWorkflowsPanel(floorId)}
+            >
+              Workflows
             </Button>
           )}
         </div>
