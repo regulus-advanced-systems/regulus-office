@@ -65,6 +65,12 @@ export interface SpawnRequest {
   provider: ProviderId;
   model?: string;
   effort?: string;
+  /**
+   * Permission mode in the provider's own terms (#166, protocol
+   * `permission-modes.ts`); omitted = the provider default. Adapters refuse a
+   * value their provider does not accept.
+   */
+  permissionMode?: string;
   /** Working directory inside the runner (repo checkout or agent worktree). */
   workdir: string;
   /** First prompt, if the task starts with one. */
@@ -103,6 +109,11 @@ export interface SpawnPlan {
   files: readonly PlannedFile[];
   /** Known up front when the adapter chooses it (e.g. `claude --session-id`). */
   providerSessionId?: string;
+  /**
+   * Validated permission mode for adapters that apply it after start rather
+   * than on argv (Codex: `approvalPolicy` on `thread/start|resume`).
+   */
+  permissionMode?: string;
 }
 
 // ---- Runner context ---------------------------------------------------------
@@ -163,6 +174,8 @@ export interface AgentRecord {
   provider: ProviderId;
   model?: string;
   effort?: string;
+  /** Stored permission mode (#166); omitted for rows from before it. */
+  permissionMode?: string;
   profileId: string;
   status: AgentStatus;
   providerSessionId?: string;

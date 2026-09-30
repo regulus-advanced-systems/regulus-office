@@ -35,6 +35,7 @@ export function writeRobot(target: RobotSchema, robot: RobotState): RobotSchema 
   target.provider = robot.provider;
   target.model = robot.model;
   target.effort = robot.effort;
+  target.permissionMode = robot.permissionMode;
   target.status = robot.status;
   target.action = robot.action;
   target.taskTitle = robot.taskTitle;

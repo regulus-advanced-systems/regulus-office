@@ -41,6 +41,8 @@ describe("buildSpawn", () => {
       `${dir}/settings.json`,
       "--session-id",
       "11111111-2222-4333-8444-555555555555",
+      "--permission-mode",
+      "auto",
       "--model",
       "opus",
       "--effort",
@@ -51,6 +53,39 @@ describe("buildSpawn", () => {
     expect(plan.cwd).toBe("/srv/office/projects/demo");
     expect(plan.providerSessionId).toBe("11111111-2222-4333-8444-555555555555");
     expect(dir.startsWith(`${ctx.home}/.regulus-office/`)).toBe(true);
+  });
+
+  test("passes the robot's permission mode; auto mode when none is set (#166)", () => {
+    const modeOf = (argv: readonly string[]) => argv[argv.indexOf("--permission-mode") + 1];
+    expect(modeOf(adapter.buildSpawn(request(), ctx).argv)).toBe("auto");
+    for (const mode of ["auto", "default", "acceptEdits"]) {
+      const argv = adapter.buildSpawn(request({ permissionMode: mode }), ctx).argv;
+      expect(modeOf(argv)).toBe(mode);
+      expect(argv.filter((a) => a === "--permission-mode")).toHaveLength(1);
+    }
+  });
+
+  test("refuses a permission mode Claude Code is not offered in (#166)", () => {
+    for (const mode of [
+      "on-request",
+      "never",
+      "bypassPermissions",
+      "plan",
+      "--dangerously-skip-permissions",
+      "",
+    ]) {
+      expect(() => adapter.buildSpawn(request({ permissionMode: mode }), ctx)).toThrow(
+        /Invalid Claude permission mode/,
+      );
+    }
+  });
+
+  test("a resume keeps the robot's permission mode (#166)", () => {
+    const plan = adapter.buildSpawn(
+      request({ resumeSessionId: "abc-123", permissionMode: "acceptEdits" }),
+      ctx,
+    );
+    expect(plan.argv.join(" ")).toContain("--resume abc-123 --permission-mode acceptEdits");
   });
 
   test("resumes with --resume <id>", () => {

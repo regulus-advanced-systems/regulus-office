@@ -24,6 +24,7 @@ export const RobotStateSchema = schema(
     provider: t.string().default("custom"),
     model: t.string().default(""),
     effort: t.string().default(""),
+    permissionMode: t.string().default(""),
     status: t.string().default("starting"),
     action: t.string().default("none"),
     taskTitle: t.string().default(""),

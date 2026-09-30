@@ -74,6 +74,7 @@ export async function startAgent(
       provider: row.provider,
       model: row.model || undefined,
       effort: row.effort ?? undefined,
+      permissionMode: row.permissionMode ?? undefined,
       workdir,
       prompt: profile.firstPrompt === "plan" ? opts.prompt : undefined,
       resumeSessionId: opts.resumeSessionId,

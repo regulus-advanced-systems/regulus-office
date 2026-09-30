@@ -6,7 +6,14 @@
  * prompt: the robot starts idle and waits). The dialog never handles a
  * secret: a credential is chosen by profile id only.
  */
-import { type ClientCommandPayload, type ProviderId, parseClientCommand } from "@regulus/protocol";
+import {
+  type ClientCommandPayload,
+  defaultPermissionMode,
+  isPermissionModeFor,
+  type PermissionMode,
+  type ProviderId,
+  parseClientCommand,
+} from "@regulus/protocol";
 import type { SpawnPrefill } from "../../state/spawn.ts";
 import {
   type AccessByProvider,
@@ -30,6 +37,8 @@ export interface SpawnFormValues {
   model: string;
   /** "" = the model has no effort setting. */
   effort: string;
+  /** Permission mode (#166); null = the provider default (not picked by hand). */
+  permissionMode: PermissionMode | null;
   /** Credential profile id, "" = own CLI login; null = the default (not picked by hand). */
   profileId: string | null;
   prompt: string;
@@ -46,6 +55,7 @@ export const MORE_OPTION_FIELDS: readonly (keyof SpawnFormValues)[] = [
   "prompt",
   "taskTitle",
   "issueNumber",
+  "permissionMode",
   "profileId",
   "autoWorktree",
 ];
@@ -86,6 +96,7 @@ export function initialSpawnValues(
     provider: provider?.id ?? "claude-code",
     model,
     effort: provider ? defaultEffortFor(provider.id, model) : "",
+    permissionMode: null,
     profileId: null,
     prompt: prefill?.prompt ?? "",
     taskTitle: prefill?.taskTitle ?? "",
@@ -106,8 +117,9 @@ export function withModel(
     provider,
     model,
     effort: defaultEffortFor(provider, model),
-    // A hand-picked credential belongs to the old provider.
+    // A hand-picked credential or permission mode belongs to the old provider.
     profileId: provider === values.provider ? values.profileId : null,
+    permissionMode: provider === values.provider ? values.permissionMode : null,
   };
 }
 
@@ -124,6 +136,11 @@ export function usableDefault(values: SpawnFormValues, access: AccessByProvider)
 /** The credential the spawn will use: the hand-picked one, else the default. */
 export function effectiveCredential(values: SpawnFormValues, access: AccessByProvider): string {
   return values.profileId ?? defaultCredential(access[values.provider]);
+}
+
+/** The permission mode the robot will run in: the hand-picked one, else the provider default. */
+export function effectivePermissionModeOf(values: SpawnFormValues): PermissionMode | undefined {
+  return values.permissionMode ?? defaultPermissionMode(values.provider);
 }
 
 export type SpawnValidation =
@@ -145,6 +162,11 @@ export function validateSpawnForm(values: SpawnFormValues, ctx: SpawnContext): S
   const effort = values.effort.trim();
   if (model && model.efforts.length > 0 && !model.efforts.includes(effort)) {
     errors.effort = "Pick an effort.";
+  }
+
+  const mode = values.permissionMode;
+  if (mode !== null && !isPermissionModeFor(values.provider, mode)) {
+    errors.permissionMode = `${providerLabel(values.provider)} has no such permission mode.`;
   }
 
   const prompt = values.prompt.trim();
@@ -175,6 +197,8 @@ export function validateSpawnForm(values: SpawnFormValues, ctx: SpawnContext): S
     // "" = no prompt: the robot starts idle and waits to be prompted.
     prompt,
     ...(model?.efforts.length ? { effort } : {}),
+    // Omitted = the provider default (Claude: auto mode; Codex: on-request).
+    ...(mode !== null ? { permissionMode: mode } : {}),
     ...(profileId !== OWN_LOGIN ? { profileId } : {}),
     ...(title ? { taskTitle: title } : {}),
     ...(issueNumber ? { issueNumber } : {}),

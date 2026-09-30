@@ -11,6 +11,7 @@ import {
   note,
   out,
   reply,
+  resumeResponse,
   TURN_ID,
   threadResponse,
   turn,
@@ -25,7 +26,7 @@ import {
 import { FakeAppServerProcess } from "./testing/fake-app-server.ts";
 import type { TraceStep } from "./testing/trace.ts";
 
-function setup(steps: TraceStep[], resumeSessionId?: string) {
+function setup(steps: TraceStep[], resumeSessionId?: string, permissionMode?: string) {
   let proc: FakeAppServerProcess | undefined;
   const runner = createFakeRunnerOps(async () => {
     proc = new FakeAppServerProcess(toJsonl(steps));
@@ -40,6 +41,7 @@ function setup(steps: TraceStep[], resumeSessionId?: string) {
       workdir: "/srv/office/worktrees/f1/a1",
       credential: { kind: "cli_login" },
       resumeSessionId,
+      permissionMode,
     },
     ctx,
   );
@@ -250,5 +252,48 @@ describe("CodexControl against documented traces", () => {
     expect(kinds(events)).toEqual(["status", "status", "exit"]);
     expect(events[1]).toMatchObject({ status: "error", reason: "no such user" });
     await expect(control.prompt("x")).rejects.toThrow("closed");
+  });
+
+  test("the robot's approval policy goes on thread/start and thread/resume (#166)", async () => {
+    const opening = (method: "thread/start" | "thread/resume", params: object): TraceStep[] => [
+      ...handshake(),
+      out({ method, id: 1, params }),
+      method === "thread/start"
+        ? reply("thread/start", 1, threadResponse)
+        : reply("thread/resume", 1, resumeResponse),
+      out({ method: "account/rateLimits/read", id: 2 }),
+      fail(2, -32600, "codex account authentication required to read rate limits"),
+    ];
+    const cases = [
+      { steps: opening("thread/start", { approvalPolicy: "never", sandbox: "workspace-write" }) },
+      {
+        steps: opening("thread/resume", { threadId: THREAD_ID, approvalPolicy: "never" }),
+        resume: THREAD_ID,
+      },
+    ];
+    for (const { steps, resume } of cases) {
+      const { control, pump, server } = setup(steps, resume, "never");
+      await (control as CodexControl).ready();
+      await until(() => server().replayer.done);
+      await control.close();
+      await pump;
+      expect(server().replayer.errors).toEqual([]);
+    }
+  });
+
+  test("buildSpawn refuses an approval policy Codex is not offered in (#166)", () => {
+    const ctx = createFakeRunnerContext();
+    const adapter = new CodexAdapter();
+    const req = { agentId: "a1", provider: "codex" as const, workdir: "/w" };
+    for (const mode of ["untrusted", "auto", "on-failure", "danger-full-access", ""]) {
+      expect(() =>
+        adapter.buildSpawn(
+          { ...req, credential: { kind: "cli_login" }, permissionMode: mode },
+          ctx,
+        ),
+      ).toThrow(/Invalid Codex approval policy/);
+    }
+    const plan = adapter.buildSpawn({ ...req, credential: { kind: "cli_login" } }, ctx);
+    expect(plan.permissionMode).toBe("on-request");
   });
 });

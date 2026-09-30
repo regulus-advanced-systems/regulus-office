@@ -11,6 +11,7 @@
 import { z } from "zod";
 import { Effort, GhNumber, Id, ModelName, PROMPT_MAX, PromptText, ShortText } from "../common.ts";
 import { PERMISSION_DECISIONS, PROVIDER_IDS } from "../enums.ts";
+import { PermissionModeSchema } from "../permission-modes.ts";
 
 export const SpawnAgentCommand = z.object({
   type: z.literal("agent.spawn"),
@@ -21,6 +22,13 @@ export const SpawnAgentCommand = z.object({
   provider: z.enum(PROVIDER_IDS),
   model: ModelName,
   effort: Effort.optional(),
+  /**
+   * The robot's permission mode (#166), in the provider's own terms; omit for
+   * the provider default. Which values a provider accepts is checked by the
+   * server with `isPermissionModeFor` (a discriminated-union member cannot
+   * carry a cross-field refinement).
+   */
+  permissionMode: PermissionModeSchema.optional(),
   profileId: Id.optional(),
   /**
    * First prompt; empty or omitted = the robot starts idle and waits to be

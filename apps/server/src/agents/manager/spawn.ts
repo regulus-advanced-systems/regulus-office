@@ -7,7 +7,11 @@
 
 import type { AdapterRegistry } from "@regulus/agent-adapters";
 import { tmuxSessionName } from "@regulus/agent-adapters";
-import type { SpawnAgentCommand } from "@regulus/protocol";
+import {
+  defaultPermissionMode,
+  isPermissionModeFor,
+  type SpawnAgentCommand,
+} from "@regulus/protocol";
 import { and, eq } from "drizzle-orm";
 import type { z } from "zod";
 import { AUDIT_ACTIONS } from "../../auth/audit.ts";
@@ -48,6 +52,14 @@ export function admitSpawn(
   if (!deps.adapters.has(input.provider)) {
     throw new AgentManagerError("bad_request", `${input.provider} is not installed`);
   }
+  if (input.permissionMode && !isPermissionModeFor(input.provider, input.permissionMode)) {
+    throw new AgentManagerError(
+      "bad_request",
+      `${input.provider} has no permission mode ${input.permissionMode}`,
+    );
+  }
+  // Stored resolved, so the panel shows it and a resume keeps it (#166).
+  const permissionMode = input.permissionMode ?? defaultPermissionMode(input.provider) ?? null;
   const profileId = deps.credentials.check(actor.id, input.provider, input.profileId);
 
   const agentId = crypto.randomUUID();
@@ -64,6 +76,7 @@ export function admitSpawn(
       provider: input.provider,
       model: input.model,
       effort: input.effort ?? null,
+      permissionMode,
       profileId,
       status: "starting",
       tmuxSession: tmuxSessionName(agentId),
@@ -77,6 +90,7 @@ export function admitSpawn(
         seatId: input.seatId,
         model: input.model,
         effort: input.effort,
+        permissionMode: input.permissionMode,
         prompt: input.prompt,
         taskTitle: input.taskTitle,
         issueNumber: input.issueNumber,
@@ -92,6 +106,7 @@ export function admitSpawn(
     seatId,
     provider: input.provider,
     model: input.model,
+    permissionMode,
     profileId,
   });
   return { agentId, seatId, taskTitle };

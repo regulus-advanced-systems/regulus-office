@@ -36,6 +36,8 @@ export const RobotState = z.object({
   provider: z.enum(PROVIDER_IDS),
   model: z.string().max(100),
   effort: z.string().max(32),
+  /** Provider permission mode the robot runs in (#166), e.g. `auto`, `on-request`; "" = none. */
+  permissionMode: z.string().max(32),
   status: z.enum(AGENT_STATUSES),
   action: z.enum(AGENT_ACTIONS),
   taskTitle: z.string().max(200),
