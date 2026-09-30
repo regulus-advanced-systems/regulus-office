@@ -683,7 +683,8 @@ cmd_list_sessions() {
   if server_alive; then as_user tmux -S "$SOCK" list-sessions -F '#{session_name}' 2>/dev/null || true; fi
   local id
   for id in $(sandbox_ids); do
-    load_sandbox "$id" && [[ $S_RID == "$RID" ]] || continue
+    load_sandbox "$id" || continue
+    [[ $S_RID == "$RID" ]] || continue
     SOCK=$(sandbox_sock)
     if server_alive; then as_user tmux -S "$SOCK" list-sessions -F '#{session_name}' 2>/dev/null || true; fi
   done
