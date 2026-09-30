@@ -1,28 +1,29 @@
 # Regulus Office: Specification (draft v0.1, 2026-09-28)
 
-Status: v0.3, decisions resolved with the owner on 2026-09-28 and updated 2026-09-29 (see §14). Agents building from this document should treat it as authoritative. Research backing these decisions lives in `docs/research/`.
+Status: v0.4, decisions resolved with the owner on 2026-09-28 and updated 2026-09-29 and 2026-09-30 (see §14; v0.4 replaces the building of floors with the compound, #170). Agents building from this document should treat it as authoritative. Research backing these decisions lives in `docs/research/`.
 
 ## 1. Vision
 
-Regulus Office is an open-source, self-hosted, multiplayer office simulator in the browser. The player walks around an office drawn in the style of Game Dev Tycoon (isometric dollhouse rooms, warm cream backdrop, soft painterly shading). The employees are real AI coding agents (Claude Code, Codex, Gemini CLI, OpenCode, Kimi Code, and any model reachable through them such as DeepSeek, Z.AI GLM, Kimi) rendered as cute low-poly robots sitting at desks and typing on laptops. Each project gets its own floor. Humans from the same company log in, see each other, share a whiteboard, a jukebox, a screen, GitHub boards and a task queue, and spawn or manage agents from any free desk. Persistent office agents walk the office too: a company project-manager agent that tracks progress, keeps a conference-room overview of every project current, and presents a daily brief, plus personal assistant agents for each human. They run on any supported engine (Hermes Agent, OpenClaw, or a Claude Code / Codex session) and act through the office's own tools.
+Regulus Office is an open-source, self-hosted, multiplayer office simulator in the browser. The office is a secret-lair compound dug into an island mountain, in the style of the 1960s spy-villain lair builders (the Evil Genius genre): rock-cut halls, steel blast doors, corridors, a lobby that opens onto the beach. The humans are geniuses; the employees are real AI coding agents (Claude Code, Codex, Gemini CLI, OpenCode, Kimi Code, and any model reachable through them such as DeepSeek, Z.AI GLM, Kimi) rendered as henchmen in yellow jumpsuits sitting at desks and typing on laptops. Each project gets its own room, built into the compound when the project is added. Humans from the same company log in, see each other, share a whiteboard, a jukebox, a screen, GitHub boards and a task queue, and spawn or manage agents from any free desk. Persistent office agents walk the office too: a company project-manager agent that tracks progress, keeps a conference-room overview of every project current, and presents a daily brief, plus personal assistant agents for each human. They run on any supported engine (Hermes Agent, OpenClaw, or a Claude Code / Codex session) and act through the office's own tools.
 
 Design principles:
 1. **Real agents, real terminals.** Every robot is a real CLI process the user can open and drive. Nothing is faked.
 2. **Structured by default, terminal on demand.** Status, activity animations, cost and permission prompts come from typed agent events; the raw TUI is one click away.
 3. **Per-user credentials, always.** Every human logs into their own providers. The office never stores or shares subscription tokens. This is both a security property and a provider-policy requirement (see research 04).
-4. **Floor = project.** Navigation maps one-to-one onto the work structure.
-5. **Look like Game Dev Tycoon, run on a laptop.** Fixed isometric camera, cheap rendering, DOM panels only where needed.
+4. **Room = project.** Navigation maps one-to-one onto the work structure: you walk from the lobby down the corridors into a project's room.
+5. **Look like a villain's lair builder, run on a laptop.** Rotatable 3/4 overhead camera, stylised low-poly art, cheap rendering, DOM panels only where needed.
 6. **Self-hostable by one person with Docker Compose.** Optional pieces (media SFU, Postgres) are Compose profiles.
 
 ## 2. Glossary
 
 | Term | Meaning |
 |---|---|
-| Office | One deployment (one VM). Has a building with N floors. |
-| Floor | One project. Bound to a git repository (usually GitHub). Has desks, boards, whiteboard, queue, decor. |
-| Lobby | Ground floor. Elevator, reception, usage tracker wall, jukebox, lounge TV for screen share. |
-| Human | A logged-in person with an avatar. Roles: `owner`, `admin`, `member`, `viewer`. |
-| Robot / Agent | An AI coding agent process bound to a desk on a floor. Owned by the human who spawned it. |
+| Office | One deployment (one VM). Has one compound. |
+| Compound | The island-mountain lair: the lobby, auto-built corridors, project rooms placed on a grid, special rooms, and the beach outside the blast door. |
+| Room (project room) | One project: a rectangular grid room in the compound, bound to 1..n git repositories (usually GitHub). Has desks, boards, whiteboard, queue, decor. Code, database and protocol keep the older name `floor` (`floors`, `floorId`, `FloorRoom`); the UI says room. |
+| Lobby | The compound's entrance hall: blast door to the beach, reception, usage tracker wall, jukebox, lounge TV for screen share. Where everyone arrives. |
+| Human | A logged-in person with a genius avatar. Roles: `owner`, `admin`, `member`, `viewer`. |
+| Robot / Agent / Henchman | An AI coding agent process bound to a desk in a room, drawn as a henchman. Owned by the human who spawned it. |
 | Provider | An agent CLI (Claude Code, Codex, Gemini CLI, OpenCode, Kimi Code) or a model backend routed through one (DeepSeek, Z.AI, Kimi plan). |
 | Credential profile | A per-human, per-provider login or key, stored only inside that human's isolated HOME. |
 | Desk | A seat with a laptop. Free or occupied by a robot. |
@@ -33,7 +34,7 @@ Design principles:
 
 ## 3. Personas and core loops
 
-- **Ante (owner):** opens the office in a browser in the morning. The PM agent walks up and delivers the daily brief. Ante takes the elevator to the "primo" floor, sees three robots working, one with a raised hand (needs permission). Clicks it, the terminal opens, approves, closes. Walks to the issue board, drags issue #42 onto a free desk, picks "Claude Code / opus", the robot spawns and starts. Puts a picture on the wall. Queues four more issues in the task queue and leaves.
+- **Ante (owner):** opens the office in a browser in the morning. The PM agent walks up and delivers the daily brief. Ante walks down the corridor into the "primo" room, sees three robots working, one with a raised hand (needs permission). Clicks it, the terminal opens, approves, closes. Walks to the issue board, drags issue #42 onto a free desk, picks "Claude Code / opus", the robot spawns and starts. Puts a picture on the wall. Queues four more issues in the task queue and leaves.
 - **Teammate (member):** logs in, is asked once to connect providers. Opens the Codex device-code login in the office UI, then spawns Codex robots on the floors they have access to. Shares screen to the lobby TV while discussing a PR on the whiteboard.
 - **Viewer:** can walk around and watch, cannot spawn or type into terminals.
 
@@ -94,14 +95,14 @@ regulus-office/
     web/                       # Vite + React client
       src/
         scene/                 # R3F: cameras, floors, furniture, robots, decals, bubbles
-        ui/                    # HUD, panels, dialogs (GDT-styled)
+        ui/                    # HUD, panels, dialogs
         net/                   # Colyseus client, terminal WS, yjs provider
         state/                 # zustand stores
         audio/                 # jukebox sync, ambience
   packages/
     protocol/                  # shared TS types + Colyseus schemas + zod validators
     agent-adapters/            # one adapter per provider, pure TS, testable without the server
-    floor-layout/              # data-driven floor templates, nav grid, seat definitions
+    floor-layout/              # compound grid, corridor routing, room interior generator, nav grid, seats
     assets/                    # GLB models, textures, CC0/CC-BY attribution manifest
   runner/                      # Dockerfile for the agent runner image (tmux, git, node, bun, python, CLIs)
   deploy/                      # docker-compose.yml, Caddyfile, .env.example, livekit.yaml
@@ -121,9 +122,11 @@ regulus-office/
 
 Core tables (fields abbreviated; every table has `id`, `createdAt`, `updatedAt`):
 
-- `users` (Better Auth) + `user_profiles`: `displayName`, `role`, `avatar` (robot colour set, accessory), `runnerId`, `linuxUid`.
+- `users` (Better Auth) + `user_profiles`: `displayName`, `role`, `avatar` (genius archetype, colours, accessory), `runnerId`, `linuxUid`.
 - `invites`: `token`, `role`, `expiresAt`, `usedBy`.
-- `floors` (= projects): `name`, `slug`, `index` (elevator order), `paletteId`, `layoutTemplateId`, `archivedAt`.
+- `floors` (= project rooms): `name`, `slug`, `gridX`, `gridY`, `width`, `depth` (tiles), `doorSide`, `buildState` (`building|ready`), `buildStartedAt`, `deskCount`, `decorStyle`, `archivedAt`. The pre-compound `index`, `paletteId` and `layoutTemplateId` are retired by the compound migration.
+- `compound` (one row): grid bounds, lobby placement, blast-door state is live-only. Corridors are derived from room placements, never stored.
+- `skin_rules`: `match` (`role:pm`, `office_agent:<id>`, `provider:<id>`), `skinId`, `priority`. Admin-set special henchman skins.
 - `floor_repos`: `floorId`, `owner`, `name`, `url`, `defaultBranch`, `workdir`, `isPrimary`. A floor has 1..n repos; desks, worktrees and boards bind to one repo. Boards show all repos of the floor with a repo chip on each card.
 - `floor_members`: `floorId`, `userId`, `access` (`manage|spawn|view`).
 - `desks`: `floorId`, `seatId` (from layout), `agentId?` (occupied by).
@@ -208,39 +211,46 @@ Credential rules (hard requirements):
 3. No office-wide shared *subscription* credentials, ever. An admin MAY add office-wide API keys for metered providers (DeepSeek, Anthropic API, OpenAI API, Gemini API) as an opt-in per provider; members choose per spawn whether to use their own profile or the office key; usage from office keys is attributed to `office` in the tracker.
 4. Agents run as the spawning human's runner. Terminal ACL: everyone with access to a floor may watch any robot's terminal on it; control (typing, approving, prompting, interrupting, resuming, sending home, opening a PR) is reserved to the robot's owner. Office `admin`s/`owner`s may only emergency-stop another human's robot (kill the session, keep the branch; audited). Permission request details go only to the robot's owner. Injected keys are therefore only readable by the human they belong to.
 
-## 9. World, floors, navigation
+## 9. World: the compound, navigation
 
-### 9.1 Building
-- Lobby (floor 0): elevator bank, reception desk (PM agent's home), usage-tracker wall display, lounge with TV (screen share target), jukebox, whiteboard (building-wide), coffee machine, plants.
-- Floor N (N ≥ 1): one project. Created when a floor is added; removed/archived with the project. Elevator panel lists floors with name, robot counts (working/waiting), and a colour chip. Quick menu (hotkey `F`) teleports without the ride; the elevator ride is a 1.5 s animation with a floor-change sound.
-- Layout is data-driven (`packages/floor-layout`): a template JSON defines walls, floor material, seats (desk positions + facing), wall anchors for boards and pictures, nav-blocking rectangles, and spawn points. Initial template: "Office L2" modelled on GDT's second office (two back walls with windows, teal carpet, big shared table with 4 seats, CEO L-desk, cabinets, kitchenette corner, meeting table). Templates scale: `small` (6 desks), `medium` (12), `large` (20, two pods). Floor switches template when desks run out (owner-confirmed).
-- Each floor has a palette (floor/wall/accent colours) taken from the GDT set (teal carpet + cream walls; oak + sky-blue/orange; lime/mustard/orange zones + crimson) and cycled per floor so floors are visually distinct; the floor name is painted on the exterior stub wall like "Greenheart Games".
-- Each floor has a theme (software company by default; also e.g. NASA mission control, war room, starship bridge, newsroom, research lab, trading floor, café studio, pirate ship deck, space station) that changes its furniture, walls, floors, lighting, decor and the uniforms of every character on it, but never its functionality: the same seats, desks, boards, queue, whiteboard and elevator. People keep their own colour as an accent. The lobby has an office-wide theme.
+### 9.1 Compound
+- **Grid.** The compound is a grid of 2 m tiles inside a maximum size (default 64×64 tiles, configurable). The lobby sits at the south edge; its blast door opens onto the beach. Free building: no budget, only the maximum size.
+- **Project rooms.** Adding a project (a GitHub repo) opens build mode: the owner picks a size (rectangles from 4×4 to 12×12 tiles), sees a ghost of the room snap to the grid (green valid, red overlapping or unreachable), picks the door side and confirms. The room is then `building` for a short build phase (scaffolding, crates, sparks, dust, construction henchmen; about 20 s, configurable) while the repo clones, and becomes `ready`. Owners and admins build, move and delete rooms; moving needs the room empty of running robots; deleting uses floor archive/delete (#150).
+- **Corridors.** Derived, never drawn by hand: the server routes a corridor (2 tiles wide) from each room's door to the corridor network rooted at the lobby, reusing existing corridor tiles where it can. A placement is valid only if such a route exists. Corridors are recomputed when rooms are added, moved or removed.
+- **Room interiors.** Generated by `packages/floor-layout` from the room's size, desk count and decor style (room settings): seats, furniture, wall anchors for boards, pictures and screens, nav blocking and spawn points. A new room starts vanilla: one desk with 4 seats plus a cabinet, a plant, a board wall and a lamp. Room managers add desks (up to what the size fits) and pick a decor style. Seat ids are stable: adding desks never renumbers seats; shrinking or removing desks is refused while their seats are occupied.
+- **Special rooms.** Fixed and not buildable: the lobby (reception, usage wall, jukebox, lounge TV, blast door), the conference/war room (M5 content) and a break room with the coffee machine.
+- **Access.** A room's members walk in; anyone else in the office sees its closed door with the room's name and robot counts (working, waiting) but not the interior. Viewers with room access see inside but control nothing (D12).
+- **Presence and state.** The building room carries every human's position anywhere in the compound and the compound layout. The client joins the `FloorRoom` of the room the player is in and of up to three nearest visible rooms, for robots, boards and laptop screens; state stays bounded no matter how big the compound grows.
+- **Outside.** A button on the lobby wall opens the blast door for everyone (shared state, klaxon and warning lights, closes after 60 s). Outside: a strip of beach, a dock and the sea, all walkable. A full island (jungle, paths, volcano, helipad) is later (M6).
+- **Quick travel.** Hotkey `F` lists the rooms the player may enter; picking one moves the player to its door. This replaces the elevator.
+- **Migration.** Existing floors become ready rooms automatically, placed in a row off the main corridor, keeping their repos, desks, robots and seats.
 
 ### 9.2 Camera and controls
-- Third-person (default): orthographic camera, yaw 45°, pitch 35.264°, fixed; scroll to zoom within limits; room centred in a cream `#FFF6D9` vignette. Click-to-walk (nav grid A*) plus WASD.
-- First-person: perspective camera at robot eye height, pointer-lock, WASD, front stub walls become full walls. Toggle with `V` or a HUD button; a 300 ms crossfade.
-- Interaction: hover highlights; `E` interacts with the nearest interactable (desk, board, elevator, jukebox, whiteboard, TV, picture frame); a radial context menu on right-click.
+- Default: perspective camera at a 3/4 overhead angle (pitch about 50°), rotatable (`Q`/`E` or right-drag), zoom with the scroll wheel from a compound overview down to a close third-person view behind the player. Rooms are cutaways: no ceilings, and walls between the camera and the player fade out.
+- First-person: perspective camera at eye height, pointer-lock, WASD; toggle with `V` or a HUD button; a 300 ms crossfade.
+- Movement: click-to-walk on the compound nav grid (A*), plus WASD relative to the camera's yaw. The player always faces the way they move and turns to follow the cursor when standing.
+- Interaction: hover highlights; `E` interacts with the nearest interactable (desk, board, blast-door button, jukebox, whiteboard, TV, picture frame); a radial context menu on right-click.
 
-### 9.3 Avatars
-- All characters (humans and robots) are cute low-poly robots (Quaternius Animated LowPoly Robot as base, CC0), retextured per user with a colour set and an accessory (antenna, visor, cap). Humans are distinguished from agents by a floating name plate colour and a "badge" mesh; agents have a provider logo-coloured chest light and an antenna bulb whose colour encodes status (grey starting, green idle, blue working, orange waiting-permission with a raised hand, red error, dark exited).
-- Name labels for robots are floor decals next to the seat (GDT style); humans get a floating name plate.
-- Animations: idle, walk, sit-type, sit-idle, read (papers), think (head tilt), celebrate (spin + confetti), facepalm (failing), wave, point. Driven from the action enum.
-- Work bubbles: while `working`, the laptop emits GDT-style bubbles: cyan for tool calls, amber for file edits, blue for test runs, orange-red when a tool fails. Bubbles fly to the floor's HUD counters.
+### 9.3 Characters
+- **Humans are geniuses.** Each human picks one of about six original archetypes (for example scientist, tycoon, general, hacker, diva, mastermind) at first login, with colours and accessory choices, changeable later in settings. They wear a floating name plate.
+- **Coding agents are henchmen.** Yellow jumpsuits with provider-colour trim (Claude orange, Codex teal, and so on) and a status light whose colour encodes status (grey starting, green idle, blue working, orange waiting-permission with a raised hand, red error, dark exited). Name decals on the floor next to the seat.
+- **Special skins.** Office agents (PM, personal assistants, Hermes and others) and any robot matching an admin rule wear a special skin from a built-in set, assigned in admin settings (`skin_rules`).
+- **Animations:** idle, walk, sit-type, sit-idle, read (papers), think (head tilt), celebrate (spin + confetti), facepalm (failing), wave, point. Driven from the action enum. Seated characters sit still when idle and animate only while working.
+- **Work bubbles:** while `working`, the laptop emits bubbles: cyan for tool calls, amber for file edits, blue for test runs, orange-red when a tool fails.
 
 ### 9.4 In-world objects
-- Laptop screens: focused desk renders live xterm.js in a drei `<Html transform>`; all other desks show a `CanvasTexture` from tmux `capture-pane` text updated ~2/s.
-- Issue board and PR board: cork boards on the wall; unfocused = canvas texture; click = 2D panel (GDT modal style). Cards can be plucked and carried to a desk (drop = spawn dialog prefilled with the issue).
+- Laptop screens: the focused desk renders live xterm.js in a drei `<Html transform>`; all other desks show a `CanvasTexture` from tmux `capture-pane` text updated ~2/s.
+- Issue board and PR board: boards on a room's wall anchors; unfocused = canvas texture; click = 2D panel. Cards can be plucked and carried to a desk (drop = spawn dialog prefilled with the issue).
 - Task queue: a clipboard on the wall next to the boards; 2D panel.
 - Whiteboard: canvas snapshot on the wall; click = full-screen Excalidraw.
 - Picture frames: upload from the user's PC (PNG/JPG/WebP ≤ 10 MB), placed on wall anchors, resizable, removable by placer or admin.
-- Usage-tracker wall (lobby, and a small one per floor): rendered with Canvas 2D: per-provider bars for the viewer's own limits (5-hour / weekly / credits), today's spend estimate, top robots by tokens. Only the viewer's own data plus office totals (never another user's limits).
+- Usage-tracker wall (lobby, and a small one per room): rendered with Canvas 2D: per-provider bars for the viewer's own limits (5-hour / weekly / credits), today's spend estimate, top robots by tokens. Only the viewer's own data plus office totals (never another user's limits).
 - Services board: "Running apps" panel listing detected listening ports per robot with title and an "Open" button that goes through the office's authenticated reverse proxy (`/p/<floor>/port/<n>/`).
 - Jukebox (lobby): queue UI; local files (uploaded, CC-licensed bundled set) with tight sync; YouTube via official iframe as HUD panel with loose sync. Spatial volume from the jukebox position; personal mute.
 - Lounge TV: screen share target; sitting on the couch auto-focuses it.
-- Elevator: door animation, floor panel.
+- Blast door: lobby wall button, opening animation, klaxon and warning lights.
 - Reception desk: PM agent's home; interacting opens the brief and PM chat.
-- Conference room: wall screens with every project's status, tasks across all floors, a timeline and the PM's daily brief; the PM agent keeps it current. Screens show only what the viewer may see.
+- Conference room: wall screens with every project's status, tasks across all rooms, a timeline and the PM's daily brief; the PM agent keeps it current. Screens show only what the viewer may see.
 
 ## 10. Feature set and milestones
 
@@ -251,9 +261,12 @@ Monorepo, CI (typecheck, lint, unit tests), Compose skeleton, Better Auth with i
 Add a floor from a GitHub repo (clone into workdir). Runner backends (`linux-user`, `docker`). Spawn Claude Code and Codex at a desk with prompt + model; tmux + PTY bridge; live terminal modal; laptop textures; status ladder; robot animations from actions; stop/resume/send-home; per-agent worktrees based on `origin/<default>` after `git fetch`; one-click PR. Credential onboarding: Codex device code in UI; Claude `/login` inside the user's terminal; API/plan key entry (encrypted).
 
 ### M2 Floors and boards
-Elevator + quick menu; floor templates and palettes; issue and PR boards with GitHub App/PAT sync and webhooks/polling; carry-a-card; task queue with concurrency; changes panel (diff/commit/push); services discovery and proxy; usage tracker (Claude statusline forwarder, Codex rate limits, transcript scan); notifications (desktop + tab badge, Slack/Discord/Telegram webhooks); per-agent sandboxes with their own ports and limits; owner-only robot control with admin emergency stop (D12); floor themes.
+Issue and PR boards with GitHub App/PAT sync and webhooks/polling; carry-a-card; task queue with concurrency; changes panel (diff/commit/push); services discovery and proxy; usage tracker (Claude statusline forwarder, Codex rate limits, transcript scan); notifications (desktop + tab badge, Slack/Discord/Telegram webhooks); per-agent sandboxes with their own ports and limits; owner-only robot control with admin emergency stop (D12). Boards, queue and other wall objects hang on data-driven wall anchors, so they move into compound rooms unchanged.
 
 Also in M2: merge gong + confetti with robots dancing on PR merge; search across chat and all persisted terminal scrollback with jump-to-desk; changes window per robot (live diff vs merge-base, per-file diff, commit, discard, push + PR).
+
+### M2.5 Compound
+Replaces the building of floors with the compound (§9, D21-D23): compound grid, room placement and build mode with auto-corridors and build animations; room interiors generated from size, desk count and decor style (vanilla start, expandable in room settings); walking the whole compound with a rotatable 3/4 camera and zoom; room access by membership with closed doors for others; quick travel; henchmen with provider trim and status light, special skins by admin rule; genius avatars picked at first login; lobby blast door onto the beach, dock and sea; migration of existing floors into rooms; the lair art kit and HUD restyle; the §11 performance target re-verified with 20 henchmen on screen.
 
 ### M3 Collaboration
 Whiteboard (Excalidraw + Yjs); wall pictures; jukebox; LiveKit screen share to lounge TV and proximity voice chat (both under the Compose `media` profile); text chat; whereabouts / walk-to-teammate; emotes; sitting. Meeting room: 2-5 robots collaborate on one task in a pattern (debate, lead + team, map-reduce, red/blue, review panel) with a shared worktree, round and token budgets, output committed on a branch or posted as a PR review.
@@ -265,7 +278,7 @@ OpenCode (serve + attach), Gemini CLI and Kimi Code via ACP, base-URL profiles f
 Office agents: any number of persistent agents, one company PM agent plus personal assistant agents per human (admin-set cap). Engines behind an `OfficeAgentEngine` interface: Hermes Agent (`managed` profile in the VM or `external` gateway URL + token), OpenClaw, or a CLI session engine (a long-running Claude Code / Codex / OpenCode session with a role prompt). Company agents run in an office-owned runner with office-level metered keys only (D2). All office agents act through an office MCP server (with an equivalent REST API) authenticated by a per-agent scoped token; every call is authorised and audited. Personal agents never exceed their owner's rights. Privilege presets: `observer` (read + briefs), `coordinator` (default for the PM: read everything, enqueue tasks, comment on issues/PRs, deliver briefs; cannot spawn or stop robots), `manager` (coordinator plus spawn/stop within a per-day cap). Each office agent has a `soul.md` and memories stored by the office (source of truth), with version history; owners/admins read and edit every agent's soul and memories, a human edits their own agents'; memories never store secrets. Conference room with project, task and timeline screens kept current by the PM. Daily brief on cron delivered at reception when the owner arrives and optionally to Slack/Telegram. Patrol route, visits waiting robots, answers questions at reception.
 
 ### M6 Polish and "tycoon" layer
-Weather and day-night cycle, coffee machine buff, office dog per floor, holiday themes, achievements and trophy shelf, rooftop bar (DJ stage, synth music, drinks), arcade cabinet with spectator screen and high scores, floor upgrades as projects grow (template tier changes), optional tycoon build mode for furniture placement. Dropped by owner decision: building exterior/tower, garage with cars, ladders and fire poles, balcony smoke break.
+Weather and day-night cycle, coffee machine buff, office dog per floor, holiday themes, achievements and trophy shelf, lair bar (DJ stage, synth music, drinks), arcade cabinet with spectator screen and high scores, room decor packs and furniture placement inside rooms, the full island exterior (jungle, paths, volcano, helipad), more special rooms, henchman variety. Dropped by owner decision: office tower, garage with cars, ladders and fire poles, balcony smoke break.
 
 ### Ops (across milestones)
 Desktop notifications + tab badge for waiting robots (M2). Slack / Discord / Telegram webhook notifications on needs-input, done, PR merged (M2). Self-upgrade from the admin UI: check GitHub releases, pull image, restart; robots survive in tmux (M5). Setup on an existing VM: clone the repo and run one setup script (or `docker compose up`) that checks prerequisites, generates secrets, builds or pulls images and starts the office with Caddy and a domain (M2). No VM provisioning.
@@ -276,22 +289,22 @@ Desktop notifications + tab badge for waiting robots (M2). Slack / Discord / Tel
 - Reliability: tmux keeps agents alive across office-server restarts; agents re-adopted on boot; resume by provider session id after VM reboot; SQLite WAL + nightly backup script.
 - Accessibility: all panels keyboard-navigable; reduced-motion setting disables bubbles/confetti.
 - Observability: structured logs (pino), `/healthz`, Prometheus metrics (`/metrics`), per-agent event log viewer.
-- Tests: unit (adapters, status ladder, layout/nav, jukebox sync math, secrets), integration (spawn a fake agent CLI in tmux, drive PTY, assert status), e2e (Playwright: login, add floor, spawn, open terminal, elevator).
+- Tests: unit (adapters, status ladder, layout/nav, jukebox sync math, secrets), integration (spawn a fake agent CLI in tmux, drive PTY, assert status), e2e (Playwright: login, add a project room, spawn, open terminal, walk between rooms).
 
 ## 12. Art direction (summary; full reference in research 03)
-- Cream `#FFF6D9` viewport with radial vignette. True isometric (ortho, yaw 45°, pitch 35.264°). Dollhouse rooms: two full back walls, front stub walls with dark grey cap, project name on the exterior stub.
-- No outlines. `MeshToonMaterial` 3-4 step ramp, hemisphere + one directional key from upper-left, soft contact shadows, baked/SSAO AO, no specular, grime decal at 10-15% on walls/floors.
-- Palettes from GDT (teal/cream, oak/sky-blue/orange, lime/mustard/orange/crimson). HUD accents: amber `#F5A623`, cyan `#2DBFE8`, blue `#1E6FE0`, orange-red `#F26522`, crimson `#B83159`, navy `#01008C`.
-- UI: Open Sans, white rounded panels with 1 px grey border, golden-bordered `#F5C542` modals on `#FFF9EF` with cream glow, orange gradient primary buttons, red destructive.
-- Characters: cute round-headed low-poly robots (Quaternius base), ~4.5 heads tall, toon-shaded, status antenna bulb. Furniture from Kenney Furniture Kit / KayKit (CC0) restyled to GDT proportions and colours.
-- Attribution manifest in `packages/assets/ATTRIBUTION.md` for any CC-BY asset.
+- **Genre and target.** A 1960s spy-villain lair dug into an island mountain, as in the Evil Genius games: match that look as closely as possible (D23). Rough-hewn rock walls, poured concrete and steel, riveted blast doors, big control consoles with blinking lamps, retro-futuristic furniture, warm tungsten pools of light against cool rock, red alarm beacons, cable runs and pipes. Spacious and lived-in, never sterile (owner preference): clear zones, warm light, plants, personal clutter at desks.
+- **Palette.** Rock greys and browns, concrete, oiled steel; accents: henchman yellow `#F2C200`, alarm red `#D7263D`, console teal `#2EC4B6`, brass `#C9A227`; warm key light, cool fill. Outside: pale sand, turquoise shallows, deep blue sea.
+- **Rendering.** Stylised low-poly with vertex colours and `MeshToonMaterial` (3-4 step ramp); hemisphere light + one directional key + a few pooled point lights per visible room; soft contact/blob shadows; no specular; cheap stylised water. Rooms are cutaways with fading near walls. The §11 performance target governs every choice.
+- **Characters.** Henchmen: chunky, about 5 heads tall, yellow jumpsuits, cap or helmet, provider trim, status light. Geniuses: bigger exaggerated silhouettes per archetype. All original designs.
+- **UI.** Target look: a retro lair control panel (dark panels, brass or yellow frames, stencil headings, lamp-style status chips), restyled in M2.5. Until then the current panels stay.
+- **Sources (D23).** Every asset is original (procedural or authored in-repo) or CC0/CC-BY with an entry in `packages/assets/ATTRIBUTION.md`. Good CC0 bases: Quaternius, KayKit, Kenney, Poly Pizza (CC0 only). Screenshots of the genre may be used only as mood references in discussion; never commit, trace or rebuild a commercial game's models, textures, characters, logos, UI or level layouts.
 
 ## 13. Open-source project setup
 - License: MIT.
 - `README.md` with 5-minute Compose quickstart; `CONTRIBUTING.md`; `CODE_OF_CONDUCT.md`; ADRs in `docs/adr/`; issue templates; CI on PRs; release per tag with Compose image publish to GHCR.
 - Attribution to AgentSystemLabs/agent-office (MIT) for any copied code (protocol shapes, PTY host ideas) in `NOTICE`.
 
-## 14. Decision record (owner, 2026-09-28; updated 2026-09-29)
+## 14. Decision record (owner, 2026-09-28; updated 2026-09-29 and 2026-09-30)
 
 | # | Decision | Choice |
 |---|---|---|
@@ -301,9 +314,9 @@ Desktop notifications + tab badge for waiting robots (M2). Slack / Discord / Tel
 | D4 | PM default privileges | `coordinator` |
 | D5 | Voice | Proximity voice chat ships with screen share in M3 (LiveKit, optional profile) |
 | D6 | Runner backend | Both: Docker runner per human (Compose default) and Linux user per human (bare-install default) behind one interface |
-| D7 | Floor model | Floor = project with 1..n repos; desks/worktrees/boards bind to a repo |
-| D8 | Floor layout | Fixed templates in size tiers (small/medium/large); build mode in M6 |
-| D9 | Game-y extras | All kept: merge gong + confetti (M2), meeting room patterns (M3), dog/coffee/weather/holidays/achievements/rooftop bar/arcade (M6). Building exterior, garage, ladders/poles, smoke break dropped |
+| D7 | Floor model | Room (`floor` in code) = project with 1..n repos; desks/worktrees/boards bind to a repo; one primary repo, more attachable (2026-09-30, #170) |
+| D8 | Room layout | Rooms are grid rectangles (1 tile = 2 m, 4×4 to 12×12 tiles) placed by owners/admins; interiors generated from size, desk count and decor style; start vanilla (one desk of 4 seats plus furniture) (2026-09-30, #170) |
+| D9 | Game-y extras | All kept: merge gong + confetti (M2), meeting room patterns (M3), dog/coffee/weather/holidays/achievements/lair bar/arcade (M6). Beach outside the blast door in M2.5, full island later. Office tower, garage, ladders/poles, smoke break dropped (updated 2026-09-30) |
 | D10 | More features | Board kiosk agents, search across chat + scrollback, changes window all kept |
 | D11 | Hosting target | Primary: one central company office on a Hetzner VM (8 vCPU, 16 GB RAM); Compose + Caddy + Let's Encrypt on a public domain. Self-hosting by one person with Compose stays supported (updated 2026-09-29) |
 | D12 | Terminal ACL | Everyone with floor access watches all robots; only the robot's owner controls it; admins/owners may emergency-stop it (audited) (updated 2026-09-29) |
@@ -313,7 +326,10 @@ Desktop notifications + tab badge for waiting robots (M2). Slack / Discord / Tel
 | D16 | Repo | Public from day one at github.com/regulus-advanced-systems/regulus-office |
 | D17 | Repo isolation | One office-only mirror per floor repo; one clone per human per floor, seeded from the mirror; a runner sees only its own human's area (2026-09-29, #114) |
 | D18 | Agent sandboxes | Every coding robot gets its own sandbox (ports, limits, processes); scale out via remote runner hosts on demand; no Kubernetes for now (2026-09-29, #139) |
-| D19 | Floor themes | Per-floor themes change visuals and uniforms, never functionality; the lobby has an office-wide theme (2026-09-29, #134) |
+| D19 | Floor themes | Superseded by D21: one compound look; a room's decor style is a room setting (2026-09-30, #170) |
 | D20 | Office agent identity | Office agents have `soul.md` and memories stored by the office; owners/admins read and edit all of them, including personal agents', visibly and audited (2026-09-29, #136) |
+| D21 | Compound | The office is one island-mountain lair compound. The lobby is the entrance; adding a project builds a grid room the owner sizes and places; corridors connect rooms automatically; scaffolding and build animations; free building within a maximum compound size; owners/admins build, move and delete rooms, room managers change room settings; special rooms (lobby, conference/war room, break room) are fixed; existing floors migrate to rooms in a row off the main corridor. Camera: rotatable 3/4 overhead with zoom into third-person and first-person (2026-09-30, #170) |
+| D22 | Characters | Coding agents are henchmen in yellow jumpsuits with provider-colour trim and a status light; special skins (office agents, PM) from a built-in set, assigned in admin settings. Humans pick one of about six original genius archetypes with colours and accessories at first login, changeable later (2026-09-30, #170) |
+| D23 | Art source | Match the genre's look as closely as possible (palette, proportions, materials, lighting, silhouettes), but every asset is original or CC0/CC-BY: no assets, characters, logos, UI or level layouts taken or traced from any commercial game (2026-09-30, #170) |
 
 Still open (non-blocking, defaults applied): product name stays "Regulus Office"; UI language English only for now.
