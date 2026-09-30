@@ -206,7 +206,7 @@ describe("exec", () => {
     const tmux = [...fake.execs.values()].find((e) => e.cmd.includes("new-session"));
     expect(tmux?.cmd).toContain("/run/office/tmux/u1.sock");
     expect(tmux?.cmd.at(-1)).toBe(
-      `. '${envPath}'; rm -f '${envPath}'; exec 'claude' '--model' 'x'`,
+      `umask 0002; . '${envPath}'; rm -f '${envPath}'; exec 'claude' '--model' 'x'`,
     );
     expect(tmux?.env).toEqual([]);
     expect(wireWithoutStdin()).not.toContain(KEY);

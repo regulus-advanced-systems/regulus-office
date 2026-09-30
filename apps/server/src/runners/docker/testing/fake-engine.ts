@@ -68,6 +68,8 @@ export class FakeEngine {
   onExec: ExecHandler = () => 0;
   /** Makes `POST /containers/{id}/start` fail (e.g. the RWLayer 500 of #151). */
   onStart: (c: FakeContainer) => FakeFailure | undefined = () => undefined;
+  /** `POST /containers/{id}/wait`: runs the container "to completion", returns its exit code. */
+  onWait: (c: FakeContainer) => number | Promise<number> = () => 0;
   /** Makes `GET /containers/{id}/json` fail. */
   onInspect: (c: FakeContainer) => FakeFailure | undefined = () => undefined;
   /**
@@ -231,7 +233,7 @@ export class FakeEngine {
         }));
       return this.#reply(s, 200, rows);
     }
-    if ((hit = m(/^\/containers\/([^/]+)(?:\/(json|start|exec))?$/))) {
+    if ((hit = m(/^\/containers\/([^/]+)(?:\/(json|start|exec|wait))?$/))) {
       const c = this.#container(hit[1] ?? "");
       if (!c) return this.#reply(s, 404, { message: "No such container" });
       const action = hit[2];
@@ -249,6 +251,11 @@ export class FakeEngine {
           Config: { Labels: c.body.Labels },
           HostConfig: c.body.HostConfig,
         });
+      }
+      if (action === "wait") {
+        const StatusCode = await this.onWait(c);
+        c.running = false;
+        return this.#reply(s, 200, { StatusCode });
       }
       if (action === "start") {
         const failure = c.running ? undefined : this.onStart(c);

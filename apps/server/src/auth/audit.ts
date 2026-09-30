@@ -16,6 +16,8 @@ export const AUDIT_ACTIONS = {
   inviteConsume: "invite.consume",
   floorCreate: "floor.create",
   floorArchive: "floor.archive",
+  floorRestore: "floor.restore",
+  floorDelete: "floor.delete",
   floorMemberSet: "floor.member_set",
   floorMemberRemove: "floor.member_remove",
   floorRepoClone: "floor_repo.clone",

@@ -12,10 +12,11 @@ const PID_PREFIX = "office-pid:";
 
 /**
  * Wraps argv so the process reports its in-container pid on stderr before it
- * `exec`s; Docker has no API to signal an exec, so `kill` needs that pid.
+ * `exec`s (with umask 0002); Docker has no API to signal an exec, so `kill` needs that pid.
  */
 export function pidReportingCmd(argv: readonly string[]): string[] {
-  return ["sh", "-c", `printf '${PID_PREFIX}%s\\n' "$$" >&2; exec "$@"`, "sh", ...argv];
+  // umask 0002: files it makes stay group-writable for the office (#150).
+  return ["sh", "-c", `umask 0002; printf '${PID_PREFIX}%s\\n' "$$" >&2; exec "$@"`, "sh", ...argv];
 }
 
 export interface PipedExecOptions {

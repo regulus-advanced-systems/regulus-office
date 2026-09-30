@@ -27,6 +27,8 @@ readonly RID_RE='^[a-z0-9]{1,23}$'
 readonly AID_RE='^[A-Za-z0-9_-]{1,64}$'
 readonly SESSION_RE='^agent-[A-Za-z0-9_-]{1,64}$'
 readonly CONF_PATH_RE='^(/[A-Za-z0-9._-]+)+$'
+# Floor slugs (apps/server/src/floors/naming.ts): no dots, slashes or leading/trailing dash.
+readonly SLUG_RE='^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$'
 TMUX_DIR=/run/office/tmux
 PROJECTS_ROOT=/srv/office/projects
 WORKTREES_ROOT=/srv/office/worktrees
@@ -64,6 +66,7 @@ usage: office-runner-helper <verb> <args>
   deprovision <rid>                       kill everything of office-u-<rid>, delete it
   mount-project <rid> <workdir>           ACL a dir inside <worktrees>/<floor>/<rid> for office-u-<rid>
   reclaim <dir>                           give a pre-#114 shared dir back to the office only
+  remove-floor <slug>                     delete <projects>/<slug> and <worktrees>/<slug> (floor deleted)
   exec <rid> <agentId> <cwd> -- <argv..>  tmux session agent-<agentId> in scope agent-<agentId>
                                           (stdin: env script, NUL-terminated)
   spawn-piped <rid> <agentId> <cwd> -- <argv..>
@@ -324,6 +327,27 @@ cmd_reclaim() {
   printf 'reclaimed=%s\n' "$d"
 }
 
+# A deleted floor (#150): its mirror dir <projects>/<slug> and its floor dir
+# <worktrees>/<slug> (every human's area: clones and agent worktrees, files
+# owned by runner accounts). The slug grammar keeps the target exactly one
+# level below a configured root; the roots must be canonical; the target must
+# be a real directory. GNU rm -r walks with openat/O_NOFOLLOW, so it never
+# follows a symlink, even one swapped in while it runs, and
+# --one-file-system keeps it off other mounts.
+cmd_remove_floor() {
+  local root d
+  for root in "$PROJECTS_ROOT" "$WORKTREES_ROOT"; do
+    [[ -d $root && ! -L $root ]] || continue
+    [[ $(realpath -e -- "$root") == "$root" ]] || die "$root must be canonical, without symlinks"
+    d="$root/$SLUG"
+    [[ -e $d || -L $d ]] || continue
+    [[ -d $d && ! -L $d ]] || die "$d is not a directory"
+    [[ $(realpath -e -- "$d") == "$d" ]] || die "$d must be canonical, without symlinks"
+    rm -r -f --one-file-system -- "$d" || die "could not remove $d"
+    printf 'removed=%s\n' "$d"
+  done
+}
+
 cmd_exec() {
   load_user
   ensure_server
@@ -467,6 +491,11 @@ main() {
       check_reclaim_dir "$1"
       RDIR=$1
       ;;
+    remove-floor)
+      [[ $# -eq 1 ]] || usage
+      [[ $1 =~ $SLUG_RE ]] || bad "floor slug"
+      SLUG=$1
+      ;;
     exec | spawn-piped)
       [[ $# -ge 5 ]] || usage
       check_rid "$1"
@@ -533,6 +562,7 @@ main() {
     deprovision) cmd_deprovision ;;
     mount-project) cmd_mount_project ;;
     reclaim) cmd_reclaim ;;
+    remove-floor) cmd_remove_floor ;;
     exec) cmd_exec ;;
     spawn-piped) cmd_spawn_piped ;;
     kill) cmd_kill ;;

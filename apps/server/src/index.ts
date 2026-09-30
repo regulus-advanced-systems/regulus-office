@@ -33,7 +33,12 @@ import {
 } from "./rooms/index.ts";
 import { loadMasterKeyring, type MasterKeyring } from "./secrets/index.ts";
 import { createTerminals } from "./terminals/index.ts";
-import { createWorktrees, migrateLegacyLayout, mountWorktreeRoutes } from "./worktrees/index.ts";
+import {
+  createWorktrees,
+  floorDirRemover,
+  migrateLegacyLayout,
+  mountWorktreeRoutes,
+} from "./worktrees/index.ts";
 
 async function readVersion(): Promise<string> {
   try {
@@ -150,24 +155,35 @@ async function main(): Promise<void> {
     process.exit(2);
   }
   mountGitHubRoutes(server.router, { auth, db, logger, ...github });
+  // Runner backend from OFFICE_RUNNER_BACKEND (SPEC §8): agents run only in their human's runner.
+  const runner = await createRunner(config, production, logger);
+  logger.info({ backend: config.runnerBackend }, "agent runner backend selected");
   const floors = createFloors({
     db,
     logger,
     config,
     keyring,
     connection: github.connection,
+    // A deleted floor's files: the linux-user helper, else the office itself (#150).
+    dirs: floorDirRemover({
+      projectsDir: config.projectsDir,
+      worktreesDir: config.worktreesDir,
+      runner,
+      logger,
+    }),
     onChange: (floorId) => {
       rooms.floorChanged(floorId).catch((err) => logger.error({ err }, "floor refresh failed"));
     },
   });
-  mountFloorRoutes(server.router, { auth, floors: floors.service });
+  mountFloorRoutes(server.router, {
+    auth,
+    floors: floors.service,
+    lifecycle: floors.lifecycle,
+  });
   logger.info({ projectsDir: config.projectsDir }, "floor repos clone here");
   // Per-agent worktrees + one-click PR (#31). The AgentManager (#26) takes
   // `worktrees.workspaces`, the runner does mountProject; `agent.pr` and
   // `agent.worktree` (#33) reach `worktrees` through the manager.
-  // Runner backend from OFFICE_RUNNER_BACKEND (SPEC §8): agents run only in their human's runner.
-  const runner = await createRunner(config, production, logger);
-  logger.info({ backend: config.runnerBackend }, "agent runner backend selected");
   const worktrees = createWorktrees({ db, logger, config, repos: floors.repos, runner });
   mountWorktreeRoutes(server.router, { auth, db, prune: worktrees.prune });
   // Agents (#26): the manager, its FloorRoom/terminal registration, Claude hook routes (#27).
@@ -187,6 +203,10 @@ async function main(): Promise<void> {
       openPullRequest: (agentId, options) => worktrees.openPullRequest(agentId, options),
     },
   });
+  // "Send all home" before deleting a floor (#150): branches are kept, GitHub is not touched.
+  floors.lifecycle.robots = {
+    sendHome: (actor, agentId) => agents.sendHome(actor, agentId, { keepBranch: true }),
+  };
   // "Connect providers" (#32): key profiles and CLI logins in the human's own runner (SPEC §8).
   const credentialPanel = mountCredentialPanel(server.router, {
     db,

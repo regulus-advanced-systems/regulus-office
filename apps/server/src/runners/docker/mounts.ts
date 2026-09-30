@@ -14,6 +14,7 @@
  * `Subpath`; anything else is a bind mount of the same host path (bare-metal
  * office talking to a local daemon).
  */
+import { existsSync } from "node:fs";
 import { isAbsolute, normalize, relative } from "node:path";
 import { humanAreaOf } from "../layout.ts";
 
@@ -69,6 +70,21 @@ export function humanMountTarget(
 export function isOwnArea(mount: MountSpec, roots: readonly string[], userId: string): boolean {
   const target = checkPath(mount.Target);
   return roots.some((root) => humanAreaOf(target, checkPath(root), userId) === target);
+}
+
+/**
+ * A mounted area whose floor was deleted (#150): its root is there but the
+ * area is not. When the office cannot see the root at all (paths of another
+ * host), the mount is kept.
+ */
+export function areaGone(
+  area: string,
+  roots: readonly string[],
+  exists: (path: string) => boolean = existsSync,
+): boolean {
+  const dir = checkPath(area);
+  const root = roots.map(checkPath).find((r) => dir !== r && inside(dir, r));
+  return root !== undefined && exists(root) && !exists(dir);
 }
 
 /** True when some existing mount's target is `target` or one of its parents. */

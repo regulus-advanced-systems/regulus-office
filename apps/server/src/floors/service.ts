@@ -26,6 +26,7 @@ import type { RepoCredentialVault } from "../github/credentials.ts";
 import { parseRepoRef, type RepoRef, repoKey, repoWebUrl } from "../github/repo-ref.ts";
 import { effectiveAccess, type FloorActor, floorAccessFor, isOfficeManager } from "./access.ts";
 import type { RepoCloner } from "./cloner.ts";
+import { floorInfo, repoInfo } from "./info.ts";
 import { repoDirNames, slugify, uniqueSlug } from "./naming.ts";
 import { listOfficeUsers } from "./people.ts";
 
@@ -42,23 +43,8 @@ export interface FloorServiceDeps {
 }
 
 type FloorRow = typeof floors.$inferSelect;
-type RepoRow = typeof floorRepos.$inferSelect;
 
 const notFound = () => new AuthHttpError(404, "floor_not_found");
-
-function repoInfo(row: RepoRow): FloorRepoInfo {
-  return {
-    repoId: row.id,
-    owner: row.owner,
-    name: row.name,
-    url: row.url,
-    defaultBranch: row.defaultBranch,
-    isPrimary: row.isPrimary,
-    cloneStatus: row.cloneStatus,
-    cloneError: row.cloneError,
-    hasCredential: row.encryptedCredential !== null,
-  };
-}
 
 export class FloorService {
   readonly #deps: FloorServiceDeps;
@@ -72,24 +58,7 @@ export class FloorService {
   }
 
   #info(row: FloorRow, access: FloorAccess): FloorInfo {
-    const repos = this.#db
-      .select()
-      .from(floorRepos)
-      .where(eq(floorRepos.floorId, row.id))
-      .orderBy(asc(floorRepos.createdAt))
-      .all()
-      .sort((a, b) => Number(b.isPrimary) - Number(a.isPrimary));
-    return {
-      floorId: row.id,
-      name: row.name,
-      slug: row.slug,
-      index: row.index,
-      paletteId: row.paletteId,
-      layoutTemplateId: row.layoutTemplateId,
-      archivedAt: row.archivedAt ? row.archivedAt.getTime() : null,
-      access,
-      repos: repos.map(repoInfo),
-    };
+    return floorInfo(this.#db, row, access);
   }
 
   /** Throw 404 unless `actor` has at least `need` on the live floor. */

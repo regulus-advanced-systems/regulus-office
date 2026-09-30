@@ -5,7 +5,11 @@
  *   GET    /api/floors                                   floors the caller can see
  *   POST   /api/floors                                   create (owner/admin)
  *   GET    /api/floors/:floorId                          one floor (view)
+ *   GET    /api/floors/archived                          archived floors (owner/admin)
  *   POST   /api/floors/:floorId/archive                  archive (owner/admin)
+ *   POST   /api/floors/:floorId/restore                  restore (owner/admin)
+ *   POST   /api/floors/:floorId/send-home                send its robots home (owner/admin)
+ *   DELETE /api/floors/:floorId                          delete for good (owner/admin; #150)
  *   GET    /api/floors/:floorId/members                  members (manage)
  *   PUT    /api/floors/:floorId/members/:userId          grant access (manage)
  *   DELETE /api/floors/:floorId/members/:userId          revoke (manage)
@@ -16,7 +20,9 @@
  */
 import {
   CreateFloorRequest,
+  DeleteFloorRequest,
   FLOORS_API_PATH,
+  FLOORS_ARCHIVED_API_PATH,
   OFFICE_USERS_API_PATH,
   RetryCloneRequest,
   SetFloorMemberRequest,
@@ -27,6 +33,7 @@ import { AuthHttpError, forbidden, unauthorized } from "../auth/errors.ts";
 import { checkOrigin } from "../auth/origin.ts";
 import { json, type RouteContext, type RouteHandler, type Router } from "../http/router.ts";
 import type { FloorActor } from "./access.ts";
+import type { FloorLifecycle } from "./lifecycle.ts";
 import type { FloorService } from "./service.ts";
 
 /** Largest accepted JSON body; a create request with 8 repos and PATs is ~5 KB. */
@@ -58,9 +65,10 @@ export function mountFloorRoutes(
   deps: {
     auth: Pick<OfficeAuth, "getSessionFromRequest" | "publicUrl" | "allowedOrigins">;
     floors: FloorService;
+    lifecycle?: FloorLifecycle;
   },
 ): void {
-  const { auth, floors } = deps;
+  const { auth, floors, lifecycle } = deps;
 
   const actorOf = async (request: Request): Promise<FloorActor> => {
     const user = await auth.getSessionFromRequest(request);
@@ -104,6 +112,14 @@ export function mountFloorRoutes(
     }, true),
   );
 
+  // Before `/:floorId`: the first matching route wins.
+  if (lifecycle) {
+    router.get(
+      FLOORS_ARCHIVED_API_PATH,
+      route((_ctx, actor) => json({ floors: lifecycle.listArchived(actor) })),
+    );
+  }
+
   router.get(
     `${FLOORS_API_PATH}/:floorId`,
     route((ctx, actor) => json(floors.get(actor, param(ctx, "floorId")))),
@@ -116,6 +132,8 @@ export function mountFloorRoutes(
       return new Response(null, { status: 204 });
     }, true),
   );
+
+  if (lifecycle) mountLifecycleRoutes(router, route, lifecycle);
 
   router.get(
     `${FLOORS_API_PATH}/:floorId/members`,
@@ -157,6 +175,36 @@ export function mountFloorRoutes(
         body.token,
       );
       return json(repo, { status: 202 });
+    }, true),
+  );
+}
+
+type Route = (
+  handler: (ctx: RouteContext, actor: FloorActor) => Promise<Response> | Response,
+  write?: boolean,
+) => RouteHandler;
+
+/** Restore, send home and delete (#150); archive stays on the service above. */
+function mountLifecycleRoutes(router: Router, route: Route, lifecycle: FloorLifecycle): void {
+  const floorId = (ctx: RouteContext) => ctx.params.floorId ?? "";
+
+  router.post(
+    `${FLOORS_API_PATH}/:floorId/restore`,
+    route((ctx, actor) => json(lifecycle.restore(actor, floorId(ctx))), true),
+  );
+
+  router.post(
+    `${FLOORS_API_PATH}/:floorId/send-home`,
+    route(async (ctx, actor) => json(await lifecycle.sendAllHome(actor, floorId(ctx))), true),
+  );
+
+  router.add(
+    "DELETE",
+    `${FLOORS_API_PATH}/:floorId`,
+    route(async (ctx, actor) => {
+      const body = await readBody(ctx.request, DeleteFloorRequest);
+      await lifecycle.delete(actor, floorId(ctx), body.confirmName);
+      return new Response(null, { status: 204 });
     }, true),
   );
 }

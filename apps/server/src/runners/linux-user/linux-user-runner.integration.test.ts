@@ -4,7 +4,8 @@
  * it, lists its processes via the cgroup, finds a listening port, kills it and
  * deprovisions. Then (#114) a second human's account can neither read nor
  * write the first human's clone and worktrees nor write the floor mirror, and
- * `reclaim` takes a pre-#114 shared dir back from runner accounts. Needs root
+ * `reclaim` takes a pre-#114 shared dir back from runner accounts, and
+ * `remove-floor` deletes a deleted floor's dirs (#150). Needs root
  * via the installed helper, so it only runs with OFFICE_TEST_LINUX_USER=1 and
  * passwordless sudo (the CI `linux-user` job; see
  * docs/deploy/linux-user-runner.md for the setup it expects).
@@ -344,4 +345,36 @@ describe.skipIf(!enabled)("LinuxUserRunner (real accounts, systemd, tmux)", () =
     // Only the projects root or an old per-agent worktree qualify.
     await expect(runner.reclaim(join(floorDir, rid))).rejects.toThrow();
   }, 2);
+
+  test("remove-floor deletes only that floor's dirs, runner-owned files too, no symlink following", async () => {
+    await provisioned();
+    const gone = `gone-${rid}`;
+    const area = join(WORKTREES, gone, rid);
+    const clone = join(area, "_clones", "repo");
+    await mkdir(clone, { recursive: true });
+    await mkdir(join(PROJECTS, gone, "repo"), { recursive: true });
+    await runner.mountProject(user, { floorId: "g", repoId: "r", workdir: clone });
+    // Files and a dir owned by the human's account.
+    const nested = join(clone, "locked", "by-a.txt");
+    await runner.helper.call("write-file", [rid, nested, "644"], { stdin: "a\n" });
+    await runner.helper.call("write-file", [rid, join(clone, "locked", ".keep"), "600"], {
+      stdin: "",
+    });
+    // A symlink out of the area into another floor must not be followed.
+    const outside = join(floorDir, "outside.txt");
+    await Bun.write(outside, "keep me\n");
+    await Bun.$`ln -s ${floorDir} ${join(area, "escape")}`;
+    expect(await runner.removeFloorDirs(gone)).toEqual([
+      join(PROJECTS, gone),
+      join(WORKTREES, gone),
+    ]);
+    for (const dir of [join(PROJECTS, gone), join(WORKTREES, gone)]) {
+      expect(await stat(dir).catch(() => null)).toBeNull();
+    }
+    expect(await readFile(outside, "utf8")).toBe("keep me\n");
+    expect(await stat(workdir)).toBeTruthy();
+    // Nothing left to remove is fine; a path is refused before root.
+    expect(await runner.removeFloorDirs(gone)).toEqual([]);
+    await expect(runner.helper.call("remove-floor", [floorDir])).rejects.toThrow();
+  });
 });
