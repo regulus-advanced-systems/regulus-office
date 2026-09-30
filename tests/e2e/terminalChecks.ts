@@ -69,6 +69,13 @@ export async function checkRobotTerminal(
     const terminal = page.getByRole("dialog").filter({ hasText: /In control|Watching/ });
     await expect(terminal.getByTestId("terminal-mode")).toHaveText("Watching");
     await expect(terminal.getByTestId("terminal-screen")).toHaveAttribute("data-status", "open");
+    // The watcher's grid has been scaled into the normal box before it is measured.
+    await expect
+      .poll(async () => {
+        const fit = await terminalFit(terminal);
+        return fitsAndFills(fit.screen, fit.box, 0.8) || `screen ${JSON.stringify(fit)}`;
+      })
+      .toBe(true);
     const normal = await terminalFit(terminal);
 
     // Expand: about 60 % of the window (1152x648 at 1920x1080), the modal layout rules hold.
