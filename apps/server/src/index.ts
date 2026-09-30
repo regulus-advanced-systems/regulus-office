@@ -24,6 +24,7 @@ import { createOfficeServer } from "./http/server.ts";
 import { WsRouter } from "./http/ws-router.ts";
 import { createShutdownController, installSignalHandlers } from "./lifecycle.ts";
 import { createLogger } from "./logging.ts";
+import { createNotifications } from "./notifications/setup.ts";
 import {
   composeRoomAuth,
   createDevHeaderAuth,
@@ -146,6 +147,15 @@ async function main(): Promise<void> {
       process.exit(2);
     }
   }
+  // Notifications (#42): desktop + tab badge through the BuildingRoom, team webhooks.
+  const notifications = createNotifications({
+    db,
+    keyring,
+    logger,
+    config,
+    personal: rooms.building,
+  });
+  notifications.mount(server.router, auth);
   // Office GitHub connection (#141): App or org PAT; clones and PRs use it for repos it covers.
   let github: ReturnType<typeof createGitHubConnection>;
   try {
@@ -181,6 +191,7 @@ async function main(): Promise<void> {
     lifecycle: floors.lifecycle,
   });
   logger.info({ projectsDir: config.projectsDir }, "floor repos clone here");
+  notifications.watchPullRequests(floors.repos);
   // Per-agent worktrees + one-click PR (#31). The AgentManager (#26) takes
   // `worktrees.workspaces`, the runner does mountProject; `agent.pr` and
   // `agent.worktree` (#33) reach `worktrees` through the manager.
@@ -202,6 +213,7 @@ async function main(): Promise<void> {
       status: (agentId) => worktrees.workspaces.status(agentId),
       openPullRequest: (agentId, options) => worktrees.openPullRequest(agentId, options),
     },
+    observer: notifications.center,
   });
   // "Send all home" before deleting a floor (#150): branches are kept, GitHub is not touched.
   floors.lifecycle.robots = {
@@ -244,6 +256,7 @@ async function main(): Promise<void> {
   shutdown.register("rooms", () => rooms.transport.shutdown());
   shutdown.register("terminals", () => terminals.shutdown());
   shutdown.register("provider-logins", () => credentialPanel.shutdown());
+  shutdown.register("notifications", () => notifications.close());
   // Detach only: agents keep running in their runners' tmux (SPEC §11).
   shutdown.register("agents", () => agents.close());
   installSignalHandlers(shutdown, (code) => {

@@ -35,6 +35,9 @@ export const AUDIT_ACTIONS = {
   providerLoginFinish: "provider_login.finish",
   githubConnect: "github.connect",
   githubDisconnect: "github.disconnect",
+  notificationChannelCreate: "notification_channel.create",
+  notificationChannelUpdate: "notification_channel.update",
+  notificationChannelDelete: "notification_channel.delete",
 } as const;
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];
 
@@ -51,7 +54,8 @@ export interface AuditEntry {
     | "worktrees"
     | "credential_profile"
     | "provider_login"
-    | "github_connection";
+    | "github_connection"
+    | "notification_channel";
   targetId: string | null;
   meta?: Record<string, unknown>;
 }

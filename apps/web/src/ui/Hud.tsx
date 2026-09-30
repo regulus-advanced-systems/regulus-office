@@ -18,6 +18,7 @@ import { ElevatorPanel } from "./hud/ElevatorPanel.tsx";
 import { StatusBox } from "./hud/StatusBox.tsx";
 import { TopBar } from "./hud/TopBar.tsx";
 import { WorkCounters } from "./hud/WorkCounters.tsx";
+import { NotificationsHost } from "./notifications/NotificationsHost.tsx";
 import { ProvidersPanelHost } from "./providers/ProvidersPanel.tsx";
 import { SettingsForm } from "./settings/SettingsPanel.tsx";
 import { SpawnDialogHost } from "./spawn/SpawnDialog.tsx";
@@ -92,6 +93,7 @@ export function Hud() {
       </div>
       <HudDialogs />
       <AgentHost />
+      <NotificationsHost />
       <Toaster />
     </div>
   );

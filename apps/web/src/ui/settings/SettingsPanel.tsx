@@ -13,6 +13,7 @@ import { openProvidersPanel } from "../providers/providersStore.ts";
 import { FirstPersonSettings } from "./FirstPersonSettings.tsx";
 import { FloorsSection } from "./FloorsSection.tsx";
 import { GitHubSection } from "./GitHubSection.tsx";
+import { NotificationsSection } from "./NotificationsSection.tsx";
 import { DEFAULT_SETTINGS } from "./settingsStorage.ts";
 
 export function SettingsForm() {
@@ -41,6 +42,8 @@ export function SettingsForm() {
           Sign in to Claude Code or Codex in your own runner, or add API and plan keys.
         </div>
       </div>
+
+      <NotificationsSection />
 
       <div className="rg-field">
         <Switch
