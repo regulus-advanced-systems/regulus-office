@@ -9,6 +9,11 @@ declare global {
     __regulusFps?: number;
     /** The R3F root state (scene, gl, camera), only when `?stats` is set (for perf/debug scripts). */
     __regulusR3F?: unknown;
+    /**
+     * The floor state store (state/floor.ts), only when `?stats` is set: e2e probes subscribe
+     * to it to see every robot status the client received, however few frames the page draws.
+     */
+    __regulusFloorStore?: unknown;
   }
 }
 

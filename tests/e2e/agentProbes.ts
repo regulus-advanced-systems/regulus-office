@@ -38,7 +38,8 @@ export function robots(page: Page): Promise<Record<string, RobotProbe>> {
 /**
  * Starts sampling every robot's (status, action, animation, handRaised, and the reason of an
  * `error`) inside the page every 50 ms, so short-lived states are not missed between Playwright
- * polls. Read with {@link history}.
+ * polls. Read with {@link history}. These are what the scene drew: on a slow page a state can pass
+ * without being drawn, so it also starts {@link recordStatuses} (what the page received).
  */
 export async function recordRobots(page: Page): Promise<void> {
   await page.evaluate(() => {
@@ -62,12 +63,58 @@ export async function recordRobots(page: Page): Promise<void> {
       });
     }, 50);
   });
+  await recordStatuses(page);
 }
 
 /** Distinct `status/action/animation/hand[ (statusReason)]` samples since {@link recordRobots}, in order. */
 export function history(page: Page): Promise<string[]> {
   return page.evaluate(
     () => (window as unknown as { __robotHistory?: string[] }).__robotHistory ?? [],
+  );
+}
+
+/**
+ * Starts logging, per robot, every `status/action` the page's floor state received (the store
+ * `?stats` publishes, apps/web/src/scene/perf/stats.ts). The store is updated on every state
+ * patch, so a state that lasted one patch is in the log even when the page drew no frame and
+ * React rendered no commit while it lasted (a software-rendered CI page draws 1-3 fps, #179).
+ * Called by {@link recordRobots}; read with {@link statuses}.
+ */
+async function recordStatuses(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    type Robot = { status: string; action: string };
+    type Snapshot = { state: { robots: Record<string, Robot> } | null };
+    const w = window as unknown as {
+      __regulusFloorStore?: {
+        getState(): Snapshot;
+        subscribe(listener: (s: Snapshot) => void): () => void;
+      };
+      __statusLog?: Record<string, string[]>;
+      __statusUnsubscribe?: () => void;
+    };
+    const store = w.__regulusFloorStore;
+    if (!store) throw new Error("no floor store on the page (needs ?stats)");
+    w.__statusUnsubscribe?.();
+    const log: Record<string, string[]> = {};
+    w.__statusLog = log;
+    const take = (s: Snapshot) => {
+      for (const [agentId, r] of Object.entries(s.state?.robots ?? {})) {
+        const entry = `${r.status}/${r.action}`;
+        const list = (log[agentId] ??= []);
+        if (list[list.length - 1] !== entry) list.push(entry);
+      }
+    };
+    take(store.getState());
+    w.__statusUnsubscribe = store.subscribe(take);
+  });
+}
+
+/** Distinct `status/action` of one robot, in the order the page received them (see recordStatuses). */
+export function statuses(page: Page, agentId: string): Promise<string[]> {
+  return page.evaluate(
+    (id) =>
+      (window as unknown as { __statusLog?: Record<string, string[]> }).__statusLog?.[id] ?? [],
+    agentId,
   );
 }
 

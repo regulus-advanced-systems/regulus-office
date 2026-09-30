@@ -25,7 +25,14 @@ import {
   dockerAvailable,
   sh,
 } from "./agentOffice.ts";
-import { collectTerminalOutput, history, recordRobots, robots, scenePoint } from "./agentProbes.ts";
+import {
+  collectTerminalOutput,
+  history,
+  recordRobots,
+  robots,
+  scenePoint,
+  statuses,
+} from "./agentProbes.ts";
 import { type BoneSegment, boneSegments, recordBones, sampleBones } from "./boneProbes.ts";
 import { checkChangesWindow } from "./changesChecks.ts";
 import { checkLaptopCopy, checkLoginTerminalCopy, checkRobotTerminalCopy } from "./copyChecks.ts";
@@ -359,14 +366,14 @@ test("2. the owner spawns Claude Code at a free desk with their login and a prom
 test("3. the robot's status and action change (editing) and it raises its hand", async () => {
   // The fake posts UserPromptSubmit (thinking), PreToolUse(Edit) (editing), then
   // PermissionRequest (waiting_permission, hand up).
+  // The order the page received them in (#179): a software-rendered CI page can get thinking and
+  // editing between two frames and never draw the 1 s of thinking.
   await expect
-    .poll(() => history(ownerPage), { timeout: 60_000 })
-    .toContainEqual(expect.stringMatching(/^working\/editing\//));
-  const seen = await history(ownerPage);
-  expect(seen).toContainEqual(expect.stringMatching(/^working\/thinking\//));
-  expect(seen.findIndex((s) => s.startsWith("working/thinking/"))).toBeLessThan(
-    seen.findIndex((s) => s.startsWith("working/editing/")),
-  );
+    .poll(() => statuses(ownerPage, agentId), { timeout: 60_000 })
+    .toContain("working/editing");
+  const seen = await statuses(ownerPage, agentId);
+  expect(seen).toContain("working/thinking");
+  expect(seen.indexOf("working/thinking")).toBeLessThan(seen.indexOf("working/editing"));
   // The fake keeps editing until told (#179). The robot starts typing once the action has held
   // for 1.5 s, and a software-rendered CI page gets the status late and draws a few frames a
   // second: wait until this page has drawn the typing clip moving the bones (3b), then go on.
