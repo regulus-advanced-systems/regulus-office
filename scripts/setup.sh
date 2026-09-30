@@ -7,8 +7,9 @@
 #   scripts/setup.sh --domain office.example.com  public hostname (Let's Encrypt)
 #   scripts/setup.sh --upgrade                    pull the checkout, rebuild, restart
 #
-# Plain `cd deploy && docker compose up -d --build` keeps working; this script only adds checks,
-# secret generation, the runner image build and a health check around it.
+# Plain `cd deploy && docker compose up -d --build` keeps working (after creating the backup
+# directory, see README); this script only adds checks, secret generation, the backup directory,
+# the runner image build and a health check around it.
 set -euo pipefail
 
 usage() {
@@ -25,6 +26,9 @@ Usage: scripts/setup.sh [options]
                          for OFFICE_IMAGE_TAG, default latest, falling back to a local build)
   --owner-email <email>  create the owner account and a first invite link (needs bun on this host)
   --owner-name <name>    display name for the owner (default "Owner")
+  --backup-dir <path>    host directory for the nightly database backups (default: OFFICE_BACKUP_HOST_DIR
+                         in deploy/.env, else deploy/backups). Created with mode 700 for uid 1000,
+                         the office user; existing backups in it are kept.
   --upgrade              git pull (fast-forward, clean checkout only), rebuild changed images and
                          restart the office; robots keep running in their runner containers
   --install-docker       install Docker Engine and the Compose plugin (Ubuntu only; asks first)
@@ -62,7 +66,7 @@ WARNINGS=0
 # Arguments
 
 DOMAIN_ARG="" HTTP_PORT_ARG="" HTTPS_PORT_ARG="" IMAGES_MODE="auto" OWNER_EMAIL="" OWNER_NAME="Owner"
-UPGRADE=0 INSTALL_DOCKER=0 INTERACTIVE=1
+BACKUP_DIR_ARG="" UPGRADE=0 INSTALL_DOCKER=0 INTERACTIVE=1
 ORIG_ARGS=("$@")
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -78,6 +82,8 @@ while [[ $# -gt 0 ]]; do
     --owner-email=*) OWNER_EMAIL="${1#*=}"; shift ;;
     --owner-name) OWNER_NAME="${2:?--owner-name needs a value}"; shift 2 ;;
     --owner-name=*) OWNER_NAME="${1#*=}"; shift ;;
+    --backup-dir) BACKUP_DIR_ARG="${2:?--backup-dir needs a value}"; shift 2 ;;
+    --backup-dir=*) BACKUP_DIR_ARG="${1#*=}"; shift ;;
     --upgrade) UPGRADE=1; shift ;;
     --install-docker) INSTALL_DOCKER=1; shift ;;
     --non-interactive | -y) INTERACTIVE=0; shift ;;
@@ -90,6 +96,8 @@ for p in "$HTTP_PORT_ARG" "$HTTPS_PORT_ARG"; do
   [[ -z "$p" || ("$p" =~ ^[0-9]+$ && "$p" -ge 1 && "$p" -le 65535) ]] || die "invalid port: $p"
 done
 [[ -t 0 ]] || INTERACTIVE=0
+# Relative to where the script was started, before it changes into deploy/.
+if [[ -n "$BACKUP_DIR_ARG" && "$BACKUP_DIR_ARG" != /* ]]; then BACKUP_DIR_ARG="$PWD/$BACKUP_DIR_ARG"; fi
 
 ask() { # ask <prompt> <default> -> REPLY
   local prompt="$1" default="${2:-}"
@@ -398,7 +406,53 @@ if ! is_local_domain "$DOMAIN"; then
 fi
 
 # ---------------------------------------------------------------------------------------------
-# 3. Images
+# 3. Backup directory (#203): nightly backups go to a host directory, not the office-data volume,
+# so deleting the volume does not delete them. The `backup` service runs as uid 1000 (the office
+# user, which owns the database) and writes there; mode 700 keeps it private on the host.
+
+BACKUP_UID=1000
+as_root() { # as_root <command...>: directly when root, else with sudo (asks for a password only when interactive)
+  if [[ $EUID -eq 0 ]]; then "$@"
+  elif ! command -v sudo >/dev/null 2>&1; then return 1
+  elif sudo -n true 2>/dev/null; then sudo "$@"
+  elif [[ $INTERACTIVE -eq 1 ]]; then info "sudo: $*"; sudo "$@"
+  else return 1; fi
+}
+
+step "Backups"
+BACKUP_DIR="$(cfg OFFICE_BACKUP_HOST_DIR)"
+if [[ -n "$BACKUP_DIR_ARG" ]]; then
+  BACKUP_DIR="$BACKUP_DIR_ARG"
+  [[ "$(env_get OFFICE_BACKUP_HOST_DIR)" == "$BACKUP_DIR" ]] || env_set OFFICE_BACKUP_HOST_DIR "$BACKUP_DIR"
+fi
+BACKUP_DIR="${BACKUP_DIR:-./backups}"
+[[ "$BACKUP_DIR" == /* ]] || BACKUP_DIR="$DEPLOY/${BACKUP_DIR#./}"
+[[ "$BACKUP_DIR" != *:* ]] || die "the backup directory must not contain ':' ($BACKUP_DIR)"
+if [[ ! -d "$BACKUP_DIR" ]]; then
+  if ! (umask 077 && mkdir -p "$BACKUP_DIR") 2>/dev/null && ! as_root install -d -m 700 "$BACKUP_DIR"; then
+    die "cannot create the backup directory $BACKUP_DIR" \
+      "sudo install -d -m 700 -o $BACKUP_UID -g $BACKUP_UID $BACKUP_DIR    # then re-run this script"
+  fi
+  ok "created $BACKUP_DIR"
+fi
+# Only the directory itself is adjusted; files already in it are never touched.
+if [[ "$(stat -c %u "$BACKUP_DIR")" != "$BACKUP_UID" ]]; then
+  as_root chown "$BACKUP_UID:$BACKUP_UID" "$BACKUP_DIR" ||
+    die "$BACKUP_DIR must belong to uid $BACKUP_UID (the office user the backup service runs as)" \
+      "sudo chown $BACKUP_UID:$BACKUP_UID $BACKUP_DIR    # then re-run this script"
+fi
+if [[ "$(stat -c %a "$BACKUP_DIR")" != 700 ]]; then
+  chmod 700 "$BACKUP_DIR" 2>/dev/null || as_root chmod 700 "$BACKUP_DIR" ||
+    die "cannot set mode 700 on $BACKUP_DIR" "sudo chmod 700 $BACKUP_DIR"
+fi
+BACKUP_TIME="$(cfg OFFICE_BACKUP_TIME)" BACKUP_TIME="${BACKUP_TIME:-03:00}"
+BACKUP_RETENTION="$(cfg OFFICE_BACKUP_RETENTION_DAYS)" BACKUP_RETENTION="${BACKUP_RETENTION:-14}"
+[[ "$BACKUP_TIME" =~ ^([01][0-9]|2[0-3]):[0-5][0-9]$ ]] || die "OFFICE_BACKUP_TIME must be HH:MM (UTC), got '$BACKUP_TIME'"
+[[ "$BACKUP_RETENTION" =~ ^[0-9]+$ ]] || die "OFFICE_BACKUP_RETENTION_DAYS must be a whole number of days, got '$BACKUP_RETENTION'"
+ok "$BACKUP_DIR (mode 700, uid $BACKUP_UID): daily at $BACKUP_TIME UTC, kept $([[ $BACKUP_RETENTION == 0 ]] && echo forever || echo "$BACKUP_RETENTION days")"
+
+# ---------------------------------------------------------------------------------------------
+# 4. Images
 
 TAG="$(cfg OFFICE_IMAGE_TAG)"
 if [[ "$IMAGES_MODE" == auto ]]; then
@@ -475,16 +529,20 @@ else
 fi
 
 # ---------------------------------------------------------------------------------------------
-# 4. Start and check
+# 5. Start and check
 
 step "Starting the office (Compose project '$PROJECT')"
 # --no-build: the images were built or pulled above (runner containers are not Compose services).
 if ! dc up -d --wait --wait-timeout 180 --no-build; then
   dc ps -a >&2 || true
-  dc logs --no-color --tail 40 office caddy >&2 || true
-  die "the stack did not become healthy; see the logs above" "cd $DEPLOY && docker compose logs office caddy"
+  dc logs --no-color --tail 40 office caddy backup >&2 || true
+  die "the stack did not become healthy; see the logs above" "cd $DEPLOY && docker compose logs office caddy backup"
 fi
 ok "containers healthy"
+latest_backup="$(find "$BACKUP_DIR" -maxdepth 1 -name 'office-*.db' -printf '%f\n' 2>/dev/null | sort | tail -1 || true)"
+if [[ -n "$latest_backup" ]]; then ok "latest backup: $latest_backup"; elif [[ ! -r "$BACKUP_DIR" ]]; then
+  ok "backup service healthy (the directory is readable by uid $BACKUP_UID only)"
+fi
 
 health_url="https://$DOMAIN:$HTTPS_PORT/healthz"
 healthy=0
@@ -506,7 +564,7 @@ else
 fi
 
 # ---------------------------------------------------------------------------------------------
-# 5. First owner
+# 6. First owner
 
 if [[ -z "$OWNER_EMAIL" && $FRESH -eq 1 && $INTERACTIVE -eq 1 ]] && command -v bun >/dev/null 2>&1; then
   info "Create the owner account now? (Or leave empty and register in the browser: the first account becomes owner.)"
@@ -530,7 +588,7 @@ if [[ -n "$OWNER_EMAIL" ]]; then
 fi
 
 # ---------------------------------------------------------------------------------------------
-# 6. Next steps
+# 7. Next steps
 
 if [[ $WARNINGS -gt 0 ]]; then step "Done, with $WARNINGS warning(s) above"; else step "Done"; fi
 cat <<EOF
@@ -552,7 +610,14 @@ cat <<EOF
        and clicks Send test. Steps for each service: README "Notifications".
     4. Each teammate signs in to their AI providers (Claude Code, Codex, ...) from their own
        runner terminal in the office; logins stay in their runner's HOME volume.
-    5. Back up deploy/.env and the ${PROJECT}_office-data volume (SQLite database) nightly.
+    5. Keep a copy of deploy/.env (the secrets) and of the backups off this machine.
+
+  Backups (README "Backups and restore")
+    Where:      $BACKUP_DIR, daily at $BACKUP_TIME UTC, kept $([[ $BACKUP_RETENTION == 0 ]] && echo forever || echo "$BACKUP_RETENTION days")
+                (the database only; floor repos live on GitHub). Not in the office-data volume.
+    Now:        cd deploy && docker compose exec backup scripts/backup.sh
+    Restore:    scripts/restore.sh                (lists backups)
+                scripts/restore.sh <backup-name>  (stops the office, restores, starts it again)
 
   Later
     Upgrade:    scripts/setup.sh --upgrade      (robots keep running in their runners)

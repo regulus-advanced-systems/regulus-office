@@ -20,10 +20,11 @@ The script is safe to re-run. It:
 
 1. checks the machine: Docker 27+ with Compose and Buildx, free ports 80/443, RAM, disk, swap and whether the domain resolves here, and prints the exact fix command for anything missing (`--install-docker` installs Docker from Docker's apt repository on Ubuntu, after asking);
 2. creates `deploy/.env` (mode 600) if absent, generates `BETTER_AUTH_SECRET` and `OFFICE_MASTER_KEY`, never overwrites existing secrets, and refuses to start with one that looks truncated (each must be 44 base64 characters, 32 bytes);
-3. builds the office image from the checkout (or pulls the release images when the checkout is on a release tag; `--images build|pull` to choose), and builds the runner image, which takes about 7 minutes and 3 GB the first time and is skipped afterwards while `runner/` is unchanged. If Docker's build cache is corrupted (`parent snapshot … does not exist`), it explains the error and offers `docker builder prune`;
-4. runs `docker compose up -d --wait` and checks `/healthz` through Caddy;
-5. optionally creates the owner account and an invite (`--owner-email you@example.com`, needs `bun` on the host); otherwise the first account registered at `/login` becomes the owner;
-6. prints next steps: connecting the GitHub App (below) and notification webhooks.
+3. creates the backup directory, `deploy/backups/` (gitignored) unless you pass `--backup-dir /some/path`, with mode 700 for uid 1000, the office user; existing backups in it are never touched. The `backup` service writes a nightly copy of the database there, outside the data volume (see [Backups and restore](#backups-and-restore));
+4. builds the office image from the checkout (or pulls the release images when the checkout is on a release tag; `--images build|pull` to choose), and builds the runner image, which takes about 7 minutes and 3 GB the first time and is skipped afterwards while `runner/` is unchanged. If Docker's build cache is corrupted (`parent snapshot … does not exist`), it explains the error and offers `docker builder prune`;
+5. runs `docker compose up -d --wait` and checks `/healthz` through Caddy;
+6. optionally creates the owner account and an invite (`--owner-email you@example.com`, needs `bun` on the host); otherwise the first account registered at `/login` becomes the owner;
+7. prints next steps: connecting the GitHub App (below), notification webhooks, where backups go and how to restore them.
 
 If ports 80/443 are taken, it asks for other ports (or pass `--http-port 8080 --https-port 8443`), stores them as `OFFICE_HTTP_PORT`/`OFFICE_HTTPS_PORT` and sets `OFFICE_PUBLIC_URL` to match. Let's Encrypt still needs 80/443 to reach Caddy, so on a public domain forward them. `--non-interactive` never prompts (for automation; CI runs it this way). `--domain localhost` serves `https://localhost` with Caddy's internal CA.
 
@@ -40,6 +41,8 @@ cp .env.example .env
 # Fill in the two required secrets (Compose refuses to start without them):
 sed -i "s|^BETTER_AUTH_SECRET=.*|BETTER_AUTH_SECRET=$(openssl rand -base64 32)|" .env
 sed -i "s|^OFFICE_MASTER_KEY=.*|OFFICE_MASTER_KEY=$(openssl rand -base64 32)|" .env
+# Nightly backups go here, outside the data volume; the backup service runs as uid 1000:
+sudo install -d -m 700 -o 1000 -g 1000 backups
 docker compose up -d --build
 curl -k https://localhost/healthz
 ```
@@ -123,6 +126,29 @@ A floor can run a review robot whenever something happens on GitHub, and post wh
 - **Discord** ([webhooks](https://docs.discord.com/developers/resources/webhook#execute-webhook)): the channel's *Edit Channel* → *Integrations* → *Webhooks* → *New Webhook* → *Copy Webhook URL* (`https://discord.com/api/webhooks/…`). Messages never ping anyone (`allowed_mentions` is empty).
 - **Telegram** ([Bot API](https://core.telegram.org/bots/api#sendmessage)): talk to [@BotFather](https://t.me/BotFather), `/newbot`, copy the token (`123456789:AA…`). Add the bot to the group (or as an admin of the channel), send `/start@<your_bot>` there (bots only see commands in groups by default), open `https://api.telegram.org/bot<token>/getUpdates` and copy `chat.id` (groups start with `-100`; public channels can use `@name`). In the office paste the token and the chat id.
 
+### Backups and restore
+
+The `backup` service backs up the database every night at 03:00 UTC into `deploy/backups/` on the host (`OFFICE_BACKUP_HOST_DIR`, `OFFICE_BACKUP_TIME` and `OFFICE_BACKUP_RETENTION_DAYS` in `deploy/.env`), and once when it starts if the newest backup is more than a day old. That directory is not in the `office-data` volume, so deleting the volume (or `docker compose down -v`) leaves the backups alone. Each backup is a `sqlite3 .backup` snapshot, consistent while the office runs, that passed `PRAGMA integrity_check` before it was named `office-<UTC time>.db`; backups older than 14 days are deleted. The service runs the office image as uid 1000 with no network, no Docker socket, no secrets and a read-only root filesystem. `docker compose ps` shows it *unhealthy* when the newest backup is more than 26 hours old.
+
+What is backed up: the SQLite database (accounts, rooms, robots, boards, settings, encrypted keys and the GitHub connection). Not backed up: terminal scrollback files, runner HOME volumes (provider logins; each person signs in again) and floor checkouts (they live on GitHub). Also keep `deploy/.env` safe: without the same `OFFICE_MASTER_KEY` a restored database cannot decrypt stored API keys or the GitHub connection. The backups sit on the same disk as the office, so copy them off the machine too, e.g. nightly `rsync -a deploy/backups/ backup-host:regulus-office/` or a Hetzner Storage Box (run it as root or uid 1000; the directory is private to uid 1000).
+
+```sh
+cd deploy && docker compose exec backup scripts/backup.sh   # back up now
+scripts/restore.sh                                          # list backups, from the repo root
+scripts/restore.sh office-20261001-030000.db                # restore one (asks first; -y skips)
+scripts/restore.sh /path/to/office-20261001-030000.db       # restore a copy from elsewhere
+```
+
+`scripts/restore.sh` stops `office` and `backup`, checks the backup's integrity, moves the current database aside inside the volume (`office.db.before-restore-<time>`, with its `-wal`/`-shm`), puts the backup in place as uid 1000 and starts the stack again. Runners and robots keep running. It works the same after the data volume was deleted: Compose creates an empty one, and the backup goes into it. By hand, from `deploy/` (`-p <project>` if not `deploy`):
+
+```sh
+docker compose stop office backup
+docker compose run --rm --no-deps backup scripts/restore-db.sh /backups/office-20261001-030000.db
+docker compose up -d --wait
+```
+
+A file from elsewhere is mounted in: `docker compose run --rm --no-deps -v /path/to/office-….db:/restore/office.db:ro backup scripts/restore-db.sh /restore/office.db`. It must be readable by uid 1000. CI runs this round trip on every change: back up, delete the data volume, restore, and check the owner account is back.
+
 Developing instead? See [CONTRIBUTING.md](CONTRIBUTING.md): `bun install && bun run dev`. The browser smoke test runs with `bun run e2e` (needs `bunx playwright install chromium` once).
 
 ## Principles
@@ -156,7 +182,7 @@ Other requirements:
 - **Disk:** NVMe/SSD. Budget disk for every project checkout plus one git worktree per active agent, container images (~3 GB for the runner image), and terminal scrollback.
 - **Network:** a public IPv4 or IPv6 address and a domain name for automatic TLS. Inbound TCP 80 and 443. With the optional media profile (LiveKit) also TCP 7881, UDP 3478 and UDP 50000-60000. Outbound HTTPS to GitHub and the AI provider APIs. Behind NAT or on a LAN, run it on a Tailscale/private network and use GitHub polling instead of webhooks.
 - **Swap:** enable 2-4 GB of swap; agent memory use is spiky.
-- **Backups:** the SQLite database and the data directory are small; snapshot them nightly. Project repos live on GitHub anyway.
+- **Backups:** the `backup` service copies the SQLite database nightly to `deploy/backups/`, outside the data volume ([Backups and restore](#backups-and-restore)); copy that directory and `deploy/.env` off the machine as well. Project repos live on GitHub anyway.
 
 Visitors need a modern browser with WebGL2 (Chrome, Firefox, Safari, Edge) on a laptop with an integrated GPU or better; 1080p is the design target.
 

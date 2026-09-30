@@ -59,6 +59,55 @@ services:
         condition: service_healthy
     expose: ["4600"]
 
+  # Nightly SQLite backups (#203) into a host directory, off the office-data volume, so deleting
+  # the volume does not take the backups with it: `sqlite3 .backup` plus an integrity check
+  # (scripts/backup.sh) in a sleep loop (scripts/backup-schedule.sh). Same image and user as the
+  # office; no network, no Docker socket, no secrets from .env, read-only root filesystem.
+  #   docker compose exec backup scripts/backup.sh      back up now
+  #   scripts/restore.sh                                list and restore backups (README)
+  # The host directory must exist, owned by uid 1000 (the office user) with mode 700;
+  # scripts/setup.sh creates it. The data volume is mounted read-write: from a read-only mount
+  # sqlite3 reads the WAL without the office.db-shm locks, so an office checkpoint could change
+  # pages mid-copy; with the locks, .backup reads one consistent snapshot. Backups only read the
+  # database; only scripts/restore-db.sh replaces it, run by hand with the office stopped.
+  backup:
+    image: ghcr.io/regulus-advanced-systems/regulus-office:${OFFICE_IMAGE_TAG:-latest}
+    # Built or pulled with the office service; never pulled on its own (it could differ from a
+    # local build).
+    pull_policy: never
+    restart: unless-stopped
+    user: "1000:1000"
+    command: ["scripts/backup-schedule.sh"]
+    environment:
+      OFFICE_DATA_DIR: /data
+      OFFICE_BACKUP_DIR: /backups
+      OFFICE_BACKUP_TIME: ${OFFICE_BACKUP_TIME:-03:00}
+      OFFICE_BACKUP_RETENTION_DAYS: ${OFFICE_BACKUP_RETENTION_DAYS:-14}
+    volumes:
+      - office-data:/data
+      - type: bind
+        source: ${OFFICE_BACKUP_HOST_DIR:-./backups}
+        target: /backups
+        # Fail with "bind source path does not exist" instead of Docker creating it as root.
+        bind:
+          create_host_path: false
+    network_mode: none
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 256m
+    depends_on:
+      office:
+        condition: service_healthy
+    healthcheck:
+      # Unhealthy once the newest backup is more than 26 hours old (a missed night).
+      test: ["CMD", "scripts/backup-schedule.sh", "check"]
+      interval: 10m
+      timeout: 10s
+      start_period: 2m
+      start_interval: 2s
+
   # The only service that mounts the Docker socket. It forwards an allowlist of Engine API
   # calls, enough for the docker runner backend and nothing else, and only to `office`, over
   # an internal network no other service joins. Runners never get the socket or this network
