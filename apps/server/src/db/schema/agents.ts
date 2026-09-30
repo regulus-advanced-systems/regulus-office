@@ -152,6 +152,21 @@ export const tasks = sqliteTable(
     createdBy: text("created_by")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
+    /** Task title for the robot and the clipboard (#37). */
+    title: text("title").notNull().default(""),
+    /** Provider permission mode for the robot; null = the provider default (#166). */
+    permissionMode: text("permission_mode"),
+    /**
+     * The owner's credential profile id (or `office:<provider>`), a reference
+     * only; null = their own CLI login. Never a secret (SPEC §8).
+     */
+    profileId: text("profile_id"),
+    /** The PR the task's robot opened, once it appears (#35 cache / event bus). */
+    prNumber: integer("pr_number"),
+    /** Why it failed, or why a queued task is not starting; safe to show. */
+    reason: text("reason").notNull().default(""),
+    startedAt: timestampMs("started_at"),
+    finishedAt: timestampMs("finished_at"),
     ...timestamps(),
   },
   (t) => [
@@ -162,3 +177,13 @@ export const tasks = sqliteTable(
     check("tasks_provider_check", inEnum("provider", PROVIDER_IDS)),
   ],
 );
+
+/** A room's queue concurrency (#37); a room without a row uses the protocol defaults. */
+export const floorQueueSettings = sqliteTable("floor_queue_settings", {
+  floorId: text("floor_id")
+    .primaryKey()
+    .references(() => floors.id, { onDelete: "cascade" }),
+  maxRunning: integer("max_running").notNull(),
+  maxPerOwner: integer("max_per_owner").notNull(),
+  ...timestamps(),
+});

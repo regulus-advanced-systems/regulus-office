@@ -48,6 +48,7 @@ const EXTRA_TABLES = [
   "notification_prefs",
   "notification_marks",
   "github_webhook_deliveries",
+  "floor_queue_settings",
 ] as const;
 
 /** Better Auth's remaining core tables (`users` is in SPEC_TABLES); see schema/auth.ts. */

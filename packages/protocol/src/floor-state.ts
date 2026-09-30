@@ -81,6 +81,11 @@ export const DecorState = z.object({
 });
 export type DecorState = z.infer<typeof DecorState>;
 
+/**
+ * One task of the room's queue (SPEC §5 `tasks`, §9.4; #37). `position` is
+ * its place in the list as shown: queued tasks in run order first, then
+ * running ones, then recent history.
+ */
 export const QueueTask = z.object({
   id: Id,
   position: Count,
@@ -88,18 +93,40 @@ export const QueueTask = z.object({
   /** Issue / PR number for `issue` and `pr` tasks, 0 for freeform. */
   refNumber: Count,
   repoId: Id,
+  title: z.string().max(200),
   prompt: z.string().max(20_000),
   provider: z.enum(PROVIDER_IDS),
   model: z.string().max(100),
   effort: z.string().max(32),
+  /** Permission mode the robot will run in; "" = the provider default. */
+  permissionMode: z.string().max(32),
   autoWorktree: z.boolean(),
   state: z.enum(TASK_STATES),
   /** Agent running the task, empty until it starts. */
   agentId: z.string().max(128),
+  /** The pull request the task's robot opened, 0 until one appears. */
+  prNumber: Count,
+  /**
+   * Why a task failed, or why a queued one is not starting yet (e.g. its
+   * owner may no longer spawn here). Short and safe for every viewer.
+   */
+  reason: z.string().max(200),
+  /** The human who queued it and owns its robot. */
   createdBy: Id,
+  ownerName: z.string().max(64),
   createdAt: TimestampMs,
+  /** 0 until it starts / finishes. */
+  startedAt: TimestampMs,
+  finishedAt: TimestampMs,
 });
 export type QueueTask = z.infer<typeof QueueTask>;
+
+/** How many queued tasks may run at once (#37); room managers change it. */
+export const QueueSettings = z.object({
+  maxRunning: z.number().int().min(1).max(16),
+  maxPerOwner: z.number().int().min(1).max(16),
+});
+export type QueueSettings = z.infer<typeof QueueSettings>;
 
 const cardBase = {
   repoId: Id,
@@ -201,6 +228,7 @@ export const FloorState = z.object({
   whiteboardVersion: Count,
   /** Keyed by carrier session id. */
   carriedCards: z.record(Id, CarriedCard),
+  queueSettings: QueueSettings,
 });
 export type FloorState = z.infer<typeof FloorState>;
 

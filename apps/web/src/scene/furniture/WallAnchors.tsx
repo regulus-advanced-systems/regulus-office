@@ -2,7 +2,8 @@
  * Things hung on wall anchors (SPEC §9.4): the usage screens (#40, live,
  * scene/usage/), and static placeholders for the whiteboard, picture frames
  * and the lounge TV (Kenney model). Live content for each is its own issue.
- * Issue and PR boards are drawn by scene/boards (#36) on their anchors.
+ * Issue and PR boards are drawn by scene/boards (#36) on their anchors, the
+ * queue clipboard by scene/queue (#37).
  */
 import {
   type FloorTemplate,
@@ -95,7 +96,6 @@ function Anchor({
       {anchor.kind === "whiteboard" && <Whiteboard w={anchor.w} h={anchor.h} m={m} />}
       {anchor.kind === "usage_wall" && <UsageScreen w={anchor.w} h={anchor.h} />}
       {anchor.kind === "picture" && <Picture w={anchor.w} h={anchor.h} m={m} />}
-      {anchor.kind === "queue_clipboard" && <Picture w={anchor.w} h={anchor.h} m={m} />}
     </group>
   );
 }
