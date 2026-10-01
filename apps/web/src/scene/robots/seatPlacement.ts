@@ -5,7 +5,7 @@
  * printed on the floor next to the seat, along the iso axis). Pure maths.
  */
 import type { FloorTemplate, Seat } from "@regulus/floor-layout";
-import { type SitAnchor, seatedOffset } from "../avatar/seatedFit.ts";
+import { type SeatedBody, type SitAnchor, seatedOffset } from "../avatar/seatedFit.ts";
 import { FALLBACK_ANCHOR } from "../furniture/sitAnchor.ts";
 import { LAPTOP_TOP } from "../laptops/dimensions.ts";
 import { facing, laptopPlacement } from "../laptops/placement.ts";
@@ -25,16 +25,17 @@ export interface RobotPlacement {
 /**
  * Where an avatar at a seat goes: seated, on the seat's sit anchor
  * (furniture/sitAnchor.ts: hips on the cushion, back just in front of the
- * backrest, #163); standing, on the seat point. Robots and seated humans
- * both use it.
+ * backrest, #163); standing, on the seat point. Henchmen (robots, #184) and
+ * seated humans both use it, each with its own seated `body` measurements.
  */
 export function robotPlacement(
   seat: Seat,
   seated: boolean,
   anchor: SitAnchor = FALLBACK_ANCHOR,
+  body?: SeatedBody,
 ): RobotPlacement {
   const f = facing(seat.pose.heading);
-  const { forward, lift } = seated ? seatedOffset(anchor) : { forward: 0, lift: 0 };
+  const { forward, lift } = seated ? seatedOffset(anchor, body) : { forward: 0, lift: 0 };
   return {
     position: [seat.pose.x + f.x * forward, lift, seat.pose.z + f.z * forward],
     rotationY: seat.pose.heading,

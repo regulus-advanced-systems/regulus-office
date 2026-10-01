@@ -14,13 +14,16 @@
  * The returned {@link FloorRooms} is also the registry the AgentManager
  * (#26) uses: `publishRobot(floorId, robot)` / `removeRobot(floorId, id)`.
  * Robots are kept per floor even while nobody is on it, and copied into the
- * room when it is (re)created.
+ * room when it is (re)created. Each robot is published with the henchman
+ * skin the admin's rules give it (#184, `setSkins`), re-resolved whenever
+ * the rules change.
  */
 import {
   type ClientCommand,
   COMMAND_REJECTED_MESSAGE,
   FloorJoinOptions,
   FloorStateSchema,
+  type HenchmanSkinId,
   type PendingPermission,
   parseClientCommand,
   QUEUE_RESULT_MESSAGE,
@@ -28,6 +31,7 @@ import {
   type QueueTask,
   RobotState,
   type ServiceState,
+  type SkinSubject,
 } from "@regulus/protocol";
 import type { Logger } from "../../logging.ts";
 import { type FloorQueueCommands, isQueueCommand } from "../../queue/commands.ts";
@@ -65,6 +69,9 @@ export interface FloorAgentCommands {
   /** prompt / approve / interrupt / stop / resume / sendHome / pr / worktree. */
   control?(actor: AgentActor, command: AgentControlCommand): Promise<AgentControlOutcome>;
 }
+
+/** The skin a robot wears under the admin's `skin_rules` (#184; skins/store.ts). */
+export type SkinResolver = (subject: SkinSubject) => HenchmanSkinId;
 
 /** The merge gong's manual bang (#43; celebrations/service.ts). */
 export interface FloorGong {
@@ -112,6 +119,8 @@ export interface FloorRooms {
   broadcast(floorId: string, type: string, payload: unknown): boolean;
   /** Route `gong.bang` to the merge gong (#43). */
   setGong(gong: FloorGong | undefined): void;
+  /** Resolve every robot's skin with this (rules changed); undefined keeps what was published. */
+  setSkins(resolver: SkinResolver | undefined): void;
 }
 
 export interface FloorRoomsDeps {
@@ -127,6 +136,9 @@ export function createFloorRooms(deps: FloorRoomsDeps): FloorRooms {
   const services = new Map<string, ServiceState[]>();
   const queues = new Map<string, { tasks: readonly QueueTask[]; settings: QueueSettings }>();
   let queueCommands: FloorQueueCommands | undefined;
+  let skinFor: SkinResolver | undefined;
+  const dressed = (robot: RobotState): RobotState =>
+    skinFor ? { ...robot, skin: skinFor({ provider: robot.provider }) } : robot;
 
   const robotsFor = (floorId: string) => {
     let map = robots.get(floorId);
@@ -267,7 +279,7 @@ export function createFloorRooms(deps: FloorRoomsDeps): FloorRooms {
       for (const [otherFloor, map] of robots) {
         if (otherFloor !== floorId && map.delete(parsed.agentId)) sync(otherFloor);
       }
-      robotsFor(floorId).set(parsed.agentId, parsed);
+      robotsFor(floorId).set(parsed.agentId, dressed(parsed));
       sync(floorId);
     },
 
@@ -339,6 +351,14 @@ export function createFloorRooms(deps: FloorRoomsDeps): FloorRooms {
 
     setGong(next) {
       gong = next;
+    },
+
+    setSkins(resolver) {
+      skinFor = resolver;
+      for (const [floorId, map] of robots) {
+        for (const [id, robot] of map) map.set(id, dressed(robot));
+        sync(floorId);
+      }
     },
   };
 }

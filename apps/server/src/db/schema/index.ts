@@ -10,6 +10,7 @@ export * from "./floors.ts";
 export * from "./github.ts";
 export * from "./notifications.ts";
 export * from "./ops.ts";
+export * from "./skins.ts";
 export * from "./usage.ts";
 export * from "./users.ts";
 export * from "./workflows.ts";
