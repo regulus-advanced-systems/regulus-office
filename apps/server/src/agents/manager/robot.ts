@@ -8,6 +8,7 @@ import {
   type AgentAction,
   type AgentEvent,
   type AgentStatus,
+  DEFAULT_SKIN_ID,
   effectivePermissionMode,
   type ProviderId,
   type RobotState,
@@ -133,6 +134,8 @@ export function robotState(view: AgentView): RobotState {
       view.status === "error" || view.status === "waiting_input"
         ? view.statusReason.slice(0, MAX_STATUS_REASON)
         : "",
+    // The FloorRoom publishes the skin the admin's rules give this robot (#184).
+    skin: DEFAULT_SKIN_ID,
     bubbleEmits: { ...view.bubbles },
     lastActivityAt: view.lastActivityAt,
   };

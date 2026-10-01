@@ -46,11 +46,31 @@ export interface SeatedOffset {
 export const SEATED_REACH = BACK_GAP + SEATED_BACK_DEPTH + SEATED_FRONT_DEPTH;
 
 /**
+ * Where a seated body is relative to its avatar origin, per character model:
+ * robot.glb (the constants above; humans) or the henchman (#184,
+ * scene/henchmen/seatedFit.ts).
+ */
+export interface SeatedBody {
+  hips: { up: number; back: number };
+  sitDrop: number;
+  backDepth: number;
+}
+
+export const ROBOT_SEATED_BODY: SeatedBody = {
+  hips: SEATED_HIPS,
+  sitDrop: SEATED_SIT_DROP,
+  backDepth: SEATED_BACK_DEPTH,
+};
+
+/**
  * Avatar origin for a seated avatar: the underside of the body rests on the
  * cushion and the back sits `BACK_GAP` in front of the backrest.
  */
-export function seatedOffset(anchor: SitAnchor): SeatedOffset {
-  const hipsY = anchor.seatY + SEATED_SIT_DROP;
-  const hipsFwd = anchor.backFwd + BACK_GAP + SEATED_BACK_DEPTH;
-  return { forward: hipsFwd + SEATED_HIPS.back, lift: hipsY - SEATED_HIPS.up };
+export function seatedOffset(
+  anchor: SitAnchor,
+  body: SeatedBody = ROBOT_SEATED_BODY,
+): SeatedOffset {
+  const hipsY = anchor.seatY + body.sitDrop;
+  const hipsFwd = anchor.backFwd + BACK_GAP + body.backDepth;
+  return { forward: hipsFwd + body.hips.back, lift: hipsY - body.hips.up };
 }

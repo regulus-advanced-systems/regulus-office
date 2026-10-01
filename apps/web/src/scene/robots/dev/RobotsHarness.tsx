@@ -3,7 +3,8 @@
  * robots at their desks, bubbles flying to the HUD counters and an fps probe.
  * Query: n=<robots> (default 12), mode=working|mixed|waiting|idle|flap, rate=<ticks/s>,
  * reduced=1, template=<template id> (default office-l2), seats=all (robots on
- * meeting, bistro, reception and lounge seats too). The merge gong (#43) hangs on its anchor;
+ * meeting, bistro, reception and lounge seats too), skins=mixed (every henchman skin, #184),
+ * providers=all (every provider's trim). The merge gong (#43) hangs on its anchor;
  * the buttons ring it once (a merge) or three times (the queue emptied). Not part of the
  * production build.
  */
@@ -44,6 +45,8 @@ export function RobotsHarness({ search }: { search: string }) {
   const rate = Number(params.get("rate") ?? 2);
   const template = templateById(params.get("template") ?? "") ?? officeL2Template;
   const allSeats = params.get("seats") === "all";
+  const skins = params.get("skins") === "mixed" ? "mixed" : "standard";
+  const providers = params.get("providers") === "all" ? "all" : "two";
   const [tick, setTick] = useState(0);
   const [robots, setRobots] = useState<Record<string, RobotState>>({});
 
@@ -55,7 +58,7 @@ export function RobotsHarness({ search }: { search: string }) {
   }, [rate, search]);
 
   useEffect(() => {
-    const next = fakeRobots(template, n, tick, mode, allSeats);
+    const next = fakeRobots(template, n, tick, mode, allSeats, { skins, providers });
     setRobots(next);
     // The HUD counters read the floor store.
     useFloorStore.setState({
@@ -81,7 +84,7 @@ export function RobotsHarness({ search }: { search: string }) {
         decorStyle: "ops_room",
       },
     });
-  }, [tick, n, mode, template, allSeats]);
+  }, [tick, n, mode, template, allSeats, skins, providers]);
 
   return (
     <div style={{ position: "fixed", inset: 0 }}>

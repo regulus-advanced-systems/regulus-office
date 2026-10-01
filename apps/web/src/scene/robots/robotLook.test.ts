@@ -1,16 +1,16 @@
 import { describe, expect, test } from "bun:test";
-import { COLOR_SET_IDS, PROVIDER_LIGHT_COLORS } from "../avatar/index.ts";
-import { colorSetForOwner, robotAvatarLook } from "./robotLook.ts";
+import { PROVIDER_LIGHT_COLORS } from "../avatar/index.ts";
+import { robotHenchmanLook } from "./robotLook.ts";
 
-describe("robot look", () => {
-  test("one colour set per owner, from the known sets", () => {
-    expect(colorSetForOwner("u1")).toBe(colorSetForOwner("u1"));
-    expect(COLOR_SET_IDS).toContain(colorSetForOwner("someone-else"));
-  });
-
-  test("provider chest light and antenna", () => {
-    const look = robotAvatarLook({ ownerUserId: "u1", provider: "codex" });
-    expect(look.chestLight).toBe(PROVIDER_LIGHT_COLORS.codex);
-    expect(look.look.accessory).toBe("antenna");
+describe("robot look (#184)", () => {
+  test("the published skin and the provider's colour as trim", () => {
+    expect(robotHenchmanLook({ provider: "codex", skin: "standard" })).toEqual({
+      skin: "standard",
+      trim: PROVIDER_LIGHT_COLORS.codex,
+    });
+    expect(robotHenchmanLook({ provider: "claude-code", skin: "chef" })).toEqual({
+      skin: "chef",
+      trim: PROVIDER_LIGHT_COLORS["claude-code"],
+    });
   });
 });

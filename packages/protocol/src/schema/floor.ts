@@ -34,6 +34,7 @@ export const RobotStateSchema = schema(
     worktreeBranch: t.string().default(""),
     handRaised: t.boolean().default(false),
     statusReason: t.string().default(""),
+    skin: t.string().default("standard"),
     bubbleEmits: BubbleEmitsSchema,
     lastActivityAt: t.number().default(0),
   },
