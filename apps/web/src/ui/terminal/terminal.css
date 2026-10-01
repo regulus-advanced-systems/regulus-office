@@ -1,4 +1,5 @@
-/* Terminal modal (SPEC §9.4, §12): GDT modal around a dark xterm screen. */
+/* Terminal modal (SPEC §9.4, §12): the console dialog around a dark xterm screen set in a
+   brass bezel like a CRT (#189); the mode is a lamp chip. */
 .rg-term {
   display: flex;
   flex-direction: column;
@@ -19,21 +20,25 @@
   border-radius: 999px;
   font-size: 12px;
   font-weight: 700;
-  color: #fff;
+  color: var(--rg-color-plate-text);
+  background: var(--rg-color-plate);
+  border: 1px solid var(--rg-color-frame-shadow);
 }
 .rg-term__mode::before {
   content: "";
-  width: 8px;
-  height: 8px;
+  width: 9px;
+  height: 9px;
   border-radius: 50%;
-  background: currentColor;
-  opacity: 0.85;
+  background:
+    radial-gradient(circle at 36% 32%, rgba(255, 255, 255, 0.8) 0 1px, transparent 2.5px),
+    var(--rg-lamp);
+  box-shadow: 0 0 6px 1px var(--rg-lamp);
 }
 .rg-term__mode--watch {
-  background: var(--rg-color-blue, #1e6fe0);
+  --rg-lamp: var(--rg-lamp-working);
 }
 .rg-term__mode--control {
-  background: var(--rg-color-orange-red, #f26522);
+  --rg-lamp: var(--rg-lamp-waiting);
 }
 /* Everyone but the robot's owner watches (#138). */
 .rg-term__watch-only {
@@ -63,7 +68,7 @@
   height: 26px;
   margin-left: -6px;
   border-radius: 50%;
-  border: 2px solid #fff9ef;
+  border: 2px solid var(--rg-color-modal-surface);
   display: grid;
   place-items: center;
   font-size: 10px;
@@ -84,6 +89,11 @@
   border-radius: 8px;
   overflow: hidden;
   background: #16161d;
+  /* The bezel is drawn outside the box (shadows), so the xterm's size math is untouched. */
+  box-shadow:
+    0 0 0 3px var(--rg-color-plate),
+    0 0 0 5px var(--rg-color-gold),
+    inset 0 0 18px rgba(0, 0, 0, 0.7);
 }
 .rg-term__xterm {
   position: absolute;
@@ -124,8 +134,8 @@
   border-radius: 999px;
   font-size: 12px;
   font-weight: 700;
-  color: #16161d;
-  background: var(--rg-color-gold, #f5c542);
+  color: var(--rg-color-plate);
+  background: var(--rg-color-hench-yellow);
   pointer-events: none;
 }
 .rg-term__menu {
@@ -134,9 +144,9 @@
   display: grid;
   min-width: 110px;
   padding: 4px;
-  border: 2px solid var(--rg-color-gold, #f5c542);
-  border-radius: 8px;
-  background: var(--rg-color-modal-surface, #fff9ef);
+  border: 2px solid var(--rg-color-gold);
+  border-radius: 5px;
+  background: var(--rg-color-modal-surface);
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
 }
 .rg-term__menu button {
@@ -152,7 +162,7 @@
 }
 .rg-term__menu button:hover:not(:disabled),
 .rg-term__menu button:focus-visible {
-  background: rgba(45, 191, 232, 0.2);
+  background: var(--rg-color-hover);
 }
 .rg-term__menu button:disabled {
   color: var(--rg-color-ink-muted, #5a5a66);
@@ -197,9 +207,9 @@
   display: grid;
   gap: 6px;
   padding: 10px 12px;
-  border: 2px solid var(--rg-color-orange-red, #f26522);
-  border-radius: 8px;
-  background: var(--rg-color-modal-surface, #fff9ef);
+  border: 2px solid var(--rg-color-alarm-red);
+  border-radius: 5px;
+  background: var(--rg-color-modal-surface);
   color: var(--rg-color-ink, #1c2448);
   font-size: 13px;
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);

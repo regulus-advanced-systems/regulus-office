@@ -5,24 +5,26 @@
  * the first-person view toggle (SPEC §9.2).
  */
 import type { UsageSummary } from "@regulus/protocol";
+import type { CSSProperties } from "react";
 import { getOfficeClient } from "../../net/index.ts";
 import { useBuildingStore } from "../../state/building.ts";
 import { type ConnectionStatus, useConnectionStore } from "../../state/connection.ts";
 import { Button } from "../components/Button.tsx";
 import { Panel } from "../Panel.tsx";
-import { colors } from "../theme.ts";
+import { cssVar } from "../theme.ts";
 import { UsagePanel } from "../usage/UsagePanel.tsx";
 import { useMyUsageStore } from "../usage/usageStore.ts";
 import { formatCompact, formatUsd } from "./format.ts";
 import { ViewToggle } from "./ViewToggle.tsx";
 
+/** The connection lamp (#189): green online, amber while connecting, red failed, dark offline. */
 export const STATUS_COLOR: Readonly<Record<ConnectionStatus, string>> = {
-  idle: colors.inkMuted,
-  connecting: colors.amber,
-  connected: colors.green,
-  reconnecting: colors.amber,
-  failed: colors.crimson,
-  disconnected: colors.inkMuted,
+  idle: cssVar("lamp-off"),
+  connecting: cssVar("lamp-waiting"),
+  connected: cssVar("lamp-idle"),
+  reconnecting: cssVar("lamp-waiting"),
+  failed: cssVar("lamp-error"),
+  disconnected: cssVar("lamp-off"),
 };
 
 export const STATUS_LABEL: Readonly<Record<ConnectionStatus, string>> = {
@@ -43,7 +45,10 @@ export function ConnectionChip({
 }) {
   return (
     <span className="rg-chip" aria-label={`connection ${status}`}>
-      <span className="rg-chip__dot" style={{ background: STATUS_COLOR[status] }} />
+      <span
+        className="rg-chip__dot"
+        style={{ "--rg-lamp": STATUS_COLOR[status] } as CSSProperties}
+      />
       {STATUS_LABEL[status]}
       {attempt !== undefined && attempt > 0 && <span className="rg-muted">#{attempt}</span>}
     </span>
@@ -106,7 +111,7 @@ export function StatusBox({
         )}
       </div>
       {lastError && status === "failed" && (
-        <div style={{ color: colors.crimson, fontSize: 12 }}>{lastError}</div>
+        <div style={{ color: cssVar("color-crimson"), fontSize: 12 }}>{lastError}</div>
       )}
       <UsageRows usage={usage} />
       <ViewToggle />

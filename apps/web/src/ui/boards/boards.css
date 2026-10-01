@@ -1,6 +1,6 @@
-/* Issue and PR board panel (SPEC §9.4, §12; #36): columns of paper cards on
-   the GDT modal, a card detail with a sanitised markdown body, and the
-   "carrying a card" chip. */
+/* Issue and PR board panel (SPEC §9.4, §12; #36): columns of paper cards in
+   recessed console trays (#189), a card detail with a sanitised markdown
+   body, and the "carrying a card" chip. Badges are lamp chips (feedback.css). */
 .rg-board__columns {
   display: grid;
   grid-template-columns: repeat(var(--rg-board-cols, 3), minmax(160px, 1fr));
@@ -14,21 +14,23 @@
 }
 .rg-board__column {
   min-width: 0;
-  background: #f3e2c0;
-  border: 1px solid #d9c49a;
-  border-radius: 10px;
+  background: var(--rg-color-inset);
+  border: 1px solid var(--rg-color-panel-border);
+  border-top: 3px solid var(--rg-color-gold);
+  border-radius: 4px;
+  box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.25);
   padding: 8px;
 }
 .rg-board__column-title {
   margin: 0 0 8px;
   font-size: 14px;
-  font-weight: 600;
   display: flex;
   justify-content: space-between;
 }
 .rg-board__count {
   color: var(--rg-color-ink-muted);
-  font-weight: 400;
+  font-family: var(--rg-font-mono);
+  letter-spacing: 0;
 }
 .rg-board__cards {
   list-style: none;
@@ -44,13 +46,14 @@
   text-align: left;
   padding: 8px 10px;
   border: 1px solid var(--rg-color-panel-border);
-  border-radius: 6px;
-  background: var(--rg-color-panel-surface);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+  border-radius: 3px;
+  background: var(--rg-color-raised);
+  color: var(--rg-color-ink);
+  box-shadow: 0 2px 3px rgba(0, 0, 0, 0.3);
   cursor: pointer;
 }
 .rg-board__card:hover {
-  border-color: var(--rg-color-amber);
+  border-color: var(--rg-color-gold);
 }
 .rg-board__card-head,
 .rg-board__card-foot {
@@ -72,8 +75,8 @@
 .rg-board__chip {
   padding: 1px 8px;
   border-radius: var(--rg-radius-chip);
-  background: #e8eefb;
-  color: var(--rg-color-navy);
+  background: var(--rg-color-selected);
+  color: var(--rg-color-ink);
   font-size: 12px;
   max-width: 100%;
   overflow: hidden;
@@ -83,25 +86,17 @@
 .rg-board__people {
   color: var(--rg-color-ink-muted);
 }
-.rg-board__badge {
-  padding: 1px 8px;
-  border-radius: var(--rg-radius-chip);
-  font-size: 12px;
-  font-weight: 600;
-  color: #fff;
-  background: #8a8a8a;
-}
 .rg-board__badge--green {
-  background: var(--rg-color-green);
+  --rg-lamp: var(--rg-lamp-idle);
 }
 .rg-board__badge--red {
-  background: var(--rg-color-crimson);
+  --rg-lamp: var(--rg-lamp-error);
 }
 .rg-board__badge--amber {
-  background: #c7831a;
+  --rg-lamp: var(--rg-lamp-waiting);
 }
 .rg-board__badge--blue {
-  background: var(--rg-color-blue);
+  --rg-lamp: var(--rg-lamp-working);
 }
 .rg-board__empty {
   color: var(--rg-color-ink-muted);
@@ -134,8 +129,8 @@
 }
 .rg-card__title {
   margin: 0;
-  font-size: 20px;
-  font-weight: 400;
+  font-size: 21px;
+  font-weight: 600;
   overflow-wrap: anywhere;
 }
 .rg-card__muted {
@@ -153,19 +148,18 @@
   font-size: 12px;
 }
 .rg-card__branch {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 12px;
+  font-family: var(--rg-font-mono);
+  font-size: 13px;
 }
 .rg-card__section {
   margin: 4px 0;
   font-size: 15px;
-  font-weight: 600;
 }
 .rg-card__body,
 .rg-card__comment {
-  background: var(--rg-color-panel-surface);
+  background: var(--rg-color-raised);
   border: 1px solid var(--rg-color-panel-border);
-  border-radius: 8px;
+  border-radius: 4px;
   padding: 8px 12px;
   min-width: 0;
 }
@@ -215,15 +209,15 @@
   margin-bottom: 0;
 }
 .rg-md pre {
-  background: #f4f1ea;
-  border-radius: 6px;
+  background: var(--rg-color-inset);
+  border-radius: 4px;
   padding: 8px;
   overflow-x: auto;
   white-space: pre-wrap;
 }
 .rg-md code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 12px;
+  font-family: var(--rg-font-mono);
+  font-size: 13px;
 }
 .rg-md blockquote {
   margin: 0;
@@ -267,8 +261,8 @@
   width: 18px;
   height: 24px;
   flex: none;
-  background: #fffdf5;
-  border: 2px solid var(--rg-color-amber);
+  background: var(--rg-color-raised);
+  border: 2px solid var(--rg-color-gold);
   border-radius: 3px;
   transform: rotate(-8deg);
 }

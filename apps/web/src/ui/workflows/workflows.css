@@ -5,7 +5,7 @@
   margin-bottom: 12px;
 }
 .rg-workflows__tabs button {
-  border: 1px solid var(--rg-border, #d0d4dc);
+  border: 1px solid var(--rg-color-panel-border);
   background: transparent;
   border-radius: 8px;
   padding: 6px 14px;
@@ -13,7 +13,7 @@
   cursor: pointer;
 }
 .rg-workflows__tabs button[aria-selected="true"] {
-  background: var(--rg-accent-soft, #ffe9d6);
+  background: var(--rg-color-selected);
   font-weight: 600;
 }
 .rg-workflows__list {
@@ -29,7 +29,7 @@
   gap: 10px;
   flex-wrap: wrap;
   padding: 8px 10px;
-  border: 1px solid var(--rg-border, #d0d4dc);
+  border: 1px solid var(--rg-color-panel-border);
   border-radius: 10px;
 }
 .rg-workflows__item-main {
@@ -76,7 +76,7 @@
   max-height: 320px;
   overflow: auto;
   font-size: 0.8rem;
-  background: var(--rg-code-bg, #f4f5f8);
+  background: var(--rg-color-inset);
   padding: 8px;
   border-radius: 8px;
 }
@@ -90,7 +90,7 @@
   text-align: left;
   vertical-align: top;
   padding: 6px 8px;
-  border-bottom: 1px solid var(--rg-border, #e3e6ec);
+  border-bottom: 1px solid var(--rg-color-panel-border);
 }
 .rg-workflows__runs {
   overflow-x: auto;

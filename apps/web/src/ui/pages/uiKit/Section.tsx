@@ -16,9 +16,13 @@ export function Section({
         id={`${id}-title`}
         style={{
           margin: "24px 0 0",
+          fontFamily: "var(--rg-font-stencil)",
           fontSize: 24,
-          fontWeight: 300,
-          borderBottom: "1px solid var(--rg-color-navy)",
+          fontWeight: 400,
+          letterSpacing: "0.06em",
+          textTransform: "uppercase",
+          color: "var(--rg-color-heading)",
+          borderBottom: "2px solid var(--rg-color-gold)",
         }}
       >
         {title}
