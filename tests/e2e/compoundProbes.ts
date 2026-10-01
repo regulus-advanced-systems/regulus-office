@@ -5,7 +5,7 @@
  * (A* across corridors and through doors); the flows wait for where the player ends up
  * (the room under them, the room the HUD shows), whatever the page's frame rate.
  */
-import { expect, type Page } from "@playwright/test";
+import { expect, type Locator, type Page } from "@playwright/test";
 
 export interface NavPose {
   x: number;
@@ -176,5 +176,57 @@ export async function walkUpToDesk(page: Page, floorId: string, seatId: string):
     if (!pose.walking && (await terminalDesk(page)) === seatId) return;
     if (!pose.walking) expect(await walkToSeat(page, floorId, seatId)).toBe(true);
     throw new Error(`walking to desk ${seatId}`);
+  }).toPass({ timeout: 60_000, intervals: [500, 1_000] });
+}
+
+/** Where an object of the scene is: its screen point and its ground point (compound metres). */
+function scenePlace(
+  page: Page,
+  name: string,
+): Promise<{ x: number; y: number; wx: number; wz: number } | null> {
+  return page.evaluate((n) => {
+    type V = { x: number; y: number; z: number; clone(): V; project(c: unknown): V };
+    type Obj = { position: V; getWorldPosition(v: V): V };
+    const r3f = (
+      window as unknown as {
+        __regulusR3F?: {
+          scene: { getObjectByName(n: string): Obj | undefined };
+          get(): { camera: unknown; gl: { domElement: HTMLCanvasElement } };
+        };
+      }
+    ).__regulusR3F;
+    const o = r3f?.scene.getObjectByName(n);
+    if (!r3f || !o) return null;
+    const { camera, gl } = r3f.get();
+    const rect = gl.domElement.getBoundingClientRect();
+    const w = o.getWorldPosition(o.position.clone());
+    const p = w.clone().project(camera);
+    return {
+      x: rect.left + ((p.x + 1) / 2) * rect.width,
+      y: rect.top + ((1 - p.y) / 2) * rect.height,
+      wx: w.x,
+      wz: w.z,
+    };
+  }, name);
+}
+
+/**
+ * Click a scene object (a board's or the queue clipboard's hotspot, say) until `opens` shows.
+ * When the object is not well inside the view (off screen, or under the HUD), the player
+ * first walks over to it, as someone would, so the camera brings it into view.
+ */
+export async function clickInScene(page: Page, name: string, opens: Locator): Promise<void> {
+  await expect(async () => {
+    if (await opens.isVisible()) return;
+    const at = await scenePlace(page, name);
+    if (!at) throw new Error(`${name} is not in the scene`);
+    const view = page.viewportSize() ?? { width: 1280, height: 800 };
+    const inside = at.x > 300 && at.x < view.width - 280 && at.y > 140 && at.y < view.height - 180;
+    if (!inside) {
+      if (!(await navPose(page)).walking) await walkTo(page, at.wx, at.wz);
+      throw new Error(`walking over to ${name}`);
+    }
+    await page.mouse.click(at.x, at.y);
+    await expect(opens).toBeVisible({ timeout: 3_000 });
   }).toPass({ timeout: 60_000, intervals: [500, 1_000] });
 }

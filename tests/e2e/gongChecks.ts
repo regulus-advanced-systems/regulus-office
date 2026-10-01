@@ -7,7 +7,7 @@
  */
 import { expect, type Page } from "@playwright/test";
 import { scenePoint } from "./agentProbes.ts";
-import { walkInto } from "./compoundProbes.ts";
+import { clickInScene, walkInto } from "./compoundProbes.ts";
 import { startFakeGitHub } from "./fakeGitHub.ts";
 import {
   boneDriftDeg,
@@ -17,7 +17,6 @@ import {
   robotPoses,
   sampleGong,
 } from "./gongProbes.ts";
-import { boardPoint } from "./probes.ts";
 
 const GONG = "gong-hotspot-gong";
 
@@ -58,10 +57,8 @@ export async function checkMergeGong(page: Page, opts: { githubPort: number; flo
     const seated = await robotPoses(page);
 
     // Merge from the PR board: the office rings at once, without waiting for a poll.
-    const board = await boardPoint(page, "pr-board");
-    if (!board) throw new Error("PR board missing from the scene");
-    await page.mouse.click(board.x, board.y);
     const panel = page.getByRole("dialog", { name: "PR board" });
+    await clickInScene(page, "board-hotspot-pr-board", panel);
     const card = panel.getByRole("button", { name: `#12 ${pull.title}` });
     await expect(card).toBeVisible({ timeout: 45_000 });
     await card.click();

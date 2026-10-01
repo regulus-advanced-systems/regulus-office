@@ -23,6 +23,7 @@ import { type BrowserContext, expect, type Page, test } from "@playwright/test";
 import {
   cameraSettled,
   cameraState,
+  clickInScene,
   navPose,
   navRooms,
   roomNamed,
@@ -38,7 +39,6 @@ import { createRemoteRepo } from "./gitRemote.ts";
 import { checkMergeGong } from "./gongChecks.ts";
 import {
   angleBetween,
-  boardPoint,
   cameraName,
   cameraPosition,
   cameraType,
@@ -688,12 +688,8 @@ test("a card from the issue board carried to a free desk opens the spawn dialog 
     expect(connect.status()).toBe(200);
 
     await walkInto(ownerPage, "Apollo");
-    await expect.poll(() => boardPoint(ownerPage, "issue-board")).not.toBeNull();
-    const board = await boardPoint(ownerPage, "issue-board");
-    if (!board) throw new Error("issue board missing from the scene");
-    await ownerPage.mouse.click(board.x, board.y);
     const panel = ownerPage.getByRole("dialog", { name: "Issue board" });
-    await expect(panel).toBeVisible();
+    await clickInScene(ownerPage, "board-hotspot-issue-board", panel);
     // The poller fills the board from the fake GitHub shortly after the connection.
     const card = panel.getByRole("button", { name: "#7 Fix the lift doors" });
     await expect(card).toBeVisible({ timeout: 45_000 });
