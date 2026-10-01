@@ -14,7 +14,7 @@ import { usePlayerStore } from "../../state/player.ts";
 import type { CorridorChunk } from "./corridors.ts";
 import type { Bounds, PlacedRoom } from "./placed.ts";
 import { createPresenceMemory, pickRooms, type RoomPick, samePick } from "./presence.ts";
-import { LOW_DRAW_DISTANCE, useQualityStore } from "./quality.ts";
+import { presetOf, useQualityStore } from "./quality.ts";
 import { FAR_DISTANCE, frustumOf, sameSet, useVisibleStore, visibleIds } from "./visibility.ts";
 import type { CompoundWorld } from "./world.ts";
 
@@ -61,8 +61,8 @@ export function Culling({
     cam.updateMatrixWorld();
     const frustum = frustumOf(cam);
     // The low tier only draws what is near the player (quality.ts).
-    const near =
-      useQualityStore.getState().quality === "low" ? nearPlayer(LOW_DRAW_DISTANCE) : undefined;
+    const reach = presetOf(useQualityStore.getState().quality).drawDistance;
+    const near = reach === null ? undefined : nearPlayer(reach);
     const nextRooms = visibleIds(frustum, near ? roomBoxes.filter(near) : roomBoxes);
     const nextChunks = visibleIds(frustum, near ? chunkBoxes.filter(near) : chunkBoxes);
     const now = useVisibleStore.getState();

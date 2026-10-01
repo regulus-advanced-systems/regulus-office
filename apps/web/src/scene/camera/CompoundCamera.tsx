@@ -1,8 +1,8 @@
 /**
  * Applies `orbit.ts` to R3F's default perspective camera (SPEC §9.2, #186):
  * follows the player at a 3/4 overhead angle, eases toward the yaw and zoom
- * in the camera store, and binds the controls: Q (and E with nothing to
- * interact with) turn by 45°, a right-drag turns freely, the wheel zooms
+ * in the camera store, and binds the controls: Z and C turn by 45°
+ * (#190; E only interacts), a right-drag turns freely, the wheel zooms
  * from close third person out to the compound overview. While `enabled` is
  * false (first person) it leaves the camera alone; the first-person rig
  * swaps in its own camera and gives this one back when it is done.
@@ -15,7 +15,7 @@ import { usePlayerStore } from "../../state/player.ts";
 import { useUiStore } from "../../state/ui.ts";
 import type { HotkeyEventDetail } from "../../ui/hotkeys/registry.ts";
 import { useHotkeyEvents } from "../../ui/hotkeys/useHotkeys.ts";
-import { clipPlanes, damp, dampYaw, ORBIT_FOV_DEG, orbitPose } from "./orbit.ts";
+import { clipPlanes, damp, dampYaw, defaultZoom, ORBIT_FOV_DEG, orbitPose } from "./orbit.ts";
 
 export interface CompoundCameraProps {
   /** Centre of the compound and its larger side, metres (the overview frames it). */
@@ -36,6 +36,13 @@ export function CompoundCamera({ centre, extent, enabled = true }: CompoundCamer
     zoom: useCameraStore.getState().zoom,
   });
 
+  // Start at a room-level framing for this compound's size, until a zoom is chosen (#190).
+  useEffect(() => {
+    const store = useCameraStore.getState();
+    store.setDefaultZoom(defaultZoom(extent));
+    if (!store.zoomChosen) shown.current.zoom = useCameraStore.getState().zoom;
+  }, [extent]);
+
   // The default camera is ours to fit (R3F does it on resize; the FPV swap needs it again).
   useEffect(() => {
     if (!(camera instanceof PerspectiveCamera) || !enabled) return;
@@ -44,14 +51,11 @@ export function CompoundCamera({ centre, extent, enabled = true }: CompoundCamer
     camera.updateProjectionMatrix();
   }, [camera, size, enabled]);
 
-  // Q turns left; E turns right unless something in reach took the press (#186).
+  // Z turns left, C right (#190: E only interacts now).
   useHotkeyEvents((detail: HotkeyEventDetail) => {
     if (!enabled) return;
     if (detail.id === "turnLeft") useCameraStore.getState().rotateStep(-1);
-    if (detail.id === "interact")
-      queueMicrotask(() => {
-        if (!detail.handled) useCameraStore.getState().rotateStep(1);
-      });
+    if (detail.id === "turnRight") useCameraStore.getState().rotateStep(1);
   });
 
   // Wheel zoom and right-drag rotation on the canvas.

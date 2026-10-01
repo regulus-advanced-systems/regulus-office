@@ -8,6 +8,7 @@
  */
 import type { CommandRejected, FloorState } from "@regulus/protocol";
 import { type BackoffOptions, backoffDelay } from "./backoff.ts";
+import { recordJoin } from "./joinTimes.ts";
 import {
   isConsentedClose,
   type RoomHandle,
@@ -181,6 +182,7 @@ export class FloorLinks {
     link.cancelRetry?.();
     link.cancelRetry = null;
     link.joining = true;
+    const started = typeof performance === "undefined" ? 0 : performance.now();
     let handle: RoomHandle<FloorState>;
     try {
       handle = await this.deps.transport.joinFloor({ floorId: link.floorId });
@@ -197,6 +199,7 @@ export class FloorLinks {
     link.handle = handle;
     link.attempt = 0;
     this.deps.onState(link.floorId, handle.snapshot());
+    if (started) recordJoin(link.floorId, performance.now() - started, performance.now());
     link.subs = [
       handle.onState((state) => this.deps.onState(link.floorId, state)),
       handle.onLeave((code, reason) => this.lost(link, code, reason)),

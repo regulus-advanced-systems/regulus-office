@@ -8,10 +8,11 @@ import {
 } from "./registry.ts";
 
 describe("hotkey registry", () => {
-  test("ships F, Q, V, E, T, Enter, / and ? by default", () => {
+  test("ships F, Z, C, V, E, T, Enter, / and ? by default", () => {
     const r = createHotkeyRegistry(DEFAULT_HOTKEYS);
     expect(r.resolve({ key: "f" })?.id).toBe("quickTravel");
-    expect(r.resolve({ key: "q" })?.id).toBe("turnLeft");
+    expect(r.resolve({ key: "z" })?.id).toBe("turnLeft");
+    expect(r.resolve({ key: "C" })?.id).toBe("turnRight");
     expect(r.resolve({ key: "V" })?.id).toBe("toggleView");
     expect(r.resolve({ key: "e" })?.id).toBe("interact");
     expect(r.resolve({ key: "T" })?.id).toBe("focusChat");
@@ -21,6 +22,7 @@ describe("hotkey registry", () => {
     expect(r.list().map((b) => b.id)).toEqual([
       "quickTravel",
       "turnLeft",
+      "turnRight",
       "toggleView",
       "interact",
       "focusChat",
@@ -29,6 +31,15 @@ describe("hotkey registry", () => {
       "help",
     ]);
     expect([...FOCUS_CHAT_HOTKEYS]).toEqual(["focusChat", "focusChatEnter"]);
+  });
+
+  test("E only interacts; no other binding shares a key with it or the camera turns (#190)", () => {
+    const r = createHotkeyRegistry(DEFAULT_HOTKEYS);
+    expect(r.resolve({ key: "q" })).toBeNull();
+    const keys = DEFAULT_HOTKEYS.map((b) => normalizeKey(b.key));
+    expect(new Set(keys).size).toBe(keys.length);
+    const interact = DEFAULT_HOTKEYS.find((b) => b.id === "interact");
+    expect(interact?.description).not.toMatch(/camera/i);
   });
 
   test("letters are case-insensitive, named keys are not lowercased", () => {

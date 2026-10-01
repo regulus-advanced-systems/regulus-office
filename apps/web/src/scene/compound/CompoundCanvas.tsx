@@ -15,7 +15,7 @@
  */
 import { Canvas } from "@react-three/fiber";
 import type { Pose } from "@regulus/floor-layout";
-import { type ReactNode, Suspense, useEffect, useMemo } from "react";
+import { type ReactNode, Suspense, useEffect, useLayoutEffect, useMemo } from "react";
 import { useCompoundStore } from "../../state/compound.ts";
 import { useFloorStore } from "../../state/floor.ts";
 import { usePlayerStore } from "../../state/player.ts";
@@ -52,12 +52,14 @@ import { Mountain } from "./outside/Mountain.tsx";
 import { Outside } from "./outside/Outside.tsx";
 import { createOutsideProbe } from "./outside/probe.ts";
 import { placeRoom } from "./placed.ts";
-import { detectQuality, useQualityStore } from "./quality.ts";
+import { detectTier, effectiveQuality, presetOf, useQualityStore } from "./quality.ts";
 import { RoomLayers } from "./RoomLayers.tsx";
 import { useVisibleStore } from "./visibility.ts";
 import { builtBounds, type CompoundWorld, lobbyOf, worldExtent } from "./world.ts";
 
 const BACKGROUND = "#141312";
+/** Past the mountain's shoulders: the far sea (outside/water.ts SEA.far), so the island sits in it (#190). */
+const SEA_BACKGROUND = "#163A6A";
 /** The blast door is not a sliding room door: outside/BlastDoor.tsx draws it. */
 const NO_EXTRA_DOORS: never[] = [];
 
@@ -81,7 +83,7 @@ function Scene({ world, avatars, presence, send, children }: CompoundCanvasProps
   const firstPerson = cameraMode === "first_person";
   const rigMounted = firstPerson || mode === "first_person";
   const spawned = usePlayerStore((s) => s.spawned);
-  const quality = useQualityStore((s) => s.quality);
+  const preset = presetOf(useQualityStore((s) => s.quality));
 
   const extent = worldExtent(world);
   // The overview frames the built rooms and corridors, not the whole empty grid.
@@ -155,7 +157,7 @@ function Scene({ world, avatars, presence, send, children }: CompoundCanvasProps
 
   return (
     <>
-      <color attach="background" args={[BACKGROUND]} />
+      <color attach="background" args={[preset.mountain ? SEA_BACKGROUND : BACKGROUND]} />
       <CompoundCamera
         centre={frame?.centre ?? built.centre}
         extent={frame?.extent ?? built.extent}
@@ -178,11 +180,18 @@ function Scene({ world, avatars, presence, send, children }: CompoundCanvasProps
         color="#FFE6C4"
       />
       <LairKit>
-        {quality === "high" && <Mountain world={world} layout={outside} />}
+        {preset.mountain && <Mountain world={world} layout={outside} />}
         {outside && <Outside layout={outside} />}
         <CutawayDriver focus={focus} enabled={!firstPerson} />
-        {quality === "high" && (
-          <LampLights lamps={lamps} focus={focus} count={6} intensity={4} distance={8} />
+        {preset.lampLights > 0 && (
+          <LampLights
+            key={preset.lampLights}
+            lamps={lamps}
+            focus={focus}
+            count={preset.lampLights}
+            intensity={4}
+            distance={8}
+          />
         )}
         <CompoundStructure
           world={world}
@@ -220,12 +229,18 @@ function Scene({ world, avatars, presence, send, children }: CompoundCanvasProps
 export function CompoundCanvas(props: CompoundCanvasProps) {
   const hidden = useDocumentHidden();
   const showStats = useMemo(() => statsEnabled(window.location.search), []);
-  // Software WebGL (quality.ts): no MSAA, which multiplies its per-pixel work.
-  const quality = useMemo(() => {
-    const q = detectQuality(window.location.search);
-    useQualityStore.getState().set(q);
-    return q;
+  // The detail preset (quality.ts): detected from the GPU once, changeable in Settings.
+  const detected = useMemo(() => {
+    const tier = detectTier();
+    useQualityStore.getState().setDetected(tier);
+    return tier;
   }, []);
+  const setting = useUiStore((s) => s.settings.graphics);
+  const quality = effectiveQuality(detected, setting, window.location.search);
+  // The first render already draws at the right tier; later Settings changes follow.
+  useMemo(() => useQualityStore.getState().set(quality), []);
+  useLayoutEffect(() => useQualityStore.getState().set(quality), [quality]);
+  const preset = presetOf(quality);
   useEffect(() => {
     if (!showStats) return;
     const world = () => useCompoundStore.getState().world ?? props.world;
@@ -239,10 +254,12 @@ export function CompoundCanvas(props: CompoundCanvasProps) {
   return (
     <div style={{ position: "absolute", inset: 0, isolation: "isolate", background: BACKGROUND }}>
       <Canvas
+        // MSAA is fixed when the context is made: a change of it makes a new canvas.
+        key={preset.antialias ? "msaa" : "plain"}
         flat
-        dpr={1}
+        dpr={preset.resolutionScale}
         frameloop={hidden ? "never" : "always"}
-        gl={{ antialias: quality === "high", powerPreference: "high-performance" }}
+        gl={{ antialias: preset.antialias, powerPreference: "high-performance" }}
         camera={{ fov: 40, near: 0.3, far: 600, position: [0, 30, 30] }}
         style={{ position: "absolute", inset: 0 }}
         onCreated={(state) => {

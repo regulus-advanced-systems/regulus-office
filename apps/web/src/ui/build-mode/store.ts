@@ -5,7 +5,7 @@
  *
  * While build mode is open it holds the `build-mode` overlay, so walking,
  * the global hotkeys and cursor-facing pause; its own keys (arrows, R,
- * Enter, Escape, Q/E) are handled by useBuildModeKeys.
+ * Enter, Escape, Z/C) are handled by useBuildModeKeys.
  *
  * The create request (name, palette, repos and any typed repo token) is
  * kept in memory only between "Choose a spot…" and the confirm or cancel,

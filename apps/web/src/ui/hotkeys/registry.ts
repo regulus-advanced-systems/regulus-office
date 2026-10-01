@@ -1,6 +1,8 @@
 /**
  * Keyboard shortcut registry (SPEC §9.2: F floor quick menu, V view toggle,
- * E interact; T / Enter focus the lobby chat; / search, #41). The registry is pure: it maps a key press to a binding id and
+ * E interact, Z / C turn the camera; T / Enter focus the lobby chat; / search, #41).
+ * Since #190 `E` only interacts; the camera turns on Z and C, which double as
+ * nothing else (SPEC §9.2 says Q/E, but E is interact). The registry is pure: it maps a key press to a binding id and
  * `dispatchHotkey` publishes a `regulus:hotkey` CustomEvent on `window`. The
  * elevator (#15) and camera/interaction work (#17) consume those events; the
  * HUD itself only handles the help overlay.
@@ -29,8 +31,7 @@ export interface HotkeyEventDetail {
   key: string;
   /**
    * Set by a listener that acted on the press (an `interact` that found
-   * something in reach), so a fallback listener can tell (#186: `E` turns
-   * the camera when there is nothing to interact with).
+   * something in reach), so a fallback listener can tell.
    */
   handled?: boolean;
 }
@@ -42,7 +43,13 @@ export const DEFAULT_HOTKEYS: readonly HotkeyBinding[] = [
     description: "Quick travel to a room you may enter",
     group: "Navigation",
   },
-  { id: "turnLeft", key: "q", description: "Turn the camera left", group: "Camera" },
+  {
+    id: "turnLeft",
+    key: "z",
+    description: "Turn the camera left (or right-drag)",
+    group: "Camera",
+  },
+  { id: "turnRight", key: "c", description: "Turn the camera right", group: "Camera" },
   {
     id: "toggleView",
     key: "v",
@@ -52,7 +59,8 @@ export const DEFAULT_HOTKEYS: readonly HotkeyBinding[] = [
   {
     id: "interact",
     key: "e",
-    description: "Interact with the nearest object; with nothing in reach, turn the camera right",
+    description:
+      "Interact with what is in reach: desk, laptop, board, clipboard, gong, door button",
     group: "World",
   },
   { id: "focusChat", key: "t", description: "Focus the chat input", group: "Chat" },

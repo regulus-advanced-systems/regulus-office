@@ -27,7 +27,7 @@ import { useLairMaterials } from "../../lair/components/LairKit.tsx";
 import { WALL_HEIGHT } from "../../lair/dimensions.ts";
 import { LAIR } from "../../lair/palette.ts";
 import { type PiecePlacement, placementMatrix } from "../../lair/placements.ts";
-import { useQualityStore } from "../quality.ts";
+import { presetOf, useQualityStore } from "../quality.ts";
 import { playDoorMachinery, playKlaxon } from "./audio/klaxon.ts";
 import { doorLoudness, outsideAudio } from "./audio/synth.ts";
 import {
@@ -70,7 +70,7 @@ function loudness(layout: OutsideLayout): number {
 
 export function BlastDoor({ layout }: { layout: OutsideLayout }) {
   const mats = useLairMaterials();
-  const quality = useQualityStore((s) => s.quality);
+  const alarmLights = presetOf(useQualityStore((s) => s.quality)).alarmLights;
   const forcedAlarm = useDoorOverride((s) => s.alarm);
   const leaf = useMemo(leafGeometry, []);
   const beam = useMemo(beamGeometry, []);
@@ -218,7 +218,7 @@ export function BlastDoor({ layout }: { layout: OutsideLayout }) {
         frustumCulled={false}
         visible={false}
       />
-      {quality === "high" &&
+      {alarmLights &&
         lights.map((p, i) => (
           <pointLight
             key={p.join(",")}

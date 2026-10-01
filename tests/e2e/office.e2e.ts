@@ -48,6 +48,7 @@ import { type FakeGitHub, startFakeGitHub } from "./fakeGitHub.ts";
 import { type GeniusLook, geniusOf, pickGenius, pickGeniusByKeyboard } from "./geniusChecks.ts";
 import { createRemoteRepo } from "./gitRemote.ts";
 import { checkMergeGong } from "./gongChecks.ts";
+import { reportFramePerf } from "./perfProbe.ts";
 import {
   angleBetween,
   cameraName,
@@ -329,7 +330,7 @@ test("V toggles the first-person view and back", async () => {
   await expect.poll(() => cameraName(ownerPage)).not.toBe("fpv-camera");
 });
 
-test("Q, E and a right-drag turn the camera; the wheel zooms out to the compound and back (#186)", async () => {
+test("Z, C and a right-drag turn the camera, E does not; the wheel zooms out to the compound and back (#186, #190)", async () => {
   await ownerPage.bringToFront();
   const canvas = ownerPage.locator("canvas").first();
   await canvas.hover();
@@ -343,12 +344,16 @@ test("Q, E and a right-drag turn the camera; the wheel zooms out to the compound
   const start = await cameraSettled(ownerPage);
   expect(angleBetween(await drawnYaw(), start.yaw)).toBeLessThan(0.01);
   await ownerPage.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
-  await ownerPage.keyboard.press("q");
+  // The first view is a room-level framing, not the close third person (#190).
+  expect(start.distance).toBeGreaterThan(20);
+  await ownerPage.keyboard.press("z");
   const left = await cameraSettled(ownerPage);
   expect(angleBetween(left.yaw, start.yaw)).toBeCloseTo(Math.PI / 4, 2);
   expect(angleBetween(await drawnYaw(), left.yaw)).toBeLessThan(0.01);
-  // E turns the other way when there is nothing in reach to interact with.
+  // E only interacts (#190): with nothing in reach the camera stays put.
   await ownerPage.keyboard.press("e");
+  expect(angleBetween((await cameraSettled(ownerPage)).wantYaw, left.wantYaw)).toBeLessThan(0.001);
+  await ownerPage.keyboard.press("c");
   const back = await cameraSettled(ownerPage);
   expect(angleBetween(back.yaw, start.yaw)).toBeLessThan(0.01);
   // A right-drag turns freely.
@@ -371,7 +376,7 @@ test("Q, E and a right-drag turn the camera; the wheel zooms out to the compound
   expect(near.distance).toBeLessThan(6);
   // Back to the default framing for the next steps.
   await wheelZoomTo(ownerPage, start.wantZoom);
-  await ownerPage.keyboard.press("q");
+  await ownerPage.keyboard.press("z");
   await cameraSettled(ownerPage);
 });
 
@@ -534,6 +539,8 @@ test("the owner adds a floor in build mode: a refused spot, then placed, built a
   await expect(ownerPage.locator(".rg-topbar__floor")).toHaveText("Apollo");
   await expect(ownerPage.getByRole("list", { name: "Work on this floor" })).toBeVisible();
   await wheelZoomTo(ownerPage, zoom);
+  // The perf probe (#190): frame times in a room, report only (tests/e2e/perfProbe.ts).
+  await reportFramePerf(ownerPage, "owner-in-apollo");
 
   // The member has no access: no Apollo in quick travel, a shut door with its plaque, and
   // nobody inside is drawn for them.

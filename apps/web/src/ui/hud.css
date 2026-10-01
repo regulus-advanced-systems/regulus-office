@@ -203,3 +203,11 @@
   letter-spacing: 0.04em;
   color: var(--rg-color-plate-text);
 }
+
+/* The ?stats fps panel (scene/perf/StatsOverlay.tsx): bottom right, off the HUD panels. */
+.rg-stats-panel {
+  top: auto !important;
+  left: auto !important;
+  right: 8px !important;
+  bottom: 8px !important;
+}

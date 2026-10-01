@@ -1,6 +1,6 @@
 /**
  * The compound camera's controls (SPEC §9.2, #186): the yaw and zoom the
- * player asked for (Q/E, right-drag, wheel). The camera rig eases toward
+ * player asked for (Z/C, right-drag, wheel). The camera rig eases toward
  * them every frame and writes the yaw it actually shows to `cameraView`,
  * which WASD reads, so "W" always walks up the screen.
  */
@@ -21,7 +21,13 @@ export interface CameraStore {
   yaw: number;
   /** Requested zoom: 0 close third person .. 1 compound overview. */
   zoom: number;
-  /** Q (-1) / E (+1): turn by one step, snapped to the step grid. */
+  /** The room-level starting zoom for this compound (orbit.ts `defaultZoom`). */
+  defaultZoom: number;
+  /** The player (or a flow) chose a zoom; the default framing no longer applies. */
+  zoomChosen: boolean;
+  /** The camera rig sets the compound's starting zoom; it applies until a zoom is chosen. */
+  setDefaultZoom: (zoom: number) => void;
+  /** Z (-1) / C (+1): turn by one step, snapped to the step grid. */
   rotateStep: (dir: 1 | -1) => void;
   /** Right-drag by `dx` pixels. */
   drag: (dx: number) => void;
@@ -34,15 +40,20 @@ export interface CameraStore {
 export const useCameraStore = create<CameraStore>()((set, get) => ({
   yaw: DEFAULT_YAW_DEG * DEG,
   zoom: DEFAULT_ZOOM,
+  defaultZoom: DEFAULT_ZOOM,
+  zoomChosen: false,
+  setDefaultZoom: (zoom) =>
+    set((s) => (s.zoomChosen ? { defaultZoom: zoom } : { defaultZoom: zoom, zoom })),
   rotateStep: (dir) => {
     const step = YAW_STEP_DEG * DEG;
     const snapped = Math.round(get().yaw / step) * step;
     set({ yaw: snapped + dir * step });
   },
   drag: (dx) => set((s) => ({ yaw: s.yaw - dx * DRAG_YAW_PER_PX })),
-  wheel: (deltaY) => set((s) => ({ zoom: clampZoom(s.zoom + deltaY * WHEEL_ZOOM_PER_PX) })),
-  setZoom: (zoom) => set({ zoom: clampZoom(zoom) }),
-  reset: () => set({ yaw: DEFAULT_YAW_DEG * DEG, zoom: DEFAULT_ZOOM }),
+  wheel: (deltaY) =>
+    set((s) => ({ zoom: clampZoom(s.zoom + deltaY * WHEEL_ZOOM_PER_PX), zoomChosen: true })),
+  setZoom: (zoom) => set({ zoom: clampZoom(zoom), zoomChosen: true }),
+  reset: () => set((s) => ({ yaw: DEFAULT_YAW_DEG * DEG, zoom: s.defaultZoom, zoomChosen: false })),
 }));
 
 /** What the camera shows this frame (written by the rig; read without subscribing). */

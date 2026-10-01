@@ -156,7 +156,7 @@ export function BuildModePanel({ onConfirm }: { onConfirm: () => void }) {
         </div>
         <p className="rg-build__keys">
           The ghost follows the mouse; click to hold it. Arrows nudge it, R turns the door, Enter
-          builds, Esc cancels. Q/E turn the camera, the wheel zooms.
+          builds, Esc cancels. Z/C turn the camera, the wheel zooms.
         </p>
         <div className="rg-dock__actions">
           <Button variant="primary" disabled={!canBuild} onClick={onConfirm}>

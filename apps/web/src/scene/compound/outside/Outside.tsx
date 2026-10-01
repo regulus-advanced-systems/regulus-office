@@ -21,7 +21,7 @@ import { usePlayerStore } from "../../../state/player.ts";
 import { useUiStore } from "../../../state/ui.ts";
 import { useLairMaterials } from "../../lair/components/LairKit.tsx";
 import type { Bounds } from "../placed.ts";
-import { LOW_DRAW_DISTANCE, useQualityStore } from "../quality.ts";
+import { LOW_DRAW_DISTANCE, presetOf, useQualityStore } from "../quality.ts";
 import { boundsVisible, frustumOf, useVisibleStore } from "../visibility.ts";
 import { ambienceLevel, createAmbience } from "./audio/ambience.ts";
 import { outsideAudio } from "./audio/synth.ts";
@@ -68,8 +68,7 @@ export const outsideView = { drawn: false };
 
 export function Outside({ layout }: { layout: OutsideLayout }) {
   const mats = useLairMaterials();
-  const quality = useQualityStore((s) => s.quality);
-  const low = quality === "low";
+  const low = presetOf(useQualityStore((s) => s.quality)).liteOutside;
   // The software tier draws the beach unlit, with the light baked into its colours.
   const bake = (g: BufferGeometry): BufferGeometry => (low ? bakeLight(g) : g);
   const sand = useMemo(() => bake(sandGeometry(layout)), [layout, low]);

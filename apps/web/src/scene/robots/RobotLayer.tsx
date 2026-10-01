@@ -28,6 +28,7 @@ import { openAgentPanel } from "../../ui/agent/agentStore.ts";
 import { carriedPrefill, dropCard, useMyCarried } from "../../ui/boards/carry.ts";
 import type { HotkeyEventDetail } from "../../ui/hotkeys/registry.ts";
 import { useHotkeyEvents } from "../../ui/hotkeys/useHotkeys.ts";
+import { useVisibleStore } from "../compound/visibility.ts";
 import { FALLBACK_ANCHOR, type SitAnchor, sitAnchors } from "../furniture/sitAnchor.ts";
 import { useGongStore } from "../gong/gongStore.ts";
 import { ROBOT_CONFETTI } from "../gong/timing.ts";
@@ -226,6 +227,9 @@ export function RobotLayer({ template, robots: given, anchorsFor = sitAnchors }:
     [visible, seatsById, template],
   );
 
+  // Floor decals are specks at the overview: leave them out there (#190, one draw each).
+  const far = useVisibleStore((s) => s.far);
+
   return (
     <group name={scopedName(scope, "robots")}>
       {visible.map((r) => {
@@ -240,7 +244,7 @@ export function RobotLayer({ template, robots: given, anchorsFor = sitAnchors }:
               onSelect={scope.interactive ? openAgentPanel : undefined}
               onCelebrate={burst}
             />
-            <NameDecal seat={seat} ownerName={r.ownerName} model={r.model} />
+            {!far && <NameDecal seat={seat} ownerName={r.ownerName} model={r.model} />}
           </group>
         );
       })}
