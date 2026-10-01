@@ -277,8 +277,8 @@ OpenCode (serve + attach), Gemini CLI and Kimi Code via ACP, base-URL profiles f
 ### M5 Office agents and PM
 Office agents: any number of persistent agents, one company PM agent plus personal assistant agents per human (admin-set cap). Engines behind an `OfficeAgentEngine` interface: Hermes Agent (`managed` profile in the VM or `external` gateway URL + token), OpenClaw, or a CLI session engine (a long-running Claude Code / Codex / OpenCode session with a role prompt). Company agents run in an office-owned runner with office-level metered keys only (D2). All office agents act through an office MCP server (with an equivalent REST API) authenticated by a per-agent scoped token; every call is authorised and audited. Personal agents never exceed their owner's rights. Privilege presets: `observer` (read + briefs), `coordinator` (default for the PM: read everything, enqueue tasks, comment on issues/PRs, deliver briefs; cannot spawn or stop robots), `manager` (coordinator plus spawn/stop within a per-day cap). Each office agent has a `soul.md` and memories stored by the office (source of truth), with version history; owners/admins read and edit every agent's soul and memories, a human edits their own agents'; memories never store secrets. Conference room with project, task and timeline screens kept current by the PM. Daily brief on cron delivered at reception when the owner arrives and optionally to Slack/Telegram. Patrol route, visits waiting robots, answers questions at reception.
 
-### M6 Polish and "tycoon" layer
-Weather and day-night cycle, coffee machine buff, office dog per floor, holiday themes, achievements and trophy shelf, lair bar (DJ stage, synth music, drinks), arcade cabinet with spectator screen and high scores, room decor packs and furniture placement inside rooms, the full island exterior (jungle, paths, volcano, helipad), more special rooms, henchman variety. Dropped by owner decision: office tower, garage with cars, ladders and fire poles, balcony smoke break.
+### M6 Polish and island
+The full island exterior (jungle, paths, volcano, helipad); sky, day-night and weather outside the compound; break-room coffee machine buff; achievements and a trophy vault; room decor packs and furniture placement inside rooms; more special rooms and henchman variety; elastic runner hosts (D18); a performance pass. Dropped by owner decision: office tower, garage with cars, ladders and fire poles, balcony smoke break, and (2026-10-01, with the compound) the office dog, holiday themes, rooftop/lair bar and arcade cabinet.
 
 ### Ops (across milestones)
 Desktop notifications + tab badge for waiting robots (M2). Slack / Discord / Telegram webhook notifications on needs-input, done, PR merged (M2). Self-upgrade from the admin UI: check GitHub releases, pull image, restart; robots survive in tmux (M5). Setup on an existing VM: clone the repo and run one setup script (or `docker compose up`) that checks prerequisites, generates secrets, builds or pulls images and starts the office with Caddy and a domain (M2). No VM provisioning.
@@ -304,7 +304,7 @@ Desktop notifications + tab badge for waiting robots (M2). Slack / Discord / Tel
 - `README.md` with 5-minute Compose quickstart; `CONTRIBUTING.md`; `CODE_OF_CONDUCT.md`; ADRs in `docs/adr/`; issue templates; CI on PRs; release per tag with Compose image publish to GHCR.
 - Attribution to AgentSystemLabs/agent-office (MIT) for any copied code (protocol shapes, PTY host ideas) in `NOTICE`.
 
-## 14. Decision record (owner, 2026-09-28; updated 2026-09-29 and 2026-09-30)
+## 14. Decision record (owner, 2026-09-28; updated 2026-09-29, 2026-09-30 and 2026-10-01)
 
 | # | Decision | Choice |
 |---|---|---|
@@ -316,7 +316,7 @@ Desktop notifications + tab badge for waiting robots (M2). Slack / Discord / Tel
 | D6 | Runner backend | Both: Docker runner per human (Compose default) and Linux user per human (bare-install default) behind one interface |
 | D7 | Floor model | Room (`floor` in code) = project with 1..n repos; desks/worktrees/boards bind to a repo; one primary repo, more attachable (2026-09-30, #170) |
 | D8 | Room layout | Rooms are grid rectangles (1 tile = 2 m, 4×4 to 12×12 tiles) placed by owners/admins; interiors generated from size, desk count and decor style; start vanilla (one desk of 4 seats plus furniture) (2026-09-30, #170) |
-| D9 | Game-y extras | All kept: merge gong + confetti (M2), meeting room patterns (M3), dog/coffee/weather/holidays/achievements/lair bar/arcade (M6). Beach outside the blast door in M2.5, full island later. Office tower, garage, ladders/poles, smoke break dropped (updated 2026-09-30) |
+| D9 | Game-y extras | Kept: merge gong + confetti (M2), meeting room patterns (M3), coffee buff, island sky/weather and achievements (M6). Beach outside the blast door in M2.5, full island in M6. Dropped: office tower, garage, ladders/poles, smoke break, and with the compound the office dog, holiday themes, rooftop/lair bar and arcade (updated 2026-10-01) |
 | D10 | More features | Board kiosk agents, search across chat + scrollback, changes window all kept |
 | D11 | Hosting target | Primary: one central company office on a Hetzner VM (8 vCPU, 16 GB RAM); Compose + Caddy + Let's Encrypt on a public domain. Self-hosting by one person with Compose stays supported (updated 2026-09-29) |
 | D12 | Terminal ACL | Everyone with floor access watches all robots; only the robot's owner controls it; admins/owners may emergency-stop it (audited) (updated 2026-09-29) |
