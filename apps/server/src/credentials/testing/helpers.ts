@@ -19,6 +19,8 @@ import { mountCredentialPanel } from "../panel.ts";
 import { createKeyVerifier } from "../verify.ts";
 
 export const FAKE_CLAUDE = join(import.meta.dir, "fake-claude.sh");
+/** A fake `claude` whose `auth status` waits for the test (#199). */
+export const SLOW_STATUS_CLAUDE = join(import.meta.dir, "fake-claude-slow-status.sh");
 export const FAKE_APP_SERVER = join(
   import.meta.dir,
   "../../../../../packages/agent-adapters/src/codex/testing/fake-app-server-main.ts",

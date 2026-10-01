@@ -9,7 +9,7 @@
  * reported to the program instead of selecting text.
  */
 import { type BrowserContext, expect, type Locator, type Page } from "@playwright/test";
-import { scenePoint } from "./agentProbes.ts";
+import { laptopClickPoint, playerAtDesk } from "./deskProbes.ts";
 import { type Box, dragAcrossTop, readClipboard, writeClipboard } from "./terminalChecks.ts";
 
 /** Claude Code's mouse tracking request (any-event), as the fake sends it. */
@@ -122,63 +122,77 @@ export async function checkRobotTerminalCopy(
 }
 
 /**
+ * `E` at an occupied desk opens its robot's terminal within this distance of the seat
+ * (DESK_INTERACT_RADIUS, 1.6 m, in apps/web/src/scene/laptops/focus.ts), less a margin; the live
+ * laptop panel already shows from 2.2 m, so it alone does not prove `E` reaches.
+ */
+const WITHIN_REACH_M = 1.4;
+
+/**
  * The live laptop panel: the player walks up to the robot's desk, the laptop shows the live
  * terminal, which is display-only (under the 3D canvas, a few pixels wide in the iso view).
- * Clicking the laptop opens the robot's terminal, where copying works.
+ * `E` at the desk and a click on the laptop both open the robot's terminal, where copying works.
+ *
+ * Each step waits for a state, not a moment (#199): the player standing still within reach of
+ * the seat, then a point where the laptop is the nearest clickable object (the seated robot
+ * hides most of it at the iso angle).
  */
 export async function checkLaptopCopy(page: Page, seatId: string): Promise<void> {
   const live = page.getByTestId("laptop-live-terminal");
-  const offsets = [
-    [0, 40],
-    [40, 40],
-    [-40, 40],
-    [0, -40],
-  ] as const;
+  const panel = page.locator("section.rg-agent-panel");
+  // A click near the seat can also land on a neighbouring free desk, whose spawn dialog then
+  // covers the canvas and swallows every later click (#199).
+  const spawn = page.getByRole("dialog", { name: "Spawn a robot" });
+  const closePanel = async () => {
+    if (await panel.isVisible()) await panel.getByRole("button", { name: /Close/ }).first().click();
+    await expect(panel).toHaveCount(0);
+    if (await spawn.isVisible()) await spawn.getByRole("button", { name: "Cancel" }).click();
+    await expect(spawn).toHaveCount(0);
+  };
+  // Walk up to the desk: click the floor around the seat until the player stands within reach.
+  // A click may land on the desk, the robot, its hotspot or a free desk instead (no walk, the
+  // robot's panel or a spawn dialog); the next point around the seat is tried once the player
+  // stands still.
+  let next = 0;
   await expect(async () => {
-    const desk = await scenePoint(page, `desk-hotspot-${seatId}`);
-    if (!desk) throw new Error("robot desk not in view");
-    for (const [dx, dy] of offsets) {
-      if ((await live.count()) > 0) break;
-      await page.mouse.click(desk.x + dx, desk.y + dy);
-      await expect(live)
-        .toHaveCount(1, { timeout: 6_000 })
-        .catch(() => {});
+    const at = await playerAtDesk(page, seatId);
+    if (!at) throw new Error("robot desk not in view");
+    if (at.still && at.dist <= WITHIN_REACH_M) return;
+    if (at.still) {
+      await closePanel();
+      const point = at.around[next++ % at.around.length];
+      if (point) await page.mouse.click(point.x, point.y);
     }
-    await expect(live).toHaveCount(1, { timeout: 1_000 });
+    throw new Error(`player ${at.dist.toFixed(2)} m from the seat${at.still ? "" : ", walking"}`);
   }).toPass({ timeout: 60_000 });
-  // Standing still: the panel stays up while the player is at the desk.
-  await page.waitForTimeout(500);
+  await closePanel();
+  // Standing at the desk: the laptop shows the live terminal.
   await expect(live).toHaveCount(1);
   await expect(live.locator(".xterm-screen")).toHaveCount(1);
-  const panel = page.locator("section.rg-agent-panel");
 
-  // The laptop opens the robot's terminal: E at the desk, or a click on the laptop's screen or
-  // body (the seated robot may be in front of it at the iso angle).
   const dialog = page.getByRole("dialog").filter({ hasText: /In control|Watching/ });
-  let attempt = 0;
-  await expect(async () => {
-    const way = attempt++ % 3;
-    if (await panel.isVisible())
-      await panel.getByRole("button", { name: /Close/ }).first().click({ timeout: 2_000 });
-    if (way === 0) {
-      await page.keyboard.press("e");
-    } else {
-      const box = way === 1 ? await live.boundingBox({ timeout: 1_000 }).catch(() => null) : null;
-      const point = box
-        ? { x: box.x + box.width / 2, y: box.y + box.height / 2 }
-        : await scenePoint(page, `laptop-${seatId}`);
-      if (!point) throw new Error("laptop not in view");
-      await page.mouse.click(point.x, point.y);
-    }
-    await expect(dialog).toBeVisible({ timeout: 2_000 });
-  }).toPass({ timeout: 45_000 });
+  const closeDialog = async () => {
+    await dialog.getByRole("button", { name: /Close/ }).first().click();
+    await expect(dialog).toHaveCount(0);
+  };
+  // E at the desk opens the robot's terminal.
+  await page.keyboard.press("e");
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByTestId("terminal-screen")).toHaveAttribute("data-status", "open");
+  await closeDialog();
+
+  // So does a click on the laptop, where no robot or furniture is in front of it.
+  await expect(live).toHaveCount(1);
+  const point = await laptopClickPoint(page, seatId);
+  expect(point, "a visible part of the laptop to click").not.toBeNull();
+  if (point) await page.mouse.click(point.x, point.y);
+  await expect(dialog).toBeVisible();
   await expect(dialog.getByTestId("terminal-screen")).toHaveAttribute("data-status", "open");
   const screen = await copied(page, dialog, "laptop → Copy screen", () =>
     dialog.getByTestId("terminal-copy-screen").click(),
   );
   expect(screen).toContain("FAKE CLAUDE DONE");
-  await dialog.getByRole("button", { name: /Close/ }).first().click();
-  await expect(dialog).toHaveCount(0);
+  await closeDialog();
 }
 
 /**
