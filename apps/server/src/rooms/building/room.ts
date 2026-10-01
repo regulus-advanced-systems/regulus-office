@@ -1,8 +1,8 @@
 /**
  * BuildingRoom (SPEC §6 channel 1): one per office. Human presence, chat,
- * the operation list with counters, the office usage summary (#40). Jukebox and
- * PM state are part of the schema but stay at their defaults until their
- * milestones.
+ * the operation list with counters, the office usage summary (#40), the lobby
+ * jukebox and its clock-sync pings (#47). PM state is part of the schema but
+ * stays at its defaults until its milestone.
  *
  * Written against `RoomDefinition`, not Colyseus; see ../transport.ts.
  */
@@ -12,7 +12,9 @@ import {
   BuildingStateSchema,
   type ChatMessage,
   ChatMessageSchema,
+  CLOCK_PONG_MESSAGE,
   type ClientCommand,
+  type ClockPong,
   COMMAND_REJECTED_MESSAGE,
   type CommandRejected,
   type GeniusLookValue,
@@ -26,6 +28,7 @@ import {
   applyRoomFields,
   type CompoundSnapshot,
 } from "../../compound/room-state.ts";
+import type { JukeboxPlayer } from "../../jukebox/player.ts";
 import type { Logger } from "../../logging.ts";
 import { applyUsageSummary } from "../../usage/room-state.ts";
 import type { RoomAuthUser } from "../auth.ts";
@@ -59,6 +62,8 @@ export interface BuildingRoomDeps {
   canVisit?(user: RoomAuthUser, operationId: string): boolean;
   /** The lobby's blast door (#188): open time and the audit of presses. */
   blastDoor?: BlastDoorOptions;
+  /** The lobby jukebox (#47): playhead, queue and permissions; absent = refused. */
+  jukebox?: JukeboxPlayer;
 }
 
 export interface BuildingRoom extends RoomDefinition<BuildingState, BuildingJoinOptions> {
@@ -167,6 +172,7 @@ export function createBuildingRoom(deps: BuildingRoomDeps): BuildingRoom {
   const sweep = () => {
     if (!handle) return;
     blastDoor.tick(handle.state.blastDoor);
+    deps.jukebox?.tick(handle.state.jukebox);
     const t = now();
     handle.state.humans.forEach((human, sessionId) => {
       const book = books.get(sessionId);
@@ -257,6 +263,31 @@ export function createBuildingRoom(deps: BuildingRoomDeps): BuildingRoom {
         else logger.info(result.press, "blast door pressed");
         return;
       }
+      case "clock.ping": {
+        // Receive and send time are the same instant here: the handler is synchronous.
+        const t = now();
+        const pong: ClockPong = { id: command.id, t0: command.t0, t1: t, t2: t };
+        client.send(CLOCK_PONG_MESSAGE, pong);
+        return;
+      }
+      case "jukebox.play":
+      case "jukebox.pause":
+      case "jukebox.seek":
+      case "jukebox.enqueue":
+      case "jukebox.skip":
+      case "jukebox.remove":
+      case "jukebox.volume":
+      case "jukebox.duration": {
+        if (!deps.jukebox) return reject(client, command.type, "the jukebox is not running");
+        const { userId, role, displayName } = client.user;
+        const result = deps.jukebox.command(
+          room.state.jukebox,
+          { userId, role, displayName },
+          command,
+        );
+        if (!result.ok) reject(client, command.type, result.reason);
+        return;
+      }
       default:
         reject(client, command.type, "not handled by the building room");
     }
@@ -273,6 +304,7 @@ export function createBuildingRoom(deps: BuildingRoomDeps): BuildingRoom {
       for (const line of await chat.recent(CHAT_REPLAY)) room.state.chat.push(toSchema(line));
       if (usage) applyUsageSummary(room.state.usage, usage);
       if (compound) applyCompoundState(room.state.compound, compound.state);
+      deps.jukebox?.restore(room.state.jukebox);
       room.setInterval(sweep, SWEEP_MS);
       logger.info({ roomId: room.roomId, operations: known.length }, "building room created");
     },

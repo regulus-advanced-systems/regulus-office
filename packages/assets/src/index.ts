@@ -1,3 +1,3 @@
-// @regulus/assets: placeholder module so the package participates in typecheck.
-// Models and textures live in ../models and ../textures; attribution in ../ATTRIBUTION.md.
-export {};
+// @regulus/assets: models and textures live in ../models and ../textures, the jukebox's
+// bundled tracks in ../audio/jukebox (manifest: ./jukebox.ts); attribution in ../ATTRIBUTION.md.
+export * from "./jukebox.ts";

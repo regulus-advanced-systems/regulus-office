@@ -157,26 +157,36 @@ export const ChatMessage = z.object({
 });
 export type ChatMessage = z.infer<typeof ChatMessage>;
 
+/** One queued (or the playing) jukebox entry (#47); the same track may be queued twice. */
 export const JukeboxQueueEntry = z.object({
-  trackId: Id,
+  /** This queue entry; empty in `current` when nothing is loaded. */
+  entryId: z.string().max(128),
+  trackId: z.string().max(128),
   title: z.string().max(200),
   artist: z.string().max(200),
   source: z.enum(JUKEBOX_SOURCES),
+  /** YouTube video id for `youtube` entries; empty for files (played from `jukeboxAudioPath`). */
+  videoId: z.string().max(16),
+  /** 0 while unknown (a YouTube video until a listener's player measures it). */
   durationMs: Count,
-  addedBy: Id,
+  /** Who queued it; empty when the jukebox picked it (a bundled track). */
+  addedBy: z.string().max(128),
+  addedByName: z.string().max(64),
 });
 export type JukeboxQueueEntry = z.infer<typeof JukeboxQueueEntry>;
 
-/** Playhead authority lives on the server (SPEC §5 jukebox_state). */
+/** Playhead authority lives on the server (SPEC §5 jukebox_state; jukebox.ts has the maths). */
 export const JukeboxState = z.object({
-  /** Empty when nothing is loaded. */
-  trackId: z.string().max(128),
+  /** The loaded track; `entryId` empty when nothing is loaded. */
+  current: JukeboxQueueEntry,
   /** Server time at which playback position 0 would have started. */
   startedAtServerMs: TimestampMs,
   /** Position at which playback was paused; 0 while playing. */
   pausedAtMs: Count,
   playing: z.boolean(),
+  /** The jukebox's office-wide level; each listener's own volume and mute apply on top. */
   volume: z.number().min(0).max(1),
+  /** Waiting entries, next first. */
   queue: z.array(JukeboxQueueEntry),
 });
 export type JukeboxState = z.infer<typeof JukeboxState>;

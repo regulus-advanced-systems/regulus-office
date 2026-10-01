@@ -7,6 +7,7 @@ import { ROOM_NAMES } from "@regulus/protocol";
 import { AUDIT_ACTIONS, writeAudit } from "../auth/audit.ts";
 import { originPolicyFor } from "../auth/origin.ts";
 import type { Db } from "../db/index.ts";
+import type { JukeboxPlayer } from "../jukebox/player.ts";
 import type { Logger } from "../logging.ts";
 import type { RoomAuth } from "./auth.ts";
 import { DrizzleOperationSource } from "./building/operations.ts";
@@ -43,6 +44,8 @@ export interface RoomsOptions {
   production: boolean;
   /** How long the blast door stays open after a press, ms (default 60 s, #188). */
   blastDoorMs?: number;
+  /** The lobby jukebox the building room runs (#47). */
+  jukebox?: JukeboxPlayer;
 }
 
 export interface Rooms {
@@ -57,7 +60,7 @@ export interface Rooms {
 }
 
 export function createRooms(options: RoomsOptions): Rooms {
-  const { db, logger, auth, publicUrl, production, blastDoorMs } = options;
+  const { db, logger, auth, publicUrl, production, blastDoorMs, jukebox } = options;
   const transport = new ColyseusRoomTransport({
     auth,
     logger,
@@ -69,6 +72,7 @@ export function createRooms(options: RoomsOptions): Rooms {
     operations: new DrizzleOperationSource(db),
     logger: logger.child({ room: ROOM_NAMES.building }),
     canVisit: (user, operationId) => operationSource.canEnter(user, operationId),
+    jukebox,
     blastDoor: {
       openMs: blastDoorMs,
       audit: (press) => {

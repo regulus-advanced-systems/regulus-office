@@ -75,23 +75,26 @@ export const ChatMessageSchema = schema(
 
 export const JukeboxQueueEntrySchema = schema(
   {
+    entryId: t.string().default(""),
     trackId: t.string().default(""),
     title: t.string().default(""),
     artist: t.string().default(""),
     source: t.string().default("file"),
+    videoId: t.string().default(""),
     durationMs: t.uint32().default(0),
     addedBy: t.string().default(""),
+    addedByName: t.string().default(""),
   },
   "JukeboxQueueEntry",
 );
 
 export const JukeboxStateSchema = schema(
   {
-    trackId: t.string().default(""),
+    current: JukeboxQueueEntrySchema,
     startedAtServerMs: t.number().default(0),
     pausedAtMs: t.uint32().default(0),
     playing: t.boolean().default(false),
-    volume: t.float64().default(0.5),
+    volume: t.float64().default(0.6),
     queue: t.array(JukeboxQueueEntrySchema),
   },
   "JukeboxState",

@@ -4,7 +4,12 @@ All assets in this package are CC0 unless listed below. CC-BY assets must be lis
 
 | Asset | Author | Source | License |
 |---|---|---|---|
-| (none yet) | | | |
+| Jukebox track "Spy Glass" (`audio/jukebox/spy-glass.mp3`, #47) | Kevin MacLeod (incompetech.com) | https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1500058 | CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/) |
+| Jukebox track "Covert Affair" (`audio/jukebox/covert-affair.mp3`, #47) | Kevin MacLeod (incompetech.com) | https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1100795 | CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/) |
+| Jukebox track "Secret of Tiki Island" (`audio/jukebox/secret-of-tiki-island.mp3`, #47) | Kevin MacLeod (incompetech.com) | https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1600037 | CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/) |
+| Jukebox track "Deadly Roulette" (`audio/jukebox/deadly-roulette.mp3`, #47) | Kevin MacLeod (incompetech.com) | https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1600033 | CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/) |
+
+The four jukebox tracks are changed from the originals: re-encoded from the 256-320 kbps stereo MP3s on incompetech.com to 64 kbps mono MP3 (44.1 kHz) with the original tags replaced by title, artist and licence. Each track page gives the attribution "\<title\>" Kevin MacLeod (incompetech.com), Licensed under Creative Commons: By Attribution 4.0 License, http://creativecommons.org/licenses/by/4.0/; the jukebox panel shows it next to the track (`packages/assets/src/jukebox.ts`).
 
 ## Original in-repo assets
 

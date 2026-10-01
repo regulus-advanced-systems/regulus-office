@@ -5,6 +5,7 @@ import {
   type CommandRejected,
   DEFAULT_ROOM_SETTINGS,
   EMPTY_COMPOUND,
+  IDLE_JUKEBOX,
   type OperationState,
   UNPLACED_ROOM,
 } from "@regulus/protocol";
@@ -35,14 +36,7 @@ const emptyBuilding = (): BuildingState => ({
     },
   },
   chat: [],
-  jukebox: {
-    trackId: "",
-    startedAtServerMs: 0,
-    pausedAtMs: 0,
-    playing: false,
-    volume: 0.5,
-    queue: [],
-  },
+  jukebox: { ...IDLE_JUKEBOX, current: { ...IDLE_JUKEBOX.current }, queue: [] },
   usage: {
     todayInputTokens: 0,
     todayOutputTokens: 0,

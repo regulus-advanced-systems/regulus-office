@@ -1,6 +1,6 @@
 /**
  * Settings → Display and sound (#225, SPEC §11): graphics quality and first
- * person on the left; reduced motion, volume and the clock on the right;
+ * person on the left; reduced motion, volume, the jukebox mute (#47) and the clock on the right;
  * reset to defaults below. All of it is per browser (settingsStorage.ts).
  */
 import { useId } from "react";
@@ -62,8 +62,16 @@ export function DisplaySettings() {
               onChange={(e) => update({ volume: Number(e.currentTarget.value) / 100 })}
             />
             <div className="rg-field__hint">
-              Placeholder: the jukebox and ambience (M3) will read this value.
+              Every office sound: the lobby jukebox, the beach, the klaxon, the gong and dings.
             </div>
+          </div>
+          <div className="rg-field">
+            <Switch
+              checked={settings.jukeboxMuted}
+              onChange={(next) => update({ jukeboxMuted: next })}
+              label="Mute the jukebox"
+              hint="Only for you: the music keeps playing for everyone else."
+            />
           </div>
           <div className="rg-field">
             <Switch

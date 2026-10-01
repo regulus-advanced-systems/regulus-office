@@ -18,8 +18,10 @@ export type GraphicsSetting = (typeof GRAPHICS_SETTINGS)[number];
 export interface UiSettings {
   /** null = follow prefers-reduced-motion. */
   reducedMotion: boolean | null;
-  /** Master volume placeholder 0..1; the jukebox/ambience work wires it up. */
+  /** Office volume 0..1: the jukebox, ambience, klaxon, gong and dings. */
   volume: number;
+  /** Personal mute of the lobby jukebox (#47); other sounds keep playing. */
+  jukeboxMuted: boolean;
   /** 12-hour clock in the top bar. */
   hour12: boolean;
   /** First-person vertical field of view, degrees. */
@@ -35,6 +37,7 @@ export const SETTINGS_STORAGE_KEY = "regulus.ui.settings.v1";
 export const DEFAULT_SETTINGS: Readonly<UiSettings> = {
   reducedMotion: null,
   volume: 0.8,
+  jukeboxMuted: false,
   hour12: false,
   fpvFov: DEFAULT_FPV_FOV,
   mouseSensitivity: DEFAULT_MOUSE_SENSITIVITY,
@@ -65,6 +68,8 @@ export function parseSettings(raw: string | null | undefined): UiSettings {
   return {
     reducedMotion: typeof o.reducedMotion === "boolean" ? o.reducedMotion : null,
     volume: volume === null ? DEFAULT_SETTINGS.volume : Math.min(1, Math.max(0, volume)),
+    jukeboxMuted:
+      typeof o.jukeboxMuted === "boolean" ? o.jukeboxMuted : DEFAULT_SETTINGS.jukeboxMuted,
     hour12: typeof o.hour12 === "boolean" ? o.hour12 : DEFAULT_SETTINGS.hour12,
     fpvFov: fpvFov === null ? DEFAULT_SETTINGS.fpvFov : clampFovSetting(fpvFov),
     mouseSensitivity:

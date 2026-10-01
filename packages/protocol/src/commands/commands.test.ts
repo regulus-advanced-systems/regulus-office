@@ -45,7 +45,8 @@ const SPEC_COMMANDS = [
  * office owner/admin stop of D12 (#138); `queue.retry` and `queue.settings`
  * are the task queue's retry and concurrency settings (#37);
  * `gong.bang` is the manual bang of the merge gong (#43, D9);
- * `blast_door.press` is the lobby's blast door button (SPEC §9.4, #188).
+ * `blast_door.press` is the lobby's blast door button (SPEC §9.4, #188);
+ * `jukebox.remove|volume|duration` and the clock sync's `clock.ping` belong to the jukebox (#47).
  */
 const EXTENSION_COMMANDS = [
   "agent.interrupt",
@@ -56,6 +57,10 @@ const EXTENSION_COMMANDS = [
   "queue.settings",
   "gong.bang",
   "blast_door.press",
+  "jukebox.remove",
+  "jukebox.volume",
+  "jukebox.duration",
+  "clock.ping",
 ] as const;
 
 const valid: Record<ClientCommandType, Record<string, unknown>> = {
@@ -105,6 +110,10 @@ const valid: Record<ClientCommandType, Record<string, unknown>> = {
   "jukebox.seek": { positionMs: 1000 },
   "jukebox.enqueue": { trackId: "t2" },
   "jukebox.skip": {},
+  "jukebox.remove": { entryId: "e1" },
+  "jukebox.volume": { volume: 0.5 },
+  "jukebox.duration": { trackId: "t1", durationMs: 200_000 },
+  "clock.ping": { id: 1, t0: 1_700_000_000_000 },
   "screen.share.start": {},
   "screen.share.stop": {},
   "pm.ask": { text: "what is everyone doing?" },
