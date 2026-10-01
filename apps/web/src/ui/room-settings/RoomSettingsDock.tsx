@@ -16,43 +16,43 @@ import { type RoomDraftValues, RoomSettingsPanel } from "./RoomSettingsPanel.tsx
 import "../build-mode/build-mode.css";
 
 export const useRoomSettingsDock = create<{
-  floorId: string | null;
-  open(floorId: string): void;
+  operationId: string | null;
+  open(operationId: string): void;
   close(): void;
 }>()((set) => ({
-  floorId: null,
-  open: (floorId) => set({ floorId }),
+  operationId: null,
+  open: (operationId) => set({ operationId }),
   close: () => {
     useRoomDraftStore.getState().set(null);
-    set({ floorId: null });
+    set({ operationId: null });
   },
 }));
 
 const defaultApi = createRoomSettingsApi();
 
 export function RoomSettingsDock({ api = defaultApi }: { api?: RoomSettingsApi }) {
-  const floorId = useRoomSettingsDock((s) => s.floorId);
+  const operationId = useRoomSettingsDock((s) => s.operationId);
   const close = useRoomSettingsDock((s) => s.close);
   const building = useBuildModeStore((s) => s.intent !== null);
   const name = useCompoundStore((s) =>
-    floorId ? s.world?.rooms.find((r) => r.id === floorId)?.name : undefined,
+    operationId ? s.world?.rooms.find((r) => r.id === operationId)?.name : undefined,
   );
   const title = useId();
   const ref = useRef<HTMLDivElement>(null);
   const onDraft = useMemo(
     () => (d: RoomDraftValues) => {
-      if (floorId) useRoomDraftStore.getState().set({ floorId, ...d });
+      if (operationId) useRoomDraftStore.getState().set({ operationId, ...d });
     },
-    [floorId],
+    [operationId],
   );
   // Build mode takes the corner (and the keyboard): settings close for it.
   useEffect(() => {
-    if (building && floorId) close();
-  }, [building, floorId, close]);
+    if (building && operationId) close();
+  }, [building, operationId, close]);
   useEffect(() => {
-    if (floorId) ref.current?.focus();
-  }, [floorId]);
-  if (!floorId || building) return null;
+    if (operationId) ref.current?.focus();
+  }, [operationId]);
+  if (!operationId || building) return null;
   return (
     <div
       ref={ref}
@@ -68,7 +68,12 @@ export function RoomSettingsDock({ api = defaultApi }: { api?: RoomSettingsApi }
       }}
     >
       <Panel title={<span id={title}>Room settings{name ? `: ${name}` : ""}</span>}>
-        <RoomSettingsPanel key={floorId} floorId={floorId} api={api} onDraft={onDraft} />
+        <RoomSettingsPanel
+          key={operationId}
+          operationId={operationId}
+          api={api}
+          onDraft={onDraft}
+        />
         <div className="rg-dock__actions">
           <Button variant="secondary" size="sm" onClick={close}>
             Close

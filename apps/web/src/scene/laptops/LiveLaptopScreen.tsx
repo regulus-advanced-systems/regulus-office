@@ -1,5 +1,5 @@
 /**
- * The focused desk's laptop shows the robot's live terminal (SPEC §9.4):
+ * The focused desk's laptop shows the henchman's live terminal (SPEC §9.4):
  * xterm.js in a drei `<Html transform occlude="blending">` sized to the
  * screen, watch-only and not interactive (clicking the laptop opens the
  * modal). One of the ≤ 2 live DOM panels; the caller only mounts it once

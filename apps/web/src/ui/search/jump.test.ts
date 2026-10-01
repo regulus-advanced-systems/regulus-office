@@ -9,11 +9,11 @@ import {
   WALK_TIMEOUT_MS,
 } from "./jump.ts";
 
-const target: JumpTarget = { agentId: "a1", floorId: "f1", docId: 7, query: "q", startedAt: 0 };
+const target: JumpTarget = { agentId: "a1", operationId: "f1", docId: 7, query: "q", startedAt: 0 };
 const world = (over: Partial<JumpWorld> = {}): JumpWorld => ({
   now: 1000,
-  floorId: "f1",
-  floorLoaded: true,
+  operationId: "f1",
+  operationLoaded: true,
   playerReady: true,
   player: { x: 0, z: 0 },
   walking: false,
@@ -23,15 +23,17 @@ const world = (over: Partial<JumpWorld> = {}): JumpWorld => ({
 const fresh = (): JumpProgress => ({ rode: false, walkingSince: null });
 
 describe("nextJumpStep", () => {
-  test("another floor: quick travel once, then wait", () => {
-    expect(nextJumpStep(target, world({ floorId: "lobby" }), fresh())).toEqual({ kind: "ride" });
+  test("another operation: quick travel once, then wait", () => {
+    expect(nextJumpStep(target, world({ operationId: "lobby" }), fresh())).toEqual({
+      kind: "ride",
+    });
     expect(
-      nextJumpStep(target, world({ floorId: "lobby" }), { rode: true, walkingSince: null }),
+      nextJumpStep(target, world({ operationId: "lobby" }), { rode: true, walkingSince: null }),
     ).toEqual({ kind: "wait" });
   });
 
-  test("waits for the floor state and the respawn", () => {
-    expect(nextJumpStep(target, world({ floorLoaded: false }), fresh()).kind).toBe("wait");
+  test("waits for the operation state and the respawn", () => {
+    expect(nextJumpStep(target, world({ operationLoaded: false }), fresh()).kind).toBe("wait");
     expect(nextJumpStep(target, world({ playerReady: false }), fresh()).kind).toBe("wait");
   });
 
@@ -58,8 +60,8 @@ describe("nextJumpStep", () => {
     expect(nextJumpStep(target, world({ seat: null }), fresh()).kind).toBe("open");
   });
 
-  test("gives up when the floor never loads", () => {
-    const late = world({ floorId: "lobby", now: JUMP_TIMEOUT_MS + 1 });
+  test("gives up when the operation never loads", () => {
+    const late = world({ operationId: "lobby", now: JUMP_TIMEOUT_MS + 1 });
     expect(nextJumpStep(target, late, { rode: true, walkingSince: null }).kind).toBe("give_up");
     expect(nextJumpStep(target, world({ now: JUMP_TIMEOUT_MS + 1 }), fresh()).kind).toBe("open");
   });

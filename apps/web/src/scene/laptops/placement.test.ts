@@ -74,7 +74,7 @@ describe("laptop placement", () => {
         const r = rects[i];
         if (!seat || !desk || !r) throw new Error(`seat ${l.seatId} has no desk`);
         expect(inside(r, desk.rect)).toBe(true);
-        // The front edge keeps its gap from the desk edge the robot sits at.
+        // The front edge keeps its gap from the desk edge the henchman sits at.
         const dir = facing(seat.pose.heading);
         const edge = rayEntry(seat.pose, dir, desk.rect) ?? 0;
         const front = rayEntry(seat.pose, dir, r) ?? 0;

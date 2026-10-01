@@ -1,6 +1,6 @@
 /**
  * Draw-call and triangle budget for the lair kit (#183; SPEC §11: 60 fps on
- * a 2020 iGPU at 1080p with 20 robots on screen; SPEC §12 low-poly).
+ * a 2020 iGPU at 1080p with 20 henchmen on screen; SPEC §12 low-poly).
  *
  * Draw calls. Every piece is one vertex-coloured geometry drawn through ONE
  * InstancedMesh per piece type (two when it has an unlit glow layer), with
@@ -20,7 +20,7 @@
  * they restyle). A richly furnished room with its door, lamps and corridor
  * junction needs about 50 (ROOM_DRAW_CALL_BUDGET 60), and further rooms add
  * almost nothing because they reuse the same instanced meshes, leaving most
- * of a ~250-draw frame for robots, laptop screens and boards. Lights: a
+ * of a ~250-draw frame for henchmen, laptop screens and boards. Lights: a
  * fixed pool of 6 tungsten point lights (LampLights) plus 2 red beacon
  * lights, never more, because changing the light count recompiles every
  * lit shader.
@@ -28,7 +28,7 @@
  * Triangles. Each piece has a triangle budget in kit.ts (walls 100-260,
  * props 100-600, the console 900, build-phase stacks up to 1.5k); a 12 x 12
  * tile room shell plus a full set of furniture stays under
- * ROOM_TRIANGLE_BUDGET, so 20 robots and the visible rooms fit well inside
+ * ROOM_TRIANGLE_BUDGET, so 20 henchmen and the visible rooms fit well inside
  * what an iGPU draws at 60 fps.
  */
 import { pieceTriangles } from "./geometry/builder.ts";

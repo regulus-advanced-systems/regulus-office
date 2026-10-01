@@ -1,17 +1,18 @@
 /**
  * Room settings (#182, mounted by #187 in RoomSettingsDock): desk count and
  * decor style for room managers, read-only for everyone else. Desks with a
- * robot at them cannot be removed, and the count never goes past what the
+ * henchman at them cannot be removed, and the count never goes past what the
  * room's size fits. `onDraft` hears every unsaved change, for the scene's
  * live preview.
  */
-import { DECOR_STYLE_SPECS } from "@regulus/room-layout";
+
 import {
   DECOR_STYLES,
   type DecorStyle,
   minDeskCountFor,
   type RoomSettingsInfo,
 } from "@regulus/protocol";
+import { DECOR_STYLE_SPECS } from "@regulus/room-layout";
 import { useEffect, useId, useState } from "react";
 import { Button } from "../components/Button.tsx";
 import { describeRoomSettingsError, type RoomSettingsApi } from "./api.ts";
@@ -22,17 +23,17 @@ export interface RoomDraftValues {
 }
 
 export interface RoomSettingsPanelProps {
-  floorId: string;
+  operationId: string;
   api: RoomSettingsApi;
   onDraft?: (draft: RoomDraftValues) => void;
 }
 
-export function RoomSettingsPanel({ floorId, api, onDraft }: RoomSettingsPanelProps) {
+export function RoomSettingsPanel({ operationId, api, onDraft }: RoomSettingsPanelProps) {
   const [info, setInfo] = useState<RoomSettingsInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     let live = true;
-    void api.get(floorId).then((res) => {
+    void api.get(operationId).then((res) => {
       if (!live) return;
       if (res.ok) setInfo(res.data);
       else setError(describeRoomSettingsError(res));
@@ -40,7 +41,7 @@ export function RoomSettingsPanel({ floorId, api, onDraft }: RoomSettingsPanelPr
     return () => {
       live = false;
     };
-  }, [api, floorId]);
+  }, [api, operationId]);
   if (!info) return <p role="status">{error ?? "Loading room settings…"}</p>;
   return (
     <RoomSettingsForm
@@ -48,7 +49,7 @@ export function RoomSettingsPanel({ floorId, api, onDraft }: RoomSettingsPanelPr
       error={error}
       onDraft={onDraft}
       onSave={async (change) => {
-        const res = await api.update(floorId, change);
+        const res = await api.update(operationId, change);
         if (res.ok) {
           setInfo(res.data);
           setError(null);

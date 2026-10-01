@@ -1,6 +1,6 @@
 /**
  * The spawn form (SPEC §6 `agent.spawn`, §9.2, #142). The main form asks for
- * the repo (only when the floor has several), the model (grouped by provider,
+ * the repo (only when the operation has several), the model (grouped by provider,
  * unconnected providers disabled with a "Connect" link) and the effort; then
  * Spawn. Everything else has a default and sits under "More options", whose
  * open state is remembered per user. No secret is ever asked for or shown
@@ -33,7 +33,7 @@ import { useProviderAccess } from "./useProviderAccess.ts";
 import "./spawn.css";
 
 export interface SpawnFormProps {
-  floorId: string;
+  operationId: string;
   seatId: string;
   repos: readonly SpawnRepoOption[];
   prefill?: SpawnPrefill;
@@ -126,7 +126,7 @@ export function SpawnForm(props: SpawnFormProps) {
     event.preventDefault();
     if (pending) return;
     const result = validateSpawnForm(values, {
-      floorId: props.floorId,
+      operationId: props.operationId,
       seatId: props.seatId,
       repos,
       access,

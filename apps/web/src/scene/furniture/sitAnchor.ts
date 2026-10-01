@@ -2,13 +2,13 @@
  * Sit anchors (#163): where a sitter's body goes on each seat, from the
  * model the seat is drawn with. A desk, meeting, bistro or reception seat is
  * a desk chair centred on the seat point (pulled out when its table stands
- * too close for the robot); a lounge seat (`couch` kind) is a cushion of its
+ * too close for the henchman); a lounge seat (`couch` kind) is a cushion of its
  * armchair or couch. The model's `SitSpec` (catalog.ts) says
  * where its cushion top and backrest are as fractions of its bounds; this
  * file runs them through the same `fitToFootprint` placement the scene draws
  * the model with, so the anchor follows any scale or turn. Pure maths.
  */
-import type { RoomTemplate, Rect, Seat } from "@regulus/room-layout";
+import type { Rect, RoomTemplate, Seat } from "@regulus/room-layout";
 import { SEATED_REACH, type SitAnchor, TABLE_GAP } from "../avatar/seatedFit.ts";
 import { facing, rayEntry } from "../laptops/placement.ts";
 import { CHAIR_MODEL, chairForSeat, FURNITURE_MODELS, type ModelSpec } from "./catalog.ts";
@@ -41,9 +41,9 @@ export function tableDistance(template: RoomTemplate, seat: Seat): number | null
 }
 
 /**
- * How far to pull a chair back from its seat point so a seated robot fits
+ * How far to pull a chair back from its seat point so a seated henchman fits
  * between the backrest and the table (#163): the meeting chairs stand 0.25 m
- * from the table's edge, and the robot needs 0.51 m ahead of the backrest.
+ * from the table's edge, and the henchman needs 0.51 m ahead of the backrest.
  */
 export function chairSetBack(template: RoomTemplate, seat: Seat, spec: ModelSpec): number {
   const edge = tableDistance(template, seat);

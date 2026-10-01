@@ -1,5 +1,5 @@
 /**
- * Cards being carried on this floor (SPEC §9.4 "visible to all"; #36): a
+ * Cards being carried in this operation (SPEC §9.4 "visible to all"; #36): a
  * paper card with its number held in front of each carrier. The carrier is
  * found by user id among the humans the scene draws (`local-human` for us,
  * `human-<sessionId>` for others), and the card follows that avatar's drawn
@@ -11,7 +11,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { CanvasTexture, DoubleSide, type Group, SRGBColorSpace } from "three";
 import { useShallow } from "zustand/react/shallow";
 import { useBuildingStore } from "../../state/building.ts";
-import { useFloorStore } from "../../state/floor.ts";
+import { useOperationStore } from "../../state/operation.ts";
 import { useSessionStore } from "../../state/session.ts";
 
 const CARD_W = 0.42;
@@ -82,14 +82,14 @@ function HeldCard({ card, carrier }: { card: CarriedCard; carrier: string }) {
 }
 
 export function CarriedCards() {
-  const cards = useFloorStore(useShallow((s) => Object.values(s.state?.carriedCards ?? {})));
+  const cards = useOperationStore(useShallow((s) => Object.values(s.state?.carriedCards ?? {})));
   const myId = useSessionStore((s) => s.user?.id ?? null);
-  const floorId = useFloorStore((s) => s.floorId);
+  const operationId = useOperationStore((s) => s.operationId);
   const humans = useBuildingStore(
     useShallow((s) => {
       const out: string[] = [];
       for (const [sid, h] of Object.entries(s.state?.humans ?? {})) {
-        if (sid !== s.sessionId && h.floorId === floorId) out.push(`${h.userId}=${sid}`);
+        if (sid !== s.sessionId && h.operationId === operationId) out.push(`${h.userId}=${sid}`);
       }
       return out.sort();
     }),

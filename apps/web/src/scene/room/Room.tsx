@@ -1,13 +1,13 @@
 /**
  * The dollhouse room (SPEC §12): floor, two full back walls, front stubs
- * with a dark cap, window panes, zone rugs, and the floor name on the
+ * with a dark cap, window panes, zone rugs, and the operation name on the
  * exterior stub.
  * In first-person view (SPEC §9.2) `frontWalls="full"` raises the stubs to
  * full walls without remounting anything else. Geometry comes from
  * `roomPieces`, colours from the palette, grime from a procedural multiply
  * map.
  */
-import type { RoomTemplate, Palette } from "@regulus/room-layout";
+import type { Palette, RoomTemplate } from "@regulus/room-layout";
 import { useEffect, useMemo } from "react";
 import { type DataTexture, MeshBasicMaterial, type MeshToonMaterial } from "three";
 import { createGrimeTexture } from "../materials/grime.ts";
@@ -28,7 +28,7 @@ export interface RoomProps {
   template: RoomTemplate;
   palette: Palette;
   /** Painted on the exterior stub; defaults to the template name. */
-  floorName?: string;
+  operationName?: string;
   /** Dollhouse stubs (default) or full-height front walls for first person. */
   frontWalls?: FrontWallMode;
 }
@@ -101,7 +101,7 @@ function wallMaterials(piece: WallPiece, mats: RoomMaterials): MeshToonMaterial[
   return wallFaces(piece).map((face) => (face === "exterior" ? mats.exterior : interior));
 }
 
-export function Room({ template, palette, floorName, frontWalls = "stub" }: RoomProps) {
+export function Room({ template, palette, operationName, frontWalls = "stub" }: RoomProps) {
   const pieces = useMemo(() => roomPieces(template, { frontWalls }), [template, frontWalls]);
   const mats = useMemo(
     () => buildMaterials(template, palette, pieces),
@@ -110,8 +110,9 @@ export function Room({ template, palette, floorName, frontWalls = "stub" }: Room
   useEffect(() => () => disposeMaterials(mats), [mats]);
   const name = pieces.name;
   const nameTex = useMemo(
-    () => (name ? createNameTexture(floorName ?? template.name, name.width / name.height) : null),
-    [name, floorName, template.name],
+    () =>
+      name ? createNameTexture(operationName ?? template.name, name.width / name.height) : null,
+    [name, operationName, template.name],
   );
   useEffect(() => () => nameTex?.dispose(), [nameTex]);
 
@@ -150,7 +151,7 @@ export function Room({ template, palette, floorName, frontWalls = "stub" }: Room
         </group>
       ))}
       {name && nameTex && (
-        <mesh position={name.center} rotation-y={name.yaw} name="floor-name">
+        <mesh position={name.center} rotation-y={name.yaw} name="operation-name">
           <planeGeometry args={[name.width, name.height]} />
           <meshBasicMaterial map={nameTex} transparent depthWrite={false} />
         </mesh>

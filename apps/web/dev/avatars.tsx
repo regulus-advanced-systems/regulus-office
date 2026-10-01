@@ -1,5 +1,5 @@
 // Dev-only entry (served by `vite` at /dev/avatars.html; not part of the build).
-// Query params: n=<robots> zoom=<ortho zoom> shadows=0 probe=1
+// Query params: n=<henchmen> zoom=<ortho zoom> shadows=0 probe=1
 import { createRoot } from "react-dom/client";
 import {
   AvatarShowcase,

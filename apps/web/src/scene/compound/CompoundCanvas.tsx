@@ -4,8 +4,8 @@
  * room with its generated interior, doors, the special rooms, build sites),
  * under a rotatable 3/4 perspective camera that follows the player, with
  * the cutaway fading walls between the camera and the player. The player
- * walks the compound nav grid; the client joins the FloorRooms of the room
- * it is in and up to three nearby visible rooms, whose robots, boards and
+ * walks the compound nav grid; the client joins the OperationRooms of the room
+ * it is in and up to three nearby visible rooms, whose henchmen, boards and
  * screens are drawn live (RoomLayers). The compound sits in its mountain,
  * and the lobby's blast door opens onto the beach, the dock and the sea
  * (outside/, #188); the nav grid follows the door. Pixel ratio 1, render
@@ -17,7 +17,7 @@ import { Canvas } from "@react-three/fiber";
 import type { Pose } from "@regulus/room-layout";
 import { type ReactNode, Suspense, useEffect, useLayoutEffect, useMemo } from "react";
 import { useCompoundStore } from "../../state/compound.ts";
-import { useFloorStore } from "../../state/floor.ts";
+import { useOperationStore } from "../../state/operation.ts";
 import { usePlayerStore } from "../../state/player.ts";
 import { occupancyKey, parseOccupancy, useRoomsStore } from "../../state/rooms.ts";
 import { selectReducedMotion, useUiStore } from "../../state/ui.ts";
@@ -137,7 +137,7 @@ function Scene({ world, avatars, presence, send, children }: CompoundCanvasProps
 
   const visibleRooms = useVisibleStore((s) => s.rooms);
   const visibleChunks = useVisibleStore((s) => s.chunks);
-  // Joined rooms and their robots' desks ("room=seat,seat|..."): changes when a robot sits or leaves.
+  // Joined rooms and their henchmen's desks ("room=seat,seat|..."): changes when a henchman sits or leaves.
   const occupancy = useRoomsStore((s) => occupancyKey(s.states));
   const joined = useMemo(() => parseOccupancy(occupancy), [occupancy]);
   const lamps = useMemo(
@@ -275,7 +275,7 @@ export function CompoundCanvas(props: CompoundCanvasProps) {
         onCreated={(state) => {
           if (!showStats) return;
           window.__regulusR3F = state;
-          window.__regulusFloorStore = useFloorStore;
+          window.__regulusOperationStore = useOperationStore;
         }}
       >
         <Scene {...props} />

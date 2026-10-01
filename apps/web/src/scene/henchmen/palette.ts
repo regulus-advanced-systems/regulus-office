@@ -2,7 +2,7 @@
  * Henchman colours (#184). The whole body is one skinned mesh with one toon
  * material per skin and trim colour: every vertex's uv points at a slot of a
  * one-row palette texture, so a henchman is a single draw call (plus its status
- * light) and the 20 on a floor share a handful of materials. A skin (skins.ts)
+ * light) and the 20 in an operation share a handful of materials. A skin (skins.ts)
  * fills the slots; the provider's trim colour fills `trim`.
  */
 import {

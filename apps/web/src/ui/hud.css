@@ -34,16 +34,16 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.rg-topbar__floorline {
+.rg-topbar__operationline {
   display: flex;
   align-items: center;
   gap: 8px;
 }
-.rg-topbar__floorline .rg-btn--sm {
+.rg-topbar__operationline .rg-btn--sm {
   padding-top: 0;
   padding-bottom: 0;
 }
-.rg-topbar__floor {
+.rg-topbar__operation {
   font-size: 14px;
   color: var(--rg-color-ink-muted);
 }
@@ -153,7 +153,7 @@
 .rg-muted {
   color: var(--rg-color-ink-muted);
 }
-/* Per-floor work counters under the top bar: gauge bulbs with stencilled tabs. */
+/* Per-operation work counters under the top bar: gauge bulbs with stencilled tabs. */
 .rg-workcounters {
   position: absolute;
   top: 78px;

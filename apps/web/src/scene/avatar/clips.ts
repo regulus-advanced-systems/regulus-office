@@ -110,9 +110,9 @@ const SEATED_STAND_INS: Partial<Record<AvatarAnimation, string>> = {
 };
 
 /**
- * Clip for a robot that stays in its chair: seated animations whose own clip
+ * Clip for a henchman that stays in its chair: seated animations whose own clip
  * is missing (read, think) use a seated stand-in (seatedClips.ts), else the
- * still seated pose, instead of a standing idle, so the robot does not stand
+ * still seated pose, instead of a standing idle, so the henchman does not stand
  * up to read. Procedural layers (the think head tilt, papers) still apply on
  * top.
  */
@@ -130,9 +130,9 @@ export function resolveSeatedClip(
 
 /**
  * The clip an avatar plays: the seated cheer of the merge gong (#43) while a
- * seated robot cheers (when the model has it), else its animation's clip,
+ * seated henchman cheers (when the model has it), else its animation's clip,
  * seated or standing. Once `cheer` ends it is the animation's clip again, so
- * the robot crossfades back to exactly the seated pose it had.
+ * the henchman crossfades back to exactly the seated pose it had.
  */
 export function avatarClip(
   animation: AvatarAnimation,

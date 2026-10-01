@@ -1,4 +1,4 @@
-/* Robot panel and dialogs (#33). */
+/* Henchman panel and dialogs (#33). */
 .rg-agent-panel {
   position: absolute;
   top: 150px;
@@ -38,7 +38,7 @@
   margin: 0;
   overflow-wrap: anywhere;
 }
-/* The robot's status lamp, the same colour as the light on the henchman (#189). */
+/* The henchman's status lamp, the same colour as the light on the henchman (#189). */
 .rg-agent-facts__lamp {
   margin: 0 8px 0 3px;
 }

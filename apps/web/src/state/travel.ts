@@ -2,7 +2,7 @@
  * Quick travel (SPEC §9.1, #186; replaces the elevator): put the player in
  * the corridor right in front of a room's door, facing in, and optionally
  * walk on in. Used by the `F` menu, "Go to room" after a room is added,
- * search jumps and notifications. The FloorRoom join follows on its own as
+ * search jumps and notifications. The OperationRoom join follows on its own as
  * soon as the player stands in the room (scene/compound/RoomPresence).
  */
 import type { Vec2 } from "@regulus/room-layout";
@@ -23,9 +23,9 @@ export function travelRoomIds(): string[] {
  * (to `to`, room metres, or its middle). False when the room is not known
  * or not enterable, or the player has not spawned yet.
  */
-export function travelTo(floorId: string, opts: { walkIn?: boolean; to?: Vec2 } = {}): boolean {
+export function travelTo(operationId: string, opts: { walkIn?: boolean; to?: Vec2 } = {}): boolean {
   const world = useCompoundStore.getState().world;
-  const room = world ? roomById(world, floorId) : undefined;
+  const room = world ? roomById(world, operationId) : undefined;
   const player = usePlayerStore.getState();
   if (!world || !room || !room.enterable || room.buildState !== "ready" || !player.spawned)
     return false;

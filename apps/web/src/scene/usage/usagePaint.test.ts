@@ -28,7 +28,7 @@ class Recorder implements UsagePaintable {
 }
 
 describe("usage wall rendering", () => {
-  test("the lobby wall draws own windows as bars, own spend, office totals and top robots", () => {
+  test("the lobby wall draws own windows as bars, own spend, office totals and top henchmen", () => {
     const ctx = new Recorder();
     paintUsageScreen(ctx, buildUsageModel(MINE, OFFICE, NOW), "wall");
     const { width, height } = USAGE_TEXTURE_SIZE.wall;

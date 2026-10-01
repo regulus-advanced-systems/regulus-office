@@ -35,7 +35,7 @@ const task = (over: Partial<QueueTask>): QueueTask => ({
 });
 
 const spawn: SpawnPayload = {
-  floorId: "f1",
+  operationId: "f1",
   repoId: "r1",
   seatId: "queue",
   provider: "claude-code",

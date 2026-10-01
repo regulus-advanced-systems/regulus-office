@@ -1,9 +1,9 @@
 /**
  * The seated henchman (#184) against the real chair GLBs, placed with the
- * scene's own code (robotPlacement + sitAnchor, #163): the measurements in
+ * scene's own code (henchmanPlacement + sitAnchor, #163): the measurements in
  * seatedFit.ts match the model, and on every kind of seat the hips rest on
  * the cushion, the back clears the backrest, the feet reach the floor, and
- * the body fits between backrest and table like the robot's did.
+ * the body fits between backrest and table like the henchman's did.
  */
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
@@ -16,7 +16,7 @@ import { SEATED_REACH } from "../avatar/seatedFit.ts";
 import { CHAIR_MODEL, FURNITURE_MODELS } from "../furniture/catalog.ts";
 import { boxSize, centreBottomOffset, fitToFootprint } from "../furniture/placement.ts";
 import { seatModel, sitAnchor } from "../furniture/sitAnchor.ts";
-import { robotPlacement } from "../robots/seatPlacement.ts";
+import { henchmanPlacement } from "../henchmen/seatPlacement.ts";
 import { HENCHMAN_CLIPS, henchmanClips } from "./clips.ts";
 import { buildHenchman } from "./instance.ts";
 import { BONE_INDEX } from "./rig.ts";
@@ -93,7 +93,7 @@ describe("the henchman's seated pose (seatedFit.ts)", () => {
     expect(-Math.min(...lowTorso.map((p) => p.z))).toBeCloseTo(HENCHMAN_SEATED_FRONT, 2);
   });
 
-  test("it fits between backrest and table wherever the robot did (chairSetBack)", () => {
+  test("it fits between backrest and table wherever the henchman did (chairSetBack)", () => {
     expect(0.02 + HENCHMAN_SEATED_BODY.backDepth + HENCHMAN_SEATED_FRONT).toBeLessThan(
       SEATED_REACH,
     );
@@ -142,7 +142,7 @@ describe("the seated henchman on every kind of seat", () => {
     test(kind, () => {
       const chair = placedChair(template, seat);
       const h = seatedHenchman();
-      const place = robotPlacement(seat, true, sitAnchor(template, seat), HENCHMAN_SEATED_BODY);
+      const place = henchmanPlacement(seat, true, sitAnchor(template, seat), HENCHMAN_SEATED_BODY);
       h.outer.position.set(...place.position);
       h.outer.rotation.y = place.rotationY;
       const scene = new Group();

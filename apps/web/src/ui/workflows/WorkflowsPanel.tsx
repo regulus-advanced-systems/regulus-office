@@ -1,8 +1,8 @@
 /**
- * The floor's GitHub workflows (#155): the list with enable/disable, the
- * editor with a dry run, and the run history. Everyone on the floor sees the
- * workflows and their runs; office owners/admins and floor managers edit.
- * Opened from the top bar ("Workflows") and from Floor settings.
+ * The operation's GitHub workflows (#155): the list with enable/disable, the
+ * editor with a dry run, and the run history. Everyone on the operation sees the
+ * workflows and their runs; office owners/admins and operation managers edit.
+ * Opened from the top bar ("Workflows") and from Operation settings.
  */
 import type { WorkflowListResponse, WorkflowSpec, WorkflowView } from "@regulus/protocol";
 import { useCallback, useEffect, useState } from "react";
@@ -19,10 +19,10 @@ import { WorkflowEditor } from "./WorkflowEditor.tsx";
 import {
   actionsSummary,
   cloneSpec,
-  floorIdFromWorkflowsOverlay,
   formatTokens,
   MISSING_HINTS,
   newWorkflow,
+  operationIdFromWorkflowsOverlay,
   triggerSummary,
   workflowsOverlay,
 } from "./workflowForm.ts";
@@ -30,14 +30,14 @@ import "./workflows.css";
 
 const defaultApi = createWorkflowsApi();
 
-export function openWorkflowsPanel(floorId: string): void {
-  useUiStore.getState().openOverlay(workflowsOverlay(floorId));
+export function openWorkflowsPanel(operationId: string): void {
+  useUiStore.getState().openOverlay(workflowsOverlay(operationId));
 }
 
 function specOf(w: WorkflowView): WorkflowSpec {
   const {
     id: _i,
-    floorId: _f,
+    operationId: _f,
     createdBy: _c,
     createdAt: _a,
     updatedAt: _u,
@@ -50,11 +50,11 @@ function specOf(w: WorkflowView): WorkflowSpec {
 type Editing = { id: string | null; spec: WorkflowSpec };
 
 export function WorkflowsBody({
-  floorId,
+  operationId,
   api,
   pollMs,
 }: {
-  floorId: string;
+  operationId: string;
   api: WorkflowsApi;
   pollMs?: number;
 }) {
@@ -66,10 +66,10 @@ export function WorkflowsBody({
   const [busy, setBusy] = useState(false);
 
   const reload = useCallback(async () => {
-    const r = await api.list(floorId);
+    const r = await api.list(operationId);
     if (r.ok) setData(r.data);
     else setError(describeWorkflowError(r));
-  }, [api, floorId]);
+  }, [api, operationId]);
 
   useEffect(() => {
     void reload();
@@ -94,7 +94,7 @@ export function WorkflowsBody({
     if (!editing) return;
     const { id, spec } = editing;
     const ok = await act(
-      () => (id ? api.update(id, spec) : api.create({ floorId, ...spec })),
+      () => (id ? api.update(id, spec) : api.create({ operationId, ...spec })),
       `Saved "${spec.name}".`,
     );
     if (ok) setEditing(null);
@@ -135,7 +135,7 @@ export function WorkflowsBody({
         </FormAlert>
       ))}
       {tab === "runs" ? (
-        <RunHistory api={api} floorId={floorId} canEdit={canEdit} pollMs={pollMs} />
+        <RunHistory api={api} operationId={operationId} canEdit={canEdit} pollMs={pollMs} />
       ) : editing ? (
         <>
           <WorkflowEditor
@@ -152,7 +152,12 @@ export function WorkflowsBody({
             </Button>
           </div>
           {editing.id ? (
-            <DryRun api={api} floorId={floorId} workflowId={editing.id} spec={editing.spec} />
+            <DryRun
+              api={api}
+              operationId={operationId}
+              workflowId={editing.id}
+              spec={editing.spec}
+            />
           ) : (
             <p className="rg-field__hint">
               Save the workflow (it can stay off) to dry-run it against a past event.
@@ -227,12 +232,12 @@ export function WorkflowsBody({
   );
 }
 
-/** Mounted in the HUD; renders while the `workflows:<floorId>` overlay is open. */
+/** Mounted in the HUD; renders while the `workflows:<operationId>` overlay is open. */
 export function WorkflowsPanelHost({ api = defaultApi }: { api?: WorkflowsApi }) {
   const overlay = useUiStore((s) => s.overlay);
   const close = useUiStore((s) => s.closeOverlay);
-  const floorId = floorIdFromWorkflowsOverlay(overlay);
-  if (!floorId) return null;
+  const operationId = operationIdFromWorkflowsOverlay(overlay);
+  if (!operationId) return null;
   const done = () => close(overlay ?? undefined);
   return (
     <Modal
@@ -247,7 +252,7 @@ export function WorkflowsPanelHost({ api = defaultApi }: { api?: WorkflowsApi })
         </Button>
       }
     >
-      <WorkflowsBody key={floorId} floorId={floorId} api={api} />
+      <WorkflowsBody key={operationId} operationId={operationId} api={api} />
     </Modal>
   );
 }

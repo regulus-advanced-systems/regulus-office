@@ -108,7 +108,7 @@ describe("larger rooms (#118)", () => {
     expect(maxZoomFactor()).toBe(ZOOM_FACTOR_MAX);
   });
 
-  test("a large floor can be zoomed as close as the small one", () => {
+  test("a large room can be zoomed as close as the small one", () => {
     const closestLarge = cameraZoom(hd, large, 99);
     const closestSmall = cameraZoom(hd, small, 99);
     expect(closestLarge).toBeCloseTo(closestSmall, 6);
@@ -116,13 +116,13 @@ describe("larger rooms (#118)", () => {
     expect(maxZoomFactor(large)).toBeGreaterThan(ZOOM_FACTOR_MAX);
   });
 
-  test("the large floor still fits the viewport at the default zoom", () => {
+  test("the large room still fits the viewport at the default zoom", () => {
     const zoom = cameraZoom(hd, large, 1);
     expect(zoom * projectedSize(large).width).toBeCloseTo(ROOM_FILL_WIDTH * hd.width, 6);
     expect(zoom * projectedSize(large).height).toBeLessThan(hd.height);
   });
 
-  test("near and far planes enclose every corner of the large floor", () => {
+  test("near and far planes enclose every corner of the large room", () => {
     const target = roomTarget(large);
     const d = isoDirection();
     for (const x of [0, large.width])

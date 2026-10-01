@@ -1,16 +1,16 @@
 /**
  * Template-to-mesh placement (SPEC §9.1: furniture positions come from the
- * floor template). Pure maths: which way a piece faces, what footprint it
+ * room template). Pure maths: which way a piece faces, what footprint it
  * should visually cover, and how to scale a loaded model into that footprint.
  */
 import {
   DIRECTION,
-  type RoomTemplate,
   HEADING,
   headingFacing,
   type Obstacle,
   type ObstacleKind,
   type Rect,
+  type RoomTemplate,
   rectInside,
   type Seat,
   WALL_THICKNESS,

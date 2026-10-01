@@ -1,7 +1,7 @@
 /**
- * Per-floor work counters (SPEC §9.3, research 03 §5): GDT's coloured circles
+ * Per-operation work counters (SPEC §9.3, research 03 §5): GDT's coloured circles
  * with a 2 px outline and the count inside, each with a small label tab.
- * Totals are the floor's robots' `bubbleEmits`; bubbles still in the air are
+ * Totals are the operation's henchmen's `bubbleEmits`; bubbles still in the air are
  * held back so each counter ticks up when its bubble lands.
  */
 import { useShallow } from "zustand/react/shallow";
@@ -12,8 +12,8 @@ import {
   type BubbleDelta,
   sumBubbleEmits,
   zeroDelta,
-} from "../../scene/robots/bubbles/bubbleEmits.ts";
-import { useFloorStore } from "../../state/floor.ts";
+} from "../../scene/henchmen/bubbles/bubbleEmits.ts";
+import { useOperationStore } from "../../state/operation.ts";
 import { useWorkBubbles } from "../../state/workBubbles.ts";
 import { formatCompact } from "./format.ts";
 import { registerCounterAnchor } from "./workCounterAnchors.ts";
@@ -25,8 +25,8 @@ export function shownCounts(totals: BubbleDelta, inFlight: BubbleDelta): BubbleD
 }
 
 export function WorkCounters() {
-  const totals = useFloorStore(
-    useShallow((s) => (s.state ? sumBubbleEmits(Object.values(s.state.robots)) : null)),
+  const totals = useOperationStore(
+    useShallow((s) => (s.state ? sumBubbleEmits(Object.values(s.state.henchmen)) : null)),
   );
   const inFlight = useWorkBubbles((s) => s.inFlight);
   if (!totals) return null;

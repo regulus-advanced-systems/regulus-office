@@ -1,5 +1,5 @@
 /* Lamps, lamp chips and toasts (#189). A lamp is a domed bulb in a brass
-   bezel whose colour is `--rg-lamp`; the lamp colours are the robots'
+   bezel whose colour is `--rg-lamp`; the lamp colours are the henchmen'
    status-light colours (theme/lairPalette.ts lampColors), so a chip in a
    panel matches the light on the henchman. */
 

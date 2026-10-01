@@ -98,7 +98,7 @@ describe("roomPieces(lobby)", () => {
     expect(west?.yaw).toBeCloseTo(Math.PI / 2, 9);
   });
 
-  test("floor name goes on the exterior of the south stub, facing south", () => {
+  test("operation name goes on the exterior of the south stub, facing south", () => {
     const name = pieces.name;
     if (!name) throw new Error("no name plate");
     expect(name.wallId).toBe("south");

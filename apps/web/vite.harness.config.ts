@@ -1,5 +1,5 @@
 /**
- * A production build of the office harness (apps/web/dev/robots.html) for
+ * A production build of the office harness (apps/web/dev/office.html) for
  * the perf script (#190): the same Vite config as the app, with the dev page
  * as the entry, written to `$PERF_OUT_DIR` (default /tmp/rg-perf-harness).
  * `cd apps/web && bunx vite build --config vite.harness.config.ts`.
@@ -18,7 +18,7 @@ export default mergeConfig(
     build: {
       outDir: process.env.PERF_OUT_DIR ?? "/tmp/rg-perf-harness",
       emptyOutDir: true,
-      rollupOptions: { input: { robots: `${root}dev/robots.html` } },
+      rollupOptions: { input: { office: `${root}dev/office.html` } },
     },
   }),
 );

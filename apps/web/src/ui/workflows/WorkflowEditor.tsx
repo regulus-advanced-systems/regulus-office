@@ -1,5 +1,5 @@
 /**
- * One workflow's definition (#155): trigger, filters, robot, actions and
+ * One workflow's definition (#155): trigger, filters, henchman, actions and
  * limits. Every action starts off. Approve can only be turned on by an
  * office owner/admin; `fix` is not available yet.
  */
@@ -118,8 +118,8 @@ export function WorkflowEditor({ spec, onChange, canApprove }: EditorProps) {
     set({ filters: { ...f, ...patch } });
   const setActions = (patch: Partial<WorkflowSpec["actions"]>) =>
     set({ actions: { ...a, ...patch } });
-  const setRobot = (patch: Partial<WorkflowSpec["robot"]>) =>
-    set({ robot: { ...spec.robot, ...patch } });
+  const setHenchman = (patch: Partial<WorkflowSpec["henchman"]>) =>
+    set({ henchman: { ...spec.henchman, ...patch } });
   const setLimits = (patch: Partial<WorkflowSpec["limits"]>) =>
     set({ limits: { ...spec.limits, ...patch } });
 
@@ -199,22 +199,22 @@ export function WorkflowEditor({ spec, onChange, canApprove }: EditorProps) {
       <h3 className="rg-workflows__heading">Henchman</h3>
       <Select
         label="Provider"
-        value={spec.robot.provider}
+        value={spec.henchman.provider}
         options={WORKFLOW_PROVIDERS.map((p) => ({ value: p, label: PROVIDER_LABELS[p] }))}
-        onChange={(provider) => setRobot({ provider })}
+        onChange={(provider) => setHenchman({ provider })}
         hint="Workflow henchmen use only the office's pay-per-use API keys; usage is counted for the office."
       />
       <TextField
         label="Model"
-        value={spec.robot.model ?? ""}
+        value={spec.henchman.model ?? ""}
         placeholder="provider default"
-        onChange={(m) => setRobot({ model: m.trim() || undefined })}
+        onChange={(m) => setHenchman({ model: m.trim() || undefined })}
       />
       <TextField
         label="Effort"
-        value={spec.robot.effort ?? ""}
+        value={spec.henchman.effort ?? ""}
         placeholder="provider default"
-        onChange={(e) => setRobot({ effort: e.trim() || undefined })}
+        onChange={(e) => setHenchman({ effort: e.trim() || undefined })}
       />
       <Field
         label="Prompt template"
@@ -225,22 +225,22 @@ export function WorkflowEditor({ spec, onChange, canApprove }: EditorProps) {
           id="rg-workflow-prompt"
           className="rg-input rg-workflows__prompt"
           rows={8}
-          value={spec.robot.promptTemplate}
-          onChange={(e) => setRobot({ promptTemplate: e.currentTarget.value })}
+          value={spec.henchman.promptTemplate}
+          onChange={(e) => setHenchman({ promptTemplate: e.currentTarget.value })}
         />
       </Field>
       <Switch
-        checked={spec.robot.executePrCode}
-        onChange={(executePrCode) => setRobot({ executePrCode })}
+        checked={spec.henchman.executePrCode}
+        onChange={(executePrCode) => setHenchman({ executePrCode })}
         label="Let the henchman run the PR's code"
         hint="Same-repo PRs only, never forks, inside the henchman's sandbox. Off: it only reads files."
       />
       <NumberField
         label="Time limit (minutes)"
-        value={spec.robot.timeoutMinutes}
+        value={spec.henchman.timeoutMinutes}
         min={1}
         max={60}
-        onChange={(timeoutMinutes) => setRobot({ timeoutMinutes })}
+        onChange={(timeoutMinutes) => setHenchman({ timeoutMinutes })}
       />
 
       <h3 className="rg-workflows__heading">Actions (all off until you turn them on)</h3>

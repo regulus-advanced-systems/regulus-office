@@ -21,9 +21,9 @@ const ev = (extra: Partial<NotifyEvent> = {}): NotifyEvent => ({
   id: "1",
   event: "needs_input",
   agentId: "a1",
-  floorId: "f1",
-  floorName: "Web app",
-  robotName: "Mia's Codex henchman",
+  operationId: "f1",
+  operationName: "Web app",
+  henchmanName: "Mia's Codex henchman",
   ownerName: "Mia",
   provider: "codex",
   taskTitle: "Fix the login page",
@@ -60,7 +60,7 @@ describe("wantsDesktop", () => {
     expect(wantsDesktop(ev(), quiet("11:00", "13:00"), at(12))).toBe(false);
   });
 
-  test("someone else's robot only for opted-in admins, errors only", () => {
+  test("someone else's henchman only for opted-in admins, errors only", () => {
     const admin = { ...DEFAULT_NOTIFICATION_PREFS, adminErrors: true };
     expect(wantsDesktop(ev({ own: false, event: "error" }), admin, at(12))).toBe(true);
     expect(wantsDesktop(ev({ own: false, event: "done" }), admin, at(12))).toBe(false);

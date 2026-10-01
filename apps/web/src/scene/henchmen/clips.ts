@@ -8,7 +8,7 @@
  * blended over the base clip at a high weight (HenchmanAvatar).
  *
  * Seated clips start from the same still pose (`SIT_IDLE`); the merge-gong
- * cheer (#202) starts and ends in it, so a robot sits back exactly as it was.
+ * cheer (#202) starts and ends in it, so a henchman sits back exactly as it was.
  * Loops are seamless: every key sequence ends where it starts and every
  * wiggle's period divides the clip's duration.
  */
@@ -340,9 +340,9 @@ const SEATED: Readonly<Partial<Record<AvatarAnimation, HenchmanClipName>>> = {
 };
 
 /**
- * The clip a henchman plays: the seated cheer while a seated robot cheers for
+ * The clip a henchman plays: the seated cheer while a seated henchman cheers for
  * the merge gong, else its animation's clip, seated or standing. When the
- * cheer ends the robot crossfades back to exactly the seated clip it had.
+ * cheer ends the henchman crossfades back to exactly the seated clip it had.
  */
 export function henchmanClip(
   animation: AvatarAnimation,

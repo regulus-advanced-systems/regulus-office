@@ -5,6 +5,8 @@
  * room generated for the compound (#182/#186) gets its boards by listing
  * those anchors, wherever they hang.
  */
+
+import type { CardKind } from "@regulus/protocol";
 import {
   anchorStandPose,
   type RoomTemplate,
@@ -12,7 +14,6 @@ import {
   type WallAnchor,
   wallById,
 } from "@regulus/room-layout";
-import type { CardKind } from "@regulus/protocol";
 
 export const BOARD_ANCHOR_KINDS: Readonly<Record<string, CardKind>> = {
   issue_board: "issue",

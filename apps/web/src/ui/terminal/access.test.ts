@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { mayControlTerminal } from "./access.ts";
 
 describe("mayControlTerminal (D12, #138)", () => {
-  test("the robot's owner only; never admins, office owners, viewers or strangers", () => {
+  test("the henchman's owner only; never admins, office owners, viewers or strangers", () => {
     expect(mayControlTerminal({ id: "o", role: "owner" }, "x")).toBe(false);
     expect(mayControlTerminal({ id: "a", role: "admin" }, "x")).toBe(false);
     expect(mayControlTerminal({ id: "o", role: "owner" }, "o")).toBe(true);

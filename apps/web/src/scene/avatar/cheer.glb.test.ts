@@ -20,7 +20,7 @@ function loadGlb(url: string): Promise<GLTF> {
   return new Promise((resolve, reject) => new GLTFLoader().parse(buffer, "", resolve, reject));
 }
 
-const robot = await loadGlb(ROBOT_MODEL_URL);
+const henchman = await loadGlb(ROBOT_MODEL_URL);
 
 function bones(root: Object3D): Bone[] {
   const out: Bone[] = [];
@@ -45,12 +45,12 @@ function turned(a: Pose, b: Pose, bone: string): number {
 
 describe("seated cheer on robot.glb (#43)", () => {
   test("dances the upper body in the chair and ends in exactly the seated pose", () => {
-    const sitting = robot.animations.find((c) => c.name === ROBOT_CLIPS.sitting);
-    const dance = robot.animations.find((c) => c.name === ROBOT_CLIPS.dance);
+    const sitting = henchman.animations.find((c) => c.name === ROBOT_CLIPS.sitting);
+    const dance = henchman.animations.find((c) => c.name === ROBOT_CLIPS.dance);
     if (!sitting || !dance) throw new Error("robot.glb lacks the sitting or dance clip");
     const clips = seatedClips(
       sitting,
-      (b) => findBone(robot.scene, b)?.quaternion.toArray(),
+      (b) => findBone(henchman.scene, b)?.quaternion.toArray(),
       dance,
     );
     const idleClip = clips.find((c) => c.name === SEATED_CLIPS.idle);
@@ -60,7 +60,7 @@ describe("seated cheer on robot.glb (#43)", () => {
     expect(cheerClip.duration).toBeGreaterThan(2.5);
     expect(cheerClip.duration).toBeLessThan(4);
 
-    const instance = cloneSkeleton(robot.scene);
+    const instance = cloneSkeleton(henchman.scene);
     const list = bones(instance);
     const mixer = new AnimationMixer(instance);
     const idle = mixer.clipAction(idleClip);

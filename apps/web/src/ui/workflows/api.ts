@@ -1,7 +1,7 @@
 /**
- * Browser client for GitHub workflows (#155): a floor's workflows, recent
+ * Browser client for GitHub workflows (#155): an operation's workflows, recent
  * events, dry runs and the run history. The server checks every call again
- * (admin or floor manage to edit; floor access to read).
+ * (admin or operation manage to edit; operation access to read).
  */
 import {
   type CreateWorkflowRequest,
@@ -75,22 +75,22 @@ export function createWorkflowsApi(options: { fetch?: typeof fetch; baseUrl?: st
     return { ok: true, data: parsed.data };
   }
 
-  const q = (floorId: string) => `?floorId=${encodeURIComponent(floorId)}`;
+  const q = (operationId: string) => `?operationId=${encodeURIComponent(operationId)}`;
   return {
-    list: (floorId: string) =>
-      call("GET", `${WORKFLOWS_API_PATH}${q(floorId)}`, WorkflowListResponse),
+    list: (operationId: string) =>
+      call("GET", `${WORKFLOWS_API_PATH}${q(operationId)}`, WorkflowListResponse),
     create: (req: CreateWorkflowRequest) => call("POST", WORKFLOWS_API_PATH, WorkflowView, req),
     update: (id: string, input: WorkflowInput) =>
       call("PATCH", workflowPath(id), WorkflowView, input),
     remove: (id: string) => call("DELETE", workflowPath(id), NO_CONTENT),
-    events: (floorId: string) =>
-      call("GET", `${WORKFLOW_EVENTS_API_PATH}${q(floorId)}`, WorkflowEventListResponse),
+    events: (operationId: string) =>
+      call("GET", `${WORKFLOW_EVENTS_API_PATH}${q(operationId)}`, WorkflowEventListResponse),
     dryRun: (id: string, eventId: string, workflow?: WorkflowInput) =>
       call("POST", workflowDryRunPath(id), WorkflowDryRunResult, { eventId, workflow }),
-    runs: (floorId: string, workflowId?: string) =>
+    runs: (operationId: string, workflowId?: string) =>
       call(
         "GET",
-        `${WORKFLOW_RUNS_API_PATH}${q(floorId)}${workflowId ? `&workflowId=${encodeURIComponent(workflowId)}` : ""}`,
+        `${WORKFLOW_RUNS_API_PATH}${q(operationId)}${workflowId ? `&workflowId=${encodeURIComponent(workflowId)}` : ""}`,
         WorkflowRunListResponse,
       ),
     run: (id: string) => call("GET", workflowRunPath(id), WorkflowRunDetail),
@@ -105,7 +105,7 @@ const MESSAGES: Record<string, string> = {
   fix_not_available: "The fix action is not available yet.",
   invalid_cron: "The schedule is not a valid cron expression.",
   unknown_repo: "One of the chosen repos is not in this operation.",
-  floor_manage_required: "You need Manage access to this operation to change its workflows.",
+  operation_manage_required: "You need Manage access to this operation to change its workflows.",
   invalid_body: "Some fields are not valid",
   event_not_found: "That event is no longer kept.",
   network_error: "The office cannot be reached.",

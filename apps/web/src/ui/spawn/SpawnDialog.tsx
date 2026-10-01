@@ -2,15 +2,15 @@
  * Spawn dialog host (SPEC §9.2 `E` at a free desk, #142): a GDT modal around
  * the spawn form, opened through `useSpawnStore.openSpawn(seatId, prefill)`,
  * with focus on the model picker.
- * Sends `agent.spawn` to the FloorRoom, stays pending until the robot shows
+ * Sends `agent.spawn` to the OperationRoom, stays pending until the henchman shows
  * up at that desk (then closes with a toast) or the server rejects the
  * command (`command.rejected`, shown in the dialog).
  */
-import type { CommandRejected, FloorInfo, FloorState } from "@regulus/protocol";
+import type { CommandRejected, OperationInfo, OperationState } from "@regulus/protocol";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getOfficeClient } from "../../net/index.ts";
-import { useFloorStore } from "../../state/floor.ts";
-import { useFloorsStore } from "../../state/floors.ts";
+import { useOperationStore } from "../../state/operation.ts";
+import { useOperationsStore } from "../../state/operations.ts";
 import { useSessionStore } from "../../state/session.ts";
 import { useSpawnStore } from "../../state/spawn.ts";
 import { useUiStore } from "../../state/ui.ts";
@@ -29,10 +29,10 @@ export interface SpawnClient {
 
 const defaultApi = createCredentialProfilesApi();
 
-/** Repos to offer: REST floor info (with clone status) when loaded, else the FloorRoom's. */
+/** Repos to offer: REST operation info (with clone status) when loaded, else the OperationRoom's. */
 export function spawnRepoOptions(
-  info: FloorInfo | undefined,
-  state: FloorState | null,
+  info: OperationInfo | undefined,
+  state: OperationState | null,
 ): SpawnRepoOption[] {
   if (info && info.repos.length > 0) {
     return info.repos.map((r) => ({
@@ -67,22 +67,22 @@ export function SpawnDialogHost({
   const openOverlay = useUiStore((s) => s.openOverlay);
   const closeOverlay = useUiStore((s) => s.closeOverlay);
   const toast = useUiStore((s) => s.toast);
-  const floorId = useFloorStore((s) => s.floorId);
-  const floorState = useFloorStore((s) => s.state);
-  const info = useFloorsStore((s) => s.floors?.find((f) => f.floorId === floorId));
+  const operationId = useOperationStore((s) => s.operationId);
+  const operationState = useOperationStore((s) => s.state);
+  const info = useOperationsStore((s) => s.operations?.find((f) => f.operationId === operationId));
   const userId = useSessionStore((s) => s.user?.id ?? null);
-  const repos = useMemo(() => spawnRepoOptions(info, floorState), [info, floorState]);
+  const repos = useMemo(() => spawnRepoOptions(info, operationState), [info, operationState]);
 
   const [pending, setPending] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
-  /** Robots already at the desk when we sent, so only a new one counts as success. */
+  /** Henchmen already at the desk when we sent, so only a new one counts as success. */
   const before = useRef<Set<string>>(new Set());
   const pendingRef = useRef(false);
   const modelFocus = useRef<HTMLInputElement>(null);
   pendingRef.current = pending;
 
   const seatId = request?.seatId ?? null;
-  const open = request !== null && floorId !== null;
+  const open = request !== null && operationId !== null;
 
   // The dialog owns the keyboard while open (hotkeys are muted).
   useEffect(() => {
@@ -107,28 +107,28 @@ export function SpawnDialogHost({
     });
   }, [target]);
 
-  // Success: a robot we own appeared at the requested desk.
+  // Success: a henchman we own appeared at the requested desk.
   useEffect(() => {
-    if (!pending || !seatId || !floorState) return;
-    const robot = Object.values(floorState.robots).find(
+    if (!pending || !seatId || !operationState) return;
+    const henchman = Object.values(operationState.henchmen).find(
       (r) => r.seatId === seatId && !before.current.has(r.agentId),
     );
-    if (!robot || (userId && robot.ownerUserId !== userId)) return;
+    if (!henchman || (userId && henchman.ownerUserId !== userId)) return;
     setPending(false);
     closeSpawn();
     toast({
       kind: "success",
       title: "Henchman spawned",
-      message: robot.taskTitle || `At desk ${robot.seatId}.`,
+      message: henchman.taskTitle || `At desk ${henchman.seatId}.`,
     });
-  }, [pending, seatId, floorState, userId, closeSpawn, toast]);
+  }, [pending, seatId, operationState, userId, closeSpawn, toast]);
 
-  if (!open || !request || !floorId) return null;
+  if (!open || !request || !operationId) return null;
 
   const submit = (payload: SpawnPayload) => {
     setServerError(null);
     before.current = new Set(
-      Object.values(floorState?.robots ?? {})
+      Object.values(operationState?.henchmen ?? {})
         .filter((r) => r.seatId === request.seatId)
         .map((r) => r.agentId),
     );
@@ -164,7 +164,7 @@ export function SpawnDialogHost({
       </p>
       <SpawnForm
         key={request.seatId}
-        floorId={floorId}
+        operationId={operationId}
         seatId={request.seatId}
         repos={repos}
         prefill={request.prefill}

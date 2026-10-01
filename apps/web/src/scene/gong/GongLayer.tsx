@@ -1,9 +1,9 @@
 /**
- * The floor's merge gong (#43, SPEC D9): one GongObject per `gong` wall
- * anchor of the room layout, the FloorRoom's gong messages (gongSync.ts),
+ * The operation's merge gong (#43, SPEC D9): one GongObject per `gong` wall
+ * anchor of the room layout, the OperationRoom's gong messages (gongSync.ts),
  * a manual bang on click or `E` in reach (walking over on click, like a
- * board), and a confetti burst from the gong when it rings. The robots'
- * celebration is theirs (scene/robots/cheer.ts). With reduced motion there
+ * board), and a confetti burst from the gong when it rings. The henchmen'
+ * celebration is theirs (scene/henchmen/cheer.ts). With reduced motion there
  * is no swing, confetti or sound; the gong still glows and merges toast.
  */
 import type { RoomTemplate } from "@regulus/room-layout";
@@ -13,7 +13,7 @@ import { usePlayerStore } from "../../state/player.ts";
 import { selectReducedMotion, useUiStore } from "../../state/ui.ts";
 import type { HotkeyEventDetail } from "../../ui/hotkeys/registry.ts";
 import { useHotkeyEvents } from "../../ui/hotkeys/useHotkeys.ts";
-import { Confetti, createConfettiBus } from "../robots/Confetti.tsx";
+import { Confetti, createConfettiBus } from "../henchmen/Confetti.tsx";
 import { scopedName, toRoom, useRoomScope, walkInRoom } from "../roomScope.ts";
 import type { GongLook } from "./BrassGongLook.tsx";
 import { GongObject } from "./GongObject.tsx";

@@ -32,7 +32,7 @@ export const BUILD_MODE_OVERLAY = "build-mode";
 
 export type BuildIntent =
   | { kind: "create"; request: Omit<PlaceRoomRequest, "placement"> }
-  | { kind: "move"; floorId: string; name: string };
+  | { kind: "move"; operationId: string; name: string };
 
 export interface ServerCheck {
   key: string;
@@ -63,8 +63,8 @@ export interface BuildModeState {
   /** A room just placed: the camera stays out until it is built, then zooms back. */
   watching: string | null;
   /** A room just moved: once it stands at `placement`, the mover goes to its door. */
-  followMove: { floorId: string; placement: RoomPlacement } | null;
-  /** The room just placed, whose status panel ("Floor added") is open. */
+  followMove: { operationId: string; placement: RoomPlacement } | null;
+  /** The room just placed, whose status panel ("Operation added") is open. */
   added: string | null;
 
   start(world: CompoundWorld, intent: BuildIntent, frame: BuildFrame): void;
@@ -78,7 +78,10 @@ export interface BuildModeState {
   setServer(check: ServerCheck): void;
   setBusy(busy: boolean, error?: string | null): void;
   /** Leave build mode; `placed` keeps the overview while the new room is built. */
-  finish(result?: { placed?: string; moved?: { floorId: string; placement: RoomPlacement } }): void;
+  finish(result?: {
+    placed?: string;
+    moved?: { operationId: string; placement: RoomPlacement };
+  }): void;
   cancel(): void;
   stopWatching(): void;
   closeAdded(): void;
@@ -108,7 +111,7 @@ export const useBuildModeStore = create<BuildModeState>()((set, get) => ({
     let doorSide: DoorSide = "south";
     let ghost: TilePos = { x: Math.floor(world.width / 2 - size.w / 2), y: 0 };
     if (intent.kind === "move") {
-      const room = world.rooms.find((r) => r.id === intent.floorId);
+      const room = world.rooms.find((r) => r.id === intent.operationId);
       if (room) {
         size = { w: room.rect.w, d: room.rect.d };
         doorSide = room.doorSide;

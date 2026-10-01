@@ -1,5 +1,5 @@
 /**
- * First-person camera rig (SPEC §9.2): a perspective camera at robot eye
+ * First-person camera rig (SPEC §9.2): a perspective camera at henchman eye
  * height over the player pose, pointer-lock mouse look, WASD relative to the
  * camera yaw with collision against the template's nav grid. It mounts as
  * soon as first person is requested (so pointer lock is asked for inside the
@@ -43,11 +43,11 @@ import { exitPointerLock, requestPointerLock } from "./pointerLock.ts";
 import { useHeldKeys } from "./useHeldKeys.ts";
 
 /**
- * Robot eye height: 0.9 x ROBOT_HEIGHT = 1.44 m (the head is the top
+ * Henchman eye height: 0.9 x ROBOT_HEIGHT = 1.44 m (the head is the top
  * quarter), against 0.76 m desks, 0.9 m counters and 3 m walls.
  */
 export const EYE_HEIGHT = EYE_HEIGHT_RATIO * ROBOT_HEIGHT;
-/** Group name of the local human's robot (scene/avatars/LocalAvatar.tsx). */
+/** Group name of the local human's henchman (scene/avatars/LocalAvatar.tsx). */
 export const LOCAL_AVATAR_NAME = "local-human";
 
 export interface PlayerPose {
@@ -57,7 +57,7 @@ export interface PlayerPose {
 }
 
 export interface FirstPersonRigProps {
-  /** Collision grid (the compound's, or one floor template's in the dev harnesses). */
+  /** Collision grid (the compound's, or one room template's in the dev harnesses). */
   grid: NavGrid;
   /** Where the rig's own pose starts when it has no player store to drive. */
   spawn: PlayerPose;
@@ -206,7 +206,7 @@ export function FirstPersonRig({
     };
   }, [controls, gl, invalidate]);
 
-  // Hide our own robot while looking out of its eyes.
+  // Hide our own henchman while looking out of its eyes.
   useEffect(() => {
     if (!active) return;
     const hidden: Object3D[] = [];

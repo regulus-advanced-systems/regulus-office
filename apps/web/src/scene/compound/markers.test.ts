@@ -3,7 +3,7 @@ import { DOOR_OPEN_RADIUS, someoneNear } from "./Doors.tsx";
 import { signLines } from "./signTexture.ts";
 
 describe("door plaques (#186)", () => {
-  test("name and robot counts; restricted rooms say so; build sites say they are building", () => {
+  test("name and henchman counts; restricted rooms say so; build sites say they are building", () => {
     expect(
       signLines({ name: "Apollo", working: 2, waiting: 1, building: false, locked: false }),
     ).toEqual({

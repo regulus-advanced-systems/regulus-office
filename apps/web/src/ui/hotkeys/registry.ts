@@ -1,5 +1,5 @@
 /**
- * Keyboard shortcut registry (SPEC §9.2: F floor quick menu, V view toggle,
+ * Keyboard shortcut registry (SPEC §9.2: F operation quick menu, V view toggle,
  * E interact, Z / C turn the camera; T / Enter focus the lobby chat; / search, #41).
  * Since #190 `E` only interacts; the camera turns on Z and C, which double as
  * nothing else (SPEC §9.2 says Q/E, but E is interact). The registry is pure: it maps a key press to a binding id and

@@ -1,11 +1,11 @@
 /**
- * Laptops on every desk seat of the floor template (SPEC §9.4):
- * - occupied desks show the robot's screen as a CanvasTexture from the
- *   floor's screen feed, repainted at ~2 fps;
+ * Laptops on every desk seat of the room template (SPEC §9.4):
+ * - occupied desks show the henchman's screen as a CanvasTexture from the
+ *   operation's screen feed, repainted at ~2 fps;
  * - free desks show a dark screen;
  * - the desk the local player is at shows the live terminal (drei Html),
  *   when the ≤ 2 live DOM panel budget allows it;
- * - clicking a laptop with a robot, or `E` at an occupied desk, opens the
+ * - clicking a laptop with a henchman, or `E` at an occupied desk, opens the
  *   terminal modal (free desks are the spawn dialog's job, #29). The live
  *   panel and `E` use one rule (`terminalDeskAt`, #205), so wherever the
  *   panel shows, `E` reaches it.
@@ -13,12 +13,12 @@
  * nearby rooms show their screens' textures (roomScope.ts).
  */
 import { useFrame } from "@react-three/fiber";
+import { LOBBY_OPERATION_ID } from "@regulus/protocol";
 import type { RoomTemplate } from "@regulus/room-layout";
-import { LOBBY_FLOOR_ID } from "@regulus/protocol";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { officeServerUrl, toWebSocketUrl } from "../../net/serverUrl.ts";
-import type { useFloorStore } from "../../state/floor.ts";
+import type { useOperationStore } from "../../state/operation.ts";
 import type { HotkeyEventDetail } from "../../ui/hotkeys/registry.ts";
 import { useHotkeyEvents } from "../../ui/hotkeys/useHotkeys.ts";
 import { PANEL_PRIORITY, usePanelBudget } from "../../ui/terminal/panelBudget.ts";
@@ -36,12 +36,13 @@ export const LAPTOP_PANEL_ID = "laptop-live";
 /** How often the player's desk focus is re-evaluated. */
 const FOCUS_CHECK_MS = 250;
 
-/** seatId -> agentId from the FloorRoom robots. */
+/** seatId -> agentId from the OperationRoom henchmen. */
 function selectSeatAgents(
-  state: ReturnType<typeof useFloorStore.getState>,
+  state: ReturnType<typeof useOperationStore.getState>,
 ): Record<string, string> {
   const out: Record<string, string> = {};
-  for (const robot of Object.values(state.state?.robots ?? {})) out[robot.seatId] = robot.agentId;
+  for (const henchman of Object.values(state.state?.henchmen ?? {}))
+    out[henchman.seatId] = henchman.agentId;
   return out;
 }
 
@@ -49,7 +50,7 @@ export interface LaptopLayerProps {
   template: RoomTemplate;
   /**
    * Draw laptops on free desks too (default). The compound (#186) draws free
-   * desks' laptops as instanced kit pieces and only robots' desks here.
+   * desks' laptops as instanced kit pieces and only henchmen's desks here.
    */
   freeDesks?: boolean;
 }
@@ -59,7 +60,7 @@ export function LaptopLayer({ template, freeDesks = true }: LaptopLayerProps) {
   const deskSeats = useMemo(() => template.seats.filter((s) => s.kind === "desk"), [template]);
   const fake = useMemo(() => fakeScreensCount(window.location.search), []);
   const scope = useRoomScope();
-  const floorId = scope.store((s) => s.floorId);
+  const operationId = scope.store((s) => s.operationId);
   const liveAgents = scope.store(useShallow(selectSeatAgents));
   const seatAgents = useMemo(() => {
     if (fake === null) return liveAgents;
@@ -74,7 +75,7 @@ export function LaptopLayer({ template, freeDesks = true }: LaptopLayerProps) {
     textures.retain(new Set(Object.values(seatAgents)));
   }, [textures, seatAgents]);
 
-  // Screen text for the perf probe: fake robots scrolling fake output.
+  // Screen text for the perf probe: fake henchmen scrolling fake output.
   useEffect(() => {
     if (fake === null) return;
     const ids = Object.values(seatAgents);
@@ -88,18 +89,18 @@ export function LaptopLayer({ template, freeDesks = true }: LaptopLayerProps) {
     return () => clearInterval(timer);
   }, [fake, seatAgents, textures]);
 
-  // Screen text: one feed socket per floor, independent of which robots come and go.
+  // Screen text: one feed socket per operation, independent of which henchmen come and go.
   useEffect(() => {
-    if (fake !== null || !floorId || floorId === LOBBY_FLOOR_ID) return;
+    if (fake !== null || !operationId || operationId === LOBBY_OPERATION_ID) return;
     const feed = new ScreenFeedClient({
       wsBase: toWebSocketUrl(officeServerUrl()),
-      floorId,
+      operationId,
       onScreen: (agentId, text) => textures.setText(agentId, text),
       onRemoved: (agentId) => textures.setText(agentId, null),
     });
     feed.start();
     return () => feed.stop();
-  }, [fake, floorId, textures]);
+  }, [fake, operationId, textures]);
 
   // Desk focus: the occupied desk the player stands at.
   const [focusedSeat, setFocusedSeat] = useState<string | null>(null);
@@ -150,7 +151,7 @@ export function LaptopLayer({ template, freeDesks = true }: LaptopLayerProps) {
       {placements.map((p) => {
         const agentId = seatAgents[p.seatId];
         if (!agentId && !freeDesks) return null;
-        // The modal already shows this robot live: keep the laptop on its texture.
+        // The modal already shows this henchman live: keep the laptop on its texture.
         const live =
           agentId && agentId === focusedAgent && liveGranted && modalAgent !== agentId ? (
             <LiveLaptopScreen agentId={agentId} />

@@ -2,9 +2,9 @@
  * `<GeniusAvatar>`: a human's genius (SPEC §9.3, D22) with its floating
  * name plate. One SkinnedMesh per avatar (one draw call) around a cached
  * archetype geometry; colours are a palette material; clips are procedural
- * (clips/) and crossfade like the robots'. The model faces the group's
+ * (clips/) and crossfade like the henchmen'. The model faces the group's
  * heading (MODEL_YAW), so callers set `rotation.y = heading` exactly as
- * they did for the robot avatar: face-first walking and cursor turning are
+ * they did for the henchman avatar: face-first walking and cursor turning are
  * unchanged.
  */
 import { type ThreeElements, useFrame } from "@react-three/fiber";

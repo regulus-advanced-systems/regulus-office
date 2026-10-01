@@ -1,5 +1,5 @@
 /**
- * Sending robot control commands (#33) through the FloorRoom. Each command
+ * Sending henchman control commands (#33) through the OperationRoom. Each command
  * is marked in flight until the server answers with `agent.result` or
  * `command.rejected` (agentSync.ts). Components get the sender from
  * {@link AgentSenderContext} so tests can record what would be sent.
@@ -25,7 +25,7 @@ export type AgentSender = <T extends AgentControlType>(
   payload: ClientCommandPayload<T>,
 ) => void;
 
-/** Sends through the page's OfficeClient; a missing floor room becomes a refusal. */
+/** Sends through the page's OfficeClient; a missing operation room becomes a refusal. */
 export const officeAgentSender: AgentSender = (type, payload) => {
   const store = useAgentStore.getState();
   store.started(payload.agentId, type);

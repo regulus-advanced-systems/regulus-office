@@ -1,5 +1,5 @@
 /**
- * Door plaques (#186, SPEC §9.1): a room's name and its robot counts
+ * Door plaques (#186, SPEC §9.1): a room's name and its henchman counts
  * (working, waiting) painted on a riveted brass-framed plate over the door,
  * readable from the corridor even when the door stays shut. A plate under
  * construction says so. Canvas 2D, painted only when the text changes.

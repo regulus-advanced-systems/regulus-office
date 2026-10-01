@@ -1,6 +1,6 @@
 /**
  * Carry-a-card (SPEC §9.4; #36), client side. `card.pick` puts the card in
- * the human's hands (the FloorRoom shows it to everyone on the floor);
+ * the human's hands (the OperationRoom shows it to everyone on the operation);
  * `card.drop` puts it down. Dropping it on a free desk opens the spawn
  * dialog there, prefilled from the card. The server re-checks access, the
  * card and the desk.
@@ -10,11 +10,11 @@ import {
   type CardKind,
   type CarriedCard,
   type ClientCommandPayload,
-  type FloorState,
+  type OperationState,
 } from "@regulus/protocol";
 import { useShallow } from "zustand/react/shallow";
 import { getOfficeClient } from "../../net/index.ts";
-import { useFloorStore } from "../../state/floor.ts";
+import { useOperationStore } from "../../state/operation.ts";
 import { useSessionStore } from "../../state/session.ts";
 import type { SpawnPrefill } from "../../state/spawn.ts";
 
@@ -31,14 +31,14 @@ export interface CarriedView {
   headBranch: string;
 }
 
-/** The card this user carries on this floor (any of their tabs), or null. */
-export function myCarried(state: FloorState | null, userId: string | null): CarriedCard | null {
+/** The card this user carries on this operation (any of their tabs), or null. */
+export function myCarried(state: OperationState | null, userId: string | null): CarriedCard | null {
   if (!state || !userId) return null;
   return Object.values(state.carriedCards).find((c) => c.userId === userId) ?? null;
 }
 
 /** What the board knows about a carried card (it may have left the board since). */
-export function carriedView(state: FloorState, card: CarriedCard): CarriedView {
+export function carriedView(state: OperationState, card: CarriedCard): CarriedView {
   const key = boardCardKey(card.repoId, card.number);
   const onBoard = card.cardKind === "pr" ? state.pulls[key] : state.issues[key];
   const repo = state.repos.find((r) => r.repoId === card.repoId);
@@ -81,7 +81,7 @@ type Send = <T extends "card.pick" | "card.drop">(
 ) => void;
 const officeSend: Send = (type, payload) => getOfficeClient().send(type, payload);
 
-/** Pluck a card; false when the floor room is not joined. */
+/** Pluck a card; false when the operation room is not joined. */
 export function pickCard(
   card: { kind: CardKind; repoId: string; number: number },
   send: Send = officeSend,
@@ -99,14 +99,14 @@ export function dropCard(seatId?: string, send: Send = officeSend): void {
   try {
     send("card.drop", seatId ? { seatId } : {});
   } catch {
-    // Not on a floor any more: the server already put it back when we left.
+    // Not on an operation any more: the server already put it back when we left.
   }
 }
 
 /** The card the signed-in user carries here, with its board details. */
 export function useMyCarried(): CarriedView | null {
   const userId = useSessionStore((s) => s.user?.id ?? null);
-  return useFloorStore(
+  return useOperationStore(
     useShallow((s) => {
       const card = myCarried(s.state, userId);
       return card && s.state ? carriedView(s.state, card) : null;

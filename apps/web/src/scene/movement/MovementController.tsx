@@ -1,19 +1,19 @@
 /**
  * Drives the local player inside the office canvas (SPEC §9.2): walks the
- * given nav grid (the compound's, #186, or one floor template's in the dev
+ * given nav grid (the compound's, #186, or one room template's in the dev
  * harnesses), spawns at the spawn pose, turns WASD into steps relative to
  * the camera's yaw, turns floor clicks into A* paths, follows
  * them each frame and relays the pose as `move` at no more than 20 Hz.
  * Holding Shift runs (WASD or a click path) and a double-click runs to the
  * spot (#223): the first click of the pair already set off walking, the
  * double-click upgrades the same path to a run.
- * While standing in third person the robot turns toward the floor point
+ * While standing in third person the henchman turns toward the floor point
  * under the mouse (#119); that heading-only change goes out as `move` too.
  * Mount as a child of <OfficeCanvas>; the avatar itself is drawn by
  * scene/avatars/AvatarLayer.tsx from the same store.
  */
 import { type ThreeEvent, useFrame } from "@react-three/fiber";
-import type { RoomTemplate, NavGrid, Rect } from "@regulus/room-layout";
+import type { NavGrid, Rect, RoomTemplate } from "@regulus/room-layout";
 import { useEffect, useMemo } from "react";
 import { Raycaster, Vector2 } from "three";
 import { useFootsteps } from "../../audio/footsteps.ts";
@@ -59,7 +59,7 @@ function sendMove(pose: Pose): void {
   }
 }
 
-/** One floor template's grid, spawn and floor (the dev harnesses' single-room scenes). */
+/** One room template's grid, spawn and floor (the dev harnesses' single-room scenes). */
 export function TemplateMovement({
   template,
   send,

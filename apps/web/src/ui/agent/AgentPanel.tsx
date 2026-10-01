@@ -1,15 +1,15 @@
 /**
- * Robot panel (#33): opened from the robot or its desk (`openAgentPanel`,
- * called by the scene, #29). Everyone who can see the floor gets the
- * robot's status, task, model and owner and can watch its terminal; its
+ * Henchman panel (#33): opened from the henchman or its desk (`openAgentPanel`,
+ * called by the scene, #29). Everyone who can see the operation gets the
+ * henchman's status, task, model and owner and can watch its terminal; its
  * owner alone (D12, #138) also gets the prompt box, the raised-hand
  * approval, interrupt / stop / resume, send home and the one-click PR.
- * Office owners/admins watching someone else's running robot get only the
+ * Office owners/admins watching someone else's running henchman get only the
  * confirmed, audited emergency stop. The server checks every command again.
  */
-import { mayControlRobot, mayEmergencyStop, type RobotState } from "@regulus/protocol";
+import { type HenchmanState, mayControlHenchman, mayEmergencyStop } from "@regulus/protocol";
 import { useEffect, useId, useRef } from "react";
-import { useFloorStore } from "../../state/floor.ts";
+import { useOperationStore } from "../../state/operation.ts";
 import { useSessionStore } from "../../state/session.ts";
 import { useChangesWindow } from "../changes/changesStore.ts";
 import { Button } from "../components/Button.tsx";
@@ -23,24 +23,24 @@ import { flightKey, useAgentStore } from "./agentStore.ts";
 import { EmergencyStop } from "./EmergencyStop.tsx";
 import { isResumable, isRunning, PROVIDER_LABELS, STATUS_LABELS } from "./labels.ts";
 
-function Facts({ robot }: { robot: RobotState }) {
+function Facts({ henchman }: { henchman: HenchmanState }) {
   const rows: [string, string][] = [
-    ["Status", STATUS_LABELS[robot.status]],
-    ["Task", robot.taskTitle || "—"],
+    ["Status", STATUS_LABELS[henchman.status]],
+    ["Task", henchman.taskTitle || "—"],
     [
       "Model",
-      `${PROVIDER_LABELS[robot.provider]} · ${robot.model}${robot.effort ? ` (${robot.effort})` : ""}`,
+      `${PROVIDER_LABELS[henchman.provider]} · ${henchman.model}${henchman.effort ? ` (${henchman.effort})` : ""}`,
     ],
-    ["Owner", robot.ownerName || "—"],
+    ["Owner", henchman.ownerName || "—"],
   ];
   // How much it may do before it raises its hand (#166).
-  if (robot.permissionMode)
-    rows.splice(3, 0, ["Permissions", permissionModeLabel(robot.permissionMode)]);
+  if (henchman.permissionMode)
+    rows.splice(3, 0, ["Permissions", permissionModeLabel(henchman.permissionMode)]);
   // Why it is in `error` (a short code and a redacted message, safe for every viewer).
-  if (robot.statusReason) rows.splice(1, 0, ["Reason", robot.statusReason]);
-  if (robot.worktreeBranch) rows.push(["Branch", robot.worktreeBranch]);
-  if (robot.issueNumber) rows.push(["Issue", `#${robot.issueNumber}`]);
-  if (robot.prNumber) rows.push(["Pull request", `#${robot.prNumber}`]);
+  if (henchman.statusReason) rows.splice(1, 0, ["Reason", henchman.statusReason]);
+  if (henchman.worktreeBranch) rows.push(["Branch", henchman.worktreeBranch]);
+  if (henchman.issueNumber) rows.push(["Issue", `#${henchman.issueNumber}`]);
+  if (henchman.prNumber) rows.push(["Pull request", `#${henchman.prNumber}`]);
   return (
     <dl className="rg-agent-facts">
       {rows.map(([k, v]) => (
@@ -50,8 +50,8 @@ function Facts({ robot }: { robot: RobotState }) {
             {k === "Status" && (
               <span
                 className="rg-lamp rg-agent-facts__lamp"
-                data-blink={lampBlinks(robot.status)}
-                style={lampStyle(AGENT_LAMPS[robot.status])}
+                data-blink={lampBlinks(henchman.status)}
+                style={lampStyle(AGENT_LAMPS[henchman.status])}
                 aria-hidden="true"
               />
             )}
@@ -63,8 +63,8 @@ function Facts({ robot }: { robot: RobotState }) {
   );
 }
 
-function Controls({ robot }: { robot: RobotState }) {
-  const agentId = robot.agentId;
+function Controls({ henchman }: { henchman: HenchmanState }) {
+  const agentId = henchman.agentId;
   const send = useAgentSender();
   const promptId = useId();
   const box = useRef<HTMLTextAreaElement>(null);
@@ -73,7 +73,7 @@ function Controls({ robot }: { robot: RobotState }) {
   const openPrompt = useAgentStore((s) => s.openPermissionPrompt);
   const openDialog = useAgentStore((s) => s.openDialog);
   const busy = (type: string) => Boolean(inFlight[flightKey(agentId, type)]);
-  const running = isRunning(robot.status);
+  const running = isRunning(henchman.status);
 
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
@@ -86,7 +86,7 @@ function Controls({ robot }: { robot: RobotState }) {
 
   return (
     <>
-      {robot.handRaised && pending > 0 && (
+      {henchman.handRaised && pending > 0 && (
         <Button variant="primary" block onClick={() => openPrompt(agentId)}>
           Review request{pending > 1 ? `s (${pending})` : ""}
         </Button>
@@ -141,7 +141,7 @@ function Controls({ robot }: { robot: RobotState }) {
             </Button>
           </>
         )}
-        {isResumable(robot.status) && (
+        {isResumable(henchman.status) && (
           <Button
             size="sm"
             variant="primary"
@@ -166,19 +166,19 @@ export function AgentPanel() {
   const agentId = useAgentStore((s) => s.panelAgentId);
   const close = useAgentStore((s) => s.closeAgentPanel);
   const refusal = useAgentStore((s) => (agentId ? s.refusal[agentId] : undefined));
-  const robot = useFloorStore((s) => (agentId ? s.state?.robots[agentId] : undefined));
+  const henchman = useOperationStore((s) => (agentId ? s.state?.henchmen[agentId] : undefined));
   const user = useSessionStore((s) => s.user);
   const openTerminal = useTerminalModal((s) => s.openTerminal);
   const openChanges = useChangesWindow((s) => s.openChanges);
   const titleId = useId();
 
-  // The robot left (sent home, floor changed): close.
+  // The henchman left (sent home, operation changed): close.
   useEffect(() => {
-    if (agentId && !robot) close();
-  }, [agentId, robot, close]);
+    if (agentId && !henchman) close();
+  }, [agentId, henchman, close]);
 
-  if (!agentId || !robot) return null;
-  const controller = mayControlRobot(user, robot.ownerUserId);
+  if (!agentId || !henchman) return null;
+  const controller = mayControlHenchman(user, henchman.ownerUserId);
   const inlineRefusal =
     refusal &&
     !["agent.pr", "agent.worktree", "agent.sendHome", "agent.approve"].includes(refusal.type);
@@ -187,26 +187,28 @@ export function AgentPanel() {
     <Panel as="section" className="rg-agent-panel" aria-labelledby={titleId}>
       <div className="rg-agent-panel__head">
         <h2 id={titleId} className="rg-panel__title">
-          {robot.taskTitle || "Henchman"}
+          {henchman.taskTitle || "Henchman"}
         </h2>
         <CloseButton small label="Close henchman panel" onClick={close} />
       </div>
-      <Facts robot={robot} />
+      <Facts henchman={henchman} />
       <Button size="sm" block aria-haspopup="dialog" onClick={() => openTerminal(agentId)}>
         {controller ? "Open terminal" : "Watch terminal"}
       </Button>
-      {/* The changes window (#38): everyone on the floor reads it; the owner commits. */}
+      {/* The changes window (#38): everyone on the operation reads it; the owner commits. */}
       <Button size="sm" block aria-haspopup="dialog" onClick={() => openChanges(agentId)}>
         {controller ? "Review changes" : "View changes"}
       </Button>
       {controller ? (
-        <Controls robot={robot} />
+        <Controls henchman={henchman} />
       ) : (
         <>
           <p className="rg-field__hint">
-            Only {robot.ownerName || "its owner"} can control this henchman.
+            Only {henchman.ownerName || "its owner"} can control this henchman.
           </p>
-          {mayEmergencyStop(user) && isRunning(robot.status) && <EmergencyStop robot={robot} />}
+          {mayEmergencyStop(user) && isRunning(henchman.status) && (
+            <EmergencyStop henchman={henchman} />
+          )}
         </>
       )}
       {inlineRefusal && (

@@ -5,9 +5,9 @@
  */
 import {
   type ClientCommandPayload,
-  type FloorAccess,
   mayManageQueuedTask,
   mayRetryTask,
+  type OperationAccess,
   parseClientCommand,
   type QueueTask,
   type TaskState,
@@ -54,7 +54,7 @@ export interface TaskActions {
 export function taskActions(
   task: QueueTask,
   me: { id: string } | null,
-  access: FloorAccess | null,
+  access: OperationAccess | null,
   index: number,
   count: number,
 ): TaskActions {
@@ -117,7 +117,7 @@ export function queuePayload(
     return { ok: false, error: "A queued task needs a prompt (under More options), or an issue." };
   }
   const payload: QueueAddPayload = {
-    floorId: spawn.floorId,
+    operationId: spawn.operationId,
     repoId: spawn.repoId,
     kind,
     ...(pr ? { refNumber: pr } : issue ? { refNumber: issue } : {}),

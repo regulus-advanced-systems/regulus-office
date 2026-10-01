@@ -1,21 +1,21 @@
 /**
  * Top-centre HUD (research 03 §5): wide white rounded box with the office
  * name in light type, where the player is beneath (the room, the corridors;
- * #186), and a clock on the right. In a room the user manages, a "Floor
+ * #186), and a clock on the right. In a room the user manages, a "Operation
  * settings" button sits by its name; in any project room, "Workflows" opens
  * its GitHub workflows and run history (#155).
  */
 import { useEffect, useState } from "react";
-import { useFloorStore } from "../../state/floor.ts";
-import { useFloorsStore } from "../../state/floors.ts";
+import { useOperationStore } from "../../state/operation.ts";
+import { useOperationsStore } from "../../state/operations.ts";
 import { useUiStore } from "../../state/ui.ts";
 import { Button } from "../components/Button.tsx";
 import { GearIcon } from "../components/icons.tsx";
-import { canManageFloor, floorSettingsOverlay } from "../floors/floorSettings.ts";
+import { canManageOperation, operationSettingsOverlay } from "../operations/operationSettings.ts";
 import { Panel } from "../Panel.tsx";
 import { openWorkflowsPanel } from "../workflows/WorkflowsPanel.tsx";
-import { useLocationName } from "./floorName.ts";
 import { formatClock, msUntilNextMinute } from "./format.ts";
+import { useLocationName } from "./operationName.ts";
 
 /** Office name: server-provided later; until then an env override or the default. */
 export const OFFICE_NAME: string =
@@ -40,43 +40,43 @@ export function useClock(now: () => number = Date.now): Date {
 
 export function TopBar({
   officeName = OFFICE_NAME,
-  floorName,
+  operationName,
   date,
 }: {
   officeName?: string;
-  floorName?: string;
+  operationName?: string;
   date?: Date;
 }) {
-  const floorId = useFloorStore((s) => s.floorId);
+  const operationId = useOperationStore((s) => s.operationId);
   const location = useLocationName();
   const hour12 = useUiStore((s) => s.settings.hour12);
   const clock = useClock();
-  const manages = useFloorsStore((s) => canManageFloor(s.floors, floorId));
+  const manages = useOperationsStore((s) => canManageOperation(s.operations, operationId));
   const openOverlay = useUiStore((s) => s.openOverlay);
-  const shownFloor = floorName ?? location;
+  const shownOperation = operationName ?? location;
   return (
     <Panel as="header" className="rg-topbar" aria-label="Office">
       <div>
         <div className="rg-topbar__office">{officeName}</div>
-        <div className="rg-topbar__floorline">
-          <div className="rg-topbar__floor">{shownFloor}</div>
-          {manages && floorId && (
+        <div className="rg-topbar__operationline">
+          <div className="rg-topbar__operation">{shownOperation}</div>
+          {manages && operationId && (
             <Button
               variant="ghost"
               size="sm"
               aria-haspopup="dialog"
               icon={<GearIcon />}
-              onClick={() => openOverlay(floorSettingsOverlay(floorId))}
+              onClick={() => openOverlay(operationSettingsOverlay(operationId))}
             >
               Operation settings
             </Button>
           )}
-          {floorId && (
+          {operationId && (
             <Button
               variant="ghost"
               size="sm"
               aria-haspopup="dialog"
-              onClick={() => openWorkflowsPanel(floorId)}
+              onClick={() => openWorkflowsPanel(operationId)}
             >
               Workflows
             </Button>

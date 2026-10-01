@@ -1,6 +1,6 @@
 /**
  * "GitHub" in Settings, for owners and admins (#141; SPEC §8, D14): connect
- * the office to GitHub once, so "Add floor" can list the org's repos and
+ * the office to GitHub once, so "Add operation" can list the org's repos and
  * clones and PRs use the connection's token.
  *
  * - GitHub App (recommended): the manifest flow. The office returns a

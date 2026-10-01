@@ -5,19 +5,19 @@ import { CompoundCanvas } from "../../scene/compound/CompoundCanvas.tsx";
 import { useCompoundStore, useCompoundWorldSync } from "../../state/compound.ts";
 import { useSessionStore } from "../../state/session.ts";
 import { AvatarPickerHost } from "../avatar-picker/AvatarPickerHost.tsx";
-import { useFloorListSync } from "../floors/useFloorListSync.ts";
 import { Hud } from "../Hud.tsx";
+import { useOperationListSync } from "../operations/useOperationListSync.ts";
 
 /**
  * The office: the whole compound as one R3F scene (SPEC §9, #186), with the
- * local and remote humans, the live rooms nearby (robots, boards, laptops,
+ * local and remote humans, the live rooms nearby (henchmen, boards, laptops,
  * the merge gong) and the HUD on top. The scene waits for the compound
  * layout from the BuildingRoom.
  */
 export function OfficePage() {
   const fetchSession = useSessionStore((s) => s.fetchSession);
   const world = useCompoundStore((s) => s.world);
-  useFloorListSync();
+  useOperationListSync();
   useCompoundWorldSync();
 
   useEffect(() => {

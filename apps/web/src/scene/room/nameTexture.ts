@@ -1,5 +1,5 @@
 /**
- * Floor name painted on the exterior of the front stub wall (SPEC §9.1,
+ * Operation name painted on the exterior of the front stub wall (SPEC §9.1,
  * research 03 §1: "company name in large light-grey italic sans"). Drawn
  * into a canvas at runtime; no font assets.
  */

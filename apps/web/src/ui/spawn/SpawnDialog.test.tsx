@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import type { CommandRejected, FloorState, RobotState } from "@regulus/protocol";
+import type { CommandRejected, HenchmanState, OperationState } from "@regulus/protocol";
 import { act } from "react";
-import { useFloorStore } from "../../state/floor.ts";
-import { useFloorsStore } from "../../state/floors.ts";
+import { useOperationStore } from "../../state/operation.ts";
+import { useOperationsStore } from "../../state/operations.ts";
 
 import { useSessionStore } from "../../state/session.ts";
 import { type SpawnPrefill, useSpawnStore } from "../../state/spawn.ts";
@@ -16,14 +16,14 @@ import type { SpawnPayload } from "./spawnForm.ts";
 
 useDom();
 
-const floorState = (robots: Record<string, RobotState> = {}): FloorState => ({
-  floorId: "f1",
+const operationState = (henchmen: Record<string, HenchmanState> = {}): OperationState => ({
+  operationId: "f1",
   name: "Apollo",
   slug: "apollo",
   paletteId: "oak-sky",
   layoutTemplateId: "office-l2",
   repos: [{ repoId: "r1", owner: "octo", name: "hello", defaultBranch: "main", isPrimary: true }],
-  robots,
+  henchmen,
   desks: {},
   decor: {},
   queue: [],
@@ -37,7 +37,7 @@ const floorState = (robots: Record<string, RobotState> = {}): FloorState => ({
   decorStyle: "ops_room",
 });
 
-const robot = (seatId: string, ownerUserId: string): RobotState => ({
+const henchman = (seatId: string, ownerUserId: string): HenchmanState => ({
   agentId: "a-new",
   ownerUserId,
   ownerName: "Ante",
@@ -132,8 +132,8 @@ beforeEach(() => {
     user: { id: "u1", displayName: "Ante", role: "member" },
     error: null,
   });
-  useFloorStore.setState({ floorId: "f1", state: floorState() });
-  useFloorsStore.setState({ floors: null });
+  useOperationStore.setState({ operationId: "f1", state: operationState() });
+  useOperationsStore.setState({ operations: null });
   useSpawnStore.setState({ request: null });
   useUiStore.getState().clearToasts();
   localStorage.clear();
@@ -213,7 +213,7 @@ describe("spawn dialog", () => {
     await submitForm();
     expect(sent).toEqual([
       {
-        floorId: "f1",
+        operationId: "f1",
         repoId: "r1",
         seatId: "desk-1-seat",
         provider: "claude-code",
@@ -322,10 +322,10 @@ describe("spawn dialog", () => {
 
   test("several repos are listed; repos still cloning cannot be picked", async () => {
     const { client } = fakeClient();
-    useFloorsStore.setState({
-      floors: [
+    useOperationsStore.setState({
+      operations: [
         {
-          floorId: "f1",
+          operationId: "f1",
           repos: [
             { repoId: "r1", owner: "octo", name: "hello", cloneStatus: "ready", isPrimary: true },
             { repoId: "r2", owner: "octo", name: "new", cloneStatus: "cloning", isPrimary: false },
@@ -340,7 +340,7 @@ describe("spawn dialog", () => {
     expect(text()).toContain("Not cloned yet");
   });
 
-  test("sends agent.spawn, shows the rejection, then closes when our robot sits down", async () => {
+  test("sends agent.spawn, shows the rejection, then closes when our henchman sits down", async () => {
     const { client, sent, reject } = fakeClient();
     mounted = await mount(<SpawnDialogHost api={api} client={client} />);
     await openAt();
@@ -355,13 +355,15 @@ describe("spawn dialog", () => {
 
     await submitForm();
     expect(sent).toHaveLength(2);
-    // Someone else's robot at another desk does not count.
+    // Someone else's henchman at another desk does not count.
     await act(async () =>
-      useFloorStore.setState({ state: floorState({ x: robot("desk-9", "u2") }) }),
+      useOperationStore.setState({ state: operationState({ x: henchman("desk-9", "u2") }) }),
     );
     expect(useSpawnStore.getState().request).not.toBeNull();
     await act(async () =>
-      useFloorStore.setState({ state: floorState({ "a-new": robot("desk-1-seat", "u1") }) }),
+      useOperationStore.setState({
+        state: operationState({ "a-new": henchman("desk-1-seat", "u1") }),
+      }),
     );
     await settle();
     expect(useSpawnStore.getState().request).toBeNull();

@@ -25,7 +25,7 @@ export function useVerdict(): Verdict | null {
   const s = useBuildModeStore();
   if (!world || !s.intent) return null;
   const key = ghostKey(s);
-  const skip = s.intent.kind === "move" ? s.intent.floorId : undefined;
+  const skip = s.intent.kind === "move" ? s.intent.operationId : undefined;
   const server = s.server?.key === key ? s.server : null;
   const local = cachedLocalCheck(world, s.placement(), skip);
   const ok = server ? server.ok : local.ok;

@@ -1,5 +1,5 @@
 /**
- * Write actions on a card for floor managers (#36): assign / unassign,
+ * Write actions on a card for operation managers (#36): assign / unassign,
  * comment, merge a PR (squash, merge or rebase) and close. The server checks
  * `manage` again, calls GitHub with the office credential and audits it;
  * comments go out with a footer naming the human "via Regulus Office".
@@ -52,13 +52,13 @@ export function CardActions({
   useEffect(() => {
     if (!detail.credential) return;
     let live = true;
-    void api.assignees(cardRef.floorId, cardRef.repoId).then((res) => {
+    void api.assignees(cardRef.operationId, cardRef.repoId).then((res) => {
       if (live && res.ok) setLogins(res.data.logins);
     });
     return () => {
       live = false;
     };
-  }, [api, cardRef.floorId, cardRef.repoId, detail.credential]);
+  }, [api, cardRef.operationId, cardRef.repoId, detail.credential]);
 
   const run = async <T,>(
     what: Exclude<Busy, null>,

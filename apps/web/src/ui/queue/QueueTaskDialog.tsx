@@ -14,8 +14,8 @@ import {
 } from "@regulus/protocol";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getOfficeClient } from "../../net/index.ts";
-import { useFloorStore } from "../../state/floor.ts";
-import { useFloorsStore } from "../../state/floors.ts";
+import { useOperationStore } from "../../state/operation.ts";
+import { useOperationsStore } from "../../state/operations.ts";
 import { useSessionStore } from "../../state/session.ts";
 import { useUiStore } from "../../state/ui.ts";
 import { Modal } from "../components/Modal.tsx";
@@ -29,7 +29,7 @@ import { type QueuePrefill, useQueueStore } from "./queueStore.ts";
 export interface QueueClient {
   send(type: "queue.add", payload: QueueAddPayload): void;
   onRejected(listener: (notice: CommandRejected) => void): () => void;
-  onFloorMessage(type: string, listener: (payload: unknown) => void): () => void;
+  onOperationMessage(type: string, listener: (payload: unknown) => void): () => void;
 }
 
 const defaultApi = createCredentialProfilesApi();
@@ -57,11 +57,11 @@ export function QueueTaskDialog({
   const closeAdd = useQueueStore((s) => s.closeAdd);
   const openPanel = useQueueStore((s) => s.openPanel);
   const toast = useUiStore((s) => s.toast);
-  const floorId = useFloorStore((s) => s.floorId);
-  const floorState = useFloorStore((s) => s.state);
-  const info = useFloorsStore((s) => s.floors?.find((f) => f.floorId === floorId));
+  const operationId = useOperationStore((s) => s.operationId);
+  const operationState = useOperationStore((s) => s.state);
+  const info = useOperationsStore((s) => s.operations?.find((f) => f.operationId === operationId));
   const userId = useSessionStore((s) => s.user?.id ?? null);
-  const repos = useMemo(() => spawnRepoOptions(info, floorState), [info, floorState]);
+  const repos = useMemo(() => spawnRepoOptions(info, operationState), [info, operationState]);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const pendingRef = useRef(false);
@@ -76,7 +76,7 @@ export function QueueTaskDialog({
       setPending(false);
       setError(`The office could not queue this task: ${notice.reason}.`);
     });
-    const offResult = target.onFloorMessage(QUEUE_RESULT_MESSAGE, (payload) => {
+    const offResult = target.onOperationMessage(QUEUE_RESULT_MESSAGE, (payload) => {
       const result = payload as QueueCommandResult;
       if (result?.type !== "queue.add" || !pendingRef.current) return;
       setPending(false);
@@ -90,7 +90,7 @@ export function QueueTaskDialog({
     };
   }, [target, closeAdd, openPanel, toast]);
 
-  if (!floorId) return null;
+  if (!operationId) return null;
   const onlyRepo = repos.length === 1 ? repos[0] : undefined;
   const from = prefill?.refNumber
     ? taskRef({ kind: prefill.kind, refNumber: prefill.refNumber })
@@ -121,7 +121,7 @@ export function QueueTaskDialog({
         )}
       </p>
       <SpawnForm
-        floorId={floorId}
+        operationId={operationId}
         seatId={QUEUE_SEAT}
         repos={repos}
         prefill={spawnPrefillFor(prefill)}

@@ -5,7 +5,7 @@
  *
  * Issue board: Open / In progress / Closed. An open issue is in progress
  * when someone is assigned, it carries an "in progress"-style label, or a
- * robot on this floor works on it.
+ * henchman on this operation works on it.
  *
  * PR board: Draft / In review / Approved / Merged / Closed. An open PR is
  * Draft while it is a draft, Approved once reviews approve it (and nobody
@@ -14,11 +14,11 @@
 import type {
   CardKind,
   ChecksState,
+  HenchmanState,
   IssueCard,
   PullCard,
   RepoSummary,
   ReviewState,
-  RobotState,
 } from "@regulus/protocol";
 
 export type IssueColumn = "open" | "in_progress" | "closed";
@@ -46,10 +46,10 @@ export const PULL_COLUMNS: readonly ColumnSpec<PullColumn>[] = [
 
 const IN_PROGRESS_LABEL = /^(in[\s_-]?progress|wip|doing|started|working)$/i;
 
-/** `${repoId}#${number}` of the issues robots on this floor are working on. */
-export function workedIssues(robots: readonly Pick<RobotState, "repoId" | "issueNumber">[]) {
+/** `${repoId}#${number}` of the issues henchmen on this operation are working on. */
+export function workedIssues(henchmen: readonly Pick<HenchmanState, "repoId" | "issueNumber">[]) {
   return new Set(
-    robots.filter((r) => r.issueNumber > 0).map((r) => `${r.repoId}#${r.issueNumber}`),
+    henchmen.filter((r) => r.issueNumber > 0).map((r) => `${r.repoId}#${r.issueNumber}`),
   );
 }
 
@@ -116,7 +116,7 @@ export interface BoardCardView {
   number: number;
   title: string;
   column: BoardColumnId;
-  /** `owner/name` chip; empty on a single-repo floor. */
+  /** `owner/name` chip; empty on a single-repo operation. */
   repoChip: string;
   assignees: string[];
   labels: string[];
@@ -146,7 +146,7 @@ export function buildBoard(
     issues: Readonly<Record<string, IssueCard>>;
     pulls: Readonly<Record<string, PullCard>>;
     repos: readonly RepoSummary[];
-    robots?: readonly Pick<RobotState, "repoId" | "issueNumber">[];
+    henchmen?: readonly Pick<HenchmanState, "repoId" | "issueNumber">[];
   },
 ): BoardColumnView[] {
   const chips = repoChips(input.repos);
@@ -155,7 +155,7 @@ export function buildBoard(
     specs.map((s) => [s.id, { id: s.id, title: s.title, cards: [] }]),
   );
   if (kind === "issue") {
-    const worked = workedIssues(input.robots ?? []);
+    const worked = workedIssues(input.henchmen ?? []);
     for (const [key, c] of Object.entries(input.issues)) {
       const column = issueColumn(c, worked);
       columns.get(column)?.cards.push({

@@ -7,12 +7,12 @@ import { describeWorkflowError, type WorkflowsApi } from "./api.ts";
 
 export function DryRun({
   api,
-  floorId,
+  operationId,
   workflowId,
   spec,
 }: {
   api: WorkflowsApi;
-  floorId: string;
+  operationId: string;
   workflowId: string;
   spec: WorkflowSpec;
 }) {
@@ -25,7 +25,7 @@ export function DryRun({
 
   useEffect(() => {
     let live = true;
-    void api.events(floorId).then((r) => {
+    void api.events(operationId).then((r) => {
       if (!live) return;
       if (r.ok) {
         setEvents(r.data.events);
@@ -35,7 +35,7 @@ export function DryRun({
     return () => {
       live = false;
     };
-  }, [api, floorId]);
+  }, [api, operationId]);
 
   const run = async () => {
     setBusy(true);

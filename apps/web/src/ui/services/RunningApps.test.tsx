@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import type { FloorState, ServiceState } from "@regulus/protocol";
-import { floorFixture } from "@regulus/protocol/src/fixtures.ts";
-import { useFloorStore } from "../../state/floor.ts";
+import type { OperationState, ServiceState } from "@regulus/protocol";
+import { operationFixture } from "@regulus/protocol/src/fixtures.ts";
+import { useOperationStore } from "../../state/operation.ts";
 import { useSessionStore } from "../../state/session.ts";
 import { mount, useDom } from "../a11y/dom.ts";
 import { RunningApps } from "./RunningApps.tsx";
@@ -24,8 +24,8 @@ const svc = (id: string, patch: Partial<ServiceState> = {}): ServiceState => ({
   ...patch,
 });
 
-const floor = (services: ServiceState[]): FloorState => ({
-  ...floorFixture,
+const operation = (services: ServiceState[]): OperationState => ({
+  ...operationFixture,
   services: Object.fromEntries(services.map((s) => [s.id, s])),
 });
 
@@ -33,7 +33,7 @@ describe("running apps rows (client mirror of the app ACL)", () => {
   const owner = { id: "u1", role: "member" as const };
   const other = { id: "u2", role: "member" as const };
   test("the owner opens; others only when shared, read-only; localhost only never", () => {
-    const state = floor([
+    const state = operation([
       svc("s1"),
       svc("s2", { port: 9229, localOnly: true, url: "/p/f1/a/a1/port/9229/" }),
     ]);
@@ -42,11 +42,11 @@ describe("running apps rows (client mirror of the app ACL)", () => {
       [9229, "localhost"],
     ]);
     expect(appRows(state, other).map((r) => r.open)).toEqual(["owner_only", "localhost"]);
-    const shared = floor([svc("s1", { shared: true })]);
+    const shared = operation([svc("s1", { shared: true })]);
     expect(appRows(shared, other).map((r) => r.open)).toEqual(["watch"]);
     expect(appRows(shared, { id: "u1", role: "viewer" }).map((r) => r.open)).toEqual(["watch"]);
     expect(appRows(null, owner)).toEqual([]);
-    expect(appRows(state, owner)[0]?.robot).toBe("Ante's claude-code henchman");
+    expect(appRows(state, owner)[0]?.henchman).toBe("Ante's claude-code henchman");
   });
 });
 
@@ -55,7 +55,7 @@ describe("<RunningApps>", () => {
   afterEach(async () => {
     await unmount?.();
     unmount = undefined;
-    useFloorStore.getState().clear();
+    useOperationStore.getState().clear();
   });
 
   const render = async (services: ServiceState[], userId = "u1") => {
@@ -63,13 +63,13 @@ describe("<RunningApps>", () => {
       status: "authenticated",
       user: { id: userId, displayName: "X", role: "member" },
     });
-    useFloorStore.getState().apply(floor(services));
+    useOperationStore.getState().apply(operation(services));
     const m = await mount(<RunningApps />);
     unmount = m.unmount;
     return m.container;
   };
 
-  test("hidden when no robot serves anything", async () => {
+  test("hidden when no henchman serves anything", async () => {
     const el = await render([]);
     expect(el.textContent).toBe("");
   });

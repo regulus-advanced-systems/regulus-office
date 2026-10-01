@@ -7,7 +7,7 @@
  * and are never kept, logged or written to storage; the session lives only
  * in the httpOnly cookie the server sets, which `credentials: "same-origin"`
  * lets the browser send back. Responses are reduced to the fields the UI
- * needs so session tokens in response bodies are dropped on the floor.
+ * needs so session tokens in response bodies are dropped on the operation.
  */
 // Enums only: the package index also pulls zod and the Colyseus schemas into the bundle.
 import { isUserRole, type UserRole } from "@regulus/protocol/src/enums.ts";

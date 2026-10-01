@@ -46,7 +46,7 @@ describe("propPlacements", () => {
     expect(mugs?.position[1]).toBe(surfaceHeight("bistro_table"));
   });
 
-  test("the large floor's props all find their furniture", () => {
+  test("the large template's props all find their furniture", () => {
     expect(propPlacements(largeTemplate)).toHaveLength(largeTemplate.decor.length);
   });
 });

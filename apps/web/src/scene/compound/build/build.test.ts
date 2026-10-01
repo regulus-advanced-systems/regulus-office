@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { doorStart } from "@regulus/room-layout";
 import { DOOR_SIDES } from "@regulus/protocol";
+import { doorStart } from "@regulus/room-layout";
 import { placeRoom } from "../placed.ts";
 import { rowPlacement, type TestRoom, testWorld } from "../testing.ts";
 import { crewSpots, hammerAngle } from "./BuildSites.tsx";
@@ -36,8 +36,8 @@ describe("room transitions", () => {
     expect(classify(a, { ...a, decorStyle: "lab" })).toBe("grow");
     expect(classify(a, { ...a, rect: { ...a.rect, x: a.rect.x + 1 } })).toBe("move");
     expect(classify(a, { ...a, doorSide: "west" })).toBe("move");
-    // A door unlocking for this viewer, or robots coming and going, are not transitions.
-    expect(classify(a, { ...a, enterable: !a.enterable, robotsWorking: 3 })).toBeNull();
+    // A door unlocking for this viewer, or henchmen coming and going, are not transitions.
+    expect(classify(a, { ...a, enterable: !a.enterable, henchmenWorking: 3 })).toBeNull();
   });
 
   test("reveal: the scaffolding goes, the interior comes, the shared walls stay put", () => {
@@ -148,10 +148,10 @@ describe("ghost and build sites", () => {
   test("room settings' preview applies to its room only", () => {
     const rooms = testWorld([apollo(), { id: "zeus", placement: rowPlacement(16) }]).rooms;
     expect(withDraft(rooms, null)).toBe(rooms);
-    expect(withDraft(rooms, { floorId: "apollo", deskCount: 1, decorStyle: "ops_room" })).toBe(
+    expect(withDraft(rooms, { operationId: "apollo", deskCount: 1, decorStyle: "ops_room" })).toBe(
       rooms,
     );
-    const drafted = withDraft(rooms, { floorId: "apollo", deskCount: 3, decorStyle: "lab" });
+    const drafted = withDraft(rooms, { operationId: "apollo", deskCount: 3, decorStyle: "lab" });
     expect(drafted.find((r) => r.id === "apollo")).toMatchObject({
       deskCount: 3,
       decorStyle: "lab",

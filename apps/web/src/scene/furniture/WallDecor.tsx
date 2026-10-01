@@ -4,8 +4,8 @@
  * `template.wallDecor`, hung like anchors (`anchorPlacement`).
  */
 import {
-  type RoomTemplate,
   type Palette,
+  type RoomTemplate,
   type WallDecor as WallDecorItem,
   wallById,
 } from "@regulus/room-layout";

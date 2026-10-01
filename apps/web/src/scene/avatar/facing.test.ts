@@ -1,5 +1,5 @@
 /**
- * Walking robots face where they go (humans, remote humans, the send-home
+ * Walking henchmen face where they go (humans, remote humans, the send-home
  * walker): the avatar group is rotated by the heading of travel, the model
  * inside it by MODEL_YAW, exactly as RobotAvatar / LocalAvatar nest them.
  */
@@ -10,7 +10,7 @@ import { MODEL_FORWARD, MODEL_YAW } from "./avatarRig.ts";
 
 /** World direction of the model's face for an avatar group turned to `heading`. */
 function renderedForward(heading: number): Vector3 {
-  const avatar = new Group(); // LocalAvatar / RemoteAvatar / DepartingRobot: rotation.y = heading
+  const avatar = new Group(); // LocalAvatar / RemoteAvatar / DepartingHenchman: rotation.y = heading
   avatar.rotation.y = heading;
   const model = new Group(); // RobotAvatar's inner model group
   model.rotation.y = MODEL_YAW;
@@ -19,7 +19,7 @@ function renderedForward(heading: number): Vector3 {
   return MODEL_FORWARD.clone().transformDirection(model.matrixWorld);
 }
 
-describe("robots face the direction they move", () => {
+describe("henchmen face the direction they move", () => {
   const moves: Array<[string, number, number]> = [
     ["+x", 1, 0],
     ["-x", -1, 0],

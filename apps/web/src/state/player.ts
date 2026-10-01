@@ -10,8 +10,8 @@
  * until it ends or is replaced; `gait` tells the avatar which cycle to play.
  */
 
-import type { Vec2 } from "@regulus/room-layout";
 import type { AvatarAnimation } from "@regulus/protocol";
+import type { Vec2 } from "@regulus/room-layout";
 import { create } from "zustand";
 import { cursorHeading } from "../scene/movement/cursorFacing.ts";
 import { type Gait, gaitForSpeed, selectSpeed } from "../scene/movement/gait.ts";
@@ -43,9 +43,9 @@ export interface PlayerStore extends Pose {
   pathRun: boolean;
   /** Walking or running, while `animation` is "walk". */
   gait: Gait;
-  /** True once `spawnAt` placed the avatar on a floor. */
+  /** True once `spawnAt` placed the avatar on an operation. */
   spawned: boolean;
-  /** Which floor the avatar was spawned on (see MovementController `floorKey`). */
+  /** Which operation the avatar was spawned on (see MovementController `operationKey`). */
   spawnKey: string | null;
   /** Metres walked since spawn; the footstep hook watches it. */
   distanceWalked: number;
@@ -74,8 +74,8 @@ export interface PlayerStore extends Pose {
   /**
    * Third person (#119): while standing, turn toward the floor point `(x, z)`
    * under the cursor at TURN_RATE for `dt` seconds. Does nothing while a
-   * path is being walked (the robot faces its travel then) or when the point
-   * is inside the dead zone around the robot's feet.
+   * path is being walked (the henchman faces its travel then) or when the point
+   * is inside the dead zone around the henchman's feet.
    */
   faceToward: (x: number, z: number, dt: number) => void;
   reset: () => void;

@@ -1,15 +1,15 @@
 /**
- * The search dialog (#41): `/` opens it. Typing searches chat and robots'
+ * The search dialog (#41): `/` opens it. Typing searches chat and henchmen'
  * terminal scrollback (debounced, the previous request aborted); results are
- * grouped by robot and by floor with the matching words highlighted.
- * Clicking a robot's hit walks the avatar to its desk (quick travel first
- * when it is on another floor) and opens its terminal at the match; a chat
- * hit on another floor takes the elevator there. Arrow keys move between
+ * grouped by henchman and by operation with the matching words highlighted.
+ * Clicking a henchman's hit walks the avatar to its desk (quick travel first
+ * when it is on another operation) and opens its terminal at the match; a chat
+ * hit on another operation takes the elevator there. Arrow keys move between
  * hits, Enter opens one.
  */
-import { LOBBY_FLOOR_ID, type SearchGroup, type SearchHit } from "@regulus/protocol";
+import { LOBBY_OPERATION_ID, type SearchGroup, type SearchHit } from "@regulus/protocol";
 import { type KeyboardEvent, useEffect, useId, useRef } from "react";
-import { useFloorStore } from "../../state/floor.ts";
+import { useOperationStore } from "../../state/operation.ts";
 import { travelTo } from "../../state/travel.ts";
 import { useUiStore } from "../../state/ui.ts";
 import { Modal } from "../components/Modal.tsx";
@@ -28,9 +28,9 @@ const FAILURE_TEXT: Record<SearchFailure, string> = {
 };
 
 function groupTitle(group: SearchGroup): string {
-  if (group.kind === "chat") return `Chat · ${group.floorName}`;
+  if (group.kind === "chat") return `Chat · ${group.operationName}`;
   const owner = group.ownerName ? ` (${group.ownerName})` : "";
-  return `${group.robotName ?? "Henchman"}${owner} · ${group.floorName}`;
+  return `${group.henchmanName ?? "Henchman"}${owner} · ${group.operationName}`;
 }
 
 function timeOf(ts: number): string {
@@ -87,7 +87,7 @@ export function SearchPanel({ api = defaultSearchApi, now = Date.now }: SearchPa
     if (group.kind === "scrollback" && group.agentId) {
       startJump({
         agentId: group.agentId,
-        floorId: group.floorId,
+        operationId: group.operationId,
         seatId: group.seatId,
         docId: hit.docId,
         query,
@@ -95,9 +95,9 @@ export function SearchPanel({ api = defaultSearchApi, now = Date.now }: SearchPa
       });
       return;
     }
-    const here = useFloorStore.getState().floorId ?? LOBBY_FLOOR_ID;
-    if (group.floorId !== here && group.floorId !== LOBBY_FLOOR_ID)
-      travelTo(group.floorId, { walkIn: true });
+    const here = useOperationStore.getState().operationId ?? LOBBY_OPERATION_ID;
+    if (group.operationId !== here && group.operationId !== LOBBY_OPERATION_ID)
+      travelTo(group.operationId, { walkIn: true });
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {

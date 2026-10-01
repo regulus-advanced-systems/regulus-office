@@ -14,7 +14,7 @@ export interface SpawnPrefill {
 }
 
 export interface SpawnRequest {
-  /** Seat the robot should take; the server checks it is free. */
+  /** Seat the henchman should take; the server checks it is free. */
   seatId: string;
   prefill?: SpawnPrefill;
 }

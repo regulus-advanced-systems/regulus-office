@@ -1,24 +1,24 @@
 /**
  * Left HUD panel since the compound (#186; replaces the elevator): where the
- * player is, quick travel (`F`), and for owners and admins "Add floor…",
+ * player is, quick travel (`F`), and for owners and admins "Add operation…",
  * which continues into build mode (#187). In a project room, its managers
  * get "Room settings…" (desks and decor, #187) and owners and admins
- * "Move room…" (build mode again). Floor settings live in the top bar (the
+ * "Move room…" (build mode again). Operation settings live in the top bar (the
  * room you are in) and in quick travel (any room).
  */
 import { useCompoundStore } from "../../state/compound.ts";
-import { useFloorStore } from "../../state/floor.ts";
-import { useFloorsStore } from "../../state/floors.ts";
+import { useOperationStore } from "../../state/operation.ts";
+import { useOperationsStore } from "../../state/operations.ts";
 import { canManageOffice, useSessionStore } from "../../state/session.ts";
 import { useUiStore } from "../../state/ui.ts";
 import { buildFrame } from "../build-mode/logic.ts";
 import { useBuildModeStore } from "../build-mode/store.ts";
 import { Button } from "../components/Button.tsx";
-import { ADD_FLOOR_OVERLAY } from "../floors/AddFloorDialog.tsx";
-import { canManageFloor } from "../floors/floorSettings.ts";
+import { ADD_OPERATION_OVERLAY } from "../operations/AddOperationDialog.tsx";
+import { canManageOperation } from "../operations/operationSettings.ts";
 import { Panel } from "../Panel.tsx";
 import { useRoomSettingsDock } from "../room-settings/RoomSettingsDock.tsx";
-import { useLocationName } from "./floorName.ts";
+import { useLocationName } from "./operationName.ts";
 import { QUICK_TRAVEL_OVERLAY } from "./QuickTravel.tsx";
 
 export function RoomsPanel() {
@@ -26,18 +26,20 @@ export function RoomsPanel() {
   const user = useSessionStore((s) => s.user);
   const openOverlay = useUiStore((s) => s.openOverlay);
   const here = useLocationName();
-  const floorId = useFloorStore((s) => s.floorId);
+  const operationId = useOperationStore((s) => s.operationId);
   const room = useCompoundStore((s) =>
-    floorId ? s.world?.rooms.find((r) => r.id === floorId && r.kind === "project") : undefined,
+    operationId
+      ? s.world?.rooms.find((r) => r.id === operationId && r.kind === "project")
+      : undefined,
   );
-  const manages = useFloorsStore((s) => canManageFloor(s.floors, floorId));
+  const manages = useOperationsStore((s) => canManageOperation(s.operations, operationId));
   const officeManager = canManageOffice(user?.role);
   const move = () => {
     const world = useCompoundStore.getState().world;
     if (!world || !room) return;
     useBuildModeStore
       .getState()
-      .start(world, { kind: "move", floorId: room.id, name: room.name }, buildFrame(world));
+      .start(world, { kind: "move", operationId: room.id, name: room.name }, buildFrame(world));
   };
   return (
     <Panel as="nav" title="Rooms" aria-label="Rooms">
@@ -59,7 +61,7 @@ export function RoomsPanel() {
             variant="secondary"
             size="sm"
             aria-haspopup="dialog"
-            onClick={() => openOverlay(ADD_FLOOR_OVERLAY)}
+            onClick={() => openOverlay(ADD_OPERATION_OVERLAY)}
           >
             New operation…
           </Button>

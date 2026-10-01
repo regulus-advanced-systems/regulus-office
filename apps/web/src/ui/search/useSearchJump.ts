@@ -1,14 +1,14 @@
 /**
- * Drives a jump-to-desk (#41): samples the floor, player and floor-list
+ * Drives a jump-to-desk (#41): samples the operation, player and operation-list
  * stores a few times a second, asks `nextJumpStep` what to do, and does it —
- * quick travel into the robot's room (#186), click-to-walk to its desk, then
+ * quick travel into the henchman's room (#186), click-to-walk to its desk, then
  * open its terminal with the match to reveal. Mount once (SearchHost does).
  */
 import { useEffect } from "react";
 import { roomLayout } from "../../scene/compound/layouts.ts";
 import { roomById } from "../../scene/compound/world.ts";
 import { useCompoundStore } from "../../state/compound.ts";
-import { useFloorStore } from "../../state/floor.ts";
+import { useOperationStore } from "../../state/operation.ts";
 import { usePlayerStore } from "../../state/player.ts";
 import { travelTo } from "../../state/travel.ts";
 import { useUiStore } from "../../state/ui.ts";
@@ -19,31 +19,31 @@ import { useSearchStore } from "./searchStore.ts";
 export const JUMP_TICK_MS = 150;
 
 export interface JumpDeps {
-  rideTo(floorId: string): void;
+  rideTo(operationId: string): void;
   openTerminal(agentId: string): void;
   now(): number;
 }
 
 const defaultDeps: JumpDeps = {
-  rideTo: (floorId) => void travelTo(floorId, { walkIn: true }),
+  rideTo: (operationId) => void travelTo(operationId, { walkIn: true }),
   openTerminal: (agentId) => useTerminalModal.getState().openTerminal(agentId),
   now: () => Date.now(),
 };
 
 /** The world as the jump sees it, read from the stores. */
 export function sampleWorld(target: JumpTarget, now: number): JumpWorld {
-  const floor = useFloorStore.getState();
+  const operation = useOperationStore.getState();
   const player = usePlayerStore.getState();
-  const state = floor.state?.floorId === target.floorId ? floor.state : null;
+  const state = operation.state?.operationId === target.operationId ? operation.state : null;
   const world = useCompoundStore.getState().world;
-  const room = world ? roomById(world, target.floorId) : undefined;
+  const room = world ? roomById(world, target.operationId) : undefined;
   const layout = room?.kind === "project" ? roomLayout(room) : null;
-  const seatId = state?.robots[target.agentId]?.seatId ?? target.seatId;
+  const seatId = state?.henchmen[target.agentId]?.seatId ?? target.seatId;
   const seat = state ? layout?.seats.find((s) => s.id === seatId) : undefined;
   return {
     now,
-    floorId: floor.floorId,
-    floorLoaded: state !== null,
+    operationId: operation.operationId,
+    operationLoaded: state !== null,
     playerReady: player.spawned && player.navigation !== null,
     player: { x: player.x, z: player.z },
     walking: player.target !== null,
@@ -59,7 +59,7 @@ export function tickJump(target: JumpTarget, progress: JumpProgress, deps: JumpD
   switch (step.kind) {
     case "ride":
       progress.rode = true;
-      deps.rideTo(target.floorId);
+      deps.rideTo(target.operationId);
       return true;
     case "walk":
       progress.walkingSince = now;

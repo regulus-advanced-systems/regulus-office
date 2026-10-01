@@ -1,5 +1,5 @@
 /**
- * Browser client for notifications (#42): my preferences, my waiting robots
+ * Browser client for notifications (#42): my preferences, my waiting henchmen
  * (tab badge), and, for owners/admins, the team webhook channels. A webhook
  * URL or bot token goes out in one request body; no response carries one.
  */

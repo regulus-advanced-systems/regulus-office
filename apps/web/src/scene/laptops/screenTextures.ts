@@ -1,5 +1,5 @@
 /**
- * One `CanvasTexture` per robot screen (SPEC §9.4), fed by the screen feed
+ * One `CanvasTexture` per henchman screen (SPEC §9.4), fed by the screen feed
  * and repainted through {@link RepaintThrottle} from the render loop, so a
  * hidden tab (render loop paused, SPEC §11) paints nothing.
  */
@@ -60,7 +60,7 @@ export class ScreenTextures {
     return painted;
   }
 
-  /** Drop textures of robots no longer shown. */
+  /** Drop textures of henchmen no longer shown. */
   retain(agentIds: ReadonlySet<string>): void {
     for (const [agentId, entry] of this.#entries) {
       if (agentIds.has(agentId)) continue;

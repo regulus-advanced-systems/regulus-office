@@ -46,7 +46,7 @@ const loggedIn: AccessByProvider = {
   codex: { login: true, profiles: [] },
 };
 const ctx = (access: AccessByProvider = loggedIn): SpawnContext => ({
-  floorId: "f1",
+  operationId: "f1",
   seatId: "desk-1-seat",
   repos,
   access,
@@ -220,7 +220,7 @@ describe("spawn form validation and payload", () => {
     expect(validateSpawnForm(base(), ctx())).toEqual({
       ok: true,
       payload: {
-        floorId: "f1",
+        operationId: "f1",
         repoId: "r-app",
         seatId: "desk-1-seat",
         provider: "claude-code",
@@ -276,7 +276,7 @@ describe("spawn form validation and payload", () => {
       [
         "autoWorktree",
         "effort",
-        "floorId",
+        "operationId",
         "model",
         "profileId",
         "prompt",

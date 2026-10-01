@@ -1,8 +1,8 @@
 /**
- * One floor template's scene, for the dev harness (`scene.html`); the office
+ * One room template's scene, for the dev harness (`scene.html`); the office
  * itself draws the whole compound (compound/CompoundCanvas.tsx, #186).
  * True-isometric orthographic camera over
- * a dollhouse room rendered from a floor template with toon shading, on a
+ * a dollhouse room rendered from a room template with toon shading, on a
  * cream vignette, with baked blob shadows under the furniture. Pixel ratio
  * 1, no tone mapping, render loop paused while the tab is hidden (SPEC §11).
  *
@@ -16,14 +16,14 @@
  */
 import { Canvas } from "@react-three/fiber";
 import {
-  type RoomTemplate,
   LOBBY_PALETTE_ID,
   lobbyTemplate,
   type Palette,
   paletteById,
+  type RoomTemplate,
 } from "@regulus/room-layout";
 import { type ReactNode, Suspense, useMemo } from "react";
-import { useFloorStore } from "../state/floor.ts";
+import { useOperationStore } from "../state/operation.ts";
 import { usePlayerStore } from "../state/player.ts";
 import { useViewStore } from "../state/view.ts";
 import { useViewHotkey } from "../ui/hud/ViewToggle.tsx";
@@ -45,12 +45,12 @@ import { Room } from "./room/Room.tsx";
 import { BlobShadows } from "./shadows/BlobShadows.tsx";
 
 export interface OfficeCanvasProps {
-  /** Floor to draw; the lobby until floor switching lands. */
+  /** Operation to draw; the lobby until operation switching lands. */
   template?: RoomTemplate;
   palette?: Palette;
   /** Name painted on the exterior stub wall; defaults to the template name. */
-  floorName?: string;
-  /** Robots and humans, mounted in `<group name="avatars">` after the room. */
+  operationName?: string;
+  /** Henchmen and humans, mounted in `<group name="avatars">` after the room. */
   avatars?: ReactNode;
   /** Anything else to add to the scene (bubbles, decals, debug helpers). */
   children?: ReactNode;
@@ -69,7 +69,7 @@ const DEFAULT_PALETTE = requirePalette(LOBBY_PALETTE_ID);
 export function OfficeCanvas({
   template = lobbyTemplate,
   palette = DEFAULT_PALETTE,
-  floorName,
+  operationName,
   avatars,
   children,
 }: OfficeCanvasProps) {
@@ -115,7 +115,7 @@ export function OfficeCanvas({
           showStats
             ? (state) => {
                 window.__regulusR3F = state;
-                window.__regulusFloorStore = useFloorStore;
+                window.__regulusOperationStore = useOperationStore;
               }
             : undefined
         }
@@ -135,7 +135,7 @@ export function OfficeCanvas({
         <Room
           template={template}
           palette={palette}
-          floorName={floorName}
+          operationName={operationName}
           frontWalls={firstPerson ? "full" : "stub"}
         />
         <Suspense fallback={null}>

@@ -1,9 +1,9 @@
 /**
- * Third-person cursor facing (#119): while standing, the local robot turns
+ * Third-person cursor facing (#119): while standing, the local henchman turns
  * toward the floor point under the mouse. Pure pieces live here so they can
  * be tested without a browser: screen-to-NDC, the ground-plane intersection
  * of the camera ray, the heading toward that point (with a dead zone around
- * the robot's feet) and the tracker that decides when the cursor counts.
+ * the henchman's feet) and the tracker that decides when the cursor counts.
  * The DOM listeners are in useCursorGround.ts; the store turns the avatar in
  * `faceToward` (state/player.ts).
  */
@@ -11,9 +11,9 @@ import type { Vec2 } from "@regulus/room-layout";
 import { headingOfTravel } from "./kinematics.ts";
 
 /**
- * Cursor points closer than this to the robot (metres) leave the heading
+ * Cursor points closer than this to the henchman (metres) leave the heading
  * alone: the angle is unstable right at its feet, and after a click-to-walk
- * the cursor rests exactly where the robot stops.
+ * the cursor rests exactly where the henchman stops.
  */
 export const CURSOR_DEADZONE = 0.35;
 
@@ -82,7 +82,7 @@ export interface CursorTracker {
   move(ndc: Ndc | null, overScene: boolean): void;
   /** The pointer left the window or the window lost focus. */
   clear(): void;
-  /** The cursor the robot should face this frame, or null to leave the heading alone. */
+  /** The cursor the henchman should face this frame, or null to leave the heading alone. */
   active(context: CursorContext): Ndc | null;
 }
 

@@ -3,7 +3,7 @@
  * idle, blue working, orange waiting-permission with a raised hand, red
  * error, dark exited. The enum has three more states than the spec lists;
  * they are mapped to the nearest listed state: `waiting_input` behaves like
- * `waiting_permission` (also a raised hand, see RobotState.handRaised),
+ * `waiting_permission` (also a raised hand, see HenchmanState.handRaised),
  * `done` like `idle`, `offline` like `exited`.
  */
 import type { AgentStatus } from "@regulus/protocol";
@@ -21,14 +21,14 @@ export const BULB_COLORS: Readonly<Record<AgentStatus, string>> = {
   offline: "#2B2B2B",
 };
 
-/** Bulb colour when no status applies (humans, PM robot). */
+/** Bulb colour when no status applies (humans, PM henchman). */
 export const NEUTRAL_BULB_COLOR = "#F2EFE6";
 
 export function bulbColorFor(status: AgentStatus | undefined): string {
   return status ? BULB_COLORS[status] : NEUTRAL_BULB_COLOR;
 }
 
-/** Statuses that raise the robot's hand (SPEC §9.3 "orange waiting-permission with a raised hand"). */
+/** Statuses that raise the henchman's hand (SPEC §9.3 "orange waiting-permission with a raised hand"). */
 export function handRaisedFor(status: AgentStatus | undefined): boolean {
   return status === "waiting_permission" || status === "waiting_input";
 }

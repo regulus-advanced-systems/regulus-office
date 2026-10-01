@@ -1,6 +1,6 @@
 /**
  * Sit anchors of the lair chairs (#183) a generated room's seats are drawn
- * with (#186), so seated robots and humans sit on the cushions the scene
+ * with (#186), so seated henchmen and humans sit on the cushions the scene
  * shows, not on the old Kenney chairs' measurements.
  */
 import type { RoomTemplate, SeatKind } from "@regulus/room-layout";

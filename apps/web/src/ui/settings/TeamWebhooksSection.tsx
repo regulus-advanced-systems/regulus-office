@@ -1,13 +1,13 @@
 /**
  * "Team notifications" in Settings, for owners and admins (#42): Slack,
- * Discord and Telegram channels with per-floor routing and per-event
+ * Discord and Telegram channels with per-operation routing and per-event
  * toggles, a "Send test" button, and the last delivery result. Webhook URLs
  * and bot tokens are write-only.
  */
 import type { NotificationChannelView } from "@regulus/protocol";
 import { useCallback, useEffect, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
-import { selectFloors, useBuildingStore } from "../../state/building.ts";
+import { selectOperations, useBuildingStore } from "../../state/building.ts";
 import { FormAlert } from "../auth/AuthCard.tsx";
 import { Button } from "../components/Button.tsx";
 import { Switch } from "../components/Switch.tsx";
@@ -26,7 +26,7 @@ import {
 type Editing = { mode: "new" } | { mode: "edit"; channel: NotificationChannelView } | null;
 
 export function TeamWebhooksSection({ api }: { api: NotificationsApi }) {
-  const floors = useBuildingStore(useShallow(selectFloors));
+  const operations = useBuildingStore(useShallow(selectOperations));
   const [channels, setChannels] = useState<NotificationChannelView[] | null>(null);
   const [canStore, setCanStore] = useState(true);
   const [editing, setEditing] = useState<Editing>(null);
@@ -60,7 +60,7 @@ export function TeamWebhooksSection({ api }: { api: NotificationsApi }) {
     run(async () => {
       const common = {
         label: value.label,
-        floorIds: value.floorIds,
+        operationIds: value.operationIds,
         events: value.events,
         ...(value.kind === "telegram" && value.chatId ? { chatId: value.chatId } : {}),
       };
@@ -101,11 +101,11 @@ export function TeamWebhooksSection({ api }: { api: NotificationsApi }) {
       await load();
     });
 
-  const floorNames = (ids: string[] | null) =>
+  const operationNames = (ids: string[] | null) =>
     ids === null
       ? "All operations"
       : ids
-          .map((id) => floors.find((f) => f.floorId === id)?.name ?? "removed operation")
+          .map((id) => operations.find((f) => f.operationId === id)?.name ?? "removed operation")
           .join(", ") || "No operations";
 
   return (
@@ -141,7 +141,7 @@ export function TeamWebhooksSection({ api }: { api: NotificationsApi }) {
               disabled={busy}
               onChange={(on) => void setEnabled(c, on)}
               label={`${KIND_LABELS[c.kind]}: ${c.label}`}
-              hint={`${floorNames(c.floorIds)} · ${c.events.map((e) => EVENT_SHORT_LABELS[e]).join(", ") || "no events"}`}
+              hint={`${operationNames(c.operationIds)} · ${c.events.map((e) => EVENT_SHORT_LABELS[e]).join(", ") || "no events"}`}
             />
             {c.lastDelivery && (
               <div className="rg-field__hint">

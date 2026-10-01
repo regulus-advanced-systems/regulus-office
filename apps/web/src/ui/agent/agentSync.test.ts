@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { CommandRejected } from "@regulus/protocol";
 import { create } from "zustand";
-import type { FloorStore } from "../../state/floor.ts";
+import type { OperationStore } from "../../state/operation.ts";
 import { createAgentStore } from "./agentStore.ts";
 import { syncAgentMessages } from "./agentSync.ts";
 
@@ -10,7 +10,7 @@ function fakeClient() {
   let rejected: ((n: CommandRejected) => void) | null = null;
   return {
     client: {
-      onFloorMessage: (type: string, cb: (p: unknown) => void) => {
+      onOperationMessage: (type: string, cb: (p: unknown) => void) => {
         listeners.set(type, cb);
         return () => listeners.delete(type);
       },
@@ -30,23 +30,23 @@ function fakeClient() {
 function setup() {
   const fake = fakeClient();
   const store = createAgentStore();
-  const floor = create<FloorStore>()((set) => ({
-    floorId: "f1",
+  const operation = create<OperationStore>()((set) => ({
+    operationId: "f1",
     state: null,
     apply: () => undefined,
-    setFloorId: (floorId) => set({ floorId }),
-    clear: () => set({ floorId: null }),
+    setOperationId: (operationId) => set({ operationId }),
+    clear: () => set({ operationId: null }),
   }));
   const toasts: string[] = [];
   const leaving: string[] = [];
   const off = syncAgentMessages({
     client: fake.client as never,
     store,
-    floor,
+    operation,
     toast: (t) => toasts.push(t.message),
     onLeaving: (id) => leaving.push(id),
   });
-  return { fake, store, floor, toasts, leaving, off };
+  return { fake, store, operation, toasts, leaving, off };
 }
 
 describe("agent message sync", () => {
@@ -84,14 +84,14 @@ describe("agent message sync", () => {
     expect(toasts).toEqual(["forbidden"]);
   });
 
-  test("a robot leaving starts its walk and is forgotten; a floor change resets", () => {
-    const { fake, store, floor, leaving, off } = setup();
+  test("a henchman leaving starts its walk and is forgotten; an operation change resets", () => {
+    const { fake, store, operation, leaving, off } = setup();
     store.getState().openAgentPanel("a1");
     fake.emit("agent.leaving", { agentId: "a1", reason: "sent_home" });
     expect(leaving).toEqual(["a1"]);
     expect(store.getState().panelAgentId).toBeNull();
     store.getState().openAgentPanel("a2");
-    floor.getState().setFloorId("f2");
+    operation.getState().setOperationId("f2");
     expect(store.getState().panelAgentId).toBeNull();
     off();
     expect(fake.count()).toBe(0);

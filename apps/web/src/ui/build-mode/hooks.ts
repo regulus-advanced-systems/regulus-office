@@ -33,7 +33,7 @@ export function useGhostCheck(api: CompoundApi): void {
     const timer = setTimeout(() => {
       const st = useBuildModeStore.getState();
       const placement = st.placement();
-      const skip = st.intent?.kind === "move" ? st.intent.floorId : undefined;
+      const skip = st.intent?.kind === "move" ? st.intent.operationId : undefined;
       void api.check(placement, skip).then((res) => {
         if (!res.ok) return;
         const check: ServerCheck = {
@@ -141,7 +141,7 @@ export function useBuildFollowers(): void {
   const follow = useBuildModeStore((s) => s.followMove);
   const moved = useCompoundStore((s) => {
     if (!follow) return false;
-    const r = s.world?.rooms.find((x) => x.id === follow.floorId);
+    const r = s.world?.rooms.find((x) => x.id === follow.operationId);
     const p = follow.placement;
     return Boolean(r && r.rect.x === p.gridX && r.rect.y === p.gridY && r.doorSide === p.doorSide);
   });
@@ -149,7 +149,7 @@ export function useBuildFollowers(): void {
     if (!follow || !moved) return;
     // The nav grid follows the world on the next render; travel after it.
     const t = setTimeout(() => {
-      travelTo(follow.floorId);
+      travelTo(follow.operationId);
       useBuildModeStore.setState({ followMove: null });
     }, 50);
     return () => clearTimeout(t);

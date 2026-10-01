@@ -52,7 +52,7 @@ describe("agent store", () => {
     expect(store.getState().panelAgentId).toBeNull();
   });
 
-  test("forget drops everything about a robot", () => {
+  test("forget drops everything about a henchman", () => {
     const store = createAgentStore();
     store.getState().openAgentPanel("a1");
     store.getState().setPermissions("a1", [req("p1")]);

@@ -1,5 +1,5 @@
 /** Draws `rugPieces`: rugs as two flat planes (border + field), patches as one flush plane. */
-import type { RoomTemplate, Palette } from "@regulus/room-layout";
+import type { Palette, RoomTemplate } from "@regulus/room-layout";
 import { useEffect, useMemo } from "react";
 import type { MeshToonMaterial } from "three";
 import { createToonMaterial } from "../materials/toon.ts";

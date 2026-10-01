@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import {
-  type RoomTemplate,
   largeTemplate,
   lobbyTemplate,
   officeL2Template,
+  type RoomTemplate,
   smallTemplate,
 } from "@regulus/room-layout";
 import type { BoardColumnView } from "../../ui/boards/columns.ts";

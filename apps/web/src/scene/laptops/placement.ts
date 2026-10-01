@@ -1,9 +1,9 @@
 /**
  * Where each desk seat's laptop sits (SPEC §9.4): on the seat's own desk,
  * a little in from the edge nearest the chair, screen facing the chair.
- * Pure maths over the floor template; only `desk` seats get a laptop.
+ * Pure maths over the room template; only `desk` seats get a laptop.
  */
-import type { RoomTemplate, ObstacleKind, Rect, Seat } from "@regulus/room-layout";
+import type { ObstacleKind, Rect, RoomTemplate, Seat } from "@regulus/room-layout";
 import { FURNITURE_MODELS, PLACEHOLDER_HEIGHTS } from "../furniture/catalog.ts";
 import { LAPTOP_DIMENSIONS } from "./dimensions.ts";
 

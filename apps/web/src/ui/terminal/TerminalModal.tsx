@@ -1,7 +1,7 @@
 /**
- * Live terminal modal (SPEC §9.4, §6 channel 3, D12): the robot's tmux
+ * Live terminal modal (SPEC §9.4, §6 channel 3, D12): the henchman's tmux
  * session in xterm.js, a watch/control indicator, "Take control" only for
- * the robot's owner (#138; everyone else, admins included, gets an "only X
+ * the henchman's owner (#138; everyone else, admins included, gets an "only X
  * can control" note), viewer faces, "X is typing", reconnect status. Counts as one of the ≤ 2 live DOM panels.
  *
  * While in control, every key (Escape and Tab included) goes to the
@@ -9,12 +9,12 @@
  *
  * Copy, paste and links work for watchers and controllers alike, and the
  * expand button grows the dialog to about 60 % of the window (#156).
- * When the robot's CLI asks its owner to sign in, the owner gets the
+ * When the henchman's CLI asks its owner to sign in, the owner gets the
  * sign-in link bar above the terminal (#158).
  */
 import { TERMINAL_DEFAULT_SIZE, type TerminalMode } from "@regulus/protocol";
 import { useEffect, useState } from "react";
-import { useFloorStore } from "../../state/floor.ts";
+import { useOperationStore } from "../../state/operation.ts";
 import { useSessionStore } from "../../state/session.ts";
 import { useUiStore } from "../../state/ui.ts";
 import { Button } from "../components/Button.tsx";
@@ -28,9 +28,9 @@ import {
   useTerminalExpanded,
   useViewportSize,
 } from "./expand.ts";
+import { HenchmanSignInLink } from "./HenchmanSignInLink.tsx";
 import { defaultTerminalDeps, type TerminalDeps } from "./host.ts";
 import { PANEL_PRIORITY, usePanelBudget } from "./panelBudget.ts";
-import { RobotSignInLink } from "./RobotSignInLink.tsx";
 import { TerminalPeople } from "./TerminalPeople.tsx";
 import { TerminalScreen } from "./TerminalScreen.tsx";
 import { useTerminalModal } from "./terminalStore.ts";
@@ -56,8 +56,8 @@ export function TerminalModal({
   deps = defaultTerminalDeps,
 }: TerminalModalProps) {
   const user = useSessionStore((s) => s.user);
-  const robot = useFloorStore((s) => s.state?.robots[agentId]);
-  const canControl = mayControlTerminal(user, robot?.ownerUserId);
+  const henchman = useOperationStore((s) => s.state?.henchmen[agentId]);
+  const canControl = mayControlTerminal(user, henchman?.ownerUserId);
   const [mode, setMode] = useState<TerminalMode>("watch");
   const [element, setElement] = useState<HTMLDivElement | null>(null);
 
@@ -103,8 +103,8 @@ export function TerminalModal({
     return () => element.removeEventListener("keydown", stop);
   }, [element, inControl]);
 
-  const title = robot
-    ? `${robot.ownerName}'s henchman: ${robot.taskTitle || robot.model}`
+  const title = henchman
+    ? `${henchman.ownerName}'s henchman: ${henchman.taskTitle || henchman.model}`
     : "Terminal";
   return (
     <Modal
@@ -132,9 +132,9 @@ export function TerminalModal({
               Release control
             </Button>
           )}
-          {!canControl && robot && (
+          {!canControl && henchman && (
             <span className="rg-term__watch-only" data-testid="terminal-watch-only">
-              Only {robot.ownerName || "its owner"} can control this henchman
+              Only {henchman.ownerName || "its owner"} can control this henchman
             </span>
           )}
           <TerminalPeople
@@ -145,10 +145,10 @@ export function TerminalModal({
           />
           <ExpandButton expanded={expanded} onToggle={toggleExpanded} />
         </div>
-        <RobotSignInLink
+        <HenchmanSignInLink
           host={host}
-          provider={robot?.provider}
-          isOwner={!!user && user.id === robot?.ownerUserId}
+          provider={henchman?.provider}
+          isOwner={!!user && user.id === henchman?.ownerUserId}
         />
         <div className="rg-search-reveal-host">
           <TerminalScreen

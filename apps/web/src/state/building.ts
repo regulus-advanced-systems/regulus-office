@@ -1,5 +1,5 @@
 /** BuildingRoom state mirror (SPEC §6 channel 1), patched by the net layer. */
-import type { BuildingState, FloorSummary, HumanPresence } from "@regulus/protocol";
+import type { BuildingState, HumanPresence, OperationSummary } from "@regulus/protocol";
 import { create } from "zustand";
 
 export interface BuildingStore {
@@ -20,10 +20,10 @@ export const useBuildingStore = create<BuildingStore>()((set) => ({
   clear: () => set({ state: null, sessionId: null }),
 }));
 
-/** Floors in their creation order (`index`). */
-export function selectFloors(store: BuildingStore): FloorSummary[] {
-  const floors = store.state ? Object.values(store.state.floors) : [];
-  return floors.sort((a, b) => a.index - b.index);
+/** Operations in their creation order (`index`). */
+export function selectOperations(store: BuildingStore): OperationSummary[] {
+  const operations = store.state ? Object.values(store.state.operations) : [];
+  return operations.sort((a, b) => a.index - b.index);
 }
 
 /** The local human's presence, if the server has published it. */

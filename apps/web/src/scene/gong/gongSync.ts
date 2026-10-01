@@ -1,9 +1,9 @@
 /**
  * Client side of the merge gong's messages (#43): `pr.merged` and `gong.ring`
- * from the FloorRoom ring it (store, sound) and a merge also shows a toast;
+ * from the OperationRoom ring it (store, sound) and a merge also shows a toast;
  * a refused `gong.bang` says why. Payloads are validated with the protocol
- * schemas, and a message for another floor than ours is ignored. Changing
- * floors forgets the last ring.
+ * schemas, and a message for another operation than ours is ignored. Changing
+ * operations forgets the last ring.
  */
 import {
   type CommandRejected,
@@ -14,7 +14,7 @@ import {
   PrMerged,
 } from "@regulus/protocol";
 import type { OfficeClient } from "../../net/officeClient.ts";
-import { useFloorStore } from "../../state/floor.ts";
+import { useOperationStore } from "../../state/operation.ts";
 import { selectReducedMotion, useUiStore } from "../../state/ui.ts";
 import { useGongStore } from "./gongStore.ts";
 import { playGong } from "./gongSynth.ts";
@@ -26,9 +26,9 @@ type Toast = (input: {
 }) => void;
 
 export interface GongSyncDeps {
-  client: Pick<OfficeClient, "onFloorMessage" | "onRejected">;
+  client: Pick<OfficeClient, "onOperationMessage" | "onRejected">;
   store?: typeof useGongStore;
-  floor?: typeof useFloorStore;
+  operation?: typeof useOperationStore;
   /** Ring the synth; defaults to the office's volume and reduced-motion settings. */
   play?: (strikes: number) => void;
   toast?: Toast;
@@ -42,17 +42,17 @@ function playWithSettings(strikes: number): void {
 /** Subscribe; returns the unsubscribe function. */
 export function syncGong(deps: GongSyncDeps): () => void {
   const store = deps.store ?? useGongStore;
-  const floor = deps.floor ?? useFloorStore;
+  const operation = deps.operation ?? useOperationStore;
   const play = deps.play ?? playWithSettings;
   const toast: Toast = deps.toast ?? ((input) => void useUiStore.getState().toast(input));
-  const here = (floorId: string) => floor.getState().floorId === floorId;
+  const here = (operationId: string) => operation.getState().operationId === operationId;
 
   const offs = [
-    deps.client.onFloorMessage(PR_MERGED_MESSAGE, (payload) => {
+    deps.client.onOperationMessage(PR_MERGED_MESSAGE, (payload) => {
       const parsed = PrMerged.safeParse(payload);
-      if (!parsed.success || !here(parsed.data.floorId)) return;
-      const { floorId, number, title } = parsed.data;
-      store.getState().heard({ floorId, cause: "merge", strikes: GONG_STRIKES.merge });
+      if (!parsed.success || !here(parsed.data.operationId)) return;
+      const { operationId, number, title } = parsed.data;
+      store.getState().heard({ operationId, cause: "merge", strikes: GONG_STRIKES.merge });
       play(GONG_STRIKES.merge);
       toast({
         kind: "success",
@@ -60,11 +60,11 @@ export function syncGong(deps: GongSyncDeps): () => void {
         message: `#${number} ${title}`.trim(),
       });
     }),
-    deps.client.onFloorMessage(GONG_RING_MESSAGE, (payload) => {
+    deps.client.onOperationMessage(GONG_RING_MESSAGE, (payload) => {
       const parsed = GongRing.safeParse(payload);
-      if (!parsed.success || !here(parsed.data.floorId)) return;
-      const { floorId, cause, strikes } = parsed.data;
-      store.getState().heard({ floorId, cause, strikes });
+      if (!parsed.success || !here(parsed.data.operationId)) return;
+      const { operationId, cause, strikes } = parsed.data;
+      store.getState().heard({ operationId, cause, strikes });
       play(strikes);
       if (cause === "queue_empty") {
         toast({ kind: "success", message: "The task queue is done: every task is finished." });
@@ -74,11 +74,11 @@ export function syncGong(deps: GongSyncDeps): () => void {
       if (notice.type === "gong.bang") toast({ kind: "info", message: notice.reason });
     }),
   ];
-  let floorId = floor.getState().floorId;
+  let operationId = operation.getState().operationId;
   offs.push(
-    floor.subscribe((s) => {
-      if (s.floorId === floorId) return;
-      floorId = s.floorId;
+    operation.subscribe((s) => {
+      if (s.operationId === operationId) return;
+      operationId = s.operationId;
       store.getState().forget();
     }),
   );

@@ -1,5 +1,5 @@
 /**
- * Laptop screen pictures (SPEC §9.4, research 01 §7): the robot's visible
+ * Laptop screen pictures (SPEC §9.4, research 01 §7): the henchman's visible
  * pane text drawn with Canvas 2D into a small texture, repainted at most
  * {@link SCREEN_REPAINT_MS} apart per laptop however often the text changes.
  */

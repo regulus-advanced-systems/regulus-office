@@ -1,9 +1,9 @@
 /**
- * The soft "ding" a robot makes when it raises its hand (SPEC §9.3 waiting
+ * The soft "ding" a henchman makes when it raises its hand (SPEC §9.3 waiting
  * for permission or input). Generated with WebAudio (two sine partials with
  * a bell envelope), no audio files. Silent with reduced motion or volume 0
- * (the settings the footsteps follow too), and rate-limited so a floor of
- * robots asking at once does not become a chime.
+ * (the settings the footsteps follow too), and rate-limited so an operation of
+ * henchmen asking at once does not become a chime.
  */
 
 let context: AudioContext | null = null;

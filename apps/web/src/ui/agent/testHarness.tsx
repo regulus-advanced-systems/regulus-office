@@ -1,32 +1,44 @@
-/** Test helpers for the agent UI: a robot on the floor, a signed-in user, a recording sender. */
-import type { FloorState, RobotState, UserRole } from "@regulus/protocol";
-import { floorFixture, robotFixture } from "@regulus/protocol/src/fixtures.ts";
+/** Test helpers for the agent UI: a henchman on the operation, a signed-in user, a recording sender. */
+import type { HenchmanState, OperationState, UserRole } from "@regulus/protocol";
+import { henchmanFixture, operationFixture } from "@regulus/protocol/src/fixtures.ts";
 import type { ReactNode } from "react";
-import { useFloorStore } from "../../state/floor.ts";
+import { useOperationStore } from "../../state/operation.ts";
 import { useSessionStore } from "../../state/session.ts";
 import { useUiStore } from "../../state/ui.ts";
 import { type AgentSender, AgentSenderContext } from "./agentCommands.ts";
 import { useAgentStore } from "./agentStore.ts";
 
-export const ROBOT_OWNER = "u-owner";
+export const HENCHMAN_OWNER = "u-owner";
 
-export function robot(patch: Partial<RobotState> = {}): RobotState {
-  return { ...robotFixture, agentId: "a1", ownerUserId: ROBOT_OWNER, ownerName: "Mia", ...patch };
+export function henchman(patch: Partial<HenchmanState> = {}): HenchmanState {
+  return {
+    ...henchmanFixture,
+    agentId: "a1",
+    ownerUserId: HENCHMAN_OWNER,
+    ownerName: "Mia",
+    ...patch,
+  };
 }
 
-export function seed(options: { role?: UserRole; userId?: string; robot?: Partial<RobotState> }) {
+export function seed(options: {
+  role?: UserRole;
+  userId?: string;
+  henchman?: Partial<HenchmanState>;
+}) {
   useAgentStore.getState().reset();
   useUiStore.setState({ overlay: null });
   useSessionStore.setState({
     status: "authenticated",
     user: {
-      id: options.userId ?? ROBOT_OWNER,
+      id: options.userId ?? HENCHMAN_OWNER,
       displayName: "Me",
       role: options.role ?? "member",
     },
   });
-  const r = robot(options.robot);
-  useFloorStore.getState().apply({ ...floorFixture, robots: { [r.agentId]: r } } as FloorState);
+  const r = henchman(options.henchman);
+  useOperationStore
+    .getState()
+    .apply({ ...operationFixture, henchmen: { [r.agentId]: r } } as OperationState);
   return r;
 }
 

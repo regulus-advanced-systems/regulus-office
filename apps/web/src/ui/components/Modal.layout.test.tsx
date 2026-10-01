@@ -29,7 +29,7 @@ async function openDialog() {
     <Modal
       open
       onClose={() => {}}
-      title={`Floor settings ${LONG_WORD}`}
+      title={`Operation settings ${LONG_WORD}`}
       footer={<Button variant="primary">Done</Button>}
     >
       <p>{LONG_WORD}</p>

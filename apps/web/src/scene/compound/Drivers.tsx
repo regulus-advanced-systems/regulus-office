@@ -1,7 +1,7 @@
 /**
  * Per-frame bookkeeping of the compound scene (#186), throttled:
  * - `Culling`: which rooms and corridor chunks the camera sees (4×/s);
- * - `RoomPresence`: which FloorRooms to be in (the room the player stands
+ * - `RoomPresence`: which OperationRooms to be in (the room the player stands
  *   in plus up to three nearest visible rooms, presence.ts), handed to the
  *   office client whenever the pick changes.
  */

@@ -1,13 +1,13 @@
 /**
  * "Open PR" (#33, SPEC §6 `agent.pr`): title and body prefilled from the
- * robot's task, a draft toggle, and the result: a link to the created (or
+ * henchman's task, a draft toggle, and the result: a link to the created (or
  * already open) PR, or the refusal, with the uncommitted files when the
  * worktree is dirty. Leaving the body empty lets the office draft it from
  * the commits.
  */
-import type { RobotState } from "@regulus/protocol";
+import type { HenchmanState } from "@regulus/protocol";
 import { useId, useState } from "react";
-import { useFloorStore } from "../../state/floor.ts";
+import { useOperationStore } from "../../state/operation.ts";
 import { Button } from "../components/Button.tsx";
 import { Modal } from "../components/Modal.tsx";
 import { Switch } from "../components/Switch.tsx";
@@ -17,18 +17,24 @@ import { FileList } from "./FileList.tsx";
 import { useAgentOverlay } from "./useAgentOverlay.ts";
 
 /** Prefill: the task title, and the task summary plus `Closes #n` for an issue. */
-export function draftFromRobot(robot: RobotState | undefined): { title: string; body: string } {
-  if (!robot) return { title: "", body: "" };
-  const body = [robot.taskSummary.trim(), robot.issueNumber ? `Closes #${robot.issueNumber}` : ""]
+export function draftFromHenchman(henchman: HenchmanState | undefined): {
+  title: string;
+  body: string;
+} {
+  if (!henchman) return { title: "", body: "" };
+  const body = [
+    henchman.taskSummary.trim(),
+    henchman.issueNumber ? `Closes #${henchman.issueNumber}` : "",
+  ]
     .filter(Boolean)
     .join("\n\n");
-  return { title: robot.taskTitle.trim(), body };
+  return { title: henchman.taskTitle.trim(), body };
 }
 
 export function PullRequestDialog() {
   const agentId = useAgentStore((s) => (s.dialog === "pr" ? s.panelAgentId : null));
   useAgentOverlay(agentId !== null, "agent-pr");
-  // Keyed so every opening starts from a fresh draft of the robot's task.
+  // Keyed so every opening starts from a fresh draft of the henchman's task.
   return agentId ? <PullRequestForm key={agentId} agentId={agentId} /> : null;
 }
 
@@ -39,11 +45,11 @@ function PullRequestForm({ agentId }: { agentId: string }) {
     s.refusal[agentId]?.type === "agent.pr" ? s.refusal[agentId] : undefined,
   );
   const busy = useAgentStore((s) => Boolean(s.inFlight[flightKey(agentId, "agent.pr")]));
-  const robot = useFloorStore((s) => s.state?.robots[agentId]);
+  const henchman = useOperationStore((s) => s.state?.henchmen[agentId]);
   const send = useAgentSender();
   const ids = { form: useId(), title: useId(), body: useId() };
-  // The robot keeps changing while the dialog is up; draft once.
-  const [drafted] = useState(() => draftFromRobot(robot));
+  // The henchman keeps changing while the dialog is up; draft once.
+  const [drafted] = useState(() => draftFromHenchman(henchman));
   const [draft, setDraft] = useState(true);
   const [submitted, setSubmitted] = useState(false);
 
@@ -99,7 +105,7 @@ function PullRequestForm({ agentId }: { agentId: string }) {
       ) : (
         <form id={ids.form} aria-label="Open pull request" onSubmit={submit}>
           <p className="rg-field__hint">
-            Pushes <code>{robot?.worktreeBranch || "the henchman's branch"}</code> with the
+            Pushes <code>{henchman?.worktreeBranch || "the henchman's branch"}</code> with the
             operation's repo token and opens the PR on GitHub.
           </p>
           <div className="rg-field">

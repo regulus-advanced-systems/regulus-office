@@ -16,7 +16,7 @@ const detail = (over: Partial<BoardCardDetail> = {}): BoardCardDetail => ({
   state: "open",
   merged: false,
   draft: false,
-  author: "robot",
+  author: "henchman",
   labels: ["perf"],
   assignees: [],
   url: "https://github.com/octo/hello/pull/9",
@@ -63,7 +63,7 @@ async function show(d: BoardCardDetail, canCarry = true) {
   const m = await renderPlain(
     <CardDetail
       api={api}
-      cardRef={{ floorId: "f1", kind: d.kind, repoId: d.repoId, number: d.number }}
+      cardRef={{ operationId: "f1", kind: d.kind, repoId: d.repoId, number: d.number }}
       summaryTitle={d.title}
       canCarry={canCarry}
       onBack={() => {}}

@@ -38,8 +38,8 @@ const track = <T extends { unmount: () => Promise<void> }>(m: T): T => {
 };
 
 describe("AgentPanel", () => {
-  test("the robot's owner sees status, task, model, owner and every control", async () => {
-    seed({ robot: { status: "working" } });
+  test("the henchman's owner sees status, task, model, owner and every control", async () => {
+    seed({ henchman: { status: "working" } });
     const { sent, wrap } = recorder();
     useAgentStore.getState().openAgentPanel("a1");
     const m = track(await mount(wrap(<AgentPanel />)));
@@ -72,8 +72,8 @@ describe("AgentPanel", () => {
     await m.unmount();
   });
 
-  test("a stopped robot offers resume and no prompt", async () => {
-    seed({ robot: { status: "exited" } });
+  test("a stopped henchman offers resume and no prompt", async () => {
+    seed({ henchman: { status: "exited" } });
     const { sent, wrap } = recorder();
     useAgentStore.getState().openAgentPanel("a1");
     const m = track(await mount(wrap(<AgentPanel />)));
@@ -84,9 +84,9 @@ describe("AgentPanel", () => {
     await m.unmount();
   });
 
-  test("a robot that failed to start shows why", async () => {
+  test("a henchman that failed to start shows why", async () => {
     const statusReason = "runner_busy: the runner needs a new mount but still runs 1 tmux session";
-    seed({ robot: { status: "error", action: "failing", statusReason } });
+    seed({ henchman: { status: "error", action: "failing", statusReason } });
     const { wrap } = recorder();
     useAgentStore.getState().openAgentPanel("a1");
     const m = track(await mount(wrap(<AgentPanel />)));
@@ -105,7 +105,7 @@ describe("AgentPanel", () => {
   ] as const)(
     "shows the permission mode (%s %s, #166)",
     async (provider, permissionMode, label) => {
-      seed({ robot: { provider, permissionMode }, role: "member", userId: "u-other" });
+      seed({ henchman: { provider, permissionMode }, role: "member", userId: "u-other" });
       const { wrap } = recorder();
       useAgentStore.getState().openAgentPanel("a1");
       const m = track(await mount(wrap(<AgentPanel />)));
@@ -115,7 +115,7 @@ describe("AgentPanel", () => {
   );
 
   test("no permissions row for a provider without modes", async () => {
-    seed({ robot: { provider: "custom", permissionMode: "" } });
+    seed({ henchman: { provider: "custom", permissionMode: "" } });
     const { wrap } = recorder();
     useAgentStore.getState().openAgentPanel("a1");
     const m = track(await mount(wrap(<AgentPanel />)));
@@ -144,7 +144,7 @@ describe("AgentPanel", () => {
   });
 
   test("the raised hand opens the permission prompt", async () => {
-    seed({ robot: { status: "waiting_permission", handRaised: true } });
+    seed({ henchman: { status: "waiting_permission", handRaised: true } });
     const { wrap } = recorder();
     useAgentStore.getState().setPermissions("a1", [request]);
     useAgentStore.getState().closePermissionPrompt();
@@ -158,7 +158,7 @@ describe("AgentPanel", () => {
 
 describe("PermissionDialog", () => {
   test("pops up with exactly what would run and answers with the chosen option", async () => {
-    seed({ robot: { status: "waiting_permission", handRaised: true } });
+    seed({ henchman: { status: "waiting_permission", handRaised: true } });
     const { sent, wrap } = recorder();
     const m = track(await mount(wrap(<PermissionDialog />)));
     expect(document.querySelector("[role=dialog]")).toBeNull();
@@ -234,7 +234,7 @@ describe("SendHomeDialog", () => {
 
 describe("PullRequestDialog", () => {
   test("prefills from the task, lists uncommitted files when refused, links the PR", async () => {
-    seed({ robot: { taskTitle: "Fix #8", taskSummary: "Wire types", issueNumber: 8 } });
+    seed({ henchman: { taskTitle: "Fix #8", taskSummary: "Wire types", issueNumber: 8 } });
     const { sent, wrap } = recorder();
     useAgentStore.getState().openAgentPanel("a1");
     useAgentStore.getState().openDialog("pr");

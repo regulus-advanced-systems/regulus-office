@@ -21,11 +21,11 @@ export interface RoomSettingsApiOptions {
 export function createRoomSettingsApi(options: RoomSettingsApiOptions = {}) {
   const base = options.baseUrl ?? "";
 
-  async function call(method: "GET" | "PUT", floorId: string, body?: unknown) {
+  async function call(method: "GET" | "PUT", operationId: string, body?: unknown) {
     const doFetch = options.fetch ?? fetch;
     let res: Response;
     try {
-      res = await doFetch(`${base}${roomSettingsPath(floorId)}`, {
+      res = await doFetch(`${base}${roomSettingsPath(operationId)}`, {
         method,
         credentials: "same-origin",
         headers: { accept: "application/json", "content-type": "application/json" },
@@ -57,9 +57,9 @@ export function createRoomSettingsApi(options: RoomSettingsApiOptions = {}) {
   }
 
   return {
-    get: (floorId: string): Promise<RoomSettingsResult> => call("GET", floorId),
-    update: (floorId: string, change: UpdateRoomSettingsRequest): Promise<RoomSettingsResult> =>
-      call("PUT", floorId, change),
+    get: (operationId: string): Promise<RoomSettingsResult> => call("GET", operationId),
+    update: (operationId: string, change: UpdateRoomSettingsRequest): Promise<RoomSettingsResult> =>
+      call("PUT", operationId, change),
   };
 }
 
@@ -70,9 +70,9 @@ export function describeRoomSettingsError(err: Extract<RoomSettingsResult, { ok:
   switch (err.code) {
     case "network_error":
       return "Could not reach the office server. Check your connection and try again.";
-    case "floor_manage_required":
+    case "operation_manage_required":
       return "Only room managers can change room settings.";
-    case "floor_not_found":
+    case "operation_not_found":
       return "This room is gone, or you no longer have access to it.";
     case "too_many_desks":
       return `This room fits at most ${err.maxDeskCount ?? "that many"} desks.`;

@@ -1,5 +1,5 @@
 /**
- * #163 against the real GLBs: the seated robot (robot.glb in the still seated
+ * #163 against the real GLBs: the seated henchman (robot.glb in the still seated
  * pose of #159) placed on every kind of seat with the placement the scene
  * uses, checked against the chair model as the scene places it.
  */
@@ -30,7 +30,7 @@ import {
   SEATED_HIPS,
   SEATED_SIT_DROP,
 } from "../avatar/seatedFit.ts";
-import { robotPlacement } from "../robots/seatPlacement.ts";
+import { henchmanPlacement } from "../henchmen/seatPlacement.ts";
 import type { SitSpec } from "./catalog.ts";
 import { CHAIR_MODEL, FURNITURE_MODELS } from "./catalog.ts";
 import { boxSize, centreBottomOffset, fitToFootprint } from "./placement.ts";
@@ -45,17 +45,17 @@ function loadGlb(url: string): Promise<GLTF> {
 const models = new Map<string, GLTF>();
 for (const spec of [CHAIR_MODEL, FURNITURE_MODELS.couch, FURNITURE_MODELS.armchair])
   if (spec) models.set(spec.url, await loadGlb(spec.url));
-const robot = await loadGlb(ROBOT_MODEL_URL);
+const henchman = await loadGlb(ROBOT_MODEL_URL);
 
 /** robot.glb in the still seated pose, scaled and turned as `RobotAvatar` draws it. */
-function seatedRobot(): Group {
-  const sitting = robot.animations.find((c) => c.name === ROBOT_CLIPS.sitting);
+function seatedHenchman(): Group {
+  const sitting = henchman.animations.find((c) => c.name === ROBOT_CLIPS.sitting);
   if (!sitting) throw new Error("robot.glb has no sitting clip");
-  const idle = seatedClips(sitting, (b) => findBone(robot.scene, b)?.quaternion.toArray()).find(
+  const idle = seatedClips(sitting, (b) => findBone(henchman.scene, b)?.quaternion.toArray()).find(
     (c) => c.name === SEATED_CLIPS.idle,
   );
   if (!idle) throw new Error("no seated idle clip");
-  const instance = cloneSkeleton(robot.scene);
+  const instance = cloneSkeleton(henchman.scene);
   const mixer = new AnimationMixer(instance);
   mixer.clipAction(idle).play();
   mixer.update(0.01);
@@ -81,7 +81,7 @@ const named = (root: Object3D, re: RegExp) => {
 };
 
 describe("robot.glb seated pose (seatedFit.ts)", () => {
-  const r = seatedRobot();
+  const r = seatedHenchman();
   r.updateMatrixWorld(true);
   const hips = findBone(r, "Hips")?.getWorldPosition(new Vector3());
   if (!hips) throw new Error("no Hips bone");
@@ -177,17 +177,17 @@ function placedChair(template: RoomTemplate, seat: Seat): Group {
 }
 
 /**
- * Chair vertices inside the robot's rigid body parts: in the part's box
+ * Chair vertices inside the henchman's rigid body parts: in the part's box
  * (shrunk by 5 mm) and inside its closed surface by ray parity. Reported as
  * part, then the point relative to the hips across / up / along the seat.
  */
-function chairPointsInsideBody(chair: Object3D, robotRoot: Object3D, seat: Seat, hips: Vector3) {
+function chairPointsInsideBody(chair: Object3D, henchmanRoot: Object3D, seat: Seat, hips: Vector3) {
   const out: Array<{ label: string; across: number; up: number; along: number }> = [];
   const v = new Vector3();
   const ray = new Raycaster();
   const fx = -Math.sin(seat.pose.heading);
   const fz = -Math.cos(seat.pose.heading);
-  for (const part of named(robotRoot, BODY)) {
+  for (const part of named(henchmanRoot, BODY)) {
     const material = part.material as Material;
     material.side = DoubleSide;
     part.geometry.computeBoundingBox();
@@ -240,7 +240,7 @@ function seatKinds(): Array<[string, RoomTemplate, Seat]> {
   return [...seen.values()];
 }
 
-describe("the seated robot on every kind of seat (#163)", () => {
+describe("the seated henchman on every kind of seat (#163)", () => {
   const kinds = seatKinds();
   test("covers desk, meeting, bistro, reception, armchair and couch seats", () => {
     expect(kinds.map(([k]) => k).sort()).toEqual([
@@ -258,8 +258,8 @@ describe("the seated robot on every kind of seat (#163)", () => {
   for (const [kind, template, seat] of kinds)
     test(kind, () => {
       const chair = placedChair(template, seat);
-      const r = seatedRobot();
-      const place = robotPlacement(seat, true, sitAnchor(template, seat));
+      const r = seatedHenchman();
+      const place = henchmanPlacement(seat, true, sitAnchor(template, seat));
       r.position.set(...place.position);
       r.rotation.y = place.rotationY;
       const scene = new Group();
@@ -275,7 +275,7 @@ describe("the seated robot on every kind of seat (#163)", () => {
       expect(cushion).toBeDefined();
       expect(Math.abs(hips.y - (cushion ?? 0))).toBeLessThanOrEqual(0.03);
 
-      // In front of the backrest: straight back from the hips, the chair is further than the robot's back.
+      // In front of the backrest: straight back from the hips, the chair is further than the henchman's back.
       const back = new Vector3(Math.sin(seat.pose.heading), 0, Math.cos(seat.pose.heading));
       for (let dy = 0.05; dy <= 0.5; dy += 0.05) {
         ray.set(new Vector3(hips.x, hips.y + dy, hips.z), back);

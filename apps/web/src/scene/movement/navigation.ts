@@ -8,9 +8,9 @@
 import {
   buildNavGrid,
   type Cell,
-  type RoomTemplate,
   findPath,
   type NavGrid,
+  type RoomTemplate,
   type Vec2,
 } from "@regulus/room-layout";
 

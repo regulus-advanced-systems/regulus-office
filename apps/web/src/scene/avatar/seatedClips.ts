@@ -3,11 +3,11 @@
  *
  * `Robot_Sitting` is not a seated loop: it is a 0.42 s sit-down transition
  * (the legs swing about 40° from the squat into the seated pose). Played on
- * loop, as every seated robot and human did, it snapped the legs back and
+ * loop, as every seated henchman and human did, it snapped the legs back and
  * swung them down again about 2.4 times a second: the "shaking" at the desk.
  *
  * The model has no seated idle or typing clip, so these are made here from
- * the last frame of `Robot_Sitting` (the robot at rest in the chair):
+ * the last frame of `Robot_Sitting` (the henchman at rest in the chair):
  *
  * - `SEATED_CLIPS.idle`: that pose, held. No motion at all.
  * - `SEATED_CLIPS.type`: forearms tapping in turn, the head nodding slightly
@@ -17,7 +17,7 @@
  *   `think` still applies on top).
  * - `SEATED_CLIPS.cheer`: the merge gong's seated celebration (#43): the
  *   head and arms of `Robot_Dance` and a side-to-side sway of the upper body
- *   over the seated legs, hips and body, so the robot dances in its chair and
+ *   over the seated legs, hips and body, so the henchman dances in its chair and
  *   ends in exactly the pose it started in.
  *
  * Every wiggle is a sine whose period divides the clip's duration, so the

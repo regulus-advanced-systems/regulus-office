@@ -4,7 +4,7 @@
  * pushed into the buffer straight from the building store subscription and
  * applied in useFrame, so a 20 Hz patch stream causes no React renders; only
  * the name, look and seat/doing/animation fields are subscribed. A seated
- * human sits on its seat's sit anchor like a robot does (#163). Whether it
+ * human sits on its seat's sit anchor like a henchman does (#163). Whether it
  * walks or runs (#223) is read from its interpolated speed (gait.ts), so
  * running needs nothing on the wire.
  */
@@ -20,9 +20,9 @@ import { roomArt } from "../compound/interiors.ts";
 import { lairAnchors } from "../compound/lairAnchors.ts";
 import { roomAt } from "../compound/world.ts";
 import { GeniusAvatar } from "../geniuses/GeniusAvatar.tsx";
+import { henchmanPlacement } from "../henchmen/seatPlacement.ts";
 import { createGaitTracker, type Gait } from "../movement/gait.ts";
 import { createPoseBuffer } from "../movement/remoteInterpolation.ts";
-import { robotPlacement } from "../robots/seatPlacement.ts";
 
 export interface RemoteAvatarProps {
   sessionId: string;
@@ -65,7 +65,7 @@ export function RemoteAvatar({ sessionId }: RemoteAvatarProps) {
     const layout = room ? roomArt(room).layout : null;
     const seat = layout?.seats.find((s) => s.id === seatId);
     if (!room || !layout || !seat) return null;
-    const place = robotPlacement(seat, true, lairAnchors(layout).get(seat.id));
+    const place = henchmanPlacement(seat, true, lairAnchors(layout).get(seat.id));
     const [x, y, z] = place.position;
     return {
       ...place,

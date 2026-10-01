@@ -5,7 +5,7 @@
  * built model by seatedFit.test.ts.
  *
  * The seated clip keeps the Hips bone straight above the origin, so the
- * robot's placement only lifts it onto the cushion and moves it forward of
+ * henchman's placement only lifts it onto the cushion and moves it forward of
  * the backrest (`seatedOffset(anchor, HENCHMAN_SEATED_BODY)`).
  */
 import type { SeatedBody } from "../avatar/seatedFit.ts";

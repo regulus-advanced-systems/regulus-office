@@ -6,8 +6,8 @@
  * queue clipboard by scene/queue (#37).
  */
 import {
-  type RoomTemplate,
   type Palette,
+  type RoomTemplate,
   type Wall,
   type WallAnchor,
   wallById,

@@ -31,7 +31,7 @@ describe("terminalDeskAt (#205)", () => {
         [0.6, 0.8],
       ] as const) {
         const at = { x: dx * d, z: dz * d };
-        // Unless the free desk is the nearest one within reach, E opens this robot's terminal.
+        // Unless the free desk is the nearest one within reach, E opens this henchman's terminal.
         const free = nearestSeat(seats, at, 1.6)?.id === "free";
         expect(terminalDeskAt(seats, at, occupied)?.id ?? null).toBe(free ? null : "busy");
       }

@@ -30,7 +30,7 @@ const MERGED: Parser<{ merged: boolean }> = {
 };
 
 export interface CardRef {
-  floorId: string;
+  operationId: string;
   kind: CardKind;
   repoId: string;
   number: number;
@@ -81,12 +81,12 @@ export function createBoardsApi(options: { fetch?: typeof fetch; baseUrl?: strin
   }
 
   const path = (c: CardRef, action?: "comment" | "assign" | "merge" | "close") =>
-    boardCardPath(c.floorId, c.kind, c.repoId, c.number, action);
+    boardCardPath(c.operationId, c.kind, c.repoId, c.number, action);
 
   return {
     detail: (c: CardRef) => call("GET", path(c), BoardCardDetail),
-    assignees: (floorId: string, repoId: string) =>
-      call("GET", boardAssigneesPath(floorId, repoId), BoardAssigneesResponse),
+    assignees: (operationId: string, repoId: string) =>
+      call("GET", boardAssigneesPath(operationId, repoId), BoardAssigneesResponse),
     comment: (c: CardRef, body: string) => call("POST", path(c, "comment"), BoardComment, { body }),
     assign: (c: CardRef, change: BoardAssignRequest) =>
       call("POST", path(c, "assign"), NO_CONTENT, change),

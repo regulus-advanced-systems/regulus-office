@@ -29,8 +29,8 @@ export interface RoomArt {
   pieces: PiecePlacement[];
   /**
    * Laptops on every desk as kit pieces (one instanced draw for all): every
-   * desk while the room's FloorRoom is not joined, the free desks while it is
-   * (robots' desks then get the live LaptopLayer laptop with its screen).
+   * desk while the room's OperationRoom is not joined, the free desks while it is
+   * (henchmen's desks then get the live LaptopLayer laptop with its screen).
    */
   laptops: PiecePlacement[];
   /** The desk seat of each of `laptops`, in the same order. */

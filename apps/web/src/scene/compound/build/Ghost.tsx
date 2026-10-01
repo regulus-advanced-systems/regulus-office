@@ -7,8 +7,8 @@
  * walk the player). Nothing here takes pointer hits.
  */
 import { useThree } from "@react-three/fiber";
-import { doorFront, doorStart } from "@regulus/room-layout";
 import type { DoorSide, TileRect } from "@regulus/protocol";
+import { doorFront, doorStart } from "@regulus/room-layout";
 import { useEffect, useMemo } from "react";
 import { BoxGeometry, EdgesGeometry, GridHelper, Raycaster, Vector2 } from "three";
 import { useCompoundStore } from "../../../state/compound.ts";
@@ -195,7 +195,8 @@ export function Ghost({ world }: { world: CompoundWorld }) {
   if (!intent) return null;
   const bad = verdict?.state === "refused";
   const color = bad ? BAD : OK;
-  const moving = intent.kind === "move" ? world2.rooms.find((r) => r.id === intent.floorId) : null;
+  const moving =
+    intent.kind === "move" ? world2.rooms.find((r) => r.id === intent.operationId) : null;
   const conflicts = (verdict?.conflicts ?? [])
     .map((id) => world2.rooms.find((r) => r.id === id || r.kind === id))
     .filter((r) => r !== undefined);

@@ -22,7 +22,7 @@ import { notificationBody, notificationTitle, wantsDesktop } from "./desktop.ts"
 
 export interface NotificationsState {
   prefs: NotificationPrefs | null;
-  /** My robots waiting for me (tab badge). */
+  /** My henchmen waiting for me (tab badge). */
   attention: string[];
   setPrefs(prefs: NotificationPrefs): void;
   setAttention(agentIds: string[]): void;
@@ -44,7 +44,7 @@ export interface NotificationSyncDeps {
   showDesktop(ev: NotifyEvent, onClick: () => void): boolean;
   hasFocus(): boolean;
   toast(input: ToastInput): void;
-  goToRobot(ev: NotifyEvent): void;
+  goToHenchman(ev: NotifyEvent): void;
   now?: () => Date;
 }
 
@@ -64,7 +64,7 @@ export function startNotificationSync(deps: NotificationSyncDeps): () => void {
     if (!parsed.success || !prefs) return;
     const ev = parsed.data;
     if (!wantsDesktop(ev, prefs, now())) return;
-    const open = () => deps.goToRobot(ev);
+    const open = () => deps.goToHenchman(ev);
     if (!deps.hasFocus() && deps.showDesktop(ev, open)) return;
     deps.toast({
       kind: ev.event === "error" ? "warning" : "info",

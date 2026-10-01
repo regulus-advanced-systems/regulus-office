@@ -3,7 +3,7 @@
  * where to fly. The counters register their element; the scene reads the
  * centre in client pixels when a bubble takes off.
  */
-import type { BubbleKind } from "../../scene/robots/bubbles/bubbleEmits.ts";
+import type { BubbleKind } from "../../scene/henchmen/bubbles/bubbleEmits.ts";
 
 const anchors = new Map<BubbleKind, HTMLElement>();
 

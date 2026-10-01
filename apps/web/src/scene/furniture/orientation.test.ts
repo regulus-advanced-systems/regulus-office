@@ -8,11 +8,11 @@
 import { describe, expect, test } from "bun:test";
 import {
   DIRECTION,
-  type RoomTemplate,
   HEADING,
   MAX_FACING_ERROR,
   type ObstacleKind,
   type Rect,
+  type RoomTemplate,
   seatFocus,
   TEMPLATES,
   tableFocus,

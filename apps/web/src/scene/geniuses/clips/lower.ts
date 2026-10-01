@@ -1,6 +1,6 @@
 /**
  * Lower-body motions (hips, legs, spine lean): standing, walking and seated.
- * The seated pose puts the hips where a seated robot's are (avatar/seatedFit.ts),
+ * The seated pose puts the hips where a seated henchman's are (avatar/seatedFit.ts),
  * so a genius sits on any seat's sit anchor without a separate fit.
  */
 import { SEATED_BACK_DEPTH, SEATED_HIPS, SEATED_SIT_DROP } from "../../avatar/seatedFit.ts";

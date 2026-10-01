@@ -46,7 +46,7 @@ describe("quick travel (#186)", () => {
   test("the published world only changes when something drawn does", () => {
     const counted = {
       ...world,
-      rooms: world.rooms.map((r) => (r.id === "apollo" ? { ...r, robotsWorking: 2 } : r)),
+      rooms: world.rooms.map((r) => (r.id === "apollo" ? { ...r, henchmenWorking: 2 } : r)),
     };
     expect(worldKey(counted)).not.toBe(worldKey(world));
     expect(worldKey({ ...world })).toBe(worldKey(world));

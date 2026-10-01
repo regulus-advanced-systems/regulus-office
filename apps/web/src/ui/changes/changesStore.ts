@@ -1,4 +1,4 @@
-/** Which robot's changes window is open (#38). The robot panel opens it. */
+/** Which henchman's changes window is open (#38). The henchman panel opens it. */
 import { create } from "zustand";
 
 export interface ChangesWindowStore {

@@ -175,7 +175,7 @@ export const uiSchemes = { light: lightScheme, dark: darkScheme } as const;
 export type SchemeName = keyof typeof uiSchemes;
 
 /**
- * Lamp colours for status chips. They are the robots' status-light colours
+ * Lamp colours for status chips. They are the henchmen's status-light colours
  * (scene/avatar/statusBulb.ts BULB_COLORS; a test keeps them equal), so a
  * chip in a panel shows the same lamp as the henchman in the world.
  */

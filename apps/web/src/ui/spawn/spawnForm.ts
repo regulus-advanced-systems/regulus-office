@@ -3,7 +3,7 @@
  * validation and the command payload. Pure, so the rules are tested without
  * a DOM. The main form asks for the repo, the model and the effort; the rest
  * has defaults (own worktree, the credential from `defaultCredential`, no
- * prompt: the robot starts idle and waits). The dialog never handles a
+ * prompt: the henchman starts idle and waits). The dialog never handles a
  * secret: a credential is chosen by profile id only.
  */
 import {
@@ -69,7 +69,7 @@ export interface SpawnRepoOption {
 }
 
 export interface SpawnContext {
-  floorId: string;
+  operationId: string;
   seatId: string;
   repos: readonly SpawnRepoOption[];
   /** Logins and profiles per provider, as far as they are known. */
@@ -138,7 +138,7 @@ export function effectiveCredential(values: SpawnFormValues, access: AccessByPro
   return values.profileId ?? defaultCredential(access[values.provider]);
 }
 
-/** The permission mode the robot will run in: the hand-picked one, else the provider default. */
+/** The permission mode the henchman will run in: the hand-picked one, else the provider default. */
 export function effectivePermissionModeOf(values: SpawnFormValues): PermissionMode | undefined {
   return values.permissionMode ?? defaultPermissionMode(values.provider);
 }
@@ -188,13 +188,13 @@ export function validateSpawnForm(values: SpawnFormValues, ctx: SpawnContext): S
 
   const profileId = effectiveCredential(values, ctx.access);
   const payload: SpawnPayload = {
-    floorId: ctx.floorId,
+    operationId: ctx.operationId,
     repoId: values.repoId,
     seatId: ctx.seatId,
     provider: values.provider,
     model: values.model,
     autoWorktree: values.autoWorktree,
-    // "" = no prompt: the robot starts idle and waits to be prompted.
+    // "" = no prompt: the henchman starts idle and waits to be prompted.
     prompt,
     ...(model?.efforts.length ? { effort } : {}),
     // Omitted = the provider default (Claude: auto mode; Codex: on-request).
@@ -203,7 +203,7 @@ export function validateSpawnForm(values: SpawnFormValues, ctx: SpawnContext): S
     ...(title ? { taskTitle: title } : {}),
     ...(issueNumber ? { issueNumber } : {}),
   };
-  // Last line of defence: the exact schema the FloorRoom validates with.
+  // Last line of defence: the exact schema the OperationRoom validates with.
   const parsed = parseClientCommand("agent.spawn", payload);
   if (!parsed.success) {
     const field = String(parsed.error.issues[0]?.path[0] ?? "model") as keyof SpawnFormValues;

@@ -1,12 +1,12 @@
 import { describe, expect, test } from "bun:test";
+import type { QueueTask } from "@regulus/protocol";
 import {
-  type RoomTemplate,
   largeTemplate,
   lobbyTemplate,
   officeL2Template,
+  type RoomTemplate,
   smallTemplate,
 } from "@regulus/room-layout";
-import type { QueueTask } from "@regulus/protocol";
 import { clipboardAnchors, clipboardInReach } from "./clipboardAnchors.ts";
 import { clipboardKey, layoutClipboard } from "./clipboardTexture.ts";
 

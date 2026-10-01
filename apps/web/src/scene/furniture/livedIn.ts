@@ -3,7 +3,7 @@
  * bookshelf, plants in a planter, props on furniture, wall decor pieces.
  * The components in `LivedIn.tsx` / `WallDecor.tsx` only draw the results.
  */
-import type { Decor, RoomTemplate, ObstacleKind, Rect } from "@regulus/room-layout";
+import type { Decor, ObstacleKind, Rect, RoomTemplate } from "@regulus/room-layout";
 import { FURNITURE_MODELS, PLACEHOLDER_HEIGHTS } from "./catalog.ts";
 
 /** Warm, muted spine colours for procedural books. */

@@ -1,8 +1,8 @@
 /**
- * Dev-only showcase (apps/web/dev/avatars.html): N robots with mixed
+ * Dev-only showcase (apps/web/dev/avatars.html): N henchmen with mixed
  * animations, colour sets, accessories, statuses, chest lights and name
  * plates on a plain ground, under the SPEC §9.2 orthographic camera, with an
- * fps counter for the SPEC §11 budget (20 robots at 60 fps, 1x pixel ratio).
+ * fps counter for the SPEC §11 budget (20 henchmen at 60 fps, 1x pixel ratio).
  * Not imported by the app; it is not part of the production build.
  */
 import { OrbitControls } from "@react-three/drei";
@@ -18,7 +18,7 @@ import { Suspense } from "react";
 import { colors } from "../../../ui/theme.ts";
 import { RobotAvatar } from "../RobotAvatar.tsx";
 import { FpsProbe } from "./FpsProbe.tsx";
-import { showcaseRobots } from "./roster.ts";
+import { showcaseHenchmen } from "./roster.ts";
 
 /** Same direction as scene/OfficeCanvas.tsx: yaw 45°, pitch 35.264° (SPEC §9.2). */
 const ISO_DISTANCE = 20;
@@ -33,7 +33,7 @@ export type ShowcaseOptions = {
   zoom: number;
   shadows: boolean;
   probe: boolean;
-  /** Force one animation / status on every robot (query `anim=`, `status=`). */
+  /** Force one animation / status on every henchman (query `anim=`, `status=`). */
   animation?: AvatarAnimation;
   status?: AgentStatus;
 };
@@ -57,7 +57,7 @@ export function showcaseOptionsFrom(search: string): ShowcaseOptions {
 }
 
 export function AvatarShowcase({ options }: { options: ShowcaseOptions }) {
-  const robots = showcaseRobots(options.count, options);
+  const henchmen = showcaseHenchmen(options.count, options);
   return (
     <Canvas
       orthographic
@@ -82,8 +82,8 @@ export function AvatarShowcase({ options }: { options: ShowcaseOptions }) {
         <meshToonMaterial color="#D8C79A" />
       </mesh>
       <Suspense fallback={null}>
-        {robots.map((robot) => (
-          <RobotAvatar key={robot.key} {...robot.props} />
+        {henchmen.map((henchman) => (
+          <RobotAvatar key={henchman.key} {...henchman.props} />
         ))}
       </Suspense>
       <FpsProbe probe={options.probe} />

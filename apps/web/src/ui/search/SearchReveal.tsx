@@ -1,10 +1,10 @@
 /**
- * The search match inside a robot's terminal modal (#41). A robot's live
+ * The search match inside a henchman's terminal modal (#41). A henchman's live
  * view is tmux on the alternate screen, which has no scrollback to scroll
  * to, so the modal opened from a search result first shows the indexed
  * scrollback around the hit, scrolled to the matching line and
  * highlighted, over the live terminal. "Back to live" removes it. The server checks again that the viewer may watch
- * this robot before it returns any line.
+ * this henchman before it returns any line.
  */
 import type { SearchContextResponse } from "@regulus/protocol";
 import { useEffect, useRef, useState } from "react";

@@ -1,10 +1,10 @@
 /**
- * "Running apps" (SPEC §9.4, #39): the dev servers robots on this floor run,
+ * "Running apps" (SPEC §9.4, #39): the dev servers henchmen on this operation run,
  * with an Open button that goes through the office's authenticated proxy
- * (`/p/<floor>/a/<agent>/port/<n>/`, a new tab). Hidden while there are none.
+ * (`/p/<operation>/a/<agent>/port/<n>/`, a new tab). Hidden while there are none.
  */
 import { useMemo } from "react";
-import { useFloorStore } from "../../state/floor.ts";
+import { useOperationStore } from "../../state/operation.ts";
 import { useSessionStore } from "../../state/session.ts";
 import { buttonClassName } from "../components/Button.tsx";
 import { Panel } from "../Panel.tsx";
@@ -50,7 +50,7 @@ export function RunningAppsList({ rows }: { rows: AppRow[] }) {
           <div className="rg-apps__text">
             <strong className="rg-apps__title">{row.title}</strong>
             <span className="rg-muted">
-              {row.robot} · :{row.port}
+              {row.henchman} · :{row.port}
             </span>
             {row.open === "localhost" && (
               <span className="rg-apps__note" data-kind="localhost">
@@ -76,7 +76,7 @@ export function RunningAppsList({ rows }: { rows: AppRow[] }) {
 }
 
 export function RunningApps() {
-  const state = useFloorStore((s) => s.state);
+  const state = useOperationStore((s) => s.state);
   const user = useSessionStore((s) => s.user);
   const rows = useMemo(() => appRows(state, user), [state, user]);
   if (rows.length === 0) return null;

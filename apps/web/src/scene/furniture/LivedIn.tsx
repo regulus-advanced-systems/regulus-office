@@ -3,7 +3,7 @@
  * books (one instanced mesh), a planter box with small Kenney plants, and the
  * small props on furniture (desk plants, books, mugs, fruit bowls).
  */
-import type { RoomTemplate, Palette, Rect } from "@regulus/room-layout";
+import type { Palette, Rect, RoomTemplate } from "@regulus/room-layout";
 import { useEffect, useMemo, useRef } from "react";
 import { Color, type InstancedMesh, Matrix4, type MeshToonMaterial } from "three";
 import { createToonMaterial, darken } from "../materials/toon.ts";

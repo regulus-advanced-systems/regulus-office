@@ -2,20 +2,21 @@
  * Small compounds for tests (#186): a published `BuildingState` slice built
  * by the real layout code (#181) and the client world made from it.
  */
+
+import {
+  DEFAULT_ROOM_SETTINGS,
+  type DecorStyle,
+  LOBBY_OPERATION_ID,
+  type OperationSummary,
+  type RoomPlacement,
+  UNPLACED_ROOM,
+} from "@regulus/protocol";
 import {
   compoundStateOf,
   computeCompoundLayout,
   defaultCompoundSpec,
   roomSummaryPlacement,
 } from "@regulus/room-layout";
-import {
-  DEFAULT_ROOM_SETTINGS,
-  type DecorStyle,
-  type FloorSummary,
-  LOBBY_FLOOR_ID,
-  type RoomPlacement,
-  UNPLACED_ROOM,
-} from "@regulus/protocol";
 import { type CompoundWorld, compoundWorld } from "./world.ts";
 
 export interface TestRoom {
@@ -35,16 +36,16 @@ export function testState(rooms: readonly TestRoom[], size = 48) {
     spec,
     rooms.map((r) => ({ id: r.id, placement: r.placement })),
   );
-  const floors: Record<string, FloorSummary> = {
-    [LOBBY_FLOOR_ID]: {
-      floorId: LOBBY_FLOOR_ID,
+  const operations: Record<string, OperationSummary> = {
+    [LOBBY_OPERATION_ID]: {
+      operationId: LOBBY_OPERATION_ID,
       name: "Lobby",
       slug: "lobby",
       index: 0,
       paletteId: "teal-cream",
-      robotsWorking: 0,
-      robotsWaiting: 0,
-      robotsTotal: 0,
+      henchmenWorking: 0,
+      henchmenWaiting: 0,
+      henchmenTotal: 0,
       humansPresent: 0,
       ...UNPLACED_ROOM,
       ...DEFAULT_ROOM_SETTINGS,
@@ -53,15 +54,15 @@ export function testState(rooms: readonly TestRoom[], size = 48) {
   };
   rooms.forEach((r, i) => {
     const laid = layout.rooms.find((l) => l.id === r.id);
-    floors[r.id] = {
-      floorId: r.id,
+    operations[r.id] = {
+      operationId: r.id,
       name: r.name ?? r.id,
       slug: r.id,
       index: i + 1,
       paletteId: "oak-sky",
-      robotsWorking: r.working ?? 0,
-      robotsWaiting: r.waiting ?? 0,
-      robotsTotal: (r.working ?? 0) + (r.waiting ?? 0),
+      henchmenWorking: r.working ?? 0,
+      henchmenWaiting: r.waiting ?? 0,
+      henchmenTotal: (r.working ?? 0) + (r.waiting ?? 0),
       humansPresent: 0,
       ...UNPLACED_ROOM,
       ...(laid ? roomSummaryPlacement(laid) : {}),
@@ -70,7 +71,7 @@ export function testState(rooms: readonly TestRoom[], size = 48) {
       decorStyle: r.decorStyle ?? "ops_room",
     };
   });
-  return { compound: compoundStateOf(layout), floors };
+  return { compound: compoundStateOf(layout), operations };
 }
 
 /** The client world of a test compound; `enterable` defaults to every room. */

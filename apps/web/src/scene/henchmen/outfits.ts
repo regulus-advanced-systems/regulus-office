@@ -2,7 +2,7 @@
  * Outfit layers over the jumpsuit body (#184): the lab coat's tails and
  * lapels, the black-ops vest, the chef's buttons, apron and neckerchief, the
  * number two's lapels and tie. Whatever a skin has in the provider colour
- * (`trim`) keeps the robot's provider readable under any skin.
+ * (`trim`) keeps the henchman's provider readable under any skin.
  */
 import { box, cylinder, ellipsoid, lathe, type Part, part } from "./shapes.ts";
 

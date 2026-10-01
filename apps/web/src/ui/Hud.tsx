@@ -1,5 +1,5 @@
 /**
- * HUD layered over the office canvas: top bar, floor work counters, status box, rooms panel,
+ * HUD layered over the office canvas: top bar, operation work counters, status box, rooms panel,
  * lobby chat, corner buttons for settings and shortcut help, build mode and room settings
  * (docked bottom right, #187), dialogs and toasts.
  * The container ignores pointer events so the scene stays clickable
@@ -13,8 +13,6 @@ import { ChatPanel } from "./chat/ChatPanel.tsx";
 import { Button } from "./components/Button.tsx";
 import { GearIcon, QuestionIcon } from "./components/icons.tsx";
 import { Modal } from "./components/Modal.tsx";
-import { AddFloorDialogHost } from "./floors/AddFloorDialog.tsx";
-import { FloorSettingsDialogHost } from "./floors/FloorSettingsDialog.tsx";
 import { HotkeyList } from "./hotkeys/HotkeyHelp.tsx";
 import { useGlobalHotkeys } from "./hotkeys/useHotkeys.ts";
 import { QuickTravelDialog, useQuickTravelHotkey } from "./hud/QuickTravel.tsx";
@@ -23,6 +21,8 @@ import { StatusBox } from "./hud/StatusBox.tsx";
 import { TopBar } from "./hud/TopBar.tsx";
 import { WorkCounters } from "./hud/WorkCounters.tsx";
 import { NotificationsHost } from "./notifications/NotificationsHost.tsx";
+import { AddOperationDialogHost } from "./operations/AddOperationDialog.tsx";
+import { OperationSettingsDialogHost } from "./operations/OperationSettingsDialog.tsx";
 import { ProvidersPanelHost } from "./providers/ProvidersPanel.tsx";
 import { QueueHost } from "./queue/QueueHost.tsx";
 import { RoomSettingsDock } from "./room-settings/RoomSettingsDock.tsx";
@@ -61,8 +61,8 @@ export function HudDialogs() {
       >
         <HotkeyList />
       </Modal>
-      <AddFloorDialogHost />
-      <FloorSettingsDialogHost />
+      <AddOperationDialogHost />
+      <OperationSettingsDialogHost />
       <ProvidersPanelHost />
       <WorkflowsPanelHost />
       <SpawnDialogHost />

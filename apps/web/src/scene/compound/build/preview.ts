@@ -9,7 +9,7 @@ import { create } from "zustand";
 import type { WorldRoom } from "../world.ts";
 
 export interface RoomDraft {
-  floorId: string;
+  operationId: string;
   deskCount: number;
   decorStyle: DecorStyle;
 }
@@ -30,7 +30,7 @@ export function withDraft(
   if (!draft) return rooms;
   let changed = false;
   const out = rooms.map((r) => {
-    if (r.id !== draft.floorId || r.kind !== "project") return r;
+    if (r.id !== draft.operationId || r.kind !== "project") return r;
     if (r.deskCount === draft.deskCount && r.decorStyle === draft.decorStyle) return r;
     changed = true;
     return { ...r, deskCount: draft.deskCount, decorStyle: draft.decorStyle };

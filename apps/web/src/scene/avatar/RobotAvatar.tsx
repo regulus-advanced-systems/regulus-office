@@ -58,7 +58,7 @@ export type RobotAvatarProps = Omit<ThreeElements["group"], "ref" | "children"> 
   animation?: AvatarAnimation;
   /** Agent status; drives the antenna bulb colour and the raised hand. Omit for humans. */
   status?: AgentStatus;
-  /** Force the raised hand regardless of status (RobotState.handRaised). */
+  /** Force the raised hand regardless of status (HenchmanState.handRaised). */
   handRaised?: boolean;
   /** Provider chest light colour (agents). Omit to hide the light. */
   chestLight?: string;
@@ -67,9 +67,9 @@ export type RobotAvatarProps = Omit<ThreeElements["group"], "ref" | "children"> 
   plateStyle?: NamePlateStyle;
   /** Show the human badge mesh. */
   badge?: boolean;
-  /** Stay in the chair: seated stand-ins for read/think instead of a standing idle (robots at desks). */
+  /** Stay in the chair: seated stand-ins for read/think instead of a standing idle (henchmen at desks). */
   seated?: boolean;
-  /** Seated robots dance in their chair for the merge gong (#43); ignored when standing. */
+  /** Seated henchmen dance in their chair for the merge gong (#43); ignored when standing. */
   cheer?: boolean;
 };
 

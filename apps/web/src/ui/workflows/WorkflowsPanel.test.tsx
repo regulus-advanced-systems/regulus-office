@@ -1,4 +1,4 @@
-/** The floor's workflows panel (#155): list, editor rules, dry run, run history. */
+/** The operation's workflows panel (#155): list, editor rules, dry run, run history. */
 import { afterEach, describe, expect, test } from "bun:test";
 import {
   defaultWorkflowSpec,
@@ -12,8 +12,8 @@ import { button, settle, text } from "../auth/testDom.tsx";
 import { createWorkflowsApi } from "./api.ts";
 import { WorkflowsBody } from "./WorkflowsPanel.tsx";
 import {
-  floorIdFromWorkflowsOverlay,
   formatDuration,
+  operationIdFromWorkflowsOverlay,
   targetLabel,
   textToPatterns,
   triggerSummary,
@@ -26,7 +26,7 @@ const WF: WorkflowView = {
   ...defaultWorkflowSpec(),
   enabled: true,
   id: "w1",
-  floorId: "f1",
+  operationId: "f1",
   createdBy: "u1",
   createdAt: 1,
   updatedAt: 1,
@@ -36,7 +36,7 @@ const RUN: WorkflowRunView = {
   id: "run-1",
   workflowId: "w1",
   workflowName: WF.name,
-  floorId: "f1",
+  operationId: "f1",
   trigger: "pull_request.opened",
   deliveryId: "d1",
   target: {
@@ -51,7 +51,7 @@ const RUN: WorkflowRunView = {
   reason: null,
   provider: "claude-code",
   model: null,
-  robot: "Reviewer RUN-",
+  henchman: "Reviewer RUN-",
   queuedAt: 1,
   startedAt: 1_000,
   finishedAt: 43_000,
@@ -81,7 +81,7 @@ async function show(
         events: [
           {
             id: "e1",
-            floorIds: ["f1"],
+            operationIds: ["f1"],
             name: "pull_request.opened",
             repo: "octo/hello",
             summary: "octo/hello#7 Add b",
@@ -95,7 +95,7 @@ async function show(
   });
   mounted.push(
     await mount(
-      <WorkflowsBody floorId="f1" api={createWorkflowsApi({ fetch: f.fetch })} pollMs={0} />,
+      <WorkflowsBody operationId="f1" api={createWorkflowsApi({ fetch: f.fetch })} pollMs={0} />,
     ),
   );
   await settle();
@@ -104,8 +104,8 @@ async function show(
 
 describe("helpers", () => {
   test("overlay ids, patterns and labels", () => {
-    expect(floorIdFromWorkflowsOverlay(workflowsOverlay("f1"))).toBe("f1");
-    expect(floorIdFromWorkflowsOverlay("floor-settings:f1")).toBeNull();
+    expect(operationIdFromWorkflowsOverlay(workflowsOverlay("f1"))).toBe("f1");
+    expect(operationIdFromWorkflowsOverlay("operation-settings:f1")).toBeNull();
     expect(textToPatterns("main\n release/*, \n\n")).toEqual(["main", "release/*"]);
     expect(triggerSummary({ kind: "command", command: "review" })).toBe("/office review");
     expect(targetLabel(RUN)).toBe("octo/hello#7");
@@ -114,7 +114,7 @@ describe("helpers", () => {
 });
 
 describe("workflows panel", () => {
-  test("floor members see workflows and runs but cannot edit", async () => {
+  test("operation members see workflows and runs but cannot edit", async () => {
     await show({ missing: ["github_app"] });
     expect(text()).toContain(WF.name);
     expect(text()).toContain("today 2 runs, 12.5k tokens");
@@ -153,7 +153,7 @@ describe("workflows panel", () => {
     const sent = f.calls.find((c) => c.method === "POST")?.body as Record<string, unknown> & {
       actions: Record<string, { enabled: boolean }>;
     };
-    expect(sent.floorId).toBe("f1");
+    expect(sent.operationId).toBe("f1");
     expect(Object.values(sent.actions).every((a) => a.enabled === false)).toBe(true);
   });
 
@@ -168,7 +168,7 @@ describe("workflows panel", () => {
             target: RUN.target,
             prompt: "Review <<<UNTRUSTED-preview\nAdd b\nUNTRUSTED-preview>>>",
             actions: ["PR review (comment review) with inline comments"],
-            safety: ["the robot does not run any code from the PR"],
+            safety: ["the henchman does not run any code from the PR"],
           },
         },
       },

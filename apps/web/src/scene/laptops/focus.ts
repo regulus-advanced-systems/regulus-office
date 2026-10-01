@@ -32,7 +32,7 @@ export function nearestSeat(
  * terminal, and `E` opens that terminal; one rule for both, so wherever the
  * live panel shows, `E` reaches it. The nearest desk within
  * `DESK_INTERACT_RADIUS` decides first: a free one is the spawn dialog's
- * (robots/deskInteraction.ts), so neither shows nor opens a terminal.
+ * (henchmen/deskInteraction.ts), so neither shows nor opens a terminal.
  */
 export function terminalDeskAt(
   seats: readonly Seat[],

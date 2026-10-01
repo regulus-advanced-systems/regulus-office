@@ -2,12 +2,7 @@
  * Places every obstacle, seat chair and the elevator from the floor template
  * (SPEC §9.1): Kenney GLBs where the catalog has one, boxes otherwise.
  */
-import {
-  type RoomTemplate,
-  type ObstacleKind,
-  type Palette,
-  wallById,
-} from "@regulus/room-layout";
+import { type ObstacleKind, type Palette, type RoomTemplate, wallById } from "@regulus/room-layout";
 import { chairForSeat, FURNITURE_MODELS, PLACEHOLDER_HEIGHTS, smallPlantUrl } from "./catalog.ts";
 import { GltfProp } from "./GltfProp.tsx";
 import { Bookshelf, Planter, PropLayer } from "./LivedIn.tsx";

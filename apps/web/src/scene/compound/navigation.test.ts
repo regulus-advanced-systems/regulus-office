@@ -93,7 +93,7 @@ describe("the compound nav grid (#186)", () => {
     expect(navKey(opened)).not.toBe(navKey(world));
     const counted: CompoundWorld = {
       ...world,
-      rooms: world.rooms.map((r) => (r.id === "apollo" ? { ...r, robotsWorking: 3 } : r)),
+      rooms: world.rooms.map((r) => (r.id === "apollo" ? { ...r, henchmenWorking: 3 } : r)),
     };
     expect(navKey(counted)).toBe(navKey(world));
   });

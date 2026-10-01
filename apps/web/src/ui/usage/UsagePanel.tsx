@@ -1,6 +1,6 @@
 /**
  * HUD usage panel (#40, SPEC §9.4): the viewer's own plan windows and spend,
- * plus the office totals and today's top robots (name and owner only).
+ * plus the office totals and today's top henchmen (name and owner only).
  * Unfolds inside the status box; opened from its "Usage" button or by
  * clicking a usage screen in the world.
  * Shows usage only; nothing is capped (D13).

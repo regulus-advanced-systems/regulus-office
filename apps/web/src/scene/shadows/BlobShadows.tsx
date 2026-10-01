@@ -2,7 +2,7 @@
  * Floor blobs under every obstacle and chair in the template. `BlobShadow`
  * is exported on its own so avatars can carry one.
  */
-import type { RoomTemplate, Rect } from "@regulus/room-layout";
+import type { Rect, RoomTemplate } from "@regulus/room-layout";
 import { useMemo } from "react";
 import { MeshBasicMaterial } from "three";
 import { chairForSeat } from "../furniture/catalog.ts";
