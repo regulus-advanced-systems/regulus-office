@@ -10,7 +10,7 @@ Only the models the scene actually places are checked in, unmodified from the ki
 client swaps their materials for `MeshToonMaterial` and recolours some of them to the floor
 palette at load time (`apps/web/src/scene/furniture/catalog.ts`).
 
-| File | Used for (floor-layout kind) |
+| File | Used for (room-layout kind) |
 |---|---|
 | `desk.glb` | `reception_desk`, `desk` |
 | `chairDesk.glb` | chairs at `desk` / `reception` seats |

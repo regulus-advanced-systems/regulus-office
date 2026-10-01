@@ -5,7 +5,7 @@
  * performance gate measures 12), and fake remote humans (`humans=<n>`, the
  * local player included) strolling round the Dev room. Not part of the build.
  */
-import { defaultCompoundSpec, findPlacement } from "@regulus/floor-layout";
+import { defaultCompoundSpec, findPlacement } from "@regulus/room-layout";
 import {
   ARCHETYPE_DEFAULTS,
   type BuildingState,

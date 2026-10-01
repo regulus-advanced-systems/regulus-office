@@ -20,7 +20,7 @@ import {
   planMigration,
   type ReconcileInput,
   reconcilePlacements,
-} from "@regulus/floor-layout";
+} from "@regulus/room-layout";
 import { asc, isNull } from "drizzle-orm";
 import { AUDIT_ACTIONS, type DbOrTx, writeAudit } from "../auth/audit.ts";
 import type { Db } from "../db/index.ts";

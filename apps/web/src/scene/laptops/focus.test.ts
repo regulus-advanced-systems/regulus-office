@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { Seat } from "@regulus/floor-layout";
+import type { Seat } from "@regulus/room-layout";
 import { DESK_FOCUS_RADIUS, nearestSeat, terminalDeskAt } from "./focus.ts";
 
 const seat = (id: string, x: number, z: number, kind: Seat["kind"] = "desk"): Seat => ({

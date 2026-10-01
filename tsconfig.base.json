@@ -18,7 +18,7 @@
     "paths": {
       "@regulus/protocol": ["./packages/protocol/src/index.ts"],
       "@regulus/agent-adapters": ["./packages/agent-adapters/src/index.ts"],
-      "@regulus/floor-layout": ["./packages/floor-layout/src/index.ts"]
+      "@regulus/room-layout": ["./packages/room-layout/src/index.ts"]
     }
   }
 }

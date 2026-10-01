@@ -10,10 +10,10 @@ import { z } from "zod";
 // ---- Enums -----------------------------------------------------------------
 
 /** Desk-count tiers for project floors (SPEC §9.1). The lobby is its own kind. */
-export const FLOOR_TIERS = ["small", "medium", "large"] as const;
-export type FloorTier = (typeof FLOOR_TIERS)[number];
+export const ROOM_TIERS = ["small", "medium", "large"] as const;
+export type RoomTier = (typeof ROOM_TIERS)[number];
 
-export const TEMPLATE_KINDS = ["lobby", ...FLOOR_TIERS] as const;
+export const TEMPLATE_KINDS = ["lobby", ...ROOM_TIERS] as const;
 export type TemplateKind = (typeof TEMPLATE_KINDS)[number];
 
 /** Desk seats are agent workstations; the rest are for humans / the PM robot. */
@@ -207,7 +207,7 @@ export type Decor = z.infer<typeof DecorSchema>;
 
 // ---- Template ------------------------------------------------------------------
 
-export const FloorTemplateSchema = z.object({
+export const RoomTemplateSchema = z.object({
   id: z.string().min(1).max(64),
   name: z.string().min(1).max(80),
   kind: z.enum(TEMPLATE_KINDS),
@@ -230,9 +230,9 @@ export const FloorTemplateSchema = z.object({
   elevator: ElevatorSchema,
   spawn: PoseSchema,
 });
-export type FloorTemplate = z.infer<typeof FloorTemplateSchema>;
+export type RoomTemplate = z.infer<typeof RoomTemplateSchema>;
 /** What template authors write (defaults not yet applied). */
-export type FloorTemplateInput = z.input<typeof FloorTemplateSchema>;
+export type RoomTemplateInput = z.input<typeof RoomTemplateSchema>;
 
 // ---- Palette -------------------------------------------------------------------
 

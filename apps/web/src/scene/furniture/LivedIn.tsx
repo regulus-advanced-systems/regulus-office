@@ -3,7 +3,7 @@
  * books (one instanced mesh), a planter box with small Kenney plants, and the
  * small props on furniture (desk plants, books, mugs, fruit bowls).
  */
-import type { FloorTemplate, Palette, Rect } from "@regulus/floor-layout";
+import type { RoomTemplate, Palette, Rect } from "@regulus/room-layout";
 import { useEffect, useMemo, useRef } from "react";
 import { Color, type InstancedMesh, Matrix4, type MeshToonMaterial } from "three";
 import { createToonMaterial, darken } from "../materials/toon.ts";
@@ -169,7 +169,7 @@ function FruitBowl({ m }: { m: Record<keyof typeof PROP_COLORS, MeshToonMaterial
 }
 
 /** Small props standing on furniture (`template.decor`). */
-export function PropLayer({ template, palette }: { template: FloorTemplate; palette: Palette }) {
+export function PropLayer({ template, palette }: { template: RoomTemplate; palette: Palette }) {
   const placed = useMemo(() => propPlacements(template), [template]);
   const m = useMemo(() => {
     const out = {} as Record<keyof typeof PROP_COLORS, MeshToonMaterial>;

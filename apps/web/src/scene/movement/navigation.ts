@@ -1,6 +1,6 @@
 /**
  * Nav grid and path planning for click-to-walk (SPEC §9.2): one 0.25 m grid
- * per template (issue #15) built by @regulus/floor-layout from its walls and
+ * per template (issue #15) built by @regulus/room-layout from its walls and
  * obstacles, A* between cells, then a string-pulling pass so the avatar walks
  * straight lines instead of staircases. Targets on furniture snap to the
  * nearest walkable cell so clicking a desk walks up to it.
@@ -8,21 +8,21 @@
 import {
   buildNavGrid,
   type Cell,
-  type FloorTemplate,
+  type RoomTemplate,
   findPath,
   type NavGrid,
   type Vec2,
-} from "@regulus/floor-layout";
+} from "@regulus/room-layout";
 
 /** Issue #15 asks for a finer grid than the package default (0.5 m). */
 export const NAV_CELL_SIZE = 0.25;
 /** How far from a blocked click we look for a walkable cell, metres. */
 export const SNAP_RADIUS = 1.5;
 
-const grids = new WeakMap<FloorTemplate, NavGrid>();
+const grids = new WeakMap<RoomTemplate, NavGrid>();
 
 /** The template's grid, built once and cached per template object. */
-export function navGridFor(template: FloorTemplate): NavGrid {
+export function navGridFor(template: RoomTemplate): NavGrid {
   let grid = grids.get(template);
   if (!grid) {
     grid = buildNavGrid(template, { cellSize: NAV_CELL_SIZE });

@@ -2,11 +2,11 @@ import { describe, expect, test } from "bun:test";
 import { HEADING } from "./geometry.ts";
 import { officeL2TemplateInput } from "./templates/office-l2.ts";
 import { perimeter } from "./templates/shared.ts";
-import type { FloorTemplateInput } from "./types.ts";
-import { loadTemplate, parseFloorTemplate, structuralProblems, TemplateError } from "./validate.ts";
+import type { RoomTemplateInput } from "./types.ts";
+import { loadTemplate, parseRoomTemplate, structuralProblems, TemplateError } from "./validate.ts";
 
 /** Tiny valid room: 4 x 4 m, elevator on the north wall, one desk seat. */
-function tinyRoom(overrides: Partial<FloorTemplateInput> = {}): FloorTemplateInput {
+function tinyRoom(overrides: Partial<RoomTemplateInput> = {}): RoomTemplateInput {
   return {
     id: "tiny",
     name: "Tiny",
@@ -38,7 +38,7 @@ function tinyRoom(overrides: Partial<FloorTemplateInput> = {}): FloorTemplateInp
   };
 }
 
-function problemsOf(input: FloorTemplateInput): string[] {
+function problemsOf(input: RoomTemplateInput): string[] {
   try {
     loadTemplate(input);
     return [];
@@ -56,9 +56,9 @@ describe("loadTemplate", () => {
   });
 
   test("rejects malformed input with a zod error", () => {
-    expect(() => parseFloorTemplate({ ...tinyRoom(), kind: "huge" })).toThrow();
+    expect(() => parseRoomTemplate({ ...tinyRoom(), kind: "huge" })).toThrow();
     expect(() => loadTemplate({ ...tinyRoom(), wallAnchors: [{ id: "x" }] } as never)).toThrow();
-    expect(() => parseFloorTemplate({ ...tinyRoom(), size: { width: -1, depth: 4 } })).toThrow();
+    expect(() => parseRoomTemplate({ ...tinyRoom(), size: { width: -1, depth: 4 } })).toThrow();
   });
 
   test("rejects duplicate ids", () => {
@@ -156,7 +156,7 @@ describe("loadTemplate", () => {
   });
 
   test("structuralProblems is empty for the shipped medium template", () => {
-    expect(structuralProblems(parseFloorTemplate(officeL2TemplateInput))).toEqual([]);
+    expect(structuralProblems(parseRoomTemplate(officeL2TemplateInput))).toEqual([]);
   });
 });
 

@@ -13,7 +13,7 @@ import {
   MAIN_CORRIDOR_ID,
   rowSlot,
   tilesToRects,
-} from "@regulus/floor-layout";
+} from "@regulus/room-layout";
 import {
   DOOR_SIDES,
   type DoorSide,

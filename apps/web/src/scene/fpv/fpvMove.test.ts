@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { buildNavGrid, HEADING, lobbyTemplate, NavGrid } from "@regulus/floor-layout";
+import { buildNavGrid, HEADING, lobbyTemplate, NavGrid } from "@regulus/room-layout";
 import { RUN_SPEED } from "../movement/kinematics.ts";
 import {
   actionForCode,
@@ -35,7 +35,7 @@ describe("key mapping", () => {
 });
 
 describe("moveVector", () => {
-  test("follows the floor-layout heading convention", () => {
+  test("follows the room-layout heading convention", () => {
     near(forwardVector(HEADING.north), 0, -1);
     near(forwardVector(HEADING.west), -1, 0);
     near(forwardVector(HEADING.south), 0, 1);

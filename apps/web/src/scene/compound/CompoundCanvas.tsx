@@ -14,7 +14,7 @@
  * transitions, and frames the compound while a room is being placed.
  */
 import { Canvas } from "@react-three/fiber";
-import type { Pose } from "@regulus/floor-layout";
+import type { Pose } from "@regulus/room-layout";
 import { type ReactNode, Suspense, useEffect, useLayoutEffect, useMemo } from "react";
 import { useCompoundStore } from "../../state/compound.ts";
 import { useFloorStore } from "../../state/floor.ts";

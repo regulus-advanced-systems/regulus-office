@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { officeL2Template, PALETTES, type Palette } from "@regulus/floor-layout";
+import { officeL2Template, PALETTES, type Palette } from "@regulus/room-layout";
 import { BLOB_Y } from "../shadows/blob.ts";
 import {
   colorDistance,

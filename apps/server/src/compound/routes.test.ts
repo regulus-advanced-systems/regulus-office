@@ -9,7 +9,7 @@ import { randomUUID } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { layoutProblems } from "@regulus/floor-layout";
+import { layoutProblems } from "@regulus/room-layout";
 import {
   CompoundLayoutResponse,
   type CompoundRoomInfo,

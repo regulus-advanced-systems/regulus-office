@@ -1,11 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import {
-  type FloorTemplate,
+  type RoomTemplate,
   largeTemplate,
   lobbyTemplate,
   officeL2Template,
   smallTemplate,
-} from "@regulus/floor-layout";
+} from "@regulus/room-layout";
 import type { BoardColumnView } from "../../ui/boards/columns.ts";
 import { boardAnchors, boardInReach } from "./boardAnchors.ts";
 import {
@@ -38,7 +38,7 @@ const column = (id: string, n: number): BoardColumnView => ({
 
 describe("board anchors", () => {
   test("every project template hangs one issue and one PR board; the lobby none", () => {
-    for (const t of [smallTemplate, officeL2Template, largeTemplate] as FloorTemplate[]) {
+    for (const t of [smallTemplate, officeL2Template, largeTemplate] as RoomTemplate[]) {
       expect(
         boardAnchors(t)
           .map((b) => b.kind)
@@ -51,7 +51,7 @@ describe("board anchors", () => {
   test("boards follow the anchors they are given (compound rooms move them)", () => {
     const pr = smallTemplate.wallAnchors.find((a) => a.kind === "pr_board");
     if (!pr) throw new Error("no PR board anchor");
-    const moved: FloorTemplate = {
+    const moved: RoomTemplate = {
       ...smallTemplate,
       wallAnchors: [{ ...pr, id: "pr-x" }],
     };

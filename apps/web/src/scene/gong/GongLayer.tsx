@@ -6,7 +6,7 @@
  * celebration is theirs (scene/robots/cheer.ts). With reduced motion there
  * is no swing, confetti or sound; the gong still glows and merges toast.
  */
-import type { FloorTemplate } from "@regulus/floor-layout";
+import type { RoomTemplate } from "@regulus/room-layout";
 import { useCallback, useEffect, useMemo } from "react";
 import { getOfficeClient } from "../../net/index.ts";
 import { usePlayerStore } from "../../state/player.ts";
@@ -25,7 +25,7 @@ import { GONG_CONFETTI } from "./timing.ts";
 const send = (type: "gong.bang", payload: Record<string, never>) =>
   getOfficeClient().send(type, payload);
 
-export function GongLayer({ template, look }: { template: FloorTemplate; look?: GongLook }) {
+export function GongLayer({ template, look }: { template: RoomTemplate; look?: GongLook }) {
   const scope = useRoomScope();
   const gongs = useMemo(() => gongAnchors(template), [template]);
   const reducedMotion = useUiStore(selectReducedMotion);

@@ -12,7 +12,7 @@ COPY apps/server/package.json apps/server/
 COPY apps/web/package.json apps/web/
 COPY packages/agent-adapters/package.json packages/agent-adapters/
 COPY packages/assets/package.json packages/assets/
-COPY packages/floor-layout/package.json packages/floor-layout/
+COPY packages/room-layout/package.json packages/room-layout/
 COPY packages/protocol/package.json packages/protocol/
 RUN bun install --frozen-lockfile
 COPY apps ./apps
@@ -35,14 +35,14 @@ COPY apps/server/package.json apps/server/
 COPY apps/web/package.json apps/web/
 COPY packages/agent-adapters/package.json packages/agent-adapters/
 COPY packages/assets/package.json packages/assets/
-COPY packages/floor-layout/package.json packages/floor-layout/
+COPY packages/room-layout/package.json packages/room-layout/
 COPY packages/protocol/package.json packages/protocol/
 # Only the server's runtime dependency graph; the web client ships prebuilt.
 RUN bun install --frozen-lockfile --production --filter '@regulus/server' \
     && rm -rf /root/.bun/install/cache
 COPY apps/server ./apps/server
 COPY packages/agent-adapters ./packages/agent-adapters
-COPY packages/floor-layout ./packages/floor-layout
+COPY packages/room-layout ./packages/room-layout
 COPY packages/protocol ./packages/protocol
 COPY --from=build /app/apps/web/dist ./apps/web/dist
 COPY scripts/backup.sh scripts/backup-schedule.sh scripts/restore-db.sh ./scripts/

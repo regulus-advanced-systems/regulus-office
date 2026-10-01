@@ -7,7 +7,7 @@ import {
   computeCompoundLayout,
   defaultCompoundSpec,
   roomSummaryPlacement,
-} from "@regulus/floor-layout";
+} from "@regulus/room-layout";
 import {
   DEFAULT_ROOM_SETTINGS,
   type DecorStyle,

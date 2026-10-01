@@ -16,14 +16,14 @@ import {
 } from "./spacing.ts";
 import { BIG_PLANT, perimeter, sharedTable, soloDesk } from "./templates/shared.ts";
 import { TEMPLATES } from "./templates/tiers.ts";
-import type { FloorTemplate, FloorTemplateInput } from "./types.ts";
-import { parseFloorTemplate } from "./validate.ts";
+import type { RoomTemplate, RoomTemplateInput } from "./types.ts";
+import { parseRoomTemplate } from "./validate.ts";
 
 const all = [...TEMPLATES.values()];
 
 /** Plain 10 x 8 room with the elevator on the north wall and whatever furniture a test adds. */
-function room(extra: Partial<FloorTemplateInput> = {}): FloorTemplate {
-  return parseFloorTemplate({
+function room(extra: Partial<RoomTemplateInput> = {}): RoomTemplate {
+  return parseRoomTemplate({
     id: "t",
     name: "T",
     kind: "small",

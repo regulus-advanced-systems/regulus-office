@@ -7,7 +7,7 @@ import { afterAll, describe, expect, test } from "bun:test";
 import { cp, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { computeCompoundLayout, layoutProblems, mainCorridor } from "@regulus/floor-layout";
+import { computeCompoundLayout, layoutProblems, mainCorridor } from "@regulus/room-layout";
 import { and, asc, eq } from "drizzle-orm";
 import {
   closeDatabase,

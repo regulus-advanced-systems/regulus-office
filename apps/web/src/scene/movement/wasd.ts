@@ -4,7 +4,7 @@
  * corner, D walks right on screen. Pure so the mapping is unit-testable; the
  * key tracking lives in useWasdInput.ts.
  */
-import type { Vec2 } from "@regulus/floor-layout";
+import type { Vec2 } from "@regulus/room-layout";
 import { ISO_YAW_DEG } from "../camera/isoCamera.ts";
 
 export interface DirectionKeys {

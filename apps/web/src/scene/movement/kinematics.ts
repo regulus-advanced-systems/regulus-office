@@ -1,10 +1,10 @@
 /**
  * Pure movement maths shared by the local player store, the path follower
  * and remote interpolation: headings (three.js `rotation.y`, see
- * floor-layout geometry.ts), turning with a rate limit and a point step
+ * room-layout geometry.ts), turning with a rate limit and a point step
  * against a walkability predicate that slides along blocked axes.
  */
-import { headingFacing, type Vec2 } from "@regulus/floor-layout";
+import { headingFacing, type Vec2 } from "@regulus/room-layout";
 
 /** Walking speed of a human avatar, metres per second. */
 export const WALK_SPEED = 2.4;
@@ -19,7 +19,7 @@ export interface Pose extends Vec2 {
 
 export type Walkable = (x: number, z: number) => boolean;
 
-/** Wrap an angle into (-pi, pi]; due south is +pi, as in floor-layout's `headingFacing`. */
+/** Wrap an angle into (-pi, pi]; due south is +pi, as in room-layout's `headingFacing`. */
 export function wrapAngle(angle: number): number {
   const twoPi = Math.PI * 2;
   let a = angle % twoPi;

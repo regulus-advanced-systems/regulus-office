@@ -9,7 +9,7 @@
  * Results are cached per room and setting, so a re-render or a counter
  * change never regenerates a room. Pure.
  */
-import type { Rect, RoomLayout } from "@regulus/floor-layout";
+import type { Rect, RoomLayout } from "@regulus/room-layout";
 import { type RoomShell, roomShell } from "../lair/assembly.ts";
 import { type WorldLamp, worldLamps } from "../lair/components/BlinkingLamps.tsx";
 import { LAIR_MODELS } from "../lair/models.ts";

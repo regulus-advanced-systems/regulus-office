@@ -18,7 +18,7 @@ import {
   legacyRoomSize,
   roomSummaryPlacement,
   rowSlot,
-} from "@regulus/floor-layout";
+} from "@regulus/room-layout";
 import {
   type CompoundLayoutResponse,
   type CompoundRoomInfo,

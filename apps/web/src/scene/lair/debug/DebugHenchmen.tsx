@@ -6,7 +6,7 @@
  * gallery rooms staffed in their style's skin, with a genius or two
  * looking on. Debug only.
  */
-import type { RoomLayout, Seat } from "@regulus/floor-layout";
+import type { RoomLayout, Seat } from "@regulus/room-layout";
 import type { AgentStatus, AvatarAnimation } from "@regulus/protocol";
 import { providerLightColor } from "../../avatar/colorSets.ts";
 import { seatedOffset } from "../../avatar/seatedFit.ts";

@@ -9,7 +9,7 @@
  * by their override owner instead, not here.
  */
 import { type ThreeEvent, useFrame } from "@react-three/fiber";
-import type { Seat } from "@regulus/floor-layout";
+import type { Seat } from "@regulus/room-layout";
 import type { RobotState } from "@regulus/protocol";
 import { memo, useEffect, useRef } from "react";
 import type { Group } from "three";

@@ -8,7 +8,7 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { type FloorTemplate, type Seat, TEMPLATES } from "@regulus/floor-layout";
+import { type RoomTemplate, type Seat, TEMPLATES } from "@regulus/room-layout";
 import { AnimationMixer, Box3, Group, type Object3D, Raycaster, Vector3 } from "three";
 import { type GLTF, GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MODEL_YAW } from "../avatar/avatarRig.ts";
@@ -106,7 +106,7 @@ describe("the henchman's seated pose (seatedFit.ts)", () => {
   });
 });
 
-function placedChair(template: FloorTemplate, seat: Seat): Group {
+function placedChair(template: RoomTemplate, seat: Seat): Group {
   const model = seatModel(template, seat);
   const gltf = model && models.get(model.spec.url);
   if (!model || !gltf) throw new Error(`${template.id}/${seat.id}: no model`);
@@ -126,8 +126,8 @@ function placedChair(template: FloorTemplate, seat: Seat): Group {
   return g;
 }
 
-function seatKinds(): Array<[string, FloorTemplate, Seat]> {
-  const seen = new Map<string, [string, FloorTemplate, Seat]>();
+function seatKinds(): Array<[string, RoomTemplate, Seat]> {
+  const seen = new Map<string, [string, RoomTemplate, Seat]>();
   for (const t of TEMPLATES.values())
     for (const seat of t.seats) {
       const piece = t.obstacles.find((o) => o.id === seat.furnitureId);

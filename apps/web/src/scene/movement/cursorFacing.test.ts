@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { HEADING } from "@regulus/floor-layout";
+import { HEADING } from "@regulus/room-layout";
 import { OrthographicCamera, Raycaster, Vector2, Vector3 } from "three";
 import {
   CURSOR_DEADZONE,

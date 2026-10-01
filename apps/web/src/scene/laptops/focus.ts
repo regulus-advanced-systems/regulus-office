@@ -2,7 +2,7 @@
  * Which desk the local player is at (SPEC §9.2 `E` interacts with the
  * nearest interactable; §9.4 the focused desk gets the live terminal).
  */
-import type { Seat } from "@regulus/floor-layout";
+import type { Seat } from "@regulus/room-layout";
 
 /** How close to a seat counts as "at the desk" for `E` and the live screen. */
 export const DESK_INTERACT_RADIUS = 1.6;

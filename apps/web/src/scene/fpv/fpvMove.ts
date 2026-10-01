@@ -3,10 +3,10 @@
  * walking speed, and collision against the template's nav grid with sliding
  * along blocked cells. Pure; `FirstPersonRig.tsx` applies it every frame.
  *
- * Headings follow `@regulus/floor-layout`: yaw is three.js `rotation.y`,
+ * Headings follow `@regulus/room-layout`: yaw is three.js `rotation.y`,
  * 0 faces -z (north), +pi/2 faces -x (west).
  */
-import type { NavGrid } from "@regulus/floor-layout";
+import type { NavGrid } from "@regulus/room-layout";
 
 /** Longest frame step in seconds, so a hitch never tunnels through a wall. */
 export const MAX_FRAME_DT = 0.1;

@@ -6,7 +6,7 @@
  * is interactive and reads the floor store the HUD reads; the nearby rooms
  * are view-only. Rooms are drawn in the lair looks (#183).
  */
-import { type RoomLayout, wallById } from "@regulus/floor-layout";
+import { type RoomLayout, wallById } from "@regulus/room-layout";
 import { memo, Suspense, useMemo } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useFloorStore } from "../../state/floor.ts";

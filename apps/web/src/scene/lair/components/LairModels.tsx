@@ -4,7 +4,7 @@
  * blinking; `LAIR_MODEL_COMPONENTS` is the published id → component map for
  * one-off use (`<LAIR_MODEL_COMPONENTS.console rect={...} heading={...} />`).
  */
-import type { Rect } from "@regulus/floor-layout";
+import type { Rect } from "@regulus/room-layout";
 import { type ComponentType, useMemo } from "react";
 import { LAIR_MODEL_IDS, LAIR_MODELS, type LairModelId, lairModelPlacement } from "../models.ts";
 import type { PiecePlacement } from "../placements.ts";

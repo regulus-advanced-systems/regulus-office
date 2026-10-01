@@ -1,11 +1,11 @@
 /**
- * What `generateRoom` returns (#182): a `FloorTemplate` (the shape the scene,
+ * What `generateRoom` returns (#182): a `RoomTemplate` (the shape the scene,
  * nav grid, validation and server already use) plus a `room` record with
  * the generator's inputs, the desks, materials, lighting and model ids.
  */
 import type { DecorStyle } from "@regulus/protocol";
 import type { CompassDirection, Pose } from "../geometry.ts";
-import type { FloorTemplate, Palette } from "../types.ts";
+import type { RoomTemplate, Palette } from "../types.ts";
 
 export interface GenerateRoomInput {
   /** Tiles along x (1 tile = 2 m), 4..12. */
@@ -85,6 +85,6 @@ export interface RoomInfo {
   readonly models: Readonly<Record<string, string>>;
 }
 
-export interface RoomLayout extends FloorTemplate {
+export interface RoomLayout extends RoomTemplate {
   readonly room: RoomInfo;
 }

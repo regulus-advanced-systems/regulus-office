@@ -2,7 +2,7 @@
  * The compound (SPEC §9.1, D21): the office's grid of rooms, the lobby at the
  * south edge, auto-routed corridors, special rooms and the beach strip.
  *
- * Grid conventions shared by the server, @regulus/floor-layout and the web:
+ * Grid conventions shared by the server, @regulus/room-layout and the web:
  * - One tile is {@link COMPOUND_TILE_METRES} metres. Tile `(x, y)` covers
  *   world metres `[2x, 2x+2) × [2y, 2y+2)`; `x` grows east, `y` grows south
  *   (world `z`), so the compound's origin is its north-west corner.

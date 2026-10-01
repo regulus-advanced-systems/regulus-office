@@ -4,7 +4,7 @@
  * (scene/laptops) the bubbles pop out of, and the floor decal with the owner's name (research 03 §4:
  * printed on the floor next to the seat, along the iso axis). Pure maths.
  */
-import type { FloorTemplate, Seat } from "@regulus/floor-layout";
+import type { RoomTemplate, Seat } from "@regulus/room-layout";
 import { type SeatedBody, type SitAnchor, seatedOffset } from "../avatar/seatedFit.ts";
 import { FALLBACK_ANCHOR } from "../furniture/sitAnchor.ts";
 import { LAPTOP_TOP } from "../laptops/dimensions.ts";
@@ -44,7 +44,7 @@ export function robotPlacement(
 
 /** Where a desk's bubbles start: its laptop (scene/laptops placement), at the screen top. */
 export function laptopOrigin(
-  template: FloorTemplate,
+  template: RoomTemplate,
   seat: Seat,
 ): { x: number; y: number; z: number } {
   const [x, y, z] = laptopPlacement(template, seat).position;

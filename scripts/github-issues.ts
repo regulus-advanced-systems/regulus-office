@@ -83,7 +83,7 @@ const LABELS: Array<{ name: string; color: string; description: string }> = [
   { name: "area:web", color: "1D76DB", description: "apps/web" },
   { name: "area:protocol", color: "1D76DB", description: "packages/protocol" },
   { name: "area:adapters", color: "1D76DB", description: "packages/agent-adapters" },
-  { name: "area:layout", color: "1D76DB", description: "packages/floor-layout" },
+  { name: "area:layout", color: "1D76DB", description: "packages/room-layout" },
   { name: "area:assets", color: "1D76DB", description: "packages/assets" },
   { name: "area:infra", color: "1D76DB", description: "deploy/, runner/, CI" },
   { name: "area:pm", color: "1D76DB", description: "PM robot (Hermes) bridge" },
@@ -204,10 +204,10 @@ ${common("§12, research 03 §5")}`,
   },
   {
     title:
-      "floor-layout: template schema, Lobby template, tier templates (small/medium/large), nav grid, tests",
+      "room-layout: template schema, Lobby template, tier templates (small/medium/large), nav grid, tests",
     milestone: "M0 Foundations",
     areas: ["layout"],
-    body: `Define FloorTemplate (size, wallHeight, seats, wallAnchors, obstacles, spawn, elevator) and Palette types. Author the Lobby template (elevator bank, reception desk, usage wall, lounge with TV, jukebox spot, whiteboard, coffee machine) and the "Office L2" medium template modelled on GDT's second office (shared table with seats, CEO L-desk, cabinets, kitchenette, meeting table), plus small and large variants. Nav grid generator with tests. Palettes per research 03.
+    body: `Define RoomTemplate (size, wallHeight, seats, wallAnchors, obstacles, spawn, elevator) and Palette types. Author the Lobby template (elevator bank, reception desk, usage wall, lounge with TV, jukebox spot, whiteboard, coffee machine) and the "Office L2" medium template modelled on GDT's second office (shared table with seats, CEO L-desk, cabinets, kitchenette, meeting table), plus small and large variants. Nav grid generator with tests. Palettes per research 03.
 ${common("§9.1, research 03 §4")}`,
   },
   {

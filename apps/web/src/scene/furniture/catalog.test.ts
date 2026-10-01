@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { OBSTACLE_KINDS } from "@regulus/floor-layout";
+import { OBSTACLE_KINDS } from "@regulus/room-layout";
 import {
   CHAIR_MODEL,
   chairForSeat,

@@ -7,7 +7,7 @@
  * The DOM listeners are in useCursorGround.ts; the store turns the avatar in
  * `faceToward` (state/player.ts).
  */
-import type { Vec2 } from "@regulus/floor-layout";
+import type { Vec2 } from "@regulus/room-layout";
 import { headingOfTravel } from "./kinematics.ts";
 
 /**

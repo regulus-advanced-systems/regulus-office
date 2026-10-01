@@ -1,12 +1,12 @@
 /**
  * Which placeholder model (Kenney Furniture Kit, CC0; see
- * packages/assets/models/furniture/README.md) stands in for each floor-layout
+ * packages/assets/models/furniture/README.md) stands in for each room-layout
  * kind, and how to size it. Kinds missing here are drawn procedurally.
  *
  * Models are referenced with `new URL(..., import.meta.url)` so Vite bundles
  * them from the assets package without any config.
  */
-import { HEADING, type ObstacleKind, type SeatKind } from "@regulus/floor-layout";
+import { HEADING, type ObstacleKind, type SeatKind } from "@regulus/room-layout";
 
 export interface ModelSpec {
   /** Resolved asset URL. */

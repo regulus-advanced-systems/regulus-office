@@ -2,7 +2,7 @@
  * Generated room interiors (#182, SPEC §9.1 "Room interiors", D8):
  *
  * - generate.ts  `generateRoom`, `maxDeskCount`, `RoomGenerationError`
- * - types.ts     `RoomLayout` (a FloorTemplate plus `room`), inputs, lights
+ * - types.ts     `RoomLayout` (a RoomTemplate plus `room`), inputs, lights
  * - seat-ids.ts  stable `d<desk>s<seat>` ids
  * - slots.ts     the desk pod grid and fill order
  * - shell.ts     walls, door and spawn

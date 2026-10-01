@@ -1,6 +1,6 @@
 /** Running (#223): which speed the player store moves at, and when it drops back to a walk. */
 import { describe, expect, test } from "bun:test";
-import { HEADING } from "@regulus/floor-layout";
+import { HEADING } from "@regulus/room-layout";
 import { RUN_SPEED, WALK_SPEED } from "../scene/movement/kinematics.ts";
 import { createPlayerStore } from "./player.ts";
 

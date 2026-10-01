@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { HEADING } from "@regulus/floor-layout";
+import { HEADING } from "@regulus/room-layout";
 import { createPlayerStore } from "../../state/player.ts";
 import { createPlayerBinding } from "./playerBinding.ts";
 

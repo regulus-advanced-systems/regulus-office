@@ -7,7 +7,7 @@
  * walk the player). Nothing here takes pointer hits.
  */
 import { useThree } from "@react-three/fiber";
-import { doorFront, doorStart } from "@regulus/floor-layout";
+import { doorFront, doorStart } from "@regulus/room-layout";
 import type { DoorSide, TileRect } from "@regulus/protocol";
 import { useEffect, useMemo } from "react";
 import { BoxGeometry, EdgesGeometry, GridHelper, Raycaster, Vector2 } from "three";

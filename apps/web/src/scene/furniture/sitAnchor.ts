@@ -8,7 +8,7 @@
  * file runs them through the same `fitToFootprint` placement the scene draws
  * the model with, so the anchor follows any scale or turn. Pure maths.
  */
-import type { FloorTemplate, Rect, Seat } from "@regulus/floor-layout";
+import type { RoomTemplate, Rect, Seat } from "@regulus/room-layout";
 import { SEATED_REACH, type SitAnchor, TABLE_GAP } from "../avatar/seatedFit.ts";
 import { facing, rayEntry } from "../laptops/placement.ts";
 import { CHAIR_MODEL, chairForSeat, FURNITURE_MODELS, type ModelSpec } from "./catalog.ts";
@@ -35,7 +35,7 @@ export function chairRect(pose: Seat["pose"], setBack = 0): Rect {
 }
 
 /** Distance from a seat point to the edge of its table, straight ahead; null without one. */
-export function tableDistance(template: FloorTemplate, seat: Seat): number | null {
+export function tableDistance(template: RoomTemplate, seat: Seat): number | null {
   const table = template.obstacles.find((o) => o.id === seat.furnitureId);
   return table ? rayEntry(seat.pose, facing(seat.pose.heading), table.rect) : null;
 }
@@ -45,7 +45,7 @@ export function tableDistance(template: FloorTemplate, seat: Seat): number | nul
  * between the backrest and the table (#163): the meeting chairs stand 0.25 m
  * from the table's edge, and the robot needs 0.51 m ahead of the backrest.
  */
-export function chairSetBack(template: FloorTemplate, seat: Seat, spec: ModelSpec): number {
+export function chairSetBack(template: RoomTemplate, seat: Seat, spec: ModelSpec): number {
   const edge = tableDistance(template, seat);
   if (edge === null) return 0;
   const centred = modelAnchor(
@@ -57,7 +57,7 @@ export function chairSetBack(template: FloorTemplate, seat: Seat, spec: ModelSpe
 }
 
 /** Which model carries a seat, placed the way `Furniture.tsx` places it; null if none is drawn. */
-export function seatModel(template: FloorTemplate, seat: Seat): SeatModel | null {
+export function seatModel(template: RoomTemplate, seat: Seat): SeatModel | null {
   const chair = chairForSeat(seat.kind);
   if (chair) {
     const rect = chairRect(seat.pose, chairSetBack(template, seat, chair));
@@ -116,15 +116,15 @@ export const FALLBACK_ANCHOR: SitAnchor = modelAnchor(
 ) ?? { seatY: 0.31, backFwd: -0.13 };
 
 /** Where a sitter goes on this seat. */
-export function sitAnchor(template: FloorTemplate, seat: Seat): SitAnchor {
+export function sitAnchor(template: RoomTemplate, seat: Seat): SitAnchor {
   const model = seatModel(template, seat);
   return (model && modelAnchor(model, seat.pose)) ?? FALLBACK_ANCHOR;
 }
 
-const anchorCache = new WeakMap<FloorTemplate, ReadonlyMap<string, SitAnchor>>();
+const anchorCache = new WeakMap<RoomTemplate, ReadonlyMap<string, SitAnchor>>();
 
 /** Every seat's anchor by seat id, computed once per template. */
-export function sitAnchors(template: FloorTemplate): ReadonlyMap<string, SitAnchor> {
+export function sitAnchors(template: RoomTemplate): ReadonlyMap<string, SitAnchor> {
   let anchors = anchorCache.get(template);
   if (!anchors) {
     anchors = new Map(template.seats.map((s) => [s.id, sitAnchor(template, s)]));

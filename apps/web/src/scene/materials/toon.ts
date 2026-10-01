@@ -3,7 +3,7 @@
  * gradient ramp, no specular, no outlines. Also converts loaded glTF
  * materials (Kenney's are flat `KHR_materials_unlit` colours) to the same look.
  */
-import type { Palette } from "@regulus/floor-layout";
+import type { Palette } from "@regulus/room-layout";
 import {
   Color,
   DataTexture,

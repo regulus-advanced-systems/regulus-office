@@ -5,7 +5,7 @@
  * Its look is a swappable component (CorkBoardLook by default).
  */
 import type { ThreeEvent } from "@react-three/fiber";
-import type { Wall, WallAnchor } from "@regulus/floor-layout";
+import type { Wall, WallAnchor } from "@regulus/room-layout";
 import { useEffect, useMemo, useState } from "react";
 import { CanvasTexture, LinearFilter, SRGBColorSpace } from "three";
 import type { BoardColumnView } from "../../ui/boards/columns.ts";

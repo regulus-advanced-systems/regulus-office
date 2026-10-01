@@ -5,7 +5,7 @@
  * and returns to exactly the clip and placement it had; it never stands up.
  */
 import { describe, expect, test } from "bun:test";
-import { HEADING, type Seat } from "@regulus/floor-layout";
+import { HEADING, type Seat } from "@regulus/room-layout";
 import type { AgentAction, AgentStatus } from "@regulus/protocol";
 import { avatarClip } from "../avatar/clips.ts";
 import { SEATED_CLIPS } from "../avatar/seatedClips.ts";

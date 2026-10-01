@@ -1,6 +1,6 @@
 /** The merge gong's client side (#43): where it hangs, its timing, its synth and its messages. */
 import { describe, expect, test } from "bun:test";
-import { FLOOR_TIERS, interactables, lobbyTemplate, templateForTier } from "@regulus/floor-layout";
+import { ROOM_TIERS, interactables, lobbyTemplate, templateForTier } from "@regulus/room-layout";
 import type { CommandRejected } from "@regulus/protocol";
 import { create } from "zustand";
 import { CONFETTI_CAPACITY, ConfettiField } from "../robots/confetti.ts";
@@ -27,7 +27,7 @@ import {
 } from "./timing.ts";
 
 describe("gong anchor", () => {
-  test.each([...FLOOR_TIERS])(
+  test.each([...ROOM_TIERS])(
     "the %s room has one gong, reachable from its stand point",
     (tier) => {
       const [gong, ...rest] = gongAnchors(templateForTier(tier));
@@ -41,7 +41,7 @@ describe("gong anchor", () => {
     },
   );
 
-  test.each([...FLOOR_TIERS])(
+  test.each([...ROOM_TIERS])(
     "in the %s room no other E target reaches the gong's stand",
     (tier) => {
       const t = templateForTier(tier);

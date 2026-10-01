@@ -4,7 +4,7 @@
  * the boards, clipboard and gong find their wall anchors. #186 draws them.
  */
 import { describe, expect, test } from "bun:test";
-import { generateRoom, maxDeskCount, rectContains } from "@regulus/floor-layout";
+import { generateRoom, maxDeskCount, rectContains } from "@regulus/room-layout";
 import { DECOR_STYLES } from "@regulus/protocol";
 import { boardAnchors } from "./boards/boardAnchors.ts";
 import { sitAnchors } from "./furniture/sitAnchor.ts";

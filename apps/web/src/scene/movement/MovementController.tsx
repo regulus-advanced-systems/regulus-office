@@ -13,7 +13,7 @@
  * scene/avatars/AvatarLayer.tsx from the same store.
  */
 import { type ThreeEvent, useFrame } from "@react-three/fiber";
-import type { FloorTemplate, NavGrid, Rect } from "@regulus/floor-layout";
+import type { RoomTemplate, NavGrid, Rect } from "@regulus/room-layout";
 import { useEffect, useMemo } from "react";
 import { Raycaster, Vector2 } from "three";
 import { useFootsteps } from "../../audio/footsteps.ts";
@@ -64,7 +64,7 @@ export function TemplateMovement({
   template,
   send,
 }: {
-  template: FloorTemplate;
+  template: RoomTemplate;
   send?: (pose: Pose) => void;
 }) {
   const grid = useMemo(() => navGridFor(template), [template]);

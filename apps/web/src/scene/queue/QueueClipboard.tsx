@@ -6,7 +6,7 @@
  * the "Queue a task" dialog opens prefilled from it.
  */
 import type { ThreeEvent } from "@react-three/fiber";
-import type { FloorTemplate, Wall, WallAnchor } from "@regulus/floor-layout";
+import type { RoomTemplate, Wall, WallAnchor } from "@regulus/room-layout";
 import type { QueueTask } from "@regulus/protocol";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CanvasTexture, LinearFilter, SRGBColorSpace } from "three";
@@ -133,7 +133,7 @@ export function QueueLayer({
   template,
   look = HardboardClipboardLook,
 }: {
-  template: FloorTemplate;
+  template: RoomTemplate;
   look?: ClipboardLook;
 }) {
   const scope = useRoomScope();

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { lobbyTemplate, PALETTES, WALL_THICKNESS } from "@regulus/floor-layout";
+import { lobbyTemplate, PALETTES, WALL_THICKNESS } from "@regulus/room-layout";
 import {
   boxFaceIndex,
   CAP_HEIGHT,

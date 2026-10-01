@@ -7,7 +7,7 @@
 import { type Rect, rectContains, rectInside, rectsOverlap, spansOverlap } from "./geometry.ts";
 import { buildNavGrid, type NavGrid } from "./nav-grid.ts";
 import { anchorSpan, interactables, rectSpanOnWall, wallById, wallLength } from "./query.ts";
-import { type FloorTemplate, type FloorTemplateInput, FloorTemplateSchema } from "./types.ts";
+import { type RoomTemplate, type RoomTemplateInput, RoomTemplateSchema } from "./types.ts";
 
 export class TemplateError extends Error {
   constructor(
@@ -20,8 +20,8 @@ export class TemplateError extends Error {
 }
 
 /** Parse the raw shape only (zod). Throws a `ZodError` on failure. */
-export function parseFloorTemplate(raw: unknown): FloorTemplate {
-  return FloorTemplateSchema.parse(raw);
+export function parseRoomTemplate(raw: unknown): RoomTemplate {
+  return RoomTemplateSchema.parse(raw);
 }
 
 function duplicates(ids: string[]): string[] {
@@ -32,7 +32,7 @@ function duplicates(ids: string[]): string[] {
 }
 
 /** Structural problems that do not need a nav grid. Empty when the template is sound. */
-export function structuralProblems(t: FloorTemplate): string[] {
+export function structuralProblems(t: RoomTemplate): string[] {
   const problems: string[] = [];
   const bounds: Rect = { x: 0, z: 0, w: t.size.width, d: t.size.depth };
   const wallHeightOf = (h: "full" | "stub") => (h === "full" ? t.wallHeight : t.stubHeight);
@@ -153,7 +153,7 @@ export function structuralProblems(t: FloorTemplate): string[] {
 }
 
 /** Navigation problems: blocked seats / spawn / stand points, and anything unreachable from spawn. */
-export function navigationProblems(t: FloorTemplate, grid: NavGrid = buildNavGrid(t)): string[] {
+export function navigationProblems(t: RoomTemplate, grid: NavGrid = buildNavGrid(t)): string[] {
   const problems: string[] = [];
   const spawnCell = grid.worldToCell(t.spawn.x, t.spawn.z);
   if (!grid.isCellWalkable(spawnCell)) {
@@ -179,14 +179,14 @@ export function navigationProblems(t: FloorTemplate, grid: NavGrid = buildNavGri
 }
 
 /** All problems for an already-parsed template. */
-export function templateProblems(t: FloorTemplate): string[] {
+export function templateProblems(t: RoomTemplate): string[] {
   const structural = structuralProblems(t);
   return structural.length > 0 ? structural : navigationProblems(t);
 }
 
 /** Parse and fully validate a raw template, throwing `TemplateError` / `ZodError` on failure. */
-export function loadTemplate(raw: FloorTemplateInput): FloorTemplate {
-  const template = parseFloorTemplate(raw);
+export function loadTemplate(raw: RoomTemplateInput): RoomTemplate {
+  const template = parseRoomTemplate(raw);
   const problems = templateProblems(template);
   if (problems.length > 0) throw new TemplateError(template.id, problems);
   return template;

@@ -4,15 +4,15 @@ import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
-  FLOOR_TIERS,
+  ROOM_TIERS,
   legacyDeskCount,
   officeL2Template,
   PALETTES,
   ROOM_LAYOUT_ID,
   roomDeskSeatIds,
   smallTemplate,
-} from "@regulus/floor-layout";
-import { FLOOR_TEMPLATE_TIERS } from "@regulus/protocol";
+} from "@regulus/room-layout";
+import { ROOM_TEMPLATE_TIERS } from "@regulus/protocol";
 import { eq } from "drizzle-orm";
 import { AuthHttpError } from "../auth/errors.ts";
 import { auditLog, desks, floorRepos } from "../db/schema/index.ts";
@@ -72,7 +72,7 @@ const code = (fn: () => unknown) => {
 
 describe("FloorService", () => {
   test("protocol tiers match the layout package", () => {
-    expect([...FLOOR_TEMPLATE_TIERS]).toEqual([...FLOOR_TIERS]);
+    expect([...ROOM_TEMPLATE_TIERS]).toEqual([...ROOM_TIERS]);
   });
 
   test("an admin creates a floor: repos clone, desks come from the generated room", async () => {

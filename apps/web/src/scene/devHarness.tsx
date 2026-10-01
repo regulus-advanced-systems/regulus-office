@@ -15,7 +15,7 @@ import {
   paletteById,
   paletteForFloor,
   templateById,
-} from "@regulus/floor-layout";
+} from "@regulus/room-layout";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { useViewStore } from "../state/view.ts";

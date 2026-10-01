@@ -1,5 +1,5 @@
 /** A robot's floor name label (SPEC §9.3): owner + model on the floor behind the chair. */
-import type { Seat } from "@regulus/floor-layout";
+import type { Seat } from "@regulus/room-layout";
 import { useMemo } from "react";
 import { DECAL_OPACITY, DECAL_WORLD_HEIGHT, nameDecalTexture } from "./nameDecal.ts";
 import { decalPlacement } from "./seatPlacement.ts";

@@ -3,7 +3,7 @@
  * columns of live floors. Everything that reads or writes placements goes
  * through here so the column ↔ {@link RoomPlacement} mapping lives in one place.
  */
-import { type CompoundSpec, legacyRoomSize } from "@regulus/floor-layout";
+import { type CompoundSpec, legacyRoomSize } from "@regulus/room-layout";
 import type { RoomBuildState, RoomPlacement } from "@regulus/protocol";
 import { asc, count, eq, isNull } from "drizzle-orm";
 import type { DbOrTx } from "../auth/audit.ts";

@@ -2,7 +2,7 @@
  * Lair amenities (#183): filing cabinet, steel shelving, the break-room
  * counter, a rounded 1960s fridge, an espresso machine, a water cooler,
  * tulip and oval tables, the lair jukebox and an arc floor lamp. They stand
- * in for the floor-layout obstacle kinds the room generator places. Fronts
+ * in for the room-layout obstacle kinds the room generator places. Fronts
  * toward +z; bulbs and dials are the unlit glow layer.
  */
 import { LAIR } from "../palette.ts";

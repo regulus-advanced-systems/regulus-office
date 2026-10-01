@@ -4,7 +4,7 @@
  * their bubble counters, so animations, bubbles and fps can be checked
  * without a server. Not used by the app.
  */
-import type { FloorTemplate } from "@regulus/floor-layout";
+import type { RoomTemplate } from "@regulus/room-layout";
 import {
   type AgentAction,
   type AgentStatus,
@@ -64,7 +64,7 @@ export interface FakeLooks {
 }
 
 export function fakeRobots(
-  template: FloorTemplate,
+  template: RoomTemplate,
   count: number,
   tick: number,
   mode: HarnessMode,

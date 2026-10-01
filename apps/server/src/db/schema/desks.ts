@@ -1,5 +1,5 @@
 /**
- * Desks: one row per seat of the floor's layout template (`packages/floor-layout`),
+ * Desks: one row per seat of the floor's layout template (`packages/room-layout`),
  * `agentId` set while a robot occupies it (SPEC §5).
  */
 import { sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";

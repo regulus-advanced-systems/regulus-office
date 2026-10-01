@@ -7,7 +7,7 @@ import { afterAll, expect, test } from "bun:test";
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { canonicalSeatId, legacyDeskCount, roomDeskSeatIds } from "@regulus/floor-layout";
+import { canonicalSeatId, legacyDeskCount, roomDeskSeatIds } from "@regulus/room-layout";
 import { asc, eq } from "drizzle-orm";
 import { MEMORY_DB_PATH, openDatabase, runMigrations } from "../../db/index.ts";
 import { desks, floors } from "../../db/schema/index.ts";

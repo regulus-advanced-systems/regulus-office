@@ -5,7 +5,7 @@
  */
 import { headingFacing, type Rect, type Vec2 } from "./geometry.ts";
 import { wallPoint } from "./query.ts";
-import type { FloorTemplate, Obstacle, Seat, WallAnchor } from "./types.ts";
+import type { RoomTemplate, Obstacle, Seat, WallAnchor } from "./types.ts";
 
 /** Largest angle between a seat's heading and its focus that still reads as "facing it". */
 export const MAX_FACING_ERROR = (20 * Math.PI) / 180;
@@ -47,7 +47,7 @@ function distance(a: Vec2, b: Vec2): number {
 }
 
 /** A TV anchor's centre on its wall. */
-function anchorCentre(template: FloorTemplate, a: WallAnchor): Vec2 | null {
+function anchorCentre(template: RoomTemplate, a: WallAnchor): Vec2 | null {
   const wall = template.walls.find((w) => w.id === a.wallId);
   return wall ? wallPoint(wall, a.t) : null;
 }
@@ -58,7 +58,7 @@ function anchorCentre(template: FloorTemplate, a: WallAnchor): Vec2 | null {
  * cushions (seat kind `couch`) face the nearest coffee table within reach,
  * else the nearest TV.
  */
-export function seatFocus(template: FloorTemplate, seat: Seat): Vec2 | null {
+export function seatFocus(template: RoomTemplate, seat: Seat): Vec2 | null {
   const from = { x: seat.pose.x, z: seat.pose.z };
   if (seat.kind !== "couch") {
     const own = template.obstacles.find((o) => o.id === seat.furnitureId);

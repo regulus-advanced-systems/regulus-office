@@ -22,7 +22,7 @@
  * Every desk cluster and interactable opens onto a lane of at least 1.5 m.
  */
 import { HEADING } from "../geometry.ts";
-import type { FloorTemplateInput, Seat, Wall } from "../types.ts";
+import type { RoomTemplateInput, Seat, Wall } from "../types.ts";
 import { loadTemplate } from "../validate.ts";
 import {
   bistroProps,
@@ -112,7 +112,7 @@ const meetingSide = (side: "n" | "s", z: number, heading: number): Seat[] =>
     pose: { x, z, heading },
   }));
 
-export const largeTemplateInput: FloorTemplateInput = {
+export const largeTemplateInput: RoomTemplateInput = {
   id: "office-large",
   name: "Office L",
   kind: "large",

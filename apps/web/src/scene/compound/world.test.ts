@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { checkPlacement, defaultCompoundSpec } from "@regulus/floor-layout";
+import { checkPlacement, defaultCompoundSpec } from "@regulus/room-layout";
 import { LOBBY_FLOOR_ID } from "@regulus/protocol";
 import { rowPlacement, testState, testWorld } from "./testing.ts";
 import {

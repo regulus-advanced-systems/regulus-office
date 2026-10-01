@@ -13,7 +13,7 @@
 import type { Rect } from "./geometry.ts";
 import { buildNavGrid, type Cell, type NavGrid } from "./nav-grid.ts";
 import { interactables } from "./query.ts";
-import type { FloorTemplate, ObstacleKind, Seat } from "./types.ts";
+import type { RoomTemplate, ObstacleKind, Seat } from "./types.ts";
 
 /** Minimum clear width of a walking lane, metres. */
 export const LANE_WIDTH = 1.5;
@@ -42,14 +42,14 @@ export function chairRect(seat: Seat): Rect {
 }
 
 /** Nav grid at `CLEARANCE_CELL` with every seat's chair footprint blocked too. */
-export function clearanceGrid(t: FloorTemplate): NavGrid {
+export function clearanceGrid(t: RoomTemplate): NavGrid {
   const grid = buildNavGrid(t, { cellSize: CLEARANCE_CELL });
   for (const seat of t.seats) grid.blockRect(chairRect(seat));
   return grid;
 }
 
 /** Share of all cells that stay walkable on the clearance grid. */
-export function freeFloorFraction(t: FloorTemplate): number {
+export function freeFloorFraction(t: RoomTemplate): number {
   const grid = clearanceGrid(t);
   let free = 0;
   for (let i = 0; i < grid.size; i++) if (grid.isCellWalkable(grid.cellAt(i))) free++;
@@ -130,7 +130,7 @@ function nearestLaneCell(
  * starts at the elevator. Empty when every one of them opens onto a lane at
  * least `LANE_WIDTH` wide connected to the spawn point.
  */
-export function laneProblems(t: FloorTemplate): string[] {
+export function laneProblems(t: RoomTemplate): string[] {
   const grid = clearanceGrid(t);
   const lane = laneCells(grid);
   const reach = Math.round(LANE_REACH / grid.cellSize);
@@ -176,7 +176,7 @@ export function rectGap(a: Rect, b: Rect): number {
  * Furniture people sit at, each grown to cover its chairs. Pieces of one
  * desk that touch (the CEO L-desk's slab and return) merge into one cluster.
  */
-export function furnitureClusters(t: FloorTemplate): Cluster[] {
+export function furnitureClusters(t: RoomTemplate): Cluster[] {
   const clusters: { ids: string[]; rect: Rect; kind: ObstacleKind }[] = [];
   for (const o of t.obstacles) {
     if (!CLUSTER_KINDS.has(o.kind)) continue;
@@ -192,7 +192,7 @@ export function furnitureClusters(t: FloorTemplate): Cluster[] {
 }
 
 /** Pairs of furniture clusters closer than `LANE_WIDTH`. */
-export function clusterGapProblems(t: FloorTemplate): string[] {
+export function clusterGapProblems(t: RoomTemplate): string[] {
   const clusters = furnitureClusters(t);
   const problems: string[] = [];
   for (let i = 0; i < clusters.length; i++) {
@@ -208,7 +208,7 @@ export function clusterGapProblems(t: FloorTemplate): string[] {
 }
 
 /** Every roominess problem; empty when the template is spacious enough. */
-export function spacingProblems(t: FloorTemplate): string[] {
+export function spacingProblems(t: RoomTemplate): string[] {
   const problems = [...laneProblems(t), ...clusterGapProblems(t)];
   const free = freeFloorFraction(t);
   if (free < MIN_FREE_FRACTION)

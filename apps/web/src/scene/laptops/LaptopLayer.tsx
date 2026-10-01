@@ -13,7 +13,7 @@
  * nearby rooms show their screens' textures (roomScope.ts).
  */
 import { useFrame } from "@react-three/fiber";
-import type { FloorTemplate } from "@regulus/floor-layout";
+import type { RoomTemplate } from "@regulus/room-layout";
 import { LOBBY_FLOOR_ID } from "@regulus/protocol";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
@@ -46,7 +46,7 @@ function selectSeatAgents(
 }
 
 export interface LaptopLayerProps {
-  template: FloorTemplate;
+  template: RoomTemplate;
   /**
    * Draw laptops on free desks too (default). The compound (#186) draws free
    * desks' laptops as instanced kit pieces and only robots' desks here.

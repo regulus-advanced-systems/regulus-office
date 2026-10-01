@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { lobbyTemplate, NavGrid } from "@regulus/floor-layout";
+import { lobbyTemplate, NavGrid } from "@regulus/room-layout";
 import {
   lineClear,
   NAV_CELL_SIZE,

@@ -1,8 +1,8 @@
 /**
  * Model ids → lair pieces (#183): the map the room generator (#182) and the
- * compound scene (#186) use to draw furniture. Every floor-layout obstacle
+ * compound scene (#186) use to draw furniture. Every room-layout obstacle
  * kind has a lair model (the type makes the map exhaustive, so a new kind
- * in floor-layout fails typecheck until it is drawn), plus lair-only prop
+ * in room-layout fails typecheck until it is drawn), plus lair-only prop
  * kinds the generator may place (consoles, lockers, crates...). Seats map to
  * the swivel chair; the couch kind is its own seat.
  *
@@ -17,7 +17,7 @@ import {
   type ObstacleKind,
   type Rect,
   type SeatKind,
-} from "@regulus/floor-layout";
+} from "@regulus/room-layout";
 import type { SitAnchor } from "../avatar/seatedFit.ts";
 import type { SitSpec } from "../furniture/catalog.ts";
 import { centreBottomOffset, fitToFootprint } from "../furniture/placement.ts";
@@ -32,7 +32,7 @@ import {
 import { type PieceId, pieceGeometry, pieceSize } from "./kit.ts";
 import type { PiecePlacement } from "./placements.ts";
 
-/** Lair-only prop kinds, beyond the floor-layout obstacle kinds, for the room generator. */
+/** Lair-only prop kinds, beyond the room-layout obstacle kinds, for the room generator. */
 export const LAIR_PROP_KINDS = [
   "console",
   "mainframe",

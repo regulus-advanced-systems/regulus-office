@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { largeTemplate, officeL2Template } from "@regulus/floor-layout";
+import { largeTemplate, officeL2Template } from "@regulus/room-layout";
 import {
   BOOK_COLORS,
   planterPlants,

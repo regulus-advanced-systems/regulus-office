@@ -17,7 +17,7 @@ export const ROBOT_MODEL_URL = new URL(
 export const MODEL_FORWARD = new Vector3(0, 0, 1);
 
 /**
- * robot.glb faces +z, but a heading of 0 faces -z (floor-layout geometry.ts;
+ * robot.glb faces +z, but a heading of 0 faces -z (room-layout geometry.ts;
  * three.js `rotation.y`): `RobotAvatar` turns the model half way round, so
  * every caller sets `rotation.y = heading` and the robot faces its heading.
  */

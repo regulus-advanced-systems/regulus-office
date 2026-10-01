@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { deskSeats, smallTemplate } from "@regulus/floor-layout";
+import { deskSeats, smallTemplate } from "@regulus/room-layout";
 import { navGridFor } from "../../movement/navigation.ts";
 import {
   advance,

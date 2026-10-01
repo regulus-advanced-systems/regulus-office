@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import type { Rect } from "@regulus/floor-layout";
-import { lobbyTemplate, rectContains, TEMPLATES } from "@regulus/floor-layout";
+import type { Rect } from "@regulus/room-layout";
+import { lobbyTemplate, rectContains, TEMPLATES } from "@regulus/room-layout";
 import { LAPTOP_DIMENSIONS, LAPTOP_SCALE, LAPTOP_TOP } from "./dimensions.ts";
 import {
   EDGE_GAP,

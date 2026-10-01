@@ -6,7 +6,7 @@
  * once per frame with the elapsed time and keeps the returned pose and
  * remaining path.
  */
-import type { Vec2 } from "@regulus/floor-layout";
+import type { Vec2 } from "@regulus/room-layout";
 import {
   angleDelta,
   distance,

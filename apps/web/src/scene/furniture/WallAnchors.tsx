@@ -6,12 +6,12 @@
  * queue clipboard by scene/queue (#37).
  */
 import {
-  type FloorTemplate,
+  type RoomTemplate,
   type Palette,
   type Wall,
   type WallAnchor,
   wallById,
-} from "@regulus/floor-layout";
+} from "@regulus/room-layout";
 import { useMemo } from "react";
 import type { MeshToonMaterial } from "three";
 import { createToonMaterial } from "../materials/toon.ts";
@@ -100,7 +100,7 @@ function Anchor({
   );
 }
 
-export function WallAnchors({ template, palette }: { template: FloorTemplate; palette: Palette }) {
+export function WallAnchors({ template, palette }: { template: RoomTemplate; palette: Palette }) {
   const m = useMemo(() => {
     const out = {} as Mats;
     for (const k of Object.keys(ANCHOR_COLORS) as Array<keyof typeof ANCHOR_COLORS>)

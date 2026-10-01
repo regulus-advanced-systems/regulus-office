@@ -1,6 +1,6 @@
 /** Room settings over HTTP (#182), and what the FloorRoom publishes after a change. */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { ROOM_LAYOUT_ID, roomDeskSeatIds } from "@regulus/floor-layout";
+import { ROOM_LAYOUT_ID, roomDeskSeatIds } from "@regulus/room-layout";
 import { FloorStateSchema, roomSettingsPath } from "@regulus/protocol";
 import { type Office, startOffice } from "../../auth/test-helpers.ts";
 import { desks, floorMembers, floors } from "../../db/schema/index.ts";

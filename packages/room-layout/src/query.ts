@@ -1,5 +1,5 @@
 /**
- * Read-only helpers over a `FloorTemplate`: walls, anchors, seats and the
+ * Read-only helpers over a `RoomTemplate`: walls, anchors, seats and the
  * list of interactables (for pathing targets and the `E` key).
  */
 import {
@@ -10,12 +10,12 @@ import {
   segmentRect,
   type Vec2,
 } from "./geometry.ts";
-import type { FloorTemplate, Interactable, Seat, Wall, WallAnchor } from "./types.ts";
+import type { RoomTemplate, Interactable, Seat, Wall, WallAnchor } from "./types.ts";
 
 /** Physical thickness used when walls block navigation, metres. */
 export const WALL_THICKNESS = 0.2;
 
-export function wallById(template: FloorTemplate, wallId: string): Wall | undefined {
+export function wallById(template: RoomTemplate, wallId: string): Wall | undefined {
   return template.walls.find((w) => w.id === wallId);
 }
 
@@ -67,11 +67,11 @@ export function rectSpanOnWall(wall: Wall, rect: Rect): { start: number; end: nu
   return { start: Math.min(a, b), end: Math.max(a, b) };
 }
 
-export function deskSeats(template: FloorTemplate): Seat[] {
+export function deskSeats(template: RoomTemplate): Seat[] {
   return template.seats.filter((s) => s.kind === "desk");
 }
 
-export function seatById(template: FloorTemplate, seatId: string): Seat | undefined {
+export function seatById(template: RoomTemplate, seatId: string): Seat | undefined {
   return template.seats.find((s) => s.id === seatId);
 }
 
@@ -80,7 +80,7 @@ export function seatById(template: FloorTemplate, seatId: string): Seat | undefi
  * the elevator, every wall anchor and every obstacle with a `standAt`.
  * Seats are not included; use `template.seats`.
  */
-export function interactables(template: FloorTemplate): Interactable[] {
+export function interactables(template: RoomTemplate): Interactable[] {
   const out: Interactable[] = [
     { id: "elevator", kind: "elevator", standAt: template.elevator.door },
   ];

@@ -20,7 +20,7 @@
  * Every interactable opens onto a lane of at least 1.5 m.
  */
 import { HEADING } from "../geometry.ts";
-import type { FloorTemplateInput } from "../types.ts";
+import type { RoomTemplateInput } from "../types.ts";
 import { loadTemplate } from "../validate.ts";
 import {
   armchair,
@@ -47,7 +47,7 @@ const loungeChairs = [
 const WIDTH = 18;
 const DEPTH = 14;
 
-export const lobbyTemplateInput: FloorTemplateInput = {
+export const lobbyTemplateInput: RoomTemplateInput = {
   id: "lobby",
   name: "Lobby",
   kind: "lobby",

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { doorStart } from "@regulus/floor-layout";
+import { doorStart } from "@regulus/room-layout";
 import { DOOR_SIDES } from "@regulus/protocol";
 import { placeRoom } from "../placed.ts";
 import { rowPlacement, type TestRoom, testWorld } from "../testing.ts";

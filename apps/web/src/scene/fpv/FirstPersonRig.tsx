@@ -21,7 +21,7 @@
  * at aspect 1 and the view was stretched sideways by the screen's aspect.
  */
 import { useFrame, useThree } from "@react-three/fiber";
-import type { NavGrid } from "@regulus/floor-layout";
+import type { NavGrid } from "@regulus/room-layout";
 import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { Euler, type Object3D, OrthographicCamera, PerspectiveCamera } from "three";
 import { PointerLockControls } from "three/examples/jsm/controls/PointerLockControls.js";

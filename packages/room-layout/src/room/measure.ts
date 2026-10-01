@@ -8,7 +8,7 @@
 import { facingError, MAX_FACING_ERROR, seatFocus } from "../facing.ts";
 import { type Rect, rectsOverlap } from "../geometry.ts";
 import { chairRect, clearanceGrid, clusterGapProblems, laneProblems } from "../spacing.ts";
-import type { FloorTemplate } from "../types.ts";
+import type { RoomTemplate } from "../types.ts";
 import { templateProblems } from "../validate.ts";
 
 /**
@@ -16,7 +16,7 @@ import { templateProblems } from "../validate.ts";
  * count as taken). The outermost ring of cells, under the walls, is left
  * out so small rooms are not penalised for their walls.
  */
-export function roomFreeFraction(t: FloorTemplate): number {
+export function roomFreeFraction(t: RoomTemplate): number {
   const grid = clearanceGrid(t);
   let free = 0;
   let total = 0;
@@ -30,7 +30,7 @@ export function roomFreeFraction(t: FloorTemplate): number {
 }
 
 /** Furniture that overlaps other furniture, or a chair standing in furniture or another chair. */
-export function overlapProblems(t: FloorTemplate): string[] {
+export function overlapProblems(t: RoomTemplate): string[] {
   const problems: string[] = [];
   const items: Array<{ id: string; rect: Rect; owner?: string }> = [
     ...t.obstacles.map((o) => ({ id: o.id, rect: o.rect })),
@@ -49,7 +49,7 @@ export function overlapProblems(t: FloorTemplate): string[] {
 }
 
 /** Seats not facing what they belong to (their desk, or a nook's coffee table). */
-export function facingProblems(t: FloorTemplate): string[] {
+export function facingProblems(t: RoomTemplate): string[] {
   return t.seats.flatMap((seat) => {
     const focus = seatFocus(t, seat);
     if (!focus) return [`seat "${seat.id}" faces nothing`];
@@ -61,7 +61,7 @@ export function facingProblems(t: FloorTemplate): string[] {
 }
 
 /** Every problem a generated room can have; empty when it is sound. */
-export function roomProblems(t: FloorTemplate, minFree: number): string[] {
+export function roomProblems(t: RoomTemplate, minFree: number): string[] {
   const free = roomFreeFraction(t);
   return [
     ...templateProblems(t),

@@ -10,7 +10,7 @@
  * until it ends or is replaced; `gait` tells the avatar which cycle to play.
  */
 
-import type { Vec2 } from "@regulus/floor-layout";
+import type { Vec2 } from "@regulus/room-layout";
 import type { AvatarAnimation } from "@regulus/protocol";
 import { create } from "zustand";
 import { cursorHeading } from "../scene/movement/cursorFacing.ts";

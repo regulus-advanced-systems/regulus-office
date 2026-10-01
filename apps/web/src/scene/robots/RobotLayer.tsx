@@ -15,7 +15,7 @@
  * Bubbles and confetti are not mounted with reduced motion (SPEC §11).
  */
 import type { ThreeEvent } from "@react-three/fiber";
-import type { FloorTemplate, Seat } from "@regulus/floor-layout";
+import type { RoomTemplate, Seat } from "@regulus/room-layout";
 import { hasFloorAccess, type RobotState } from "@regulus/protocol";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { createDingGate, playDing } from "../../audio/ding.ts";
@@ -44,11 +44,11 @@ import { facing, laptopOrigin } from "./seatPlacement.ts";
 const EMPTY: Readonly<Record<string, RobotState>> = {};
 
 export interface RobotLayerProps {
-  template: FloorTemplate;
+  template: RoomTemplate;
   /** Robots to draw; defaults to the FloorRoom's (the dev harness passes fakes). */
   robots?: Readonly<Record<string, RobotState>>;
   /** Sit anchors per seat; defaults to the template's furniture models (the lair's chairs in the compound). */
-  anchorsFor?: (template: FloorTemplate) => ReadonlyMap<string, SitAnchor>;
+  anchorsFor?: (template: RoomTemplate) => ReadonlyMap<string, SitAnchor>;
 }
 
 /** Open the spawn dialog at a free desk (prefilled from a carried card), if this human may spawn here. */

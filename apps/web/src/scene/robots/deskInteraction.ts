@@ -4,7 +4,7 @@
  * scene/laptops, which already opens the terminal for `E` at an occupied
  * desk); an occupied nearest desk is left to it. Pure.
  */
-import type { Seat } from "@regulus/floor-layout";
+import type { Seat } from "@regulus/room-layout";
 import { DESK_INTERACT_RADIUS, nearestSeat } from "../laptops/focus.ts";
 
 export function freeDeskAt(

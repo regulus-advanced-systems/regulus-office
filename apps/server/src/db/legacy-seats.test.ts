@@ -12,7 +12,7 @@ import {
   legacyDeskCount,
   ROOM_LAYOUT_ID,
   roomDeskSeatIds,
-} from "@regulus/floor-layout";
+} from "@regulus/room-layout";
 import { MEMORY_DB_PATH, openDatabase, runMigrations } from "./index.ts";
 import { legacySeatMigrationSql, legacySeatStatements } from "./legacy-seats.ts";
 

@@ -5,7 +5,7 @@
  */
 import {
   DIRECTION,
-  type FloorTemplate,
+  type RoomTemplate,
   HEADING,
   headingFacing,
   type Obstacle,
@@ -17,7 +17,7 @@ import {
   type Wall,
   type WallAnchor,
   wallPoint,
-} from "@regulus/floor-layout";
+} from "@regulus/room-layout";
 import { planeYawFacing, WALL_SURFACE_GAP } from "../room/roomPieces.ts";
 
 export type Vec3Tuple = readonly [number, number, number];
@@ -99,7 +99,7 @@ export function visualFootprint(obstacle: Obstacle, seats: readonly Seat[]): Rec
 }
 
 /** Heading that faces away from the nearest perimeter wall. */
-export function headingAwayFromNearestWall(rect: Rect, size: FloorTemplate["size"]): number {
+export function headingAwayFromNearestWall(rect: Rect, size: RoomTemplate["size"]): number {
   const cx = rect.x + rect.w / 2;
   const cz = rect.z + rect.d / 2;
   const candidates: Array<[number, number]> = [
@@ -170,7 +170,7 @@ export function turnAround(heading: number): number {
 export function furnitureHeading(
   obstacle: Obstacle,
   seats: readonly Seat[],
-  size: FloorTemplate["size"],
+  size: RoomTemplate["size"],
 ): number {
   const seat = seats.find((s) => s.furnitureId === obstacle.id);
   if (seat)

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { HEADING } from "@regulus/floor-layout";
+import { HEADING } from "@regulus/room-layout";
 import {
   angleDelta,
   headingOfTravel,
@@ -28,7 +28,7 @@ describe("kinematics", () => {
     expect(lerpHeading(-3, 3, 0.5)).toBeCloseTo(Math.PI);
   });
 
-  test("heading of travel follows the floor-layout convention", () => {
+  test("heading of travel follows the room-layout convention", () => {
     expect(headingOfTravel(0, -1)).toBeCloseTo(HEADING.north);
     expect(headingOfTravel(0, 1)).toBeCloseTo(HEADING.south);
     expect(headingOfTravel(1, 0)).toBeCloseTo(HEADING.east);

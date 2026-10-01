@@ -20,9 +20,9 @@
 import { DECOR_STYLES, ROOM_MAX_TILES, ROOM_MIN_TILES } from "@regulus/protocol";
 import {
   COMPASS_DIRECTIONS,
-  FLOOR_TIERS,
-  type FloorTemplateInput,
-  type FloorTier,
+  ROOM_TIERS,
+  type RoomTemplateInput,
+  type RoomTier,
 } from "../types.ts";
 import { loadTemplate } from "../validate.ts";
 import { hangBoardWall } from "./anchors.ts";
@@ -52,9 +52,9 @@ export class RoomGenerationError extends RangeError {
 }
 
 /** Desk-tier label for the template `kind` (the scene only tells the lobby apart). */
-function tierFor(seats: number): FloorTier {
-  if (seats <= 6) return FLOOR_TIERS[0];
-  return seats <= 12 ? FLOOR_TIERS[1] : FLOOR_TIERS[2];
+function tierFor(seats: number): RoomTier {
+  if (seats <= 6) return ROOM_TIERS[0];
+  return seats <= 12 ? ROOM_TIERS[1] : ROOM_TIERS[2];
 }
 
 function checkInput(input: GenerateRoomInput): void {
@@ -112,7 +112,7 @@ function build(input: GenerateRoomInput, maxDeskCount: number): RoomLayout {
   for (const a of board.anchors) models[a.id] = styleModel(style, a.kind);
 
   const seats = f.seats.filter((s) => s.kind === "desk").length;
-  const raw: FloorTemplateInput = {
+  const raw: RoomTemplateInput = {
     id: `room-${width}x${depth}-${doorSide}-${deskCount}-${decorStyle}`,
     name: `Room ${width}×${depth}`,
     kind: tierFor(seats),

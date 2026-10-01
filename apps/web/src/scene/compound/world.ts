@@ -10,7 +10,7 @@
  * origin at the compound's north-west corner; a room's interior is drawn in
  * its own frame with its north-west corner at `origin`.
  */
-import { doorApproach, type Pose } from "@regulus/floor-layout";
+import { doorApproach, type Pose } from "@regulus/room-layout";
 import {
   type BuildingState,
   type DecorStyle,

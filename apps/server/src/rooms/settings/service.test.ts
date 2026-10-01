@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { randomUUID } from "node:crypto";
-import { maxDeskCount, ROOM_LAYOUT_ID, roomDeskSeatIds } from "@regulus/floor-layout";
+import { maxDeskCount, ROOM_LAYOUT_ID, roomDeskSeatIds } from "@regulus/room-layout";
 import type { FloorAccess, RoomShape } from "@regulus/protocol";
 import { and, asc, eq } from "drizzle-orm";
 import { AuthHttpError } from "../../auth/errors.ts";

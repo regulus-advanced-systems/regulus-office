@@ -14,7 +14,7 @@
  * cancelled; the inputs are cleared on submit and the token is never shown
  * again (the server reports `hasCredential`).
  */
-import { PALETTES } from "@regulus/floor-layout";
+import { PALETTES } from "@regulus/room-layout";
 import type { GitHubRepoInfo, PlaceRoomRequest } from "@regulus/protocol";
 import { useEffect, useId, useState } from "react";
 import { useCompoundStore } from "../../state/compound.ts";

@@ -5,7 +5,7 @@
  * room's size fits. `onDraft` hears every unsaved change, for the scene's
  * live preview.
  */
-import { DECOR_STYLE_SPECS } from "@regulus/floor-layout";
+import { DECOR_STYLE_SPECS } from "@regulus/room-layout";
 import {
   DECOR_STYLES,
   type DecorStyle,

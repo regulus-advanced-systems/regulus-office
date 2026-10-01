@@ -1,6 +1,6 @@
 /**
  * Writes top-down SVG renders of generated rooms (#182) for review:
- *   bun packages/floor-layout/scripts/render-rooms.ts [outDir]
+ *   bun packages/room-layout/scripts/render-rooms.ts [outDir]
  * Default outDir: docs/screenshots/182. One file per case below.
  */
 import { mkdirSync, writeFileSync } from "node:fs";

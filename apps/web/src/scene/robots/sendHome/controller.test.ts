@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { deskSeats, smallTemplate } from "@regulus/floor-layout";
+import { deskSeats, smallTemplate } from "@regulus/room-layout";
 import type { FloorState } from "@regulus/protocol";
 import { robotFixture } from "@regulus/protocol/src/fixtures.ts";
 import { useFloorStore } from "../../../state/floor.ts";

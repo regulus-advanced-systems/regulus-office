@@ -16,10 +16,10 @@
 import { SEATS_PER_DESK } from "@regulus/protocol";
 import { deskSeats } from "../query.ts";
 import { TIER_TEMPLATES } from "../templates/tiers.ts";
-import type { FloorTemplate } from "../types.ts";
+import type { RoomTemplate } from "../types.ts";
 import { roomSeatId } from "./seat-ids.ts";
 
-function seatMapOf(template: FloorTemplate): Record<string, string> {
+function seatMapOf(template: RoomTemplate): Record<string, string> {
   const map: Record<string, string> = {};
   deskSeats(template).forEach((seat, i) => {
     map[seat.id] = roomSeatId(Math.floor(i / SEATS_PER_DESK) + 1, (i % SEATS_PER_DESK) + 1);

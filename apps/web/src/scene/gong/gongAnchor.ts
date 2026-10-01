@@ -6,11 +6,11 @@
  */
 import {
   anchorStandPose,
-  type FloorTemplate,
+  type RoomTemplate,
   type Wall,
   type WallAnchor,
   wallById,
-} from "@regulus/floor-layout";
+} from "@regulus/room-layout";
 
 /** How far from the gong's stand point `E` still bangs it, metres. */
 export const GONG_INTERACT_RADIUS = 1.2;
@@ -23,7 +23,7 @@ export interface GongAnchor {
   front: { x: number; z: number };
 }
 
-export function gongAnchors(template: FloorTemplate): GongAnchor[] {
+export function gongAnchors(template: RoomTemplate): GongAnchor[] {
   const out: GongAnchor[] = [];
   for (const anchor of template.wallAnchors) {
     if (anchor.kind !== "gong") continue;

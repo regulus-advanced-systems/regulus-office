@@ -3,7 +3,7 @@ import { findPath } from "../astar.ts";
 import { HEADING } from "../geometry.ts";
 import { buildNavGrid } from "../nav-grid.ts";
 import { anchorSpan, deskSeats, interactables, wallById, wallLength } from "../query.ts";
-import { FLOOR_TIERS, FloorTemplateSchema } from "../types.ts";
+import { ROOM_TIERS, RoomTemplateSchema } from "../types.ts";
 import { structuralProblems, templateProblems } from "../validate.ts";
 import { largeTemplateInput } from "./large.ts";
 import { lobbyTemplateInput } from "./lobby.ts";
@@ -25,13 +25,13 @@ const inputs = [lobbyTemplateInput, smallTemplateInput, officeL2TemplateInput, l
 describe("every template", () => {
   test("registry holds the lobby and one template per tier", () => {
     expect(all.map((t) => t.id)).toEqual(["lobby", "office-small", "office-l2", "office-large"]);
-    expect(all.map((t) => t.kind)).toEqual(["lobby", ...FLOOR_TIERS]);
+    expect(all.map((t) => t.kind)).toEqual(["lobby", ...ROOM_TIERS]);
   });
 
   test.each(inputs.map((i) => [i.id, i] as const))(
     "%s parses with the zod schema",
     (_id, input) => {
-      expect(FloorTemplateSchema.safeParse(input).success).toBe(true);
+      expect(RoomTemplateSchema.safeParse(input).success).toBe(true);
     },
   );
 
@@ -114,7 +114,7 @@ describe("every template", () => {
 });
 
 describe("tiers", () => {
-  test.each([...FLOOR_TIERS])("%s template has exactly the tier's desk count", (tier) => {
+  test.each([...ROOM_TIERS])("%s template has exactly the tier's desk count", (tier) => {
     const t = templateForTier(tier);
     expect(t.kind).toBe(tier);
     expect(deskSeats(t)).toHaveLength(DESKS_PER_TIER[tier]);
@@ -137,7 +137,7 @@ describe("tiers", () => {
     expect(templateById("nope")).toBeUndefined();
   });
 
-  test.each([...FLOOR_TIERS])(
+  test.each([...ROOM_TIERS])(
     "%s template has the boards, whiteboard, usage wall, merge gong and pictures",
     (tier) => {
       const kinds = templateForTier(tier).wallAnchors.map((a) => a.kind);
@@ -155,7 +155,7 @@ describe("tiers", () => {
     },
   );
 
-  test.each([...FLOOR_TIERS])("%s template has GDT office furniture", (tier) => {
+  test.each([...ROOM_TIERS])("%s template has GDT office furniture", (tier) => {
     const kinds = new Set(templateForTier(tier).obstacles.map((o) => o.kind));
     for (const k of ["shared_table", "ceo_desk", "cabinet", "counter", "coffee_machine", "plant"]) {
       expect(kinds.has(k as never)).toBe(true);

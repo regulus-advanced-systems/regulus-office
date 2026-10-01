@@ -9,14 +9,14 @@
 import {
   type CompassDirection,
   DIRECTION,
-  type FloorTemplate,
+  type RoomTemplate,
   type Palette,
   WALL_THICKNESS,
   type Wall,
   wallDirection,
   wallLength,
   wallPoint,
-} from "@regulus/floor-layout";
+} from "@regulus/room-layout";
 
 export type Vec3Tuple = readonly [number, number, number];
 
@@ -120,7 +120,7 @@ export function wallFaces(piece: Pick<WallPiece, "facing" | "exterior">): WallFa
   return faces;
 }
 
-export function roomPieces(template: FloorTemplate, options: RoomPiecesOptions = {}): RoomPieces {
+export function roomPieces(template: RoomTemplate, options: RoomPiecesOptions = {}): RoomPieces {
   const promoteStubs = options.frontWalls === "full";
   const walls: WallPiece[] = [];
   const caps: CapPiece[] = [];

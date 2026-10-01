@@ -1,7 +1,7 @@
 /**
  * The compound (SPEC §9.1, D21; #181): the `compound` row, room placement,
  * the build phase, the layout published in the BuildingRoom, and its REST.
- * Pure rules live in @regulus/floor-layout `compound/`.
+ * Pure rules live in @regulus/room-layout `compound/`.
  *
  * Boot wiring (see src/index.ts):
  *   const compound = new CompoundService({ db, logger, config: loadCompoundConfig(),

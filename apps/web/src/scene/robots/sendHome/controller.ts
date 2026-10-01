@@ -6,7 +6,7 @@
  * FloorRoom state around the time `agent.leaving` arrives, so the last few
  * seconds of removed robots are remembered for the snapshot.
  */
-import type { FloorTemplate } from "@regulus/floor-layout";
+import type { RoomTemplate } from "@regulus/room-layout";
 import type { RobotState } from "@regulus/protocol";
 import { type FloorStore, useFloorStore } from "../../../state/floor.ts";
 import { useRobotOverrides } from "../../../state/robotOverrides.ts";
@@ -17,10 +17,10 @@ const REMEMBER_MS = 10_000;
 
 const plans = new Map<string, SendHomeState>();
 const removed = new Map<string, { robot: RobotState; at: number }>();
-let sceneTemplate: FloorTemplate | null = null;
+let sceneTemplate: RoomTemplate | null = null;
 
 /** The floor template the scene is drawing (set by DepartingRobots). */
-export function setSendHomeTemplate(template: FloorTemplate | null): void {
+export function setSendHomeTemplate(template: RoomTemplate | null): void {
   sceneTemplate = template;
 }
 
@@ -52,7 +52,7 @@ export function robotSnapshot(agentId: string, store = useFloorStore): RobotStat
 
 export interface StartOptions {
   reducedMotion: boolean;
-  template?: FloorTemplate | null;
+  template?: RoomTemplate | null;
   robot?: RobotState;
 }
 

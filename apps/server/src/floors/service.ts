@@ -14,7 +14,7 @@ import {
   ROOM_LAYOUT_ID,
   roomDeskSeatIds,
   templateForTier,
-} from "@regulus/floor-layout";
+} from "@regulus/room-layout";
 import type {
   FloorAccess,
   FloorInfo,

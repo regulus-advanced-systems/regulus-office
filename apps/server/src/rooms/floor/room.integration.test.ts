@@ -8,7 +8,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Client, type Room } from "@colyseus/sdk";
-import { legacyDeskCount, ROOM_LAYOUT_ID, roomDeskSeatIds } from "@regulus/floor-layout";
+import { legacyDeskCount, ROOM_LAYOUT_ID, roomDeskSeatIds } from "@regulus/room-layout";
 import {
   BuildingStateSchema,
   COMMAND_REJECTED_MESSAGE,

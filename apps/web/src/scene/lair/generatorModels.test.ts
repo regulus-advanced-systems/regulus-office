@@ -5,7 +5,7 @@ import {
   generateRoom,
   maxDeskCount,
   type RoomLayout,
-} from "@regulus/floor-layout";
+} from "@regulus/room-layout";
 import { DECOR_STYLES, ROOM_MAX_TILES, ROOM_MIN_TILES } from "@regulus/protocol";
 import {
   COMMON_MODEL_IDS,

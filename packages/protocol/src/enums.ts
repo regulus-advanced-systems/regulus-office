@@ -69,9 +69,9 @@ export type FloorAccess = (typeof FLOOR_ACCESSES)[number];
 export const REPO_CLONE_STATUSES = ["cloning", "ready", "error"] as const;
 export type RepoCloneStatus = (typeof REPO_CLONE_STATUSES)[number];
 
-/** Floor layout size tiers (SPEC §9.1, D8); mirrors `FLOOR_TIERS` in @regulus/floor-layout. */
-export const FLOOR_TEMPLATE_TIERS = ["small", "medium", "large"] as const;
-export type FloorTemplateTier = (typeof FLOOR_TEMPLATE_TIERS)[number];
+/** Floor layout size tiers (SPEC §9.1, D8); mirrors `ROOM_TIERS` in @regulus/room-layout. */
+export const ROOM_TEMPLATE_TIERS = ["small", "medium", "large"] as const;
+export type RoomTemplateTier = (typeof ROOM_TEMPLATE_TIERS)[number];
 
 export const CREDENTIAL_AUTH_KINDS = ["cli_login", "api_key", "base_url_key"] as const;
 export type CredentialAuthKind = (typeof CREDENTIAL_AUTH_KINDS)[number];

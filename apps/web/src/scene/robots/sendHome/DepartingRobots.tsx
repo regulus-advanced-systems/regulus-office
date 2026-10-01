@@ -5,7 +5,7 @@
  * template; it also drives the walks (controller.ts).
  */
 import { useFrame } from "@react-three/fiber";
-import type { FloorTemplate } from "@regulus/floor-layout";
+import type { RoomTemplate } from "@regulus/room-layout";
 import { Suspense, useEffect, useRef } from "react";
 import type { Group } from "three";
 import { useShallow } from "zustand/react/shallow";
@@ -59,7 +59,7 @@ function DepartingRobot({ override }: { override: RobotOverride }) {
   );
 }
 
-export function DepartingRobots({ template }: { template: FloorTemplate }) {
+export function DepartingRobots({ template }: { template: RoomTemplate }) {
   const overrides = useRobotOverrides(
     useShallow((s) => Object.values(s.overrides).filter((o) => o.kind === "send_home")),
   );

@@ -5,7 +5,7 @@
  * search jumps and notifications. The FloorRoom join follows on its own as
  * soon as the player stands in the room (scene/compound/RoomPresence).
  */
-import type { Vec2 } from "@regulus/floor-layout";
+import type { Vec2 } from "@regulus/room-layout";
 import { roomLayout } from "../scene/compound/layouts.ts";
 import { roomById, roomCentre, travelPose } from "../scene/compound/world.ts";
 import { useCompoundStore } from "./compound.ts";

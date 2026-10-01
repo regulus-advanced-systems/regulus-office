@@ -4,7 +4,7 @@
  * arrival, and each heading-only change is relayed through the move throttle.
  */
 import { describe, expect, test } from "bun:test";
-import { HEADING } from "@regulus/floor-layout";
+import { HEADING } from "@regulus/room-layout";
 import { angleDelta, headingOfTravel, type Pose, TURN_RATE } from "../scene/movement/kinematics.ts";
 import { createMoveThrottle } from "../scene/movement/moveThrottle.ts";
 import { createPlayerStore } from "./player.ts";

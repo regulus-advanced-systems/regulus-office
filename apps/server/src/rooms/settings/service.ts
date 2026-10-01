@@ -22,7 +22,7 @@ import {
   parseRoomSeatId,
   ROOM_LAYOUT_ID,
   roomDeskSeatIds,
-} from "@regulus/floor-layout";
+} from "@regulus/room-layout";
 import {
   type FloorAccess,
   hasFloorAccess,

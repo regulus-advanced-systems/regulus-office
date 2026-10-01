@@ -3,11 +3,11 @@
  * (SPEC §9.1): Kenney GLBs where the catalog has one, boxes otherwise.
  */
 import {
-  type FloorTemplate,
+  type RoomTemplate,
   type ObstacleKind,
   type Palette,
   wallById,
-} from "@regulus/floor-layout";
+} from "@regulus/room-layout";
 import { chairForSeat, FURNITURE_MODELS, PLACEHOLDER_HEIGHTS, smallPlantUrl } from "./catalog.ts";
 import { GltfProp } from "./GltfProp.tsx";
 import { Bookshelf, Planter, PropLayer } from "./LivedIn.tsx";
@@ -17,7 +17,7 @@ import { seatModel } from "./sitAnchor.ts";
 import { WallDecor } from "./WallDecor.tsx";
 
 export interface FurnitureProps {
-  template: FloorTemplate;
+  template: RoomTemplate;
   palette: Palette;
 }
 

@@ -11,7 +11,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Client, type Room } from "@colyseus/sdk";
-import { smallTemplate } from "@regulus/floor-layout";
+import { smallTemplate } from "@regulus/room-layout";
 import {
   AGENT_LEAVING_MESSAGE,
   AGENT_PERMISSIONS_MESSAGE,

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { HEADING, officeL2Template, type Seat } from "@regulus/floor-layout";
+import { HEADING, officeL2Template, type Seat } from "@regulus/room-layout";
 import { SEATED_HIPS, seatedOffset } from "../avatar/seatedFit.ts";
 import { laptopPlacement } from "../laptops/placement.ts";
 import { freeDeskAt } from "./deskInteraction.ts";

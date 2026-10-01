@@ -9,7 +9,7 @@
  *
  * Cutaway walls: the wall facing the door and its counter-clockwise
  * neighbour are full height and carry the board wall; the door's wall and the
- * other one are low stubs. Entering, you face the boards. The FloorTemplate
+ * other one are low stubs. Entering, you face the boards. The RoomTemplate
  * `elevator` record describes the door: its frame wall, a threshold strip
  * inside it and the pose just inside, which is also the spawn point.
  */

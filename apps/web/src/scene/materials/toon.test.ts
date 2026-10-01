@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { PALETTES } from "@regulus/floor-layout";
+import { PALETTES } from "@regulus/room-layout";
 import {
   BoxGeometry,
   Group,

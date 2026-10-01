@@ -7,7 +7,7 @@
  * `roomPieces`, colours from the palette, grime from a procedural multiply
  * map.
  */
-import type { FloorTemplate, Palette } from "@regulus/floor-layout";
+import type { RoomTemplate, Palette } from "@regulus/room-layout";
 import { useEffect, useMemo } from "react";
 import { type DataTexture, MeshBasicMaterial, type MeshToonMaterial } from "three";
 import { createGrimeTexture } from "../materials/grime.ts";
@@ -25,7 +25,7 @@ import {
 } from "./roomPieces.ts";
 
 export interface RoomProps {
-  template: FloorTemplate;
+  template: RoomTemplate;
   palette: Palette;
   /** Painted on the exterior stub; defaults to the template name. */
   floorName?: string;
@@ -53,7 +53,7 @@ interface RoomMaterials {
 }
 
 function buildMaterials(
-  template: FloorTemplate,
+  template: RoomTemplate,
   palette: Palette,
   pieces: ReturnType<typeof roomPieces>,
 ) {

@@ -18,7 +18,7 @@
  * Every desk cluster and interactable opens onto a lane of at least 1.5 m.
  */
 import { HEADING } from "../geometry.ts";
-import type { FloorTemplateInput } from "../types.ts";
+import type { RoomTemplateInput } from "../types.ts";
 import { loadTemplate } from "../validate.ts";
 import {
   bistroProps,
@@ -70,7 +70,7 @@ const furniture = furnish(
   ],
 );
 
-export const smallTemplateInput: FloorTemplateInput = {
+export const smallTemplateInput: RoomTemplateInput = {
   id: "office-small",
   name: "Office S",
   kind: "small",

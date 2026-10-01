@@ -4,7 +4,7 @@
  * (#35). A click, or `E` near one, opens its 2D panel (ui/boards). Also the
  * cards being carried around the floor (CarriedCards).
  */
-import type { FloorTemplate } from "@regulus/floor-layout";
+import type { RoomTemplate } from "@regulus/room-layout";
 import type { IssueCard, PullCard, RepoSummary, RobotState } from "@regulus/protocol";
 import { useCallback, useMemo } from "react";
 import { useShallow } from "zustand/react/shallow";
@@ -25,7 +25,7 @@ const NO_REPOS: readonly RepoSummary[] = [];
 const NO_ROBOTS: Readonly<Record<string, RobotState>> = {};
 
 export interface BoardLayerProps {
-  template: FloorTemplate;
+  template: RoomTemplate;
   look?: BoardLook;
   /** Draw carried cards here (the compound draws them once, in world space). */
   carried?: boolean;

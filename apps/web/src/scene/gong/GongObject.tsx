@@ -6,7 +6,7 @@
  * objects, so a ring re-renders nothing but this component once.
  */
 import { type ThreeEvent, useFrame } from "@react-three/fiber";
-import type { Wall, WallAnchor } from "@regulus/floor-layout";
+import type { Wall, WallAnchor } from "@regulus/room-layout";
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Group } from "three";
 import { anchorPlacement } from "../furniture/placement.ts";

@@ -16,12 +16,12 @@
  */
 import { Canvas } from "@react-three/fiber";
 import {
-  type FloorTemplate,
+  type RoomTemplate,
   LOBBY_PALETTE_ID,
   lobbyTemplate,
   type Palette,
   paletteById,
-} from "@regulus/floor-layout";
+} from "@regulus/room-layout";
 import { type ReactNode, Suspense, useMemo } from "react";
 import { useFloorStore } from "../state/floor.ts";
 import { usePlayerStore } from "../state/player.ts";
@@ -46,7 +46,7 @@ import { BlobShadows } from "./shadows/BlobShadows.tsx";
 
 export interface OfficeCanvasProps {
   /** Floor to draw; the lobby until floor switching lands. */
-  template?: FloorTemplate;
+  template?: RoomTemplate;
   palette?: Palette;
   /** Name painted on the exterior stub wall; defaults to the template name. */
   floorName?: string;

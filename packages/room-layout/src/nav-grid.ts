@@ -6,7 +6,7 @@
  */
 import { type Rect, rectsOverlap, type Vec2 } from "./geometry.ts";
 import { wallRect } from "./query.ts";
-import type { FloorTemplate } from "./types.ts";
+import type { RoomTemplate } from "./types.ts";
 
 export const DEFAULT_CELL_SIZE = 0.5;
 
@@ -162,7 +162,7 @@ export class NavGrid {
 }
 
 /** Build the grid for a template: walls, the elevator recess and every obstacle block. */
-export function buildNavGrid(template: FloorTemplate, options: NavGridOptions = {}): NavGrid {
+export function buildNavGrid(template: RoomTemplate, options: NavGridOptions = {}): NavGrid {
   const grid = new NavGrid(template.size.width, template.size.depth, options.cellSize);
   for (const wall of template.walls) grid.blockRect(wallRect(wall));
   grid.blockRect(template.elevator.rect);

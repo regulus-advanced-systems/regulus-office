@@ -3,7 +3,7 @@
  * a little in from the edge nearest the chair, screen facing the chair.
  * Pure maths over the floor template; only `desk` seats get a laptop.
  */
-import type { FloorTemplate, ObstacleKind, Rect, Seat } from "@regulus/floor-layout";
+import type { RoomTemplate, ObstacleKind, Rect, Seat } from "@regulus/room-layout";
 import { FURNITURE_MODELS, PLACEHOLDER_HEIGHTS } from "../furniture/catalog.ts";
 import { LAPTOP_DIMENSIONS } from "./dimensions.ts";
 
@@ -59,7 +59,7 @@ function deskHeight(kind: ObstacleKind | undefined): number {
   return FURNITURE_MODELS[kind]?.targetHeight ?? PLACEHOLDER_HEIGHTS[kind];
 }
 
-export function laptopPlacement(template: FloorTemplate, seat: Seat): LaptopPlacement {
+export function laptopPlacement(template: RoomTemplate, seat: Seat): LaptopPlacement {
   const dir = facing(seat.pose.heading);
   const desk = seat.furnitureId
     ? template.obstacles.find((o) => o.id === seat.furnitureId)
@@ -74,6 +74,6 @@ export function laptopPlacement(template: FloorTemplate, seat: Seat): LaptopPlac
   };
 }
 
-export function laptopPlacements(template: FloorTemplate): LaptopPlacement[] {
+export function laptopPlacements(template: RoomTemplate): LaptopPlacement[] {
   return template.seats.filter((s) => s.kind === "desk").map((s) => laptopPlacement(template, s));
 }

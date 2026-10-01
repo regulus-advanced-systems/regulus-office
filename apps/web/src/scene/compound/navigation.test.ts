@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { findPath, type NavGrid } from "@regulus/floor-layout";
+import { findPath, type NavGrid } from "@regulus/room-layout";
 import { roomArt } from "./interiors.ts";
 import { closedDoors, compoundNavGrid, lobbySpawn, navKey, wallBands } from "./navigation.ts";
 import { rowPlacement, testWorld } from "./testing.ts";

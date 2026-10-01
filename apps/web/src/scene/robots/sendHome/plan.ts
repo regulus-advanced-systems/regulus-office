@@ -5,7 +5,7 @@
  * frame with the elapsed seconds; with reduced motion (SPEC §11) the plan
  * starts finished, so the robot simply disappears.
  */
-import { type FloorTemplate, seatById, type Vec2 } from "@regulus/floor-layout";
+import { type RoomTemplate, seatById, type Vec2 } from "@regulus/room-layout";
 import type { AvatarAnimation } from "@regulus/protocol";
 import type { Pose } from "../../movement/kinematics.ts";
 import { navGridFor, planPath } from "../../movement/navigation.ts";
@@ -34,21 +34,21 @@ export interface SendHomeFrame {
 }
 
 /** Where the walk starts: the robot's seat, else the room centre. */
-export function startPose(template: FloorTemplate, seatId: string): Pose {
+export function startPose(template: RoomTemplate, seatId: string): Pose {
   const seat = seatById(template, seatId);
   if (seat) return { x: seat.pose.x, z: seat.pose.z, heading: seat.pose.heading };
   return { x: template.size.width / 2, z: template.size.depth / 2, heading: 0 };
 }
 
 /** Route from the seat to the elevator doors; a straight line if the grid has none. */
-export function routeToElevator(template: FloorTemplate, from: Vec2): Vec2[] {
+export function routeToElevator(template: RoomTemplate, from: Vec2): Vec2[] {
   const door = template.elevator.door;
   const path = planPath(navGridFor(template), from, door);
   return path && path.length > 0 ? path : [{ x: door.x, z: door.z }];
 }
 
 export function planSendHome(
-  template: FloorTemplate,
+  template: RoomTemplate,
   seatId: string,
   options: { reducedMotion?: boolean } = {},
 ): SendHomeState {

@@ -17,7 +17,7 @@ import {
   type NavGrid,
   type Pose,
   type Rect,
-} from "@regulus/floor-layout";
+} from "@regulus/room-layout";
 import { DOOR_WIDTH_TILES } from "@regulus/protocol";
 import { WALL_THICKNESS } from "../lair/dimensions.ts";
 import { type RoomArt, roomArt } from "./interiors.ts";
