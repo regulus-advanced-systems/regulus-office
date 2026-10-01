@@ -1,6 +1,6 @@
 /**
  * HUD side of the lobby jukebox (#47): the sound itself (playback hook),
- * a now-playing strip with the personal mute and a button to the panel
+ * a now-playing strip (in the HUD's corner row) with the personal mute and a button to the panel
  * (so the jukebox is reachable by keyboard from anywhere), the panel, and
  * YouTube's player panel while a YouTube track plays. The panel owns the
  * keyboard while open.
@@ -17,7 +17,8 @@ import "./jukebox.css";
 
 export const JUKEBOX_OVERLAY = "jukebox";
 
-function JukeboxStrip() {
+/** Now playing, the personal mute and a way to the panel; sits with the corner buttons. */
+export function JukeboxStrip() {
   const current = useBuildingStore((s) => s.state?.jukebox.current ?? null);
   const playing = useBuildingStore((s) => Boolean(s.state?.jukebox.playing));
   const muted = useUiStore((s) => s.settings.jukeboxMuted);
@@ -63,7 +64,6 @@ export function JukeboxHost() {
   }, [panelOpen, openOverlay, closeOverlay]);
   return (
     <>
-      <JukeboxStrip />
       <YouTubePanel />
       {panelOpen && <JukeboxPanel />}
     </>

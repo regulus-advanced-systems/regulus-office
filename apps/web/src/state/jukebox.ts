@@ -34,6 +34,9 @@ export interface JukeboxStore {
   /** Queue entry whose YouTube panel the viewer closed (it returns for the next video). */
   youtubeClosedFor: string;
   sync: JukeboxSync | null;
+  /** Where a player stands to use the jukebox (the scene writes it); e2e walks there. */
+  stand: { x: number; z: number } | null;
+  setStand(stand: { x: number; z: number } | null): void;
   setLevel(level: number, distance: number): void;
   openPanel(): void;
   closePanel(): void;
@@ -48,6 +51,8 @@ export const useJukeboxStore = create<JukeboxStore>()((set) => ({
   panelOpen: false,
   youtubeClosedFor: "",
   sync: null,
+  stand: null,
+  setStand: (stand) => set({ stand }),
   setLevel: (level, distance) =>
     set((s) =>
       Math.abs(s.level - level) < 0.005 &&

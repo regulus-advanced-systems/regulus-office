@@ -21,7 +21,7 @@ import { RoomsPanel } from "./hud/RoomsPanel.tsx";
 import { StatusBox } from "./hud/StatusBox.tsx";
 import { TopBar } from "./hud/TopBar.tsx";
 import { WorkCounters } from "./hud/WorkCounters.tsx";
-import { JukeboxHost } from "./jukebox/JukeboxHost.tsx";
+import { JukeboxHost, JukeboxStrip } from "./jukebox/JukeboxHost.tsx";
 import { NotificationsHost } from "./notifications/NotificationsHost.tsx";
 import { AddOperationDialogHost } from "./operations/AddOperationDialog.tsx";
 import { OperationSettingsDialogHost } from "./operations/OperationSettingsDialog.tsx";
@@ -109,6 +109,7 @@ export function Hud() {
         >
           Help
         </Button>
+        <JukeboxStrip />
       </div>
       <BuildModeHost />
       <RoomSettingsDock />

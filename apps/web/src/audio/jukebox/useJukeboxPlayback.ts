@@ -30,6 +30,10 @@ export interface JukeboxProbe {
   /** The `<audio>` element's position, ms (null without one). */
   elementMs(): number | null;
   level(): number;
+  /** Where to stand to use the jukebox, compound metres. */
+  stand(): { x: number; z: number } | null;
+  /** Is the `<audio>` element playing? */
+  playing(): boolean;
 }
 
 declare global {
@@ -124,6 +128,8 @@ export function useJukeboxPlayback(): void {
         serverNow,
         elementMs: () => (element ? element.currentTime * 1000 : null),
         level: () => useJukeboxStore.getState().level,
+        stand: () => useJukeboxStore.getState().stand,
+        playing: () => Boolean(element && !element.paused && element.readyState >= 2),
       };
     }
     return () => {

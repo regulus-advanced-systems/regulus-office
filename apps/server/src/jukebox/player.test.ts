@@ -151,6 +151,20 @@ describe("jukebox player: playhead", () => {
   });
 });
 
+describe("jukebox player: an unmeasured video", () => {
+  test("ends after the longest video the jukebox takes, so it cannot block the queue", () => {
+    const j = setup();
+    j.run(mia, { type: "jukebox.enqueue", trackId: "yt" });
+    j.run(mia, { type: "jukebox.enqueue", trackId: "a" });
+    j.clock.now += JUKEBOX_LIMITS.maxYouTubeDurationMs - 1_000;
+    j.player.tick(j.state);
+    expect(j.state.current.trackId).toBe("yt");
+    j.clock.now += 1_000;
+    j.player.tick(j.state);
+    expect(j.state.current.trackId).toBe("a");
+  });
+});
+
 describe("jukebox player: permissions and limits", () => {
   test("only the adder or an owner/admin pauses, seeks, skips or removes", () => {
     const j = setup();

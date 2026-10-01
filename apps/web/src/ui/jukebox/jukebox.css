@@ -108,7 +108,7 @@
   padding: 0;
   display: grid;
   gap: 6px;
-  max-height: 260px;
+  max-height: 330px;
   overflow-y: auto;
 }
 .rg-jukebox__row {
@@ -135,15 +135,14 @@
 }
 
 /* ---------- HUD strip ---------- */
+/* In the corner row, after Settings and Help. */
 .rg-jukebox-strip {
-  position: absolute;
-  left: 12px;
-  bottom: 64px;
   display: flex;
   gap: 8px;
   align-items: center;
-  max-width: min(420px, calc(100vw - 24px));
-  padding: 6px 8px 6px 12px;
+  min-width: 0;
+  max-width: min(400px, calc(100vw - 260px));
+  padding: 3px 6px 3px 12px;
   pointer-events: auto;
 }
 .rg-jukebox-strip__text {
@@ -162,10 +161,11 @@
 }
 
 /* ---------- YouTube ---------- */
+/* Bottom right, where toasts and the room docks also come and go; it sits under them. */
 .rg-youtube {
   position: absolute;
-  left: 12px;
-  bottom: 112px;
+  right: 12px;
+  bottom: 12px;
   width: min(360px, calc(100vw - 24px));
   display: grid;
   gap: 6px;

@@ -15,7 +15,7 @@
  */
 import { type ThreeEvent, useFrame } from "@react-three/fiber";
 import type { NavGrid } from "@regulus/room-layout";
-import { useCallback, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import type { Mesh } from "three";
 import { buildSoundField } from "../../audio/soundField.ts";
 import { attenuation, JUKEBOX_FALLOFF, roomOcclusion } from "../../audio/spatial.ts";
@@ -29,7 +29,8 @@ import { type CompoundWorld, roomAt } from "../compound/world.ts";
 import { JUKEBOX_REACH, jukeboxSpot } from "./spot.ts";
 
 const LEVEL_EVERY_S = 0.2;
-const LAMP_HEIGHT = 1.72;
+/** On top of the arch (the lair kit's jukebox, scaled to 1.5 m tall). */
+const LAMP_HEIGHT = 1.49;
 
 export function JukeboxDriver({ world, grid }: { world: CompoundWorld; grid: NavGrid }) {
   const spot = useMemo(() => jukeboxSpot(world), [world]);
@@ -42,6 +43,10 @@ export function JukeboxDriver({ world, grid }: { world: CompoundWorld; grid: Nav
   const since = useRef(LEVEL_EVERY_S);
   const pending = useRef(false);
   const lamp = useRef<Mesh>(null);
+  useEffect(() => {
+    useJukeboxStore.getState().setStand(spot ? spot.stand : null);
+    return () => useJukeboxStore.getState().setStand(null);
+  }, [spot]);
 
   useFrame((state, delta) => {
     if (lamp.current) {
@@ -112,7 +117,7 @@ export function JukeboxDriver({ world, grid }: { world: CompoundWorld; grid: Nav
         <meshBasicMaterial transparent opacity={0} depthWrite={false} colorWrite={false} />
       </mesh>
       <mesh ref={lamp} name="jukebox-lamp" position={[0, LAMP_HEIGHT, 0]}>
-        <sphereGeometry args={[0.09, 12, 8]} />
+        <sphereGeometry args={[0.055, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2]} />
         <meshBasicMaterial color={playing ? "#F2C200" : "#4A3B22"} toneMapped={false} />
       </mesh>
     </group>

@@ -118,8 +118,21 @@ export function buildSoundField(
   const start = nearestWalkable(grid, source.x, source.z, 3);
   let visited = 0;
   if (start) {
-    const walkable = (col: number, row: number) =>
-      col >= 0 && row >= 0 && col < cols && row < rows && grid.isCellWalkable({ col, row });
+    // Walkability is asked once per cell and cached (0 unknown, 1 open, 2 blocked); one probe object.
+    const known = new Uint8Array(cols * rows);
+    const probe = { col: 0, row: 0 };
+    const walkable = (col: number, row: number) => {
+      if (col < 0 || row < 0 || col >= cols || row >= rows) return false;
+      const i = row * cols + col;
+      let k = known[i] as number;
+      if (k === 0) {
+        probe.col = col;
+        probe.row = row;
+        k = grid.isCellWalkable(probe) ? 1 : 2;
+        known[i] = k;
+      }
+      return k === 1;
+    };
     const heap = new Heap();
     const s = start.cell.row * cols + start.cell.col;
     dist[s] = Math.fround(start.offset);

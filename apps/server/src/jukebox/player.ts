@@ -293,7 +293,14 @@ export function createJukeboxPlayer(deps: JukeboxPlayerDeps): JukeboxPlayer {
     },
 
     tick(t) {
-      if (!loaded(t) || !jukeboxTrackEnded(playhead(t), now())) return;
+      if (!loaded(t)) return;
+      // A video nobody measured (no listener had YouTube) still ends, at the longest we take.
+      const ended =
+        jukeboxTrackEnded(playhead(t), now()) ||
+        (t.playing &&
+          t.current.durationMs === 0 &&
+          now() - t.startedAtServerMs >= JUKEBOX_LIMITS.maxYouTubeDurationMs);
+      if (!ended) return;
       advance(t);
       save(t);
     },
