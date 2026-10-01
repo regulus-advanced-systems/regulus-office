@@ -1,13 +1,13 @@
 /**
  * Search across chat and persisted terminal scrollback (SPEC D10; issue #41).
  *
- *   GET /api/search?q=<query>          hits grouped by robot and floor
+ *   GET /api/search?q=<query>          hits grouped by henchman and operation
  *   GET /api/search/context?doc=<id>   scrollback lines around one hit
  *
  * The server sanitises the query (it never reaches SQLite FTS5 as syntax),
  * rate-limits it per user and returns only what the searcher may see:
- * chat from the lobby and from floors they can see, and the scrollback of
- * live robots whose terminal they may watch (D12). Snippets are structured
+ * chat from the lobby and from operations they can see, and the scrollback of
+ * live henchmen whose terminal they may watch (D12). Snippets are structured
  * segments so the client never renders server text as HTML.
  */
 import { z } from "zod";
@@ -43,16 +43,16 @@ export const SearchHit = z.object({
 export type SearchHit = z.infer<typeof SearchHit>;
 
 export const SearchGroup = z.object({
-  /** `chat:<floorId>` or `robot:<agentId>`. */
+  /** `chat:<operationId>` or `henchman:<agentId>`. */
   key: z.string(),
   kind: z.enum(SEARCH_DOC_KINDS),
   /** The lobby id for building-wide chat. */
-  floorId: z.string(),
-  floorName: z.string(),
-  /** Scrollback groups: the robot, its desk and its owner. */
+  operationId: z.string(),
+  operationName: z.string(),
+  /** Scrollback groups: the henchman, its desk and its owner. */
   agentId: Id.optional(),
   seatId: z.string().optional(),
-  robotName: z.string().optional(),
+  henchmanName: z.string().optional(),
   ownerName: z.string().optional(),
   hits: z.array(SearchHit),
 });
@@ -70,7 +70,7 @@ export type SearchResponse = z.infer<typeof SearchResponse>;
 export const SearchContextResponse = z.object({
   docId: z.number().int().positive(),
   agentId: Id,
-  floorId: Id,
+  operationId: Id,
   /** Scrollback lines around the hit, oldest first. */
   lines: z.array(z.string()),
   /** Index in `lines` of the first line that matched, or -1. */

@@ -1,14 +1,14 @@
 /**
  * Notifications (SPEC §10 Ops, D15; issue #42).
  *
- * Personal: a human's own robots raise desktop notifications and the tab
+ * Personal: a human's own henchmen raise desktop notifications and the tab
  * badge. The server pushes `notify.event` / `notify.attention` BuildingRoom
- * messages to that human's clients only (admins may opt in to other robots'
+ * messages to that human's clients only (admins may opt in to other henchmen'
  * errors). Preferences are per user, stored by the office.
  *
  * Team: owners and admins route events to Slack, Discord or Telegram.
  * Webhook URLs and bot tokens are write-only: a request may carry one, no
- * response ever does. Messages carry only robot name, owner, floor, status,
+ * response ever does. Messages carry only henchman name, owner, operation, status,
  * task title and PR links; never terminal output or permission details.
  */
 import { z } from "zod";
@@ -47,32 +47,32 @@ const PROVIDER_NAMES: Record<ProviderId, string> = {
   custom: "Custom",
 };
 
-/** How notifications name a robot: "Ada's Codex robot". */
-export function robotDisplayName(ownerName: string, provider: ProviderId): string {
+/** How notifications name a henchman: "Ada's Codex henchman". */
+export function henchmanDisplayName(ownerName: string, provider: ProviderId): string {
   const who = ownerName.trim() || "Someone";
   return `${who}'s ${PROVIDER_NAMES[provider] ?? "henchman"} henchman`;
 }
 
 // ---- Personal notifications ------------------------------------------------
 
-/** BuildingRoom server→client: one event about a robot, sent to its owner (or opted-in admins). */
+/** BuildingRoom server→client: one event about a henchman, sent to its owner (or opted-in admins). */
 export const NOTIFY_EVENT_MESSAGE = "notify.event";
-/** BuildingRoom server→client: the recipient's own robots that are waiting for them now. */
+/** BuildingRoom server→client: the recipient's own henchmen that are waiting for them now. */
 export const NOTIFY_ATTENTION_MESSAGE = "notify.attention";
 
 export const NotifyEvent = z.object({
   id: z.string().min(1).max(128),
   event: NotificationEventSchema,
   agentId: Id,
-  floorId: Id,
-  floorName: z.string().max(100),
-  robotName: z.string().max(120),
+  operationId: Id,
+  operationName: z.string().max(100),
+  henchmanName: z.string().max(120),
   ownerName: z.string().max(64),
   provider: z.enum(PROVIDER_IDS),
   taskTitle: z.string().max(200),
   prNumber: z.number().int().nonnegative(),
   prUrl: z.string().max(400),
-  /** True when the recipient owns the robot; false for an admin's emergency notice. */
+  /** True when the recipient owns the henchman; false for an admin's emergency notice. */
   own: z.boolean(),
   ts: TimestampMs,
 });
@@ -95,7 +95,7 @@ export const NotificationPrefs = z.object({
     pr_opened: z.boolean(),
     pr_merged: z.boolean(),
   }),
-  /** Owners/admins only: also notify when anyone's robot hits an error. */
+  /** Owners/admins only: also notify when anyone's henchman hits an error. */
   adminErrors: z.boolean(),
   /** Silence desktop notifications between `start` and `end` (browser local time). */
   quietHours: z.object({ enabled: z.boolean(), start: HHMM, end: HHMM }),
@@ -128,8 +128,8 @@ export const notificationChannelPath = (id: string, test = false) =>
 
 const Label = z.string().trim().min(1).max(60);
 const Events = z.array(NotificationEventSchema).max(NOTIFICATION_EVENTS.length);
-/** null = every floor. */
-const FloorIds = z.array(Id).max(200).nullable();
+/** null = every operation. */
+const OperationIds = z.array(Id).max(200).nullable();
 /** Numeric chat id (`-100…` for groups/channels) or `@channelusername`. */
 export const TelegramChatId = z
   .string()
@@ -143,7 +143,7 @@ export const CreateNotificationChannel = z.object({
   label: Label,
   secret: Secret,
   chatId: TelegramChatId.optional(),
-  floorIds: FloorIds,
+  operationIds: OperationIds,
   events: Events,
   enabled: z.boolean().default(true),
 });
@@ -154,7 +154,7 @@ export const UpdateNotificationChannel = z.object({
   /** Replace the stored URL / token. */
   secret: Secret.optional(),
   chatId: TelegramChatId.optional(),
-  floorIds: FloorIds.optional(),
+  operationIds: OperationIds.optional(),
   events: Events.optional(),
   enabled: z.boolean().optional(),
 });
@@ -166,7 +166,7 @@ export const NotificationChannelView = z.object({
   label: z.string().max(60),
   /** Telegram only; not a secret. */
   chatId: z.string().max(40).nullable(),
-  floorIds: z.array(Id).nullable(),
+  operationIds: z.array(Id).nullable(),
   events: z.array(NotificationEventSchema),
   enabled: z.boolean(),
   lastDelivery: z.object({ at: TimestampMs, ok: z.boolean(), code: z.string().max(40) }).nullable(),

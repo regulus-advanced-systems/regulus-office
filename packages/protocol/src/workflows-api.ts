@@ -1,10 +1,10 @@
 /**
- * REST shapes for GitHub workflows (#155): the workflow list per floor, the
+ * REST shapes for GitHub workflows (#155): the workflow list per operation, the
  * run history, recent GitHub events (for dry runs) and dry-run results.
  *
- * Reading a floor's workflows and runs needs `view` on the floor; creating,
+ * Reading an operation's workflows and runs needs `view` on the operation; creating,
  * changing, deleting, dry-running and cancelling need office owner/admin or
- * floor `manage`. Only office owners/admins may turn on `approve`.
+ * operation `manage`. Only office owners/admins may turn on `approve`.
  */
 import { z } from "zod";
 import { Id, TimestampMs } from "./common.ts";
@@ -49,7 +49,7 @@ export type WorkflowUsageToday = z.infer<typeof WorkflowUsageToday>;
 
 export const WorkflowView = WorkflowInput.extend({
   id: Id,
-  floorId: Id,
+  operationId: Id,
   createdBy: z.string().nullable(),
   createdAt: TimestampMs,
   updatedAt: TimestampMs,
@@ -59,7 +59,7 @@ export type WorkflowView = z.infer<typeof WorkflowView>;
 
 export const WorkflowListResponse = z.object({
   workflows: z.array(WorkflowView),
-  /** Can the signed-in human edit this floor's workflows (admin or floor manage)? */
+  /** Can the signed-in human edit this operation's workflows (admin or operation manage)? */
   canEdit: z.boolean(),
   /** Can they turn on approve (office owner/admin)? */
   canApprove: z.boolean(),
@@ -88,7 +88,7 @@ export const WorkflowRunView = z.object({
   id: Id,
   workflowId: Id,
   workflowName: WorkflowName,
-  floorId: Id,
+  operationId: Id,
   /** `pull_request.opened`, `issue_comment.created`, `schedule`, … */
   trigger: z.string().max(80),
   deliveryId: z.string().max(200),
@@ -98,8 +98,8 @@ export const WorkflowRunView = z.object({
   reason: z.string().max(300).nullable(),
   provider: z.enum(WORKFLOW_PROVIDERS),
   model: z.string().max(100).nullable(),
-  /** The robot's name in the office (review desk later). */
-  robot: z.string().max(80),
+  /** The henchman's name in the office (review desk later). */
+  henchman: z.string().max(80),
   queuedAt: TimestampMs,
   startedAt: TimestampMs.nullable(),
   finishedAt: TimestampMs.nullable(),
@@ -113,7 +113,7 @@ export type WorkflowRunView = z.infer<typeof WorkflowRunView>;
 export const WorkflowRunDetail = WorkflowRunView.extend({
   /** Timestamped steps; never tokens, keys or prompt text. */
   log: z.array(z.string().max(1000)).max(500),
-  /** The robot's summary as posted (or as it would have been). */
+  /** The henchman's summary as posted (or as it would have been). */
   summary: z.string().max(70_000).nullable(),
 });
 export type WorkflowRunDetail = z.infer<typeof WorkflowRunDetail>;
@@ -123,7 +123,7 @@ export type WorkflowRunListResponse = z.infer<typeof WorkflowRunListResponse>;
 
 export const WorkflowEventView = z.object({
   id: Id,
-  floorIds: z.array(Id),
+  operationIds: z.array(Id),
   /** `pull_request.opened` etc. */
   name: z.string().max(80),
   repo: z.string().max(200).nullable(),

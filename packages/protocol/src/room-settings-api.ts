@@ -4,16 +4,16 @@
  * `generateRoom` in @regulus/room-layout from the room's size, door side and
  * these two settings.
  *
- * - Room managers (floor `manage`; office owners and admins have it on every
+ * - Room managers (operation `manage`; office owners and admins have it on every
  *   room) change them; everyone with room access may read them.
  * - The desk count is bounded by what the room's size fits, and shrinking is
- *   refused while a robot sits at a desk that would go away.
+ *   refused while a henchman sits at a desk that would go away.
  * - A decor style changes props, materials and lighting, never function:
  *   seats, desks, boards, the door and the spawn point stay where they are.
  */
 import { z } from "zod";
 import { DOOR_SIDES } from "./compound.ts";
-import type { FloorAccess } from "./enums.ts";
+import type { OperationAccess } from "./enums.ts";
 
 /** Lair decor styles a room can pick (SPEC §12). The first is the default. */
 export const DECOR_STYLES = ["ops_room", "lab", "workshop", "war_room"] as const;
@@ -34,12 +34,12 @@ export function isDecorStyle(value: unknown): value is DecorStyle {
   return typeof value === "string" && (DECOR_STYLES as readonly string[]).includes(value);
 }
 
-/** `GET|PUT /api/floors/:floorId/room-settings`. */
-export function roomSettingsPath(floorId: string): string {
-  return `/api/floors/${encodeURIComponent(floorId)}/room-settings`;
+/** `GET|PUT /api/operations/:operationId/room-settings`. */
+export function roomSettingsPath(operationId: string): string {
+  return `/api/operations/${encodeURIComponent(operationId)}/room-settings`;
 }
 
-/** Body of `PUT /api/floors/:floorId/room-settings`; omitted fields keep their value. */
+/** Body of `PUT /api/operations/:operationId/room-settings`; omitted fields keep their value. */
 export const UpdateRoomSettingsRequest = z
   .object({
     deskCount: z.number().int().min(1).max(MAX_DESK_COUNT).optional(),
@@ -61,17 +61,17 @@ export type RoomShape = z.infer<typeof RoomShape>;
 
 /** What the settings panel shows. */
 export const RoomSettingsInfo = z.object({
-  floorId: z.string(),
+  operationId: z.string(),
   deskCount: z.number().int().min(1),
   decorStyle: z.enum(DECOR_STYLES),
   /** The room's size, or null when the office does not know it yet. */
   size: RoomShape.nullable(),
   /** Most desks the room's size fits (the current count when the size is unknown). */
   maxDeskCount: z.number().int().min(1),
-  /** Desk numbers (1-based) with a robot at one of their seats; these cannot be removed. */
+  /** Desk numbers (1-based) with a henchman at one of their seats; these cannot be removed. */
   occupiedDesks: z.array(z.number().int().positive()),
   /**
-   * False while the room is still drawn from a pre-compound floor template:
+   * False while the room is still drawn from a pre-compound operation template:
    * its decor style may change, its desk count only once it is generated.
    */
   generated: z.boolean(),
@@ -81,7 +81,7 @@ export const RoomSettingsInfo = z.object({
 export type RoomSettingsInfo = z.infer<typeof RoomSettingsInfo>;
 
 /** Room managers change room settings (no zod, so the web bundle can use it alone). */
-export function mayManageRoomSettings(access: FloorAccess | null | undefined): boolean {
+export function mayManageRoomSettings(access: OperationAccess | null | undefined): boolean {
   return access === "manage";
 }
 

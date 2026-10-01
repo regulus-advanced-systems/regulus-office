@@ -1,6 +1,6 @@
 /**
- * Colyseus schema classes for the FloorRoom. Field names and order must
- * match the zod shapes in ../floor-state.ts (enforced by lockstep.test.ts).
+ * Colyseus schema classes for the OperationRoom. Field names and order must
+ * match the zod shapes in ../operation-state.ts (enforced by lockstep.test.ts).
  */
 import { schema, t } from "@colyseus/schema";
 
@@ -14,7 +14,7 @@ export const BubbleEmitsSchema = schema(
   "BubbleEmits",
 );
 
-export const RobotStateSchema = schema(
+export const HenchmanStateSchema = schema(
   {
     agentId: t.string().default(""),
     ownerUserId: t.string().default(""),
@@ -38,7 +38,7 @@ export const RobotStateSchema = schema(
     bubbleEmits: BubbleEmitsSchema,
     lastActivityAt: t.number().default(0),
   },
-  "RobotState",
+  "HenchmanState",
 );
 
 export const DeskStateSchema = schema(
@@ -165,15 +165,15 @@ export const RepoSummarySchema = schema(
   "RepoSummary",
 );
 
-export const FloorStateSchema = schema(
+export const OperationStateSchema = schema(
   {
-    floorId: t.string().default(""),
+    operationId: t.string().default(""),
     name: t.string().default(""),
     slug: t.string().default(""),
     paletteId: t.string().default(""),
     layoutTemplateId: t.string().default(""),
     repos: t.array(RepoSummarySchema),
-    robots: t.map(RobotStateSchema),
+    henchmen: t.map(HenchmanStateSchema),
     desks: t.map(DeskStateSchema),
     decor: t.map(DecorStateSchema),
     queue: t.array(QueueTaskSchema),
@@ -186,5 +186,5 @@ export const FloorStateSchema = schema(
     deskCount: t.uint8().default(1),
     decorStyle: t.string().default("ops_room"),
   },
-  "FloorState",
+  "OperationState",
 );

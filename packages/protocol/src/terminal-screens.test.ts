@@ -7,8 +7,8 @@ import {
 } from "./terminal-screens.ts";
 
 describe("screen feed protocol", () => {
-  test("path carries the floor id", () => {
-    expect(screensWsPath("floor-1")).toBe("/ws/screens/floor-1");
+  test("path carries the operation id", () => {
+    expect(screensWsPath("operation-1")).toBe("/ws/screens/operation-1");
     expect(screensWsPath("a/b")).toBe("/ws/screens/a%2Fb");
   });
 

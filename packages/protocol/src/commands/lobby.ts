@@ -31,7 +31,7 @@ export const ScreenShareStartCommand = z.object({
 
 export const ScreenShareStopCommand = z.object({ type: z.literal("screen.share.stop") });
 
-/** Ask the PM robot a question at reception. */
+/** Ask the PM henchman a question at reception. */
 export const PmAskCommand = z.object({
   type: z.literal("pm.ask"),
   text: ChatText,

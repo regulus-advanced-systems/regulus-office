@@ -3,21 +3,21 @@ import {
   BuildingJoinOptions,
   COMMAND_REJECTED_MESSAGE,
   CommandRejected,
-  FloorJoinOptions,
-  LOBBY_FLOOR_ID,
+  LOBBY_OPERATION_ID,
+  OperationJoinOptions,
   ROOM_NAMES,
 } from "./rooms.ts";
 
 describe("room names and join options", () => {
   test("room names match what the web client joins", () => {
-    expect(ROOM_NAMES).toEqual({ building: "building", floor: "floor" });
-    expect(LOBBY_FLOOR_ID).toBe("lobby");
+    expect(ROOM_NAMES).toEqual({ building: "building", operation: "operation" });
+    expect(LOBBY_OPERATION_ID).toBe("lobby");
   });
 
-  test("floor join options require a floor id", () => {
-    expect(FloorJoinOptions.safeParse({ floorId: "f1" }).success).toBe(true);
-    expect(FloorJoinOptions.safeParse({ floorId: "" }).success).toBe(false);
-    expect(FloorJoinOptions.safeParse({}).success).toBe(false);
+  test("operation join options require an operation id", () => {
+    expect(OperationJoinOptions.safeParse({ operationId: "f1" }).success).toBe(true);
+    expect(OperationJoinOptions.safeParse({ operationId: "" }).success).toBe(false);
+    expect(OperationJoinOptions.safeParse({}).success).toBe(false);
   });
 
   test("building join options accept an empty object", () => {

@@ -2,12 +2,12 @@
  * Henchman skins and the admin rules that assign them (SPEC §5 `skin_rules`,
  * §9.3, D22; #184).
  *
- * Every robot is a henchman in the standard yellow jumpsuit with its
- * provider's trim. A rule gives the robots it matches a special skin from the
+ * Every henchman is a henchman in the standard yellow jumpsuit with its
+ * provider's trim. A rule gives the henchmen it matches a special skin from the
  * built-in set: `role:pm` (the project-manager office agent),
- * `office_agent:<id>` (one office agent) or `provider:<id>` (every robot of a
- * provider). Rules are kept by the office server; the FloorRoom publishes
- * each robot's resolved skin (`RobotState.skin`), so clients never see them.
+ * `office_agent:<id>` (one office agent) or `provider:<id>` (every henchman of a
+ * provider). Rules are kept by the office server; the OperationRoom publishes
+ * each henchman's resolved skin (`HenchmanState.skin`), so clients never see them.
  */
 import { z } from "zod";
 import { Id, TimestampMs } from "./common.ts";
@@ -121,7 +121,7 @@ export type SkinRulesResponse = z.infer<typeof SkinRulesResponse>;
 /** Owners and admins: list, add, change and delete rules. */
 export const SKIN_RULES_API_PATH = "/api/skin-rules";
 
-/** What a rule can match a robot by. Coding robots have a provider; office agents an id and role. */
+/** What a rule can match a henchman by. Coding henchmen have a provider; office agents an id and role. */
 export interface SkinSubject {
   provider?: ProviderId;
   officeAgentId?: string;
@@ -153,7 +153,7 @@ export function rankSkinRules<T extends RankedRule>(rules: readonly T[]): T[] {
   );
 }
 
-/** The skin a robot wears: the best matching rule's, else the standard jumpsuit. */
+/** The skin a henchman wears: the best matching rule's, else the standard jumpsuit. */
 export function resolveSkin(rules: readonly RankedRule[], subject: SkinSubject): HenchmanSkinId {
   for (const rule of rankSkinRules(rules))
     if (skinRuleMatches(rule.match, subject)) return rule.skinId;

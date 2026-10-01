@@ -59,7 +59,7 @@ export const UsageSample = z.object({
   source: z.enum(USAGE_SOURCES),
   /** Provider model id when known (transcripts), for price estimates. */
   model: z.string().max(128).optional(),
-  /** Provider session the usage belongs to (Claude session id), to find the robot. */
+  /** Provider session the usage belongs to (Claude session id), to find the henchman. */
   sessionId: z.string().max(128).optional(),
   /**
    * Stable id of the model request within its source (Claude message + request

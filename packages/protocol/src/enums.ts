@@ -62,14 +62,14 @@ export type PermissionDecision = (typeof PERMISSION_DECISIONS)[number];
 export const USER_ROLES = ["owner", "admin", "member", "viewer"] as const;
 export type UserRole = (typeof USER_ROLES)[number];
 
-export const FLOOR_ACCESSES = ["manage", "spawn", "view"] as const;
-export type FloorAccess = (typeof FLOOR_ACCESSES)[number];
+export const OPERATION_ACCESSES = ["manage", "spawn", "view"] as const;
+export type OperationAccess = (typeof OPERATION_ACCESSES)[number];
 
-/** Clone state of a floor repo on the host (`floor_repos.cloneStatus`). */
+/** Clone state of an operation repo on the host (`operation_repos.cloneStatus`). */
 export const REPO_CLONE_STATUSES = ["cloning", "ready", "error"] as const;
 export type RepoCloneStatus = (typeof REPO_CLONE_STATUSES)[number];
 
-/** Floor layout size tiers (SPEC §9.1, D8); mirrors `ROOM_TIERS` in @regulus/room-layout. */
+/** Operation layout size tiers (SPEC §9.1, D8); mirrors `ROOM_TIERS` in @regulus/room-layout. */
 export const ROOM_TEMPLATE_TIERS = ["small", "medium", "large"] as const;
 export type RoomTemplateTier = (typeof ROOM_TEMPLATE_TIERS)[number];
 
@@ -80,12 +80,12 @@ export type CredentialAuthKind = (typeof CREDENTIAL_AUTH_KINDS)[number];
 export const TERMINAL_MODES = ["watch", "control"] as const;
 export type TerminalMode = (typeof TERMINAL_MODES)[number];
 
-// ---- PM robot (SPEC §10 M5, D4) ---------------------------------------------
+// ---- PM henchman (SPEC §10 M5, D4) ---------------------------------------------
 
 export const PM_PRIVILEGES = ["observer", "coordinator", "manager"] as const;
 export type PmPrivilege = (typeof PM_PRIVILEGES)[number];
 
-/** What the PM robot is currently doing; drives its animation and label. */
+/** What the PM henchman is currently doing; drives its animation and label. */
 export const PM_ACTIVITIES = ["idle", "patrolling", "visiting", "briefing", "answering"] as const;
 export type PmActivity = (typeof PM_ACTIVITIES)[number];
 
@@ -160,7 +160,7 @@ export const isAgentAction = isOneOf(AGENT_ACTIONS);
 export const isProviderId = isOneOf(PROVIDER_IDS);
 export const isBackendId = isOneOf(BACKEND_IDS);
 export const isUserRole = isOneOf(USER_ROLES);
-export const isFloorAccess = isOneOf(FLOOR_ACCESSES);
+export const isOperationAccess = isOneOf(OPERATION_ACCESSES);
 export const isRepoCloneStatus = isOneOf(REPO_CLONE_STATUSES);
 export const isCredentialAuthKind = isOneOf(CREDENTIAL_AUTH_KINDS);
 export const isPmPrivilege = isOneOf(PM_PRIVILEGES);

@@ -1,18 +1,18 @@
 /**
- * Laptop screen feed (SPEC §9.4): `/ws/screens/<floorId>`.
+ * Laptop screen feed (SPEC §9.4): `/ws/screens/<operationId>`.
  *
  * The terminal bridge streams raw PTY bytes to one viewer at a time; the
  * laptops of every other occupied desk only need a low-rate picture of the
  * screen. This socket pushes the visible pane text (`tmux capture-pane`, no
- * escapes) of each robot on one floor, only when it changed, at most every
+ * escapes) of each henchman on one operation, only when it changed, at most every
  * {@link SCREEN_FEED_INTERVAL_MS}, and only while someone is subscribed.
  *
  * Text frames only, server→client. The ACL is the terminal `watch` rule:
- * anyone who can see the floor may subscribe.
+ * anyone who can see the operation may subscribe.
  */
 import { z } from "zod";
 
-/** Path prefix of the screen feed; the floor id follows it. */
+/** Path prefix of the screen feed; the operation id follows it. */
 export const SCREENS_WS_PREFIX = "/ws/screens/";
 
 /** Poll period of the feed: 2 Hz (SPEC §9.4 "updated ~2/s"). */
@@ -21,14 +21,14 @@ export const SCREEN_FEED_INTERVAL_MS = 500;
 /** Size cap for one screen: lines, characters per line, and UTF-8 bytes overall. */
 export const SCREEN_TEXT_LIMITS = { maxLines: 60, maxCols: 240, maxBytes: 16 * 1024 } as const;
 
-/** `/ws/screens/<floorId>` for a client to connect to. */
-export function screensWsPath(floorId: string): string {
-  return `${SCREENS_WS_PREFIX}${encodeURIComponent(floorId)}`;
+/** `/ws/screens/<operationId>` for a client to connect to. */
+export function screensWsPath(operationId: string): string {
+  return `${SCREENS_WS_PREFIX}${encodeURIComponent(operationId)}`;
 }
 
 const AgentId = z.string().min(1).max(128);
 
-/** The current visible screen of one robot, replacing any earlier one. */
+/** The current visible screen of one henchman, replacing any earlier one. */
 export const ScreenUpdate = z.object({
   type: z.literal("screen"),
   agentId: AgentId,
@@ -36,7 +36,7 @@ export const ScreenUpdate = z.object({
 });
 export type ScreenUpdate = z.infer<typeof ScreenUpdate>;
 
-/** The robot left the floor or its session ended: show a dark screen. */
+/** The henchman left the operation or its session ended: show a dark screen. */
 export const ScreenRemoved = z.object({ type: z.literal("removed"), agentId: AgentId });
 export type ScreenRemoved = z.infer<typeof ScreenRemoved>;
 

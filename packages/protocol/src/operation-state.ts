@@ -1,5 +1,5 @@
 /**
- * FloorRoom state (SPEC §6 channel 2): robots, desks, decor, task queue,
+ * OperationRoom state (SPEC §6 channel 2): henchmen, desks, decor, task queue,
  * board summaries, services, whiteboard version, carried cards. Shapes are
  * zod objects; the Colyseus classes in ./schema mirror them field-for-field.
  */
@@ -28,8 +28,8 @@ export const BubbleEmits = z.object({
 });
 export type BubbleEmits = z.infer<typeof BubbleEmits>;
 
-/** One robot (agent) at a desk. Keyed by agent id in `FloorState.robots`. */
-export const RobotState = z.object({
+/** One henchman (agent) at a desk. Keyed by agent id in `OperationState.henchmen`. */
+export const HenchmanState = z.object({
   agentId: Id,
   ownerUserId: Id,
   ownerName: z.string().max(64),
@@ -38,7 +38,7 @@ export const RobotState = z.object({
   provider: z.enum(PROVIDER_IDS),
   model: z.string().max(100),
   effort: z.string().max(32),
-  /** Provider permission mode the robot runs in (#166), e.g. `auto`, `on-request`; "" = none. */
+  /** Provider permission mode the henchman runs in (#166), e.g. `auto`, `on-request`; "" = none. */
   permissionMode: z.string().max(32),
   status: z.enum(AGENT_STATUSES),
   action: z.enum(AGENT_ACTIONS),
@@ -51,20 +51,20 @@ export const RobotState = z.object({
   /** True while waiting for permission or input (raised-hand animation). */
   handRaised: z.boolean(),
   /**
-   * Why the robot is in `error`, e.g. `runner_busy: the runner has live work …`: a short
-   * code and a redacted one-line message, safe for every floor viewer (no paths, env or
+   * Why the henchman is in `error`, e.g. `runner_busy: the runner has live work …`: a short
+   * code and a redacted one-line message, safe for every operation viewer (no paths, env or
    * tokens). In `waiting_input`, one of the adapters' fixed "waiting for you" texts (e.g.
    * Claude needs its human to finish signing in, #158). Empty in every other status.
    */
   statusReason: z.string().max(200),
-  /** Henchman skin (#184), resolved by the FloorRoom from the admin's `skin_rules`. */
+  /** Henchman skin (#184), resolved by the OperationRoom from the admin's `skin_rules`. */
   skin: z.enum(HENCHMAN_SKIN_IDS),
   bubbleEmits: BubbleEmits,
   lastActivityAt: TimestampMs,
 });
-export type RobotState = z.infer<typeof RobotState>;
+export type HenchmanState = z.infer<typeof HenchmanState>;
 
-/** Seat from the floor layout; `agentId` is empty while the desk is free. */
+/** Seat from the operation layout; `agentId` is empty while the desk is free. */
 export const DeskState = z.object({
   seatId: Id,
   agentId: z.string().max(128),
@@ -102,20 +102,20 @@ export const QueueTask = z.object({
   provider: z.enum(PROVIDER_IDS),
   model: z.string().max(100),
   effort: z.string().max(32),
-  /** Permission mode the robot will run in; "" = the provider default. */
+  /** Permission mode the henchman will run in; "" = the provider default. */
   permissionMode: z.string().max(32),
   autoWorktree: z.boolean(),
   state: z.enum(TASK_STATES),
   /** Agent running the task, empty until it starts. */
   agentId: z.string().max(128),
-  /** The pull request the task's robot opened, 0 until one appears. */
+  /** The pull request the task's henchman opened, 0 until one appears. */
   prNumber: Count,
   /**
    * Why a task failed, or why a queued one is not starting yet (e.g. its
    * owner may no longer spawn here). Short and safe for every viewer.
    */
   reason: z.string().max(200),
-  /** The human who queued it and owns its robot. */
+  /** The human who queued it and owns its henchman. */
   createdBy: Id,
   ownerName: z.string().max(64),
   createdAt: TimestampMs,
@@ -159,14 +159,14 @@ export const PullCard = z.object({
 export type PullCard = z.infer<typeof PullCard>;
 
 /**
- * A dev server a robot runs in its sandbox, opened through the office's
- * authenticated proxy (SPEC §9.4, #39). Keyed by service id; one per robot and port.
+ * A dev server a henchman runs in its sandbox, opened through the office's
+ * authenticated proxy (SPEC §9.4, #39). Keyed by service id; one per henchman and port.
  */
 export const ServiceState = z.object({
   id: Id,
   agentId: Id,
   port: z.number().int().min(1).max(65535),
-  /** Office proxy path, `/p/<floorId>/a/<agentId>/port/<n>/` (servicesProxyPath). */
+  /** Office proxy path, `/p/<operationId>/a/<agentId>/port/<n>/` (servicesProxyPath). */
   url: z.string().max(512),
   title: z.string().max(200),
   /** Listening process id inside the sandbox; 0 when unknown. */
@@ -174,12 +174,12 @@ export const ServiceState = z.object({
   /** Bind address, e.g. `0.0.0.0`, `::` or `127.0.0.1`. */
   address: z.string().max(64),
   /**
-   * Bound to loopback only inside the robot's sandbox, so the proxy cannot reach it:
+   * Bound to loopback only inside the henchman's sandbox, so the proxy cannot reach it:
    * the server must listen on `0.0.0.0` (Vite `--host`, Next `-H 0.0.0.0`).
    */
   localOnly: z.boolean(),
   /**
-   * Whether floor members besides the robot's owner may open it (read-only). True only
+   * Whether operation members besides the henchman's owner may open it (read-only). True only
    * when the office serves apps on their own origin (`OFFICE_SERVICES_DOMAIN`).
    */
   shared: z.boolean(),
@@ -208,15 +208,15 @@ export const RepoSummary = z.object({
 });
 export type RepoSummary = z.infer<typeof RepoSummary>;
 
-export const FloorState = z.object({
-  floorId: Id,
+export const OperationState = z.object({
+  operationId: Id,
   name: z.string().max(80),
   slug: z.string().max(80),
   paletteId: z.string().max(32),
   layoutTemplateId: z.string().max(64),
   repos: z.array(RepoSummary),
   /** Keyed by agent id. */
-  robots: z.record(Id, RobotState),
+  henchmen: z.record(Id, HenchmanState),
   /** Keyed by seat id. */
   desks: z.record(Id, DeskState),
   /** Keyed by decor id. */
@@ -237,14 +237,14 @@ export const FloorState = z.object({
   deskCount: Count,
   decorStyle: z.enum(DECOR_STYLES),
 });
-export type FloorState = z.infer<typeof FloorState>;
+export type OperationState = z.infer<typeof OperationState>;
 
-/** The office proxy path of a robot's service (SPEC §9.4, #39). */
-export function servicesProxyPath(floorId: string, agentId: string, port: number): string {
-  return `/p/${encodeURIComponent(floorId)}/a/${encodeURIComponent(agentId)}/port/${port}/`;
+/** The office proxy path of a henchman's service (SPEC §9.4, #39). */
+export function servicesProxyPath(operationId: string, agentId: string, port: number): string {
+  return `/p/${encodeURIComponent(operationId)}/a/${encodeURIComponent(agentId)}/port/${port}/`;
 }
 
-/** Key used for `FloorState.issues` / `FloorState.pulls`. */
+/** Key used for `OperationState.issues` / `OperationState.pulls`. */
 export function boardCardKey(repoId: string, number: number): string {
   return `${repoId}#${number}`;
 }

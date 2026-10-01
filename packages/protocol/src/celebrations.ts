@@ -1,11 +1,11 @@
 /**
- * Merge gong (#43, SPEC D9): FloorRoom server→client messages.
+ * Merge gong (#43, SPEC D9): OperationRoom server→client messages.
  *
- * - `pr.merged` is broadcast to every floor whose repo the merged PR belongs
+ * - `pr.merged` is broadcast to every operation whose repo the merged PR belongs
  *   to, once per merge (webhook, poll or a merge from the office's PR board).
- *   Clients ring the gong once, burst confetti and let the robots celebrate.
+ *   Clients ring the gong once, burst confetti and let the henchmen celebrate.
  * - `gong.ring` is every other ring: a human banged the gong (`gong.bang`,
- *   rate-limited on the server) or the floor's task queue emptied (a triple
+ *   rate-limited on the server) or the operation's task queue emptied (a triple
  *   ring). Clients treat it like a merge without the PR toast.
  */
 import { z } from "zod";
@@ -26,7 +26,7 @@ export const GONG_STRIKES: Readonly<Record<GongCause, number>> = {
 };
 
 export const PrMerged = z.object({
-  floorId: Id,
+  operationId: Id,
   repoId: Id,
   number: GhNumber,
   /** PR title, as GitHub reported it (may be empty from a sparse payload). */
@@ -38,7 +38,7 @@ export const PrMerged = z.object({
 export type PrMerged = z.infer<typeof PrMerged>;
 
 export const GongRing = z.object({
-  floorId: Id,
+  operationId: Id,
   cause: z.enum(GONG_CAUSES),
   strikes: z.number().int().min(1).max(3),
   /** Display name of the human who banged it (bang only). */

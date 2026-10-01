@@ -7,10 +7,10 @@ import {
   BACKEND_IDS,
   CREDENTIAL_AUTH_KINDS,
   EMOTES,
-  FLOOR_ACCESSES,
   isAgentStatus,
   isOneOf,
   isProviderId,
+  OPERATION_ACCESSES,
   PM_PRIVILEGES,
   PROVIDER_IDS,
   USER_ROLES,
@@ -53,7 +53,7 @@ describe("enums", () => {
     ]);
     expect(BACKEND_IDS).toEqual(["linux-user", "docker"]);
     expect(USER_ROLES).toEqual(["owner", "admin", "member", "viewer"]);
-    expect(FLOOR_ACCESSES).toEqual(["manage", "spawn", "view"]);
+    expect(OPERATION_ACCESSES).toEqual(["manage", "spawn", "view"]);
     expect(CREDENTIAL_AUTH_KINDS).toEqual(["cli_login", "api_key", "base_url_key"]);
     expect(PM_PRIVILEGES).toEqual(["observer", "coordinator", "manager"]);
   });

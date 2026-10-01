@@ -1,5 +1,5 @@
 /**
- * Floor object commands: queue.*, card.*, decor.*, gong.bang (SPEC §6;
+ * Operation object commands: queue.*, card.*, decor.*, gong.bang (SPEC §6;
  * queue.retry|settings: #37; gong.bang: #43).
  */
 import { z } from "zod";
@@ -10,7 +10,7 @@ import { QUEUE_LIMIT_MAX, QUEUE_LIMIT_MIN } from "../queue-api.ts";
 
 /**
  * Queue a task on this room's queue (SPEC §5 `tasks`, §9.4; #37). The human
- * who queues it owns the robot it spawns: their credentials, their runner.
+ * who queues it owns the henchman it spawns: their credentials, their runner.
  * An issue / PR task names its number; a freeform task needs a prompt (an
  * issue / PR task without one gets a prompt from the card). `profileId`
  * names the queuer's own credential profile or `office:<provider>`, never a
@@ -19,7 +19,7 @@ import { QUEUE_LIMIT_MAX, QUEUE_LIMIT_MIN } from "../queue-api.ts";
 export const QueueAddCommand = z
   .object({
     type: z.literal("queue.add"),
-    floorId: Id,
+    operationId: Id,
     repoId: Id,
     kind: z.enum(TASK_KINDS),
     refNumber: GhNumber.optional(),
@@ -48,7 +48,7 @@ export const QueueReorderCommand = z.object({
   position: Count,
 });
 
-/** Cancel a queued task, or let go of a running one (its robot keeps running). */
+/** Cancel a queued task, or let go of a running one (its henchman keeps running). */
 export const QueueCancelCommand = z.object({
   type: z.literal("queue.cancel"),
   taskId: Id,
@@ -81,7 +81,7 @@ export const CardDropCommand = z.object({
   seatId: Id.optional(),
 });
 
-/** Bang the floor's merge gong by hand (#43); rate-limited on the server. */
+/** Bang the operation's merge gong by hand (#43); rate-limited on the server. */
 export const GongBangCommand = z.object({
   type: z.literal("gong.bang"),
 });
@@ -114,7 +114,7 @@ export const DecorRemoveCommand = z.object({
   decorId: Id,
 });
 
-export const floorCommands = [
+export const operationCommands = [
   QueueAddCommand,
   QueueReorderCommand,
   QueueCancelCommand,

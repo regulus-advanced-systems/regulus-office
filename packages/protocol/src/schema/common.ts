@@ -1,4 +1,4 @@
-/** Colyseus schema classes shared by the building and floor state. */
+/** Colyseus schema classes shared by the building and operation state. */
 import { schema, t } from "@colyseus/schema";
 
 /** Mirrors `WorldPos` in ../common.ts. */

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mayControlRobot, mayEmergencyStop } from "./acl.ts";
+import { mayControlHenchman, mayEmergencyStop } from "./acl.ts";
 import {
   AgentCommandResult,
   AgentLeaving,
@@ -55,7 +55,7 @@ describe("agent messages", () => {
     expect(AgentLeaving.safeParse({ agentId: "a1", reason: "sent_home" }).success).toBe(true);
   });
 
-  test("rejections may name the robot and list uncommitted files", () => {
+  test("rejections may name the henchman and list uncommitted files", () => {
     expect(
       CommandRejected.safeParse({
         type: "agent.pr",
@@ -67,7 +67,7 @@ describe("agent messages", () => {
   });
 });
 
-describe("mayControlRobot (D12, #138: owner only)", () => {
+describe("mayControlHenchman (D12, #138: owner only)", () => {
   test.each([
     ["owner", "someone", false],
     ["owner", "u1", true],
@@ -77,14 +77,14 @@ describe("mayControlRobot (D12, #138: owner only)", () => {
     ["member", "someone", false],
     ["viewer", "u1", false],
     ["viewer", "someone", false],
-  ] as const)("%s controlling a robot owned by %s → %p", (role, owner, expected) => {
-    expect(mayControlRobot({ id: "u1", role }, owner)).toBe(expected);
+  ] as const)("%s controlling a henchman owned by %s → %p", (role, owner, expected) => {
+    expect(mayControlHenchman({ id: "u1", role }, owner)).toBe(expected);
   });
 
   test("nobody signed in, or no owner, controls nothing", () => {
-    expect(mayControlRobot(null, "u1")).toBe(false);
-    expect(mayControlRobot({ id: "u1", role: "member" }, undefined)).toBe(false);
-    expect(mayControlRobot({ id: "", role: "member" }, "")).toBe(false);
+    expect(mayControlHenchman(null, "u1")).toBe(false);
+    expect(mayControlHenchman({ id: "u1", role: "member" }, undefined)).toBe(false);
+    expect(mayControlHenchman({ id: "", role: "member" }, "")).toBe(false);
   });
 });
 

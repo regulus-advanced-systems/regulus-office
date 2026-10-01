@@ -3,17 +3,17 @@
  * server's answer to a `queue.*` command, and who may do what. No zod in the
  * ACL helpers, so the web bundle can import them on their own.
  *
- * Ownership (SPEC §8): the human who queues a task owns the robot it spawns.
+ * Ownership (SPEC §8): the human who queues a task owns the henchman it spawns.
  * It runs with their credentials in their runner, and only while they may
- * still spawn on that floor; nobody else's credentials are ever used.
+ * still spawn on that operation; nobody else's credentials are ever used.
  *
- * - queue a task: floor `spawn` or `manage`;
+ * - queue a task: operation `spawn` or `manage`;
  * - reorder or cancel: the task's owner, or a room manager (`manage`);
  * - retry: the task's owner only, while they may still spawn there, because
  *   a retry spends their credentials again;
  * - concurrency settings: room managers.
  */
-import type { FloorAccess } from "./enums.ts";
+import type { OperationAccess } from "./enums.ts";
 
 export const QUEUE_RESULT_MESSAGE = "queue.result";
 
@@ -38,18 +38,18 @@ export interface QueueActor {
   id: string;
 }
 
-const mayUse = (access: FloorAccess | null | undefined) =>
+const mayUse = (access: OperationAccess | null | undefined) =>
   access === "spawn" || access === "manage";
 
 /** Put a task on this room's queue. */
-export function mayQueueTask(access: FloorAccess | null | undefined): boolean {
+export function mayQueueTask(access: OperationAccess | null | undefined): boolean {
   return mayUse(access);
 }
 
 /** Reorder or cancel a task: its owner (with any access) or a room manager. */
 export function mayManageQueuedTask(
   actor: QueueActor | null | undefined,
-  access: FloorAccess | null | undefined,
+  access: OperationAccess | null | undefined,
   task: { createdBy: string },
 ): boolean {
   if (!actor || !access) return false;
@@ -59,13 +59,13 @@ export function mayManageQueuedTask(
 /** Retry a failed or cancelled task: only its owner, while they may spawn here. */
 export function mayRetryTask(
   actor: QueueActor | null | undefined,
-  access: FloorAccess | null | undefined,
+  access: OperationAccess | null | undefined,
   task: { createdBy: string },
 ): boolean {
   return Boolean(actor) && mayUse(access) && task.createdBy === actor?.id;
 }
 
 /** Change the room's concurrency settings. */
-export function mayConfigureQueue(access: FloorAccess | null | undefined): boolean {
+export function mayConfigureQueue(access: OperationAccess | null | undefined): boolean {
   return access === "manage";
 }

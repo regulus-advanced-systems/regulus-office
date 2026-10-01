@@ -1,14 +1,14 @@
 /**
- * REST shapes for a robot's changes window (#38; SPEC §10 M2, D10).
+ * REST shapes for a henchman's changes window (#38; SPEC §10 M2, D10).
  *
- * The window polls the robot's worktree while it is open: `git status` and
+ * The window polls the henchman's worktree while it is open: `git status` and
  * the diff against the merge-base with the repo's default branch, run as the
- * robot's owner inside their runner or the robot's sandbox (SPEC §8, D17,
+ * henchman's owner inside their runner or the henchman's sandbox (SPEC §8, D17,
  * D18), never by the office on their files.
  *
- * Everyone who can see the robot's floor (the audience that watches its
+ * Everyone who can see the henchman's operation (the audience that watches its
  * terminal) may read the file list, per-file diffs and image previews.
- * Commit and discard are the robot's owner's alone (D12), checked on the
+ * Commit and discard are the henchman's owner's alone (D12), checked on the
  * server, same-origin and audited. Push + PR is the existing `agent.pr`
  * command (#112).
  *
@@ -20,7 +20,7 @@
  *
  * `sig` is the working-tree fingerprint the viewer saw (size, inode, mtime,
  * ctime, from lstat). The server refuses with `changed_since_viewed` when a
- * file changed after the human looked at it, so a concurrent robot edit is
+ * file changed after the human looked at it, so a concurrent henchman edit is
  * reported instead of being committed or thrown away unseen.
  */
 import { z } from "zod";
@@ -81,7 +81,7 @@ export const ChangesSnapshot = z.object({
   files: z.array(ChangedFile),
   truncated: z.boolean(),
   polledAt: TimestampMs,
-  /** Whether the caller may commit and discard (the robot's owner, D12). */
+  /** Whether the caller may commit and discard (the henchman's owner, D12). */
   canWrite: z.boolean(),
 });
 export type ChangesSnapshot = z.infer<typeof ChangesSnapshot>;
@@ -149,13 +149,13 @@ export const CHANGES_ERRORS = [
   "origin_mismatch",
   "invalid_body",
   "invalid_path",
-  /** The file is not among the robot's current changes (or has no uncommitted part). */
+  /** The file is not among the henchman's current changes (or has no uncommitted part). */
   "not_changed",
   /** The file changed after the human looked at it; `files` lists which. */
   "changed_since_viewed",
-  /** The robot's own git holds the index lock; try again. */
+  /** The henchman's own git holds the index lock; try again. */
   "git_busy",
-  /** The robot's workspace cannot be reached (no worktree, runner down, legacy layout). */
+  /** The henchman's workspace cannot be reached (no worktree, runner down, legacy layout). */
   "unavailable",
   "git_failed",
   "not_image",

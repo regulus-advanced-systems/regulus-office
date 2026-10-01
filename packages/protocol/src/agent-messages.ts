@@ -1,14 +1,14 @@
 /**
- * FloorRoom server→client messages about robots (SPEC §6 channel 2, §8 rule 4).
+ * OperationRoom server→client messages about henchmen (SPEC §6 channel 2, §8 rule 4).
  *
- * - `agent.permissions` goes only to the client that may control the robot
+ * - `agent.permissions` goes only to the client that may control the henchman
  *   (its owner; never admins, other members or viewers): the pending
  *   permission requests with what exactly is being approved. Everyone else only sees the
- *   public `RobotState.handRaised`. An empty list clears the robot's requests.
+ *   public `HenchmanState.handRaised`. An empty list clears the henchman's requests.
  * - `agent.result` answers the caller of an `agent.*` control command that
  *   succeeded (failures are `command.rejected` with the `agentId`).
- * - `agent.leaving` is broadcast when a robot was sent home, so every client
- *   can play the walk to the elevator before the robot leaves the state.
+ * - `agent.leaving` is broadcast when a henchman was sent home, so every client
+ *   can play the walk to the elevator before the henchman leaves the state.
  */
 import { z } from "zod";
 import { Id, TimestampMs } from "./common.ts";

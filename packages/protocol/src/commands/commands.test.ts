@@ -13,7 +13,7 @@ const SPEC_COMMANDS = [
   "sit",
   "emote",
   "chat",
-  "floor.go",
+  "operation.go",
   "agent.spawn",
   "agent.prompt",
   "agent.approve",
@@ -63,9 +63,9 @@ const valid: Record<ClientCommandType, Record<string, unknown>> = {
   sit: { seatId: "couch-1" },
   emote: { emote: "wave" },
   chat: { text: "hi" },
-  "floor.go": { floorId: "f1" },
+  "operation.go": { operationId: "f1" },
   "agent.spawn": {
-    floorId: "f1",
+    operationId: "f1",
     repoId: "r1",
     provider: "claude-code",
     model: "claude-sonnet-4-5",
@@ -82,7 +82,7 @@ const valid: Record<ClientCommandType, Record<string, unknown>> = {
   "agent.worktree": { agentId: "a1" },
   "agent.emergencyStop": { agentId: "a1", reason: "runaway cost" },
   "queue.add": {
-    floorId: "f1",
+    operationId: "f1",
     repoId: "r1",
     kind: "issue",
     refNumber: 9,
@@ -125,13 +125,13 @@ describe("ClientCommand", () => {
   });
 
   test("applies defaults", () => {
-    const go = parseClientCommand("floor.go", { floorId: "f1" });
-    expect(go.success && go.data.type === "floor.go" && go.data.mode).toBe("ride");
+    const go = parseClientCommand("operation.go", { operationId: "f1" });
+    expect(go.success && go.data.type === "operation.go" && go.data.mode).toBe("ride");
     const spawn = parseClientCommand("agent.spawn", valid["agent.spawn"]);
     expect(spawn.success && spawn.data.type === "agent.spawn" && spawn.data.autoWorktree).toBe(
       true,
     );
-    // No prompt: the robot starts idle (#142); a blank one is the same.
+    // No prompt: the henchman starts idle (#142); a blank one is the same.
     for (const prompt of [undefined, "", "   "]) {
       const idle = parseClientCommand("agent.spawn", { ...valid["agent.spawn"], prompt });
       expect(idle.success && idle.data.type === "agent.spawn" && idle.data.prompt).toBe("");

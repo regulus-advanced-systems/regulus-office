@@ -12,11 +12,11 @@
  *   `(doorX, doorY)` is the grid point (tile corner) where it starts; it runs
  *   east along a north/south wall and south along an east/west wall.
  *
- * Code keeps the name `floor` for project rooms (SPEC §2).
+ * Code calls a project room an operation (#226; SPEC §2 still says floor).
  */
 import { z } from "zod";
 import { Count, Id, TimestampMs } from "./common.ts";
-import { CreateFloorRequest, FloorInfo, FloorRobotInfo } from "./floors-api.ts";
+import { CreateOperationRequest, OperationHenchmanInfo, OperationInfo } from "./operations-api.ts";
 
 export const COMPOUND_TILE_METRES = 2;
 export const ROOM_MIN_TILES = 4;
@@ -92,7 +92,7 @@ export type SpecialRoomState = z.infer<typeof SpecialRoomState>;
 
 /**
  * The compound layout in the BuildingRoom. Project rooms are the entries of
- * `BuildingState.floors` (placement, door, build state, counters); this holds
+ * `BuildingState.operations` (placement, door, build state, counters); this holds
  * everything else. Corridors are derived from the rooms and republished
  * whenever a room is placed, moved or removed.
  */
@@ -137,9 +137,9 @@ export const EMPTY_COMPOUND: CompoundState = {
  *
  *   GET    /api/compound                       layout + room summaries
  *   POST   /api/compound/check                 would this placement be valid? (build-mode ghost)
- *   POST   /api/compound/rooms                 place a new room (creates the floor and its repos)
- *   PATCH  /api/compound/rooms/:floorId        move/resize a room (refused while robots run in it)
- *   DELETE /api/compound/rooms/:floorId        remove: the floor delete (#150), typed name confirms
+ *   POST   /api/compound/rooms                 place a new room (creates the operation and its repos)
+ *   PATCH  /api/compound/rooms/:operationId        move/resize a room (refused while henchmen run in it)
+ *   DELETE /api/compound/rooms/:operationId        remove: the operation delete (#150), typed name confirms
  */
 export const COMPOUND_API_PATH = "/api/compound";
 export const COMPOUND_CHECK_API_PATH = `${COMPOUND_API_PATH}/check`;
@@ -147,7 +147,7 @@ export const COMPOUND_ROOMS_API_PATH = `${COMPOUND_API_PATH}/rooms`;
 
 /** A project room as listed by `GET /api/compound` (same fields as the building room's summary). */
 export const CompoundRoomInfo = RoomPlacement.extend({
-  floorId: Id,
+  operationId: Id,
   name: z.string().max(80),
   doorX: Tile,
   doorY: Tile,
@@ -163,30 +163,30 @@ export const CompoundLayoutResponse = z.object({
 });
 export type CompoundLayoutResponse = z.infer<typeof CompoundLayoutResponse>;
 
-/** Body of `POST /api/compound/check`; `floorId` ignores that room (checking a move). */
+/** Body of `POST /api/compound/check`; `operationId` ignores that room (checking a move). */
 export const CheckPlacementRequest = z.object({
   placement: RoomPlacement,
-  floorId: Id.optional(),
+  operationId: Id.optional(),
 });
 export type CheckPlacementRequest = z.infer<typeof CheckPlacementRequest>;
 
 export const PlacementCheckResponse = z.object({
   ok: z.boolean(),
   reason: z.enum(PLACEMENT_ERRORS).optional(),
-  /** Room ids (floor ids or special room kinds) the placement collides with or cuts off. */
+  /** Room ids (operation ids or special room kinds) the placement collides with or cuts off. */
   conflicts: z.array(z.string().max(128)),
 });
 export type PlacementCheckResponse = z.infer<typeof PlacementCheckResponse>;
 
-/** Body of `POST /api/compound/rooms`: a floor create request plus where to build it. */
-export const PlaceRoomRequest = CreateFloorRequest.extend({ placement: RoomPlacement });
+/** Body of `POST /api/compound/rooms`: an operation create request plus where to build it. */
+export const PlaceRoomRequest = CreateOperationRequest.extend({ placement: RoomPlacement });
 export type PlaceRoomRequest = z.input<typeof PlaceRoomRequest>;
 
 /** 201 body of `POST /api/compound/rooms`. */
-export const PlaceRoomResponse = z.object({ floor: FloorInfo, room: CompoundRoomInfo });
+export const PlaceRoomResponse = z.object({ operation: OperationInfo, room: CompoundRoomInfo });
 export type PlaceRoomResponse = z.infer<typeof PlaceRoomResponse>;
 
-/** Body of `PATCH /api/compound/rooms/:floorId`. */
+/** Body of `PATCH /api/compound/rooms/:operationId`. */
 export const MoveRoomRequest = z.object({ placement: RoomPlacement });
 export type MoveRoomRequest = z.infer<typeof MoveRoomRequest>;
 
@@ -198,9 +198,9 @@ export const PlacementRefusedResponse = z.object({
 });
 export type PlacementRefusedResponse = z.infer<typeof PlacementRefusedResponse>;
 
-/** 409 body of a move refused while robots run in the room. */
-export const RoomHasRunningRobotsResponse = z.object({
-  error: z.literal("room_has_running_robots"),
-  robots: z.array(FloorRobotInfo),
+/** 409 body of a move refused while henchmen run in the room. */
+export const RoomHasRunningHenchmenResponse = z.object({
+  error: z.literal("room_has_running_henchmen"),
+  henchmen: z.array(OperationHenchmanInfo),
 });
-export type RoomHasRunningRobotsResponse = z.infer<typeof RoomHasRunningRobotsResponse>;
+export type RoomHasRunningHenchmenResponse = z.infer<typeof RoomHasRunningHenchmenResponse>;

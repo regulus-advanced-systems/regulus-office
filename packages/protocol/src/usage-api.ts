@@ -2,7 +2,7 @@
  * Usage tracker (SPEC §5 `usage_samples` / `usage_limits`, §9.4 usage wall,
  * D13; issue #40): the viewer's own part.
  *
- * Office totals and the top robots (robot name and owner only) are shared
+ * Office totals and the top henchmen (henchman name and owner only) are shared
  * BuildingRoom state (`BuildingState.usage`). A human's plan limits and spend
  * are private: each human reads only their own, over REST, and the server
  * takes the viewer from the session. Usage is shown only; nothing is
@@ -15,8 +15,8 @@ import { LIMIT_WINDOW_KINDS, PROVIDER_IDS, USAGE_SOURCES } from "./enums.ts";
 /** GET: the signed-in viewer's own usage. Query `tz` = `Date#getTimezoneOffset()`. */
 export const MY_USAGE_API_PATH = "/api/usage/me";
 
-/** How many robots the usage wall's leaderboard shows. */
-export const USAGE_TOP_ROBOTS = 5;
+/** How many henchmen the usage wall's leaderboard shows. */
+export const USAGE_TOP_HENCHMEN = 5;
 
 export const UsageTotals = z.object({
   inputTokens: Count,
