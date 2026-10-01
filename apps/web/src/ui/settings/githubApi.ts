@@ -1,15 +1,21 @@
 /**
  * Browser client for the office GitHub connection (#141; SPEC §8, D14):
  * status, the repo list for "Add floor", connect with an org PAT, start the
- * GitHub App manifest flow, disconnect. Owners and admins only. A PAT goes
+ * GitHub App manifest flow, connect an existing app (#224), disconnect. Owners and admins only. A PAT goes
  * out in one request body and nothing here keeps it; responses never carry
- * a token, the app's private key or its webhook secret.
+ * a token, the app's private key or its webhook secret; neither does an
+ * existing app's key or secret, which go out once in the connect request.
  */
 import {
+  type ConnectExistingAppRequest,
+  ConnectExistingAppResponse,
+  GITHUB_APP_REQUIREMENTS_API_PATH,
   GITHUB_CONNECTION_API_PATH,
+  GITHUB_EXISTING_APP_API_PATH,
   GITHUB_MANIFEST_API_PATH,
   GITHUB_PAT_API_PATH,
   GITHUB_REPOS_API_PATH,
+  GitHubAppRequirements,
   GitHubConnectionStatus,
   GitHubReposResponse,
   StartManifestResponse,
@@ -81,6 +87,15 @@ export function createGitHubApi(options: GitHubApiOptions = {}) {
         GITHUB_MANIFEST_API_PATH,
         StartManifestResponse,
         org ? { org } : {},
+      ),
+    appRequirements: () =>
+      call<GitHubAppRequirements>("GET", GITHUB_APP_REQUIREMENTS_API_PATH, GitHubAppRequirements),
+    connectExistingApp: (body: ConnectExistingAppRequest) =>
+      call<ConnectExistingAppResponse>(
+        "PUT",
+        GITHUB_EXISTING_APP_API_PATH,
+        ConnectExistingAppResponse,
+        body,
       ),
     disconnect: () => call<void>("DELETE", GITHUB_CONNECTION_API_PATH, NO_CONTENT),
   };

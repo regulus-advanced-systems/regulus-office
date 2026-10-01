@@ -54,6 +54,10 @@ export function startFakeGitHub(opts: {
   /** `GET /app` slug and the app's webhook config (#35); absent config answers 404. */
   appSlug?: string;
   hookConfig?: Record<string, unknown>;
+  /** More of `GET /app` (#224): name, owner, client id, permissions, events. */
+  app?: Record<string, unknown>;
+  /** When set, the JWT's `iss` must be one of these (the app id or client id). */
+  issuers?: string[];
   /** More routes (the boards fake, #35); undefined falls through to 404. */
   extra?: (req: Request, url: URL, body: unknown) => Response | undefined;
 }) {
@@ -75,6 +79,7 @@ export function startFakeGitHub(opts: {
       exp: number;
       iss: string;
     };
+    if (opts.issuers && !opts.issuers.includes(claims.iss)) return false;
     return claims.exp - claims.iat <= 660 && claims.iss !== "";
   };
 
@@ -143,7 +148,7 @@ export function startFakeGitHub(opts: {
         if (!verifyJwt(authorization))
           return Response.json({ message: "Bad JWT" }, { status: 401 });
         if (url.pathname === "/app")
-          return Response.json({ id: opts.appId ?? 1, slug: opts.appSlug });
+          return Response.json({ id: opts.appId ?? 1, slug: opts.appSlug, ...opts.app });
         if (req.method === "PATCH") {
           state.hookConfig = { ...(state.hookConfig ?? {}), ...(body as object) };
         } else if (!state.hookConfig) {

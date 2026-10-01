@@ -601,8 +601,10 @@ cat <<EOF
        The first account you register becomes the owner; invite others from
        Settings -> Invite someone...
     2. Connect GitHub (operations work on GitHub repos): Settings -> GitHub -> Create GitHub App...,
-       then install the app on your organization. Webhooks need $PUBLIC_URL to be reachable
-       from GitHub; otherwise the office polls. (Fallback: a fine-grained organization token.)
+       then install the app on your organization. Already have an app from an earlier
+       install? Use an existing GitHub App... instead (App ID + its .pem private key).
+       Webhooks need $PUBLIC_URL to be reachable from GitHub; otherwise the office polls.
+       (Fallback: a fine-grained organization token.)
     3. Notifications: each person turns on desktop notifications for their own henchmen in
        Settings -> Notifications. For the team, an owner or admin opens
        Settings -> Team notifications -> Add channel..., picks Slack (incoming webhook URL),
