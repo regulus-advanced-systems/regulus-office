@@ -5,6 +5,7 @@
  * - enums.ts           string-literal enums + type guards
  * - common.ts          shared zod primitives (ids, timestamps, positions)
  * - building-state.ts  BuildingRoom state shapes (zod + inferred types)
+ * - compound.ts        compound grid conventions, room placement, layout state and REST (#181)
  * - floor-state.ts     FloorRoom state shapes (zod + inferred types)
  * - genius.ts        genius avatar catalogue (archetypes, colours, accessories) and validator
  * - floors-api.ts      REST shapes for floors, repos and floor members
@@ -37,6 +38,7 @@ export * from "./celebrations.ts";
 export * from "./changes-api.ts";
 export * from "./commands/index.ts";
 export * from "./common.ts";
+export * from "./compound.ts";
 export * from "./credentials-api.ts";
 export * from "./enums.ts";
 export * from "./floor-state.ts";

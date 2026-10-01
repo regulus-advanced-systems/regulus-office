@@ -46,6 +46,15 @@ export const FloorSummarySchema = schema(
     robotsWaiting: t.uint16().default(0),
     robotsTotal: t.uint16().default(0),
     humansPresent: t.uint16().default(0),
+    gridX: t.int16().default(-1),
+    gridY: t.int16().default(-1),
+    width: t.uint16().default(0),
+    depth: t.uint16().default(0),
+    doorSide: t.string().default("south"),
+    doorX: t.int16().default(-1),
+    doorY: t.int16().default(-1),
+    buildState: t.string().default("ready"),
+    buildEndsAt: t.number().default(0),
   },
   "FloorSummary",
 );
@@ -127,6 +136,46 @@ export const PmStateSchema = schema(
   "PmState",
 );
 
+export const TileRectSchema = schema(
+  {
+    x: t.uint16().default(0),
+    y: t.uint16().default(0),
+    w: t.uint16().default(0),
+    d: t.uint16().default(0),
+  },
+  "TileRect",
+);
+
+export const SpecialRoomStateSchema = schema(
+  {
+    kind: t.string().default("lobby"),
+    gridX: t.uint16().default(0),
+    gridY: t.uint16().default(0),
+    width: t.uint16().default(0),
+    depth: t.uint16().default(0),
+    doorSide: t.string().default("north"),
+    doorX: t.uint16().default(0),
+    doorY: t.uint16().default(0),
+  },
+  "SpecialRoomState",
+);
+
+export const CompoundStateSchema = schema(
+  {
+    width: t.uint16().default(0),
+    depth: t.uint16().default(0),
+    tileMetres: t.float64().default(2),
+    outsideDepth: t.uint16().default(0),
+    version: t.number().default(0),
+    specialRooms: t.array(SpecialRoomStateSchema),
+    corridors: t.array(TileRectSchema),
+    blastDoorX: t.uint16().default(0),
+    blastDoorY: t.uint16().default(0),
+    blastDoorWidth: t.uint16().default(0),
+  },
+  "CompoundState",
+);
+
 export const BuildingStateSchema = schema(
   {
     humans: t.map(HumanPresenceSchema),
@@ -135,6 +184,7 @@ export const BuildingStateSchema = schema(
     jukebox: JukeboxStateSchema,
     usage: UsageSummarySchema,
     pm: PmStateSchema,
+    compound: CompoundStateSchema,
   },
   "BuildingState",
 );

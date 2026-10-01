@@ -8,6 +8,7 @@ import { ArraySchema, Decoder, Encoder, MapSchema, Schema } from "@colyseus/sche
 import type { z } from "zod";
 import * as building from "../building-state.ts";
 import { WorldPos } from "../common.ts";
+import * as compound from "../compound.ts";
 import { buildingFixture, floorFixture } from "../fixtures.ts";
 import * as floor from "../floor-state.ts";
 import * as schemas from "./index.ts";
@@ -25,6 +26,9 @@ const pairs: Array<[string, z.ZodObject, SchemaClass]> = [
   ["TopRobotUsage", building.TopRobotUsage, schemas.TopRobotUsageSchema],
   ["UsageSummary", building.UsageSummary, schemas.UsageSummarySchema],
   ["PmState", building.PmState, schemas.PmStateSchema],
+  ["TileRect", compound.TileRect, schemas.TileRectSchema],
+  ["SpecialRoomState", compound.SpecialRoomState, schemas.SpecialRoomStateSchema],
+  ["CompoundState", compound.CompoundState, schemas.CompoundStateSchema],
   ["BuildingState", building.BuildingState, schemas.BuildingStateSchema],
   ["BubbleEmits", floor.BubbleEmits, schemas.BubbleEmitsSchema],
   ["RobotState", floor.RobotState, schemas.RobotStateSchema],
