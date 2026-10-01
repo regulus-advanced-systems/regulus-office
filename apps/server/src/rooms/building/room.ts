@@ -16,6 +16,7 @@ import {
   COMMAND_REJECTED_MESSAGE,
   type CommandRejected,
   FloorSummarySchema,
+  type GeniusLookValue,
   HumanPresenceSchema,
   LOBBY_FLOOR_ID,
   type UsageSummary,
@@ -64,8 +65,21 @@ export interface BuildingRoom extends RoomDefinition<BuildingState, BuildingJoin
   sendToUser(userId: string, type: string, payload: unknown): void;
   /** Office usage totals and leaderboard for the usage wall (#40); never per-human data. */
   setUsage(summary: UsageSummary): void;
+  /** A human picked a new genius (#185): every one of their presences shows it at once. */
+  setAvatar(userId: string, look: GeniusLookValue): void;
   /** Compound layout and each room's placement and build state (#181). */
   setCompound(snapshot: CompoundSnapshot): void;
+}
+
+/** Copy a (validated) genius look onto a presence; only changed fields make a patch. */
+function applyLook(human: Human, look: GeniusLookValue): void {
+  const avatar = human.avatar;
+  if (avatar.archetype !== look.archetype) avatar.archetype = look.archetype;
+  if (avatar.outfit !== look.outfit) avatar.outfit = look.outfit;
+  if (avatar.trim !== look.trim) avatar.trim = look.trim;
+  if (avatar.skin !== look.skin) avatar.skin = look.skin;
+  if (avatar.hair !== look.hair) avatar.hair = look.hair;
+  if (avatar.accessory !== look.accessory) avatar.accessory = look.accessory;
 }
 
 interface ClientBookkeeping {
@@ -248,8 +262,7 @@ export function createBuildingRoom(deps: BuildingRoomDeps): BuildingRoom {
       human.userId = client.user.userId;
       human.displayName = client.user.displayName;
       human.role = client.user.role;
-      human.avatar.colorSet = client.user.avatar.colorSet;
-      human.avatar.accessory = client.user.avatar.accessory;
+      applyLook(human, client.user.avatar);
       human.floorId = LOBBY_FLOOR_ID;
       human.animation = "idle";
       human.joinedAt = now();
@@ -286,6 +299,16 @@ export function createBuildingRoom(deps: BuildingRoomDeps): BuildingRoom {
     sendToUser(userId, type, payload) {
       for (const client of handle?.clients ?? []) {
         if (client.user.userId === userId) client.send(type, payload);
+      }
+    },
+
+    setAvatar(userId, look) {
+      for (const client of handle?.clients ?? []) {
+        if (client.user.userId !== userId) continue;
+        // Later joins of this connection's user read the stored profile; keep this one current too.
+        client.user.avatar = look;
+        const human = humanOf(client);
+        if (human) applyLook(human, look);
       }
     },
 

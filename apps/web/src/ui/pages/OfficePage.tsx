@@ -14,6 +14,7 @@ import { useBuildingStore } from "../../state/building.ts";
 import { useFloorStore } from "../../state/floor.ts";
 import { useFloorsStore } from "../../state/floors.ts";
 import { useSessionStore } from "../../state/session.ts";
+import { AvatarPickerHost } from "../avatar-picker/AvatarPickerHost.tsx";
 import { useFloorListSync } from "../floors/useFloorListSync.ts";
 import { Hud } from "../Hud.tsx";
 
@@ -66,6 +67,7 @@ export function OfficePage() {
         )}
       </OfficeCanvas>
       <Hud />
+      <AvatarPickerHost />
     </div>
   );
 }

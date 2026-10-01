@@ -7,6 +7,7 @@
 import { useId } from "react";
 import { selectReducedMotion, useUiStore } from "../../state/ui.ts";
 import { AccountSection } from "../auth/AccountSection.tsx";
+import { GeniusSettingsSection } from "../avatar-picker/GeniusSettingsSection.tsx";
 import { Button } from "../components/Button.tsx";
 import { Switch } from "../components/Switch.tsx";
 import { openProvidersPanel } from "../providers/providersStore.ts";
@@ -27,6 +28,8 @@ export function SettingsForm() {
   return (
     <div>
       <AccountSection />
+
+      <GeniusSettingsSection />
 
       <GitHubSection />
 

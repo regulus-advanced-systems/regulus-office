@@ -137,7 +137,13 @@ export function mountAuthRoutes(
     "/api/me",
     guarded(async ({ request }) => {
       const user = await requireUser(request);
-      return json({ id: user.id, displayName: user.displayName, role: user.role });
+      return json({
+        id: user.id,
+        displayName: user.displayName,
+        role: user.role,
+        avatar: user.avatar,
+        avatarChosen: user.avatarChosen,
+      });
     }),
   );
 

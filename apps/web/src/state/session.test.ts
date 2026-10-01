@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, test } from "bun:test";
+import { DEFAULT_GENIUS_LOOK } from "@regulus/protocol/src/genius.ts";
 import { canManageOffice, parseSessionUser, SESSION_ENDPOINT, useSessionStore } from "./session.ts";
 
 const respond = (status: number, body?: unknown): typeof fetch =>
@@ -72,6 +73,15 @@ describe("session store (/api/me)", () => {
       role: "viewer",
     });
     expect(parseSessionUser({ id: "u3" })?.displayName).toBe("u3");
+    // The genius (#185): resolved field by field; only an explicit false opens the picker.
+    const tycoon = { ...DEFAULT_GENIUS_LOOK, archetype: "tycoon", accessory: "monocle" };
+    expect(parseSessionUser({ id: "u4", avatar: tycoon, avatarChosen: false })).toMatchObject({
+      avatar: tycoon,
+      avatarChosen: false,
+    });
+    expect(
+      parseSessionUser({ id: "u5", avatar: { archetype: "pirate", accessory: "monocle" } }),
+    ).toMatchObject({ avatar: DEFAULT_GENIUS_LOOK, avatarChosen: true });
     expect(parseSessionUser({})).toBeNull();
     expect(parseSessionUser(null)).toBeNull();
   });

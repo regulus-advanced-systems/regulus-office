@@ -41,11 +41,33 @@ export function resolveTrapMove(count: number, current: number, shiftKey: boolea
   return { index: nextFocusIndex(count, current, shiftKey), preventDefault: true };
 }
 
-/** Visible, enabled, tabbable descendants of `root` in document order. */
+const radioName = (el: HTMLElement): string | null =>
+  el.tagName === "INPUT" && (el as HTMLInputElement).type === "radio"
+    ? (el as HTMLInputElement).name || null
+    : null;
+
+/**
+ * Visible, enabled, tabbable descendants of `root` in document order. A
+ * named radio group is one tab stop, as in the browser: its checked radio
+ * (else its first); arrow keys move within the group.
+ */
 export function getFocusable(root: ParentNode): HTMLElement[] {
-  return Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(
+  const all = Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(
     (el) => !el.hasAttribute("hidden") && el.getAttribute("aria-hidden") !== "true",
   );
+  const stops = new Map<string, HTMLElement>();
+  for (const el of all) {
+    const name = radioName(el);
+    if (!name) continue;
+    const stop = stops.get(name);
+    if (!stop || (!(stop as HTMLInputElement).checked && (el as HTMLInputElement).checked)) {
+      stops.set(name, el);
+    }
+  }
+  return all.filter((el) => {
+    const name = radioName(el);
+    return !name || stops.get(name) === el;
+  });
 }
 
 /** keydown handler body for a trap container; returns true when it acted. */

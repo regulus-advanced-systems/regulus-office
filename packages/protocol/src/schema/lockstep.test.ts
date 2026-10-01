@@ -17,7 +17,7 @@ import { type SchemaClass, schemaFieldNames, schemaMetadata } from "./introspect
 /** Every zod state object paired with its Colyseus class. */
 const pairs: Array<[string, z.ZodObject, SchemaClass]> = [
   ["WorldPos", WorldPos, schemas.WorldPosSchema],
-  ["AvatarLook", building.AvatarLook, schemas.AvatarLookSchema],
+  ["GeniusLook", building.GeniusLook, schemas.GeniusLookSchema],
   ["HumanPresence", building.HumanPresence, schemas.HumanPresenceSchema],
   ["FloorSummary", building.FloorSummary, schemas.FloorSummarySchema],
   ["ChatMessage", building.ChatMessage, schemas.ChatMessageSchema],

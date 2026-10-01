@@ -2,9 +2,12 @@
  * Humans: Better Auth `users`, office-specific `user_profiles`, and `invites`
  * (SPEC §5, §13; roles in SPEC §2).
  */
-import { USER_ROLES } from "@regulus/protocol";
+import { DEFAULT_GENIUS_LOOK, USER_ROLES } from "@regulus/protocol";
 import { check, index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
-import { enumText, id, inEnum, timestampMs, timestamps } from "./_columns.ts";
+import { enumText, id, inEnum, jsonText, timestampMs, timestamps } from "./_columns.ts";
+
+/** Pre-#185 profiles and new ones start as the default genius until the picker saves one. */
+export const DEFAULT_AVATAR_JSON = JSON.stringify(DEFAULT_GENIUS_LOOK);
 
 /**
  * Better Auth's core user table. Columns and names follow Better Auth's
@@ -33,10 +36,14 @@ export const userProfiles = sqliteTable(
       .references(() => users.id, { onDelete: "cascade" }),
     displayName: text("display_name").notNull(),
     role: enumText("role", USER_ROLES).notNull().default("member"),
-    /** Robot colour set chosen for the human's avatar (protocol `AvatarLook.colorSet`). */
-    avatarColorSet: text("avatar_color_set").notNull().default("default"),
-    /** Accessory (antenna, visor, cap, ...) for the human's avatar (`AvatarLook.accessory`). */
-    avatarAccessory: text("avatar_accessory").notNull().default("none"),
+    /**
+     * The human's genius as JSON (protocol `GeniusLook`: archetype, colour ids,
+     * accessory), validated on write by apps/server/src/profile; read through
+     * `resolveGeniusLook` so a stale value falls back field by field.
+     */
+    avatar: jsonText("avatar").notNull().default(DEFAULT_AVATAR_JSON),
+    /** When the human confirmed a genius in the picker; null until then (first-login picker). */
+    avatarChosenAt: timestampMs("avatar_chosen_at"),
     /** Runner identity this human's agents execute as (SPEC §8); null until provisioned. */
     runnerId: text("runner_id"),
     /** Linux uid of the runner user for the `linux-user` backend; null for `docker`. */
