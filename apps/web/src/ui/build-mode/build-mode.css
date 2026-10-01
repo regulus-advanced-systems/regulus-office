@@ -1,0 +1,125 @@
+/* Build mode, the new room's status and room settings (#187): docked console plates, bottom right. */
+
+.rg-dock {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  width: 330px;
+  max-width: calc(100vw - 24px);
+  max-height: calc(100vh - 190px);
+  overflow-y: auto;
+}
+.rg-dock:focus {
+  outline: none;
+}
+.rg-dock:focus-visible {
+  outline: 2px solid var(--rg-color-gold);
+  outline-offset: 2px;
+}
+.rg-dock__actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+.rg-build__seg {
+  border: 0;
+  padding: 0;
+  margin: 10px 0 0;
+  min-width: 0;
+}
+.rg-build__seg legend {
+  font-weight: 600;
+  padding: 0;
+  margin-bottom: 4px;
+}
+.rg-build__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.rg-build__chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border: 1px solid var(--rg-color-panel-border);
+  border-radius: 4px;
+  background: var(--rg-color-raised);
+  color: var(--rg-color-ink);
+  font-size: 13px;
+  cursor: pointer;
+}
+.rg-build__chip input {
+  position: absolute;
+  opacity: 0;
+  inset: 0;
+  margin: 0;
+  cursor: pointer;
+}
+.rg-build__chip:hover {
+  background: var(--rg-color-hover);
+}
+.rg-build__chip:has(input:checked) {
+  border-color: var(--rg-color-gold);
+  background: var(--rg-color-selected);
+  box-shadow: inset 0 -3px 0 var(--rg-color-hench-yellow);
+}
+.rg-build__chip:has(input:focus-visible) {
+  outline: 2px solid var(--rg-color-gold);
+  outline-offset: 1px;
+}
+.rg-build__dims {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 13px;
+}
+.rg-build__dims select {
+  width: 4.2em;
+}
+.rg-build__status {
+  margin-top: 10px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  font-size: 13px;
+  background: var(--rg-color-plate);
+  color: var(--rg-color-plate-text);
+  border-left: 4px solid var(--rg-color-ink-muted);
+  min-height: 2.6em;
+}
+.rg-build__status[data-state="ok"] {
+  border-left-color: var(--rg-color-green);
+}
+.rg-build__status[data-state="refused"] {
+  border-left-color: var(--rg-color-alarm-red);
+}
+.rg-build__keys {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--rg-color-ink-muted);
+  line-height: 1.5;
+}
+.rg-build__progress {
+  height: 8px;
+  margin: 6px 0 10px;
+  border-radius: 4px;
+  background: var(--rg-color-inset);
+  overflow: hidden;
+}
+.rg-build__progress > span {
+  display: block;
+  height: 100%;
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--rg-color-hench-yellow) 0 8px,
+    #1b1a17 8px 16px
+  );
+  transition: width 0.9s linear;
+}
+:root[data-reduced-motion="true"] .rg-build__progress > span {
+  transition: none;
+}

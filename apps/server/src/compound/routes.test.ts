@@ -218,6 +218,9 @@ describe("compound routes", () => {
     expect(room.buildState).toBe("building");
     expect(audits("compound.room_place", floor.floorId)[0]?.userId).toBe(admin.id);
     expect(audits("floor.create", floor.floorId)).toHaveLength(1);
+    // Build mode (#187): a placed room starts vanilla, one desk of four seats (D8).
+    const seats = office.db.select().from(desks).where(eq(desks.floorId, floor.floorId)).all();
+    expect(seats.map((d) => d.seatId).sort()).toEqual(["d1s1", "d1s2", "d1s3", "d1s4"]);
     const spec = readSpec(office.db);
     const placed = liveRooms(office.db).map((r) => ({
       id: r.id,

@@ -1,47 +1,50 @@
 /**
  * "Add floor" dialog (SPEC §9.1, D7, D14): an owner or admin names the
- * floor, picks a palette (default: next in the cycle) and a size tier, and
- * chooses one or more GitHub repos. With the office GitHub connection (#141)
+ * floor, picks a palette (default: next in the cycle) and chooses one or
+ * more GitHub repos. With the office GitHub connection (#141)
  * they are picked from a searchable list of every repo it can see; "Other
  * repo…" (or, without a connection, the only option) takes a typed
- * owner/name with an optional fine-grained PAT scoped to that repo. After
- * creation it shows each repo's clone status.
+ * owner/name with an optional fine-grained PAT scoped to that repo.
+ * "Choose a spot…" then continues in build mode (#187): the room's size,
+ * place and door are picked on the compound map, and the floor is created
+ * when the owner builds it there (ui/build-mode).
  *
- * Tokens live only in their (uncontrolled) password inputs until submitted;
- * the inputs are cleared right after and the token is never shown again (the
- * server reports `hasCredential`).
+ * Tokens live only in their (uncontrolled) password inputs until submitted,
+ * then in build mode's memory until the room is built or build mode is
+ * cancelled; the inputs are cleared on submit and the token is never shown
+ * again (the server reports `hasCredential`).
  */
 import { PALETTES } from "@regulus/floor-layout";
-import type { FloorTemplateTier, GitHubRepoInfo } from "@regulus/protocol";
+import type { GitHubRepoInfo, PlaceRoomRequest } from "@regulus/protocol";
 import { useEffect, useId, useState } from "react";
-import { useFloorsStore } from "../../state/floors.ts";
+import { useCompoundStore } from "../../state/compound.ts";
 import { canManageOffice, useSessionStore } from "../../state/session.ts";
 import { useUiStore } from "../../state/ui.ts";
 import { FormAlert } from "../auth/AuthCard.tsx";
+import { buildFrame } from "../build-mode/logic.ts";
+import {
+  ADD_FLOOR_OVERLAY,
+  type AddFloorDraft,
+  takeAddFloorDraft,
+} from "../build-mode/returnDraft.ts";
+import { useBuildModeStore } from "../build-mode/store.ts";
 import { Button } from "../components/Button.tsx";
 import { Modal } from "../components/Modal.tsx";
 import { useGitHubResultOverlay } from "../settings/GitHubSection.tsx";
 import { createGitHubApi, describeGitHubError, type GitHubApi } from "../settings/githubApi.ts";
-import { createFloorsApi, describeFloorError, type FloorsApi } from "./api.ts";
-import { CloneStatusList } from "./CloneStatus.tsx";
-import { floorSettingsOverlay } from "./floorSettings.ts";
 import { RepoPicker } from "./RepoPicker.tsx";
 import "./floors.css";
 
-export const ADD_FLOOR_OVERLAY = "add-floor";
+export { ADD_FLOOR_OVERLAY };
 
-export const TIER_LABELS: Record<FloorTemplateTier, string> = {
-  small: "Small (6 desks)",
-  medium: "Medium (12 desks, Office L2)",
-  large: "Large (20 desks, two pods)",
-};
+/** What the form hands to build mode: everything but where the room goes. */
+export type AddFloorRequest = Omit<PlaceRoomRequest, "placement">;
 
-const defaultApi = createFloorsApi();
 const defaultGitHubApi = createGitHubApi();
 let rowSeq = 0;
 
 /**
- * Read the uncontrolled form: name, palette, tier, then the repos: those
+ * Read the uncontrolled form: name, palette, then the repos: those
  * picked from the connection's list first (in the order picked, no token:
  * the connection covers them), then the non-empty typed rows.
  */
@@ -49,7 +52,7 @@ export function readAddFloorForm(
   form: HTMLFormElement,
   rowKeys: readonly number[],
   picked: readonly string[] = [],
-) {
+): AddFloorRequest {
   const data = new FormData(form);
   const field = (name: string) => String(data.get(name) ?? "").trim();
   const paletteId = field("palette");
@@ -60,7 +63,6 @@ export function readAddFloorForm(
   const repos = [...picked.map((repo) => ({ repo })), ...typed];
   return {
     name: field("name"),
-    tier: (field("tier") || "medium") as FloorTemplateTier,
     ...(paletteId ? { paletteId } : {}),
     repos,
   };
@@ -97,24 +99,25 @@ function useConnectionRepos(github: GitHubApi): ConnectionRepos {
 }
 
 export function AddFloorForm({
-  api = defaultApi,
   github = defaultGitHubApi,
-  onCreated,
+  draft = null,
+  onSubmit,
 }: {
-  api?: FloorsApi;
   github?: GitHubApi;
-  onCreated: (floorId: string) => void;
+  /** Back from build mode with a refusal: start from what was typed. */
+  draft?: AddFloorDraft | null;
+  onSubmit: (request: AddFloorRequest) => void;
 }) {
-  const upsert = useFloorsStore((s) => s.upsert);
-  const [rows, setRows] = useState<number[]>(() => [++rowSeq]);
+  const [rows, setRows] = useState<number[]>(() =>
+    draft && draft.repos.length > 0 ? draft.repos.map(() => ++rowSeq) : [++rowSeq],
+  );
   const [picked, setPicked] = useState<string[]>([]);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const ids = { name: useId(), palette: useId(), tier: useId() };
+  const [error, setError] = useState<string | null>(draft?.error ?? null);
+  const ids = { name: useId(), palette: useId() };
   const connection = useConnectionRepos(github);
   const listed = connection.state === "ready";
 
-  const submit = async (event: React.FormEvent<HTMLFormElement>) => {
+  const submit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = event.currentTarget;
     const request = readAddFloorForm(form, rows, listed ? picked : []);
@@ -122,20 +125,12 @@ export function AddFloorForm({
       setError("Give the floor a name and at least one repo.");
       return;
     }
-    setBusy(true);
-    setError(null);
-    const result = await api.create(request);
-    // Tokens do not outlive the request in the page.
+    // Tokens leave the page's inputs here; build mode holds them until the room is built.
     for (const input of form.querySelectorAll<HTMLInputElement>('input[type="password"]')) {
       input.value = "";
     }
-    setBusy(false);
-    if (!result.ok) {
-      setError(describeFloorError(result));
-      return;
-    }
-    upsert(result.data);
-    onCreated(result.data.floorId);
+    setError(null);
+    onSubmit(request);
   };
 
   const typedRows = (
@@ -144,6 +139,7 @@ export function AddFloorForm({
         <div key={key} className="rg-floor-form__repo">
           <input
             name={`repo-${key}`}
+            defaultValue={draft?.repos[i] ?? ""}
             className="rg-input"
             aria-label={`Repo ${i + 1}`}
             placeholder="owner/name or https://github.com/owner/name"
@@ -182,35 +178,34 @@ export function AddFloorForm({
   );
 
   return (
-    <form onSubmit={(e) => void submit(e)} aria-label="Add floor">
+    <form onSubmit={submit} aria-label="Add floor">
       <div className="rg-field">
         <label className="rg-field__label" htmlFor={ids.name}>
           Floor name
         </label>
-        <input id={ids.name} name="name" className="rg-input" maxLength={80} />
+        <input
+          id={ids.name}
+          name="name"
+          className="rg-input"
+          maxLength={80}
+          defaultValue={draft?.name ?? ""}
+        />
       </div>
       <div className="rg-floor-form__pair">
         <div className="rg-field">
           <label className="rg-field__label" htmlFor={ids.palette}>
             Palette
           </label>
-          <select id={ids.palette} name="palette" className="rg-select" defaultValue="">
+          <select
+            id={ids.palette}
+            name="palette"
+            className="rg-select"
+            defaultValue={draft?.paletteId ?? ""}
+          >
             <option value="">Next in the cycle</option>
             {PALETTES.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="rg-field">
-          <label className="rg-field__label" htmlFor={ids.tier}>
-            Size
-          </label>
-          <select id={ids.tier} name="tier" className="rg-select" defaultValue="medium">
-            {(Object.keys(TIER_LABELS) as FloorTemplateTier[]).map((t) => (
-              <option key={t} value={t}>
-                {TIER_LABELS[t]}
               </option>
             ))}
           </select>
@@ -224,12 +219,7 @@ export function AddFloorForm({
         {connection.state === "error" && <FormAlert>{connection.message}</FormAlert>}
         {listed && (
           <>
-            <RepoPicker
-              repos={connection.repos}
-              selected={picked}
-              onChange={setPicked}
-              disabled={busy}
-            />
+            <RepoPicker repos={connection.repos} selected={picked} onChange={setPicked} />
             {connection.truncated && (
               <div className="rg-field__hint">
                 GitHub listed more repos than the office shows; use Other repo… for the rest.
@@ -252,65 +242,51 @@ export function AddFloorForm({
         )}
       </fieldset>
       {error && <FormAlert>{error}</FormAlert>}
-      <Button variant="primary" type="submit" disabled={busy}>
-        {busy ? "Creating…" : "Create floor"}
+      <div className="rg-field__hint">
+        Next you pick the room's size, place and door on the compound map.
+      </div>
+      <Button variant="primary" type="submit">
+        Choose a spot…
       </Button>
     </form>
   );
 }
 
 /**
- * Mounted in the HUD; managers only. Form first, then the new floor's clone
- * status with "Add people…", which hands over to the floor settings panel.
+ * Mounted in the HUD; managers only. The form hands over to build mode,
+ * which creates the floor once its room is placed.
  */
-export function AddFloorDialogHost({
-  api = defaultApi,
-  github = defaultGitHubApi,
-}: {
-  api?: FloorsApi;
-  github?: GitHubApi;
-}) {
+export function AddFloorDialogHost({ github = defaultGitHubApi }: { github?: GitHubApi }) {
   const open = useUiStore((s) => s.overlay === ADD_FLOOR_OVERLAY);
   const close = useUiStore((s) => s.closeOverlay);
-  const openOverlay = useUiStore((s) => s.openOverlay);
   const allowed = useSessionStore((s) => canManageOffice(s.user?.role));
-  const [created, setCreated] = useState<string | null>(null);
+  const [draft, setDraft] = useState<AddFloorDraft | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  // Back from build mode with a refusal: the form starts from what was typed.
+  useEffect(() => {
+    if (open) setDraft(takeAddFloorDraft());
+  }, [open]);
   // Back from the GitHub App manifest flow: show the result in Settings.
   useGitHubResultOverlay();
   if (!allowed) return null;
-  const done = () => {
-    setCreated(null);
-    close(ADD_FLOOR_OVERLAY);
-  };
-  // A new floor has no one on it yet: offer to add people straight away.
-  const addPeople = (floorId: string) => {
-    setCreated(null);
-    openOverlay(floorSettingsOverlay(floorId));
+  const toBuildMode = (request: AddFloorRequest) => {
+    const world = useCompoundStore.getState().world;
+    if (!world) {
+      setError("The compound map is still loading. Try again in a moment.");
+      return;
+    }
+    setError(null);
+    useBuildModeStore.getState().start(world, { kind: "create", request }, buildFrame(world));
   };
   return (
-    <Modal
-      open={open}
-      onClose={done}
-      title={created ? "Floor added" : "Add floor"}
-      width={560}
-      footer={
-        created ? (
-          <>
-            <Button variant="secondary" aria-haspopup="dialog" onClick={() => addPeople(created)}>
-              Add people…
-            </Button>
-            <Button variant="secondary" onClick={done}>
-              Done
-            </Button>
-          </>
-        ) : undefined
-      }
-    >
-      {created ? (
-        <CloneStatusList floorId={created} api={api} onRide={done} />
-      ) : (
-        <AddFloorForm api={api} github={github} onCreated={setCreated} />
-      )}
+    <Modal open={open} onClose={() => close(ADD_FLOOR_OVERLAY)} title="Add floor" width={560}>
+      <AddFloorForm
+        key={draft ? "draft" : "new"}
+        github={github}
+        draft={draft}
+        onSubmit={toBuildMode}
+      />
+      {error && <FormAlert>{error}</FormAlert>}
     </Modal>
   );
 }

@@ -2,15 +2,19 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import type { GitHubRepoInfo } from "@regulus/protocol";
 import { act } from "react";
+import { testWorld } from "../../scene/compound/testing.ts";
+import { useCompoundStore } from "../../state/compound.ts";
 import { useFloorsStore } from "../../state/floors.ts";
 import { useSessionStore } from "../../state/session.ts";
 import { useUiStore } from "../../state/ui.ts";
 import { click, type Mounted, mount, useDom } from "../a11y/dom.ts";
 import { fakeFetch } from "../auth/fakeFetch.ts";
 import { settle, text } from "../auth/testDom.tsx";
+import { createCompoundApi } from "../build-mode/api.ts";
+import { confirmBuild } from "../build-mode/BuildModeHost.tsx";
+import { useBuildModeStore } from "../build-mode/store.ts";
 import { createGitHubApi } from "../settings/githubApi.ts";
 import { ADD_FLOOR_OVERLAY, AddFloorDialogHost } from "./AddFloorDialog.tsx";
-import { createFloorsApi } from "./api.ts";
 import { filterRepos, pushedAgo } from "./RepoPicker.tsx";
 
 useDom();
@@ -44,6 +48,9 @@ afterEach(async () => {
     useUiStore.setState({ overlay: null });
     useFloorsStore.getState().clear();
     useSessionStore.setState({ status: "unknown", user: null, error: null });
+    useBuildModeStore.getState().cancel();
+    useBuildModeStore.setState({ added: null, watching: null, returnZoom: null });
+    useCompoundStore.getState().set(null);
   });
   for (const el of document.querySelectorAll(".rg-backdrop")) el.remove();
 });
@@ -74,14 +81,8 @@ async function open(routes: Parameters<typeof fakeFetch>[0]) {
     error: null,
   });
   const f = fakeFetch(routes);
-  mounted.push(
-    await mount(
-      <AddFloorDialogHost
-        api={createFloorsApi({ fetch: f.fetch })}
-        github={createGitHubApi({ fetch: f.fetch })}
-      />,
-    ),
-  );
+  useCompoundStore.getState().set(testWorld([]));
+  mounted.push(await mount(<AddFloorDialogHost github={createGitHubApi({ fetch: f.fetch })} />));
   await act(async () => useUiStore.getState().openOverlay(ADD_FLOOR_OVERLAY));
   await settle();
   return f;
@@ -118,7 +119,7 @@ describe("Add floor with a GitHub connection", () => {
   test("lists repos with visibility and branch; picks go first, in the order picked", async () => {
     const f = await open({
       ...connected,
-      "POST /api/floors": { status: 400, body: { error: "duplicate_repo" } },
+      "POST /api/compound/rooms": { status: 400, body: { error: "duplicate_repo" } },
     });
     expect(rows()).toEqual(["octo/api", "octo/hello", "octo/web"]);
     expect(text()).toContain("public · trunk · pushed 3 days ago");
@@ -148,10 +149,12 @@ describe("Add floor with a GitHub connection", () => {
         ?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
     });
     await settle();
+    // Build mode takes the request; building there sends it with the room's spot.
+    await act(() => confirmBuild(createCompoundApi({ fetch: f.fetch })));
+    await settle();
     const post = f.calls.find((c) => c.method === "POST");
-    expect(post?.body).toEqual({
+    expect(post?.body).toMatchObject({
       name: "Apollo",
-      tier: "medium",
       repos: [
         { repo: "octo/web" },
         { repo: "octo/api" },

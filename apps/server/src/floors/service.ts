@@ -23,7 +23,12 @@ import type {
   OfficeUserInfo,
   RoomPlacement,
 } from "@regulus/protocol";
-import { CreateFloorRequest, hasFloorAccess, SEATS_PER_DESK } from "@regulus/protocol";
+import {
+  CreateFloorRequest,
+  DEFAULT_DESK_COUNT,
+  hasFloorAccess,
+  SEATS_PER_DESK,
+} from "@regulus/protocol";
 import { and, asc, eq, isNull, max } from "drizzle-orm";
 import type { z } from "zod";
 import { AUDIT_ACTIONS, writeAudit } from "../auth/audit.ts";
@@ -106,9 +111,11 @@ export class FloorService {
     if (input.paletteId && !paletteById(input.paletteId)) {
       throw new AuthHttpError(400, "unknown_palette");
     }
-    // Every new floor is a generated room (#182, #186); the tier only picks how many desks.
+    // Every new floor is a generated room (#182, #186). A room placed in build mode (#187)
+    // starts vanilla (D8: one desk; any size fits it) and grows through room settings;
+    // an auto-placed one gets its tier's desks (its size is picked to fit them).
     const template = templateForTier(input.tier);
-    const deskCount = legacyDeskCount(template.id) ?? 1;
+    const deskCount = placement ? DEFAULT_DESK_COUNT : (legacyDeskCount(template.id) ?? 1);
     const deskSeats = roomDeskSeatIds(deskCount);
     const dirNames = repoDirNames(refs);
 
