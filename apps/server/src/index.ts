@@ -48,6 +48,7 @@ import { mountRoomSettingsRoutes, RoomSettingsService } from "./rooms/settings/i
 import { createSearch } from "./search/index.ts";
 import { loadMasterKeyring, type MasterKeyring } from "./secrets/index.ts";
 import { createServices, type Services } from "./services/index.ts";
+import { createSkins } from "./skins/setup.ts";
 import { createTerminals } from "./terminals/index.ts";
 import { createUsage } from "./usage/index.ts";
 import { createWorkflows } from "./workflows/setup.ts";
@@ -192,6 +193,10 @@ async function main(): Promise<void> {
     personal: rooms.building,
   });
   notifications.mount(server.router, auth);
+  // Henchman skins (#184): admin rules, resolved onto every robot by the FloorRooms.
+  const skins = createSkins({ db });
+  skins.mount(server.router, auth);
+  skins.publishTo(rooms.floors);
   // Usage tracker (#40): robots' usage/limit events, transcript scans, the viewer's summary.
   const usage = createUsage({ db, logger });
   usage.mount(server.router, auth);

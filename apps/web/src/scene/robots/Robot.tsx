@@ -1,6 +1,7 @@
 /**
- * One robot at its desk (SPEC §9.3): RobotAvatar seated at the seat pose,
- * antenna bulb by status, provider chest light, raised hand while waiting,
+ * One robot at its desk (SPEC §9.3): a henchman (#184) seated at the seat
+ * pose, in its resolved skin with its provider's trim, status light by
+ * status, raised hand while waiting,
  * animation from status/action (one-shots settle back into the chair),
  * papers while reading, a spin when it celebrates, a dance in its chair
  * when the merge gong rings (#43, cheer.ts). Clicking it opens the
@@ -12,10 +13,11 @@ import type { Seat } from "@regulus/floor-layout";
 import type { RobotState } from "@regulus/protocol";
 import { memo, useEffect, useRef } from "react";
 import type { Group } from "three";
-import { RobotAvatar } from "../avatar/index.ts";
 import type { SitAnchor } from "../avatar/seatedFit.ts";
+import { HenchmanAvatar } from "../henchmen/HenchmanAvatar.tsx";
+import { HENCHMAN_SEATED_BODY } from "../henchmen/seatedFit.ts";
 import { calmFor, raisedHandFor, robotAnimationFor, robotLookFor } from "./robotAnimation.ts";
-import { robotAvatarLook } from "./robotLook.ts";
+import { robotHenchmanLook } from "./robotLook.ts";
 import { robotPlacement } from "./seatPlacement.ts";
 import { useCheer } from "./useCheer.ts";
 import { useSettledAnimation } from "./useSettledAnimation.ts";
@@ -61,8 +63,8 @@ function RobotImpl({ robot, seat, anchor, reducedMotion, onSelect, onCelebrate }
     if (animation === "celebrate" && shownBefore.current !== "celebrate") onCelebrate?.(seat);
     shownBefore.current = animation;
   }, [animation, onCelebrate, seat]);
-  const place = robotPlacement(seat, look.seated, anchor);
-  const avatar = robotAvatarLook(robot);
+  const place = robotPlacement(seat, look.seated, anchor, HENCHMAN_SEATED_BODY);
+  const avatar = robotHenchmanLook(robot);
 
   const spinner = useRef<Group>(null);
   const spinStart = useRef<number | null>(null);
@@ -99,6 +101,7 @@ function RobotImpl({ robot, seat, anchor, reducedMotion, onSelect, onCelebrate }
         seated: look.seated,
         seatId: robot.seatId,
         cheering: cheer,
+        skin: robot.skin,
       }}
       position={[place.position[0], place.position[1], place.position[2]]}
       rotation-y={place.rotationY}
@@ -107,14 +110,14 @@ function RobotImpl({ robot, seat, anchor, reducedMotion, onSelect, onCelebrate }
       onPointerOut={onSelect ? () => (document.body.style.cursor = "") : undefined}
     >
       <group ref={spinner}>
-        <RobotAvatar
-          look={avatar.look}
+        <HenchmanAvatar
+          skin={avatar.skin}
+          trim={avatar.trim}
           animation={animation}
           seated={look.seated}
           cheer={cheer}
           status={robot.status}
           handRaised={raisedHandFor(robot)}
-          chestLight={avatar.chestLight}
         />
         {look.papers && look.seated && <Papers />}
       </group>
@@ -136,5 +139,5 @@ export const Robot = memo(
     a.robot.action === b.robot.action &&
     a.robot.handRaised === b.robot.handRaised &&
     a.robot.provider === b.robot.provider &&
-    a.robot.ownerUserId === b.robot.ownerUserId,
+    a.robot.skin === b.robot.skin,
 );

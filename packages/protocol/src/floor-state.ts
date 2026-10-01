@@ -17,6 +17,7 @@ import {
   TASK_STATES,
 } from "./enums.ts";
 import { DECOR_STYLES } from "./room-settings-api.ts";
+import { HENCHMAN_SKIN_IDS } from "./skins.ts";
 
 /** Counters behind the GDT-style work bubbles (SPEC §9.3), reset per task. */
 export const BubbleEmits = z.object({
@@ -56,6 +57,8 @@ export const RobotState = z.object({
    * Claude needs its human to finish signing in, #158). Empty in every other status.
    */
   statusReason: z.string().max(200),
+  /** Henchman skin (#184), resolved by the FloorRoom from the admin's `skin_rules`. */
+  skin: z.enum(HENCHMAN_SKIN_IDS),
   bubbleEmits: BubbleEmits,
   lastActivityAt: TimestampMs,
 });

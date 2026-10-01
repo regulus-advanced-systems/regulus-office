@@ -6,7 +6,11 @@ All assets in this package are CC0 unless listed below. CC-BY assets must be lis
 |---|---|---|---|
 | (none yet) | | | |
 
-## Lair art kit (#183)
+## Original in-repo assets
 
-The lair kit (rock-cut walls, floors, corridors, blast doors, lights, pipes, consoles, lair furniture, plants and build-phase props) adds no files to this package: every piece is procedural geometry authored in this repository (`apps/web/src/scene/lair/geometry/`), original work under the project's MIT licence. Following SPEC D23, it matches the 1960s spy-villain-lair genre in palette, proportions, materials, lighting and silhouettes. It does not take, trace or rebuild any model, texture, logo, UI or level layout from a commercial game.
+| Asset | Author | Source | License |
+|---|---|---|---|
+| Henchman character, skins and animation clips (#184) | Regulus Office contributors | Built procedurally in code from primitives (`apps/web/src/scene/henchmen/`); no model, texture or animation from any other source, no CC0 base | MIT (this repository) |
+| Lair art kit (#183): walls, floors, corridors, blast doors, lights, pipes, consoles, lair furniture, wall decor, plants and build-phase props | Regulus Office contributors | Built procedurally in code from primitives (`apps/web/src/scene/lair/geometry/`); no model, texture or image from any other source, no CC0 base | MIT (this repository) |
 
+The lair kit follows SPEC D23: it matches the 1960s spy-villain-lair genre in palette, proportions, materials, lighting and silhouettes, and does not take, trace or rebuild any model, texture, logo, UI or level layout from a commercial game.
