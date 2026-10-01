@@ -109,6 +109,81 @@ export const StartManifestResponse = z.object({
 });
 export type StartManifestResponse = z.infer<typeof StartManifestResponse>;
 
+// ---- An existing GitHub App (#224) ---------------------------------------------
+
+/** `PUT`: connect an app the owner already has; `GET` (…/requirements): what to set on it. */
+export const GITHUB_EXISTING_APP_API_PATH = `${GITHUB_API_PATH}/app`;
+export const GITHUB_APP_REQUIREMENTS_API_PATH = `${GITHUB_API_PATH}/app/requirements`;
+
+/** A GitHub App permission level, lowest to highest. */
+export const GITHUB_PERMISSION_LEVELS = ["read", "write", "admin"] as const;
+export type GitHubPermissionLevel = (typeof GITHUB_PERMISSION_LEVELS)[number];
+
+/**
+ * What an app must have to work with this office, from the server's manifest
+ * (the single source): the webhook and setup URLs to enter on the app, its
+ * repository permissions and the webhook events to subscribe to.
+ */
+export const GitHubAppRequirements = z.object({
+  /** Null when OFFICE_PUBLIC_URL is not public https: no webhooks, boards poll. */
+  webhookUrl: z.string().max(500).nullable(),
+  /** The app's "Setup URL" (after installation), so the office refreshes. */
+  setupUrl: z.string().max(500),
+  permissions: z.record(z.string().max(60), z.enum(GITHUB_PERMISSION_LEVELS)),
+  events: z.array(z.string().max(60)).max(50),
+});
+export type GitHubAppRequirements = z.infer<typeof GitHubAppRequirements>;
+
+/** A PEM private key as GitHub hands it out (`.pem` download), PKCS#1 or PKCS#8. */
+export const GitHubAppPrivateKey = z
+  .string()
+  .trim()
+  .min(100)
+  .max(16_000)
+  .regex(/-----BEGIN [A-Z ]*PRIVATE KEY-----/, "not a PEM private key");
+
+/**
+ * Body of `PUT /api/github/app`. The key and the webhook secret are
+ * write-only: stored encrypted, never returned or logged. GitHub never shows
+ * an app's old webhook secret again; set a new one on the app and paste it, or
+ * leave it empty and a public https office sets one itself.
+ */
+export const ConnectExistingAppRequest = z.object({
+  appId: z.number().int().positive().max(2_147_483_647),
+  privateKey: GitHubAppPrivateKey,
+  webhookSecret: z
+    .string()
+    .min(8)
+    .max(256)
+    .regex(/^[\x21-\x7e]+$/)
+    .optional(),
+  clientId: z
+    .string()
+    .trim()
+    .regex(/^[A-Za-z0-9._-]{1,100}$/, "not a GitHub App client id")
+    .optional(),
+});
+export type ConnectExistingAppRequest = z.infer<typeof ConnectExistingAppRequest>;
+
+export const GitHubAppMissingPermission = z.object({
+  name: z.string().max(60),
+  required: z.enum(GITHUB_PERMISSION_LEVELS),
+  /** What the app has now; null when it has none. */
+  granted: z.string().max(20).nullable(),
+});
+export type GitHubAppMissingPermission = z.infer<typeof GitHubAppMissingPermission>;
+
+/**
+ * The app was stored; `missingPermissions` and `missingEvents` list what it
+ * still lacks (events only when the office has a public webhook URL).
+ */
+export const ConnectExistingAppResponse = z.object({
+  status: GitHubConnectionStatus,
+  missingPermissions: z.array(GitHubAppMissingPermission),
+  missingEvents: z.array(z.string().max(60)),
+});
+export type ConnectExistingAppResponse = z.infer<typeof ConnectExistingAppResponse>;
+
 // ---- Webhooks and board sync (#35) -------------------------------------------
 
 /**

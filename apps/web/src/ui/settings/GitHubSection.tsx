@@ -6,10 +6,14 @@
  * - GitHub App (recommended): the manifest flow. The office returns a
  *   manifest and a one-time state; the page posts them to github.com, where
  *   the owner creates the app and then installs it on the org.
+ * - An existing GitHub App (#224): app ID and private key, checked by the
+ *   server with GitHub and stored like a manifest-created app
+ *   (ExistingAppForm).
  * - Org fine-grained PAT (fallback): pasted once, stored encrypted, never
  *   shown again. The input is cleared right after the request.
  */
 import {
+  type ConnectExistingAppResponse,
   GITHUB_RESULT_PARAM,
   type GitHubConnectionStatus,
   type StartManifestResponse,
@@ -19,6 +23,7 @@ import { canManageOffice, useSessionStore } from "../../state/session.ts";
 import { useUiStore } from "../../state/ui.ts";
 import { FormAlert } from "../auth/AuthCard.tsx";
 import { Button } from "../components/Button.tsx";
+import { describeMissing, ExistingAppForm } from "./ExistingAppForm.tsx";
 import {
   createGitHubApi,
   describeGitHubError,
@@ -155,6 +160,18 @@ export function GitHubSection({
       setNotice({ ok: true, text: "Connected. New operation now lists the token's repos." });
     });
 
+  const existingConnected = (res: ConnectExistingAppResponse) => {
+    setError(null);
+    setStatus(res.status);
+    const missing = describeMissing(res);
+    const installed = (res.status.app?.installations.length ?? 0) > 0;
+    const next = installed ? "" : " Install it on your organization next.";
+    setNotice({
+      ok: missing === null,
+      text: `GitHub App connected.${next}${missing ? ` ${missing}` : ""}`,
+    });
+  };
+
   const disconnect = () =>
     run(async () => {
       const res = await api.disconnect();
@@ -223,6 +240,7 @@ export function GitHubSection({
             install it on the organization for all or selected repos. It asks for contents, pull
             requests, issues and checks (read and write), and metadata (read).
           </div>
+          <ExistingAppForm api={api} onConnected={existingConnected} />
           <label className="rg-field__label" htmlFor={ids.token}>
             Or an organization access token
           </label>

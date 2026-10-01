@@ -7,14 +7,20 @@
  *   DELETE /api/github/connection     disconnect the stored connection
  *   PUT    /api/github/pat            connect with an org fine-grained PAT
  *   POST   /api/github/app/manifest   start the GitHub App manifest flow
+ *   GET    /api/github/app/requirements  what an existing app needs (#224)
+ *   PUT    /api/github/app            connect an existing GitHub App (#224)
  *   GET    /api/github/app/callback   GitHub → office: code + state
  *   GET    /api/github/app/installed  GitHub → office after installing the app
  *   GET    /api/github/repos          repos the connection can see (Add floor)
  */
 import {
+  ConnectExistingAppRequest,
+  type ConnectExistingAppResponse,
   ConnectPatRequest,
+  GITHUB_APP_REQUIREMENTS_API_PATH,
   GITHUB_APP_SETUP_PATH,
   GITHUB_CONNECTION_API_PATH,
+  GITHUB_EXISTING_APP_API_PATH,
   GITHUB_MANIFEST_API_PATH,
   GITHUB_MANIFEST_CALLBACK_PATH,
   GITHUB_PAT_API_PATH,
@@ -32,6 +38,7 @@ import { readBody } from "../floors/routes.ts";
 import { json, type RouteContext, type Router } from "../http/router.ts";
 import type { Logger } from "../logging.ts";
 import type { GitHubConnection } from "./connection.ts";
+import { appRequirements, ExistingAppError, verifyExistingApp } from "./existing-app.ts";
 import { buildManifest, convertManifest, type ManifestStates, manifestAction } from "./manifest.ts";
 
 export interface GitHubRoutesDeps {
@@ -159,6 +166,65 @@ export function mountGitHubRoutes(router: Router, deps: GitHubRoutesDeps): void 
         action: manifestAction(deps.webBase, state, org),
         manifest: JSON.stringify(buildManifest(auth.publicUrl)),
       });
+    }, true),
+  );
+
+  router.get(
+    GITHUB_APP_REQUIREMENTS_API_PATH,
+    handle(async () => json(appRequirements(auth.publicUrl))),
+  );
+
+  router.add(
+    "PUT",
+    GITHUB_EXISTING_APP_API_PATH,
+    handle(async (ctx, actor) => {
+      assertChangeable();
+      const body = await readBody(ctx.request, ConnectExistingAppRequest);
+      let verified: Awaited<ReturnType<typeof verifyExistingApp>>;
+      try {
+        verified = await verifyExistingApp(
+          connection.api,
+          {
+            appId: body.appId,
+            privateKey: body.privateKey,
+            webhookSecret: body.webhookSecret ?? null,
+            clientId: body.clientId ?? null,
+          },
+          {
+            sign: (app) => connection.appJwt(app),
+            checkEvents: appRequirements(auth.publicUrl).webhookUrl !== null,
+          },
+        );
+      } catch (err) {
+        if (!(err instanceof ExistingAppError)) throw err;
+        logger.warn({ appId: body.appId, code: err.code }, "existing github app refused");
+        return json({ error: err.code, detail: err.detail }, { status: 400 });
+      }
+      const { app } = verified;
+      connection.store.saveApp(app);
+      changed();
+      audit(actor, "connect", {
+        kind: "app",
+        existing: true,
+        appId: app.appId,
+        slug: app.slug,
+        owner: app.owner,
+      });
+      logger.info(
+        {
+          appId: app.appId,
+          slug: app.slug,
+          missingPermissions: verified.missingPermissions.map((p) => p.name),
+          missingEvents: verified.missingEvents,
+        },
+        "existing github app connected",
+      );
+      const out: ConnectExistingAppResponse = {
+        status: await connection.status(),
+        missingPermissions: verified.missingPermissions,
+        missingEvents: verified.missingEvents,
+      };
+      return json(out);
     }, true),
   );
 
