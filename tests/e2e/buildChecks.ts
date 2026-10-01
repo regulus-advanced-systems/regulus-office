@@ -5,6 +5,7 @@
  * way an owner does: Add floor, Choose a spot…, then build on the map.
  */
 import { expect, type Page } from "@playwright/test";
+import { cameraSettled } from "./compoundProbes.ts";
 import { screenPointOf } from "./probes.ts";
 
 export interface Placement {
@@ -46,12 +47,25 @@ export async function settledVerdict(page: Page): Promise<BuildProbe> {
   return last;
 }
 
-/** Move the mouse over the compound point (metres) so the ghost's middle lands there. */
+/**
+ * Move the mouse over the compound point (metres) so the ghost's middle lands there.
+ * Build mode pulls the camera out to the overview; the aim waits until it has settled
+ * (a moving camera would put the ghost elsewhere) and checks where the ghost went.
+ */
 export async function aimAt(page: Page, x: number, z: number): Promise<void> {
-  const at = await screenPointOf(page, { x, z });
-  if (!at) throw new Error("no camera");
-  await page.mouse.move(at.x - 3, at.y - 3);
-  await page.mouse.move(at.x, at.y, { steps: 3 });
+  await cameraSettled(page);
+  await expect(async () => {
+    const at = await screenPointOf(page, { x, z });
+    if (!at) throw new Error("no camera");
+    await page.mouse.move(at.x - 3, at.y - 3);
+    await page.mouse.move(at.x, at.y, { steps: 3 });
+    const p = (await buildProbe(page)).placement;
+    if (!p) throw new Error("no ghost");
+    const m = middleOf(p);
+    // Within a tile (the ghost may be held at the compound's edge).
+    expect(Math.abs(m.x - x)).toBeLessThanOrEqual(2);
+    expect(Math.abs(m.z - z)).toBeLessThanOrEqual(2);
+  }).toPass({ timeout: 20_000, intervals: [250, 500, 1_000] });
 }
 
 /** Metres of a placement's middle (1 tile = 2 m). */
