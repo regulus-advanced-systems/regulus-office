@@ -18,9 +18,10 @@ import { useUiStore } from "../../state/ui.ts";
 import { click, type Mounted, mount as mountNode, useDom } from "../a11y/dom.ts";
 import { type FakeCall, fakeFetch } from "../auth/fakeFetch.ts";
 import { button, settle, text } from "../auth/testDom.tsx";
+import { FloorAddedPanel } from "../build-mode/FloorAddedPanel.tsx";
+import { useBuildModeStore } from "../build-mode/store.ts";
 import { QUICK_TRAVEL_OVERLAY, QuickTravelDialog } from "../hud/QuickTravel.tsx";
 import { TopBar } from "../hud/TopBar.tsx";
-import { ADD_FLOOR_OVERLAY, AddFloorDialogHost } from "./AddFloorDialog.tsx";
 import { createFloorsApi } from "./api.ts";
 import { FloorSettingsDialogHost } from "./FloorSettingsDialog.tsx";
 import { floorSettingsOverlay } from "./floorSettings.ts";
@@ -247,37 +248,23 @@ describe("floor settings panel", () => {
     expect(text()).toContain("You need manage access to this floor");
   });
 
-  test("after Add floor, Add people opens the new floor's settings", async () => {
+  test("after a room is placed, Add people opens the new floor's settings", async () => {
     signedInAs("owner");
     useFloorsStore.setState({ floors: [floorInfo("manage")] });
     const f = fakeServer([]);
     const api = createFloorsApi({ fetch: f.fetch });
     await mount(
       <>
-        <AddFloorDialogHost api={api} />
+        <FloorAddedPanel floorId={FLOOR_ID} api={api} />
         <FloorSettingsDialogHost api={api} />
       </>,
     );
-    await act(async () => useUiStore.getState().openOverlay(ADD_FLOOR_OVERLAY));
-    const form = document.querySelector('form[aria-label="Add floor"]') as HTMLFormElement;
-    (form.querySelector('input[name="name"]') as HTMLInputElement).value = "Hangar";
-    (form.querySelector('input[name^="repo-"]') as HTMLInputElement).value = "octo/hello";
-    const created = fakeFetch({ "POST /api/floors": { status: 201, body: floorInfo("manage") } });
-    // Creating goes through its own fake; the settings panel keeps the members fake.
-    await mounted[0]?.rerender(
-      <>
-        <AddFloorDialogHost api={createFloorsApi({ fetch: created.fetch })} />
-        <FloorSettingsDialogHost api={api} />
-      </>,
-    );
-    await act(async () => {
-      form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
-    });
-    await settle();
     expect(text()).toContain("Floor added");
     await click(button("Add people…") as HTMLButtonElement);
     await settle();
     expect(useUiStore.getState().overlay).toBe(floorSettingsOverlay(FLOOR_ID));
-    expect(dialog()?.textContent).toContain("Who can use Hangar");
+    expect(text()).toContain("Who can use Hangar");
+    // The status panel closes itself (its host then unmounts it).
+    expect(useBuildModeStore.getState().added).toBeNull();
   });
 });

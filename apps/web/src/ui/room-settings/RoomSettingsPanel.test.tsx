@@ -1,10 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import type { RoomSettingsInfo } from "@regulus/protocol";
 import { act } from "react";
-import { click, mount, useDom } from "../a11y/dom.ts";
+import { useRoomDraftStore } from "../../scene/compound/build/preview.ts";
+import { click, mount, press, useDom } from "../a11y/dom.ts";
 import { fakeFetch } from "../auth/fakeFetch.ts";
 import { button, settle, text } from "../auth/testDom.tsx";
 import { createRoomSettingsApi } from "./api.ts";
+import { RoomSettingsDock, useRoomSettingsDock } from "./RoomSettingsDock.tsx";
 import { RoomSettingsPanel } from "./RoomSettingsPanel.tsx";
 
 useDom();
@@ -88,5 +90,27 @@ describe("room settings panel", () => {
       maxDeskCount: undefined,
       desks: [3],
     });
+  });
+
+  test("docked: every unsaved change is previewed in the room; closing drops the preview", async () => {
+    const { fetch } = fakeFetch({
+      [`GET ${PATH}`]: { body: { ...INFO, maxDeskCount: 4, occupiedDesks: [] } },
+    });
+    const ui = await mount(<RoomSettingsDock api={createRoomSettingsApi({ fetch })} />);
+    await act(async () => useRoomSettingsDock.getState().open("f1"));
+    await settle();
+    expect(document.querySelector('[role="dialog"]')?.getAttribute("aria-modal")).toBe("false");
+    expect(useRoomDraftStore.getState().draft).toEqual({
+      floorId: "f1",
+      deskCount: 2,
+      decorStyle: "ops_room",
+    });
+    await change(select("Desks (4 seats each)"), "4");
+    expect(useRoomDraftStore.getState().draft?.deskCount).toBe(4);
+    expect(text()).toContain("The room shows your changes; save to keep them.");
+    await press(document.querySelector('[role="dialog"]') as Element, "Escape");
+    expect(useRoomSettingsDock.getState().floorId).toBeNull();
+    expect(useRoomDraftStore.getState().draft).toBeNull();
+    await ui.unmount();
   });
 });
