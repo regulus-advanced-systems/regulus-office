@@ -14,7 +14,7 @@ export interface NavPose {
   spawned: boolean;
   walking: boolean;
   room: string | null;
-  floorId: string | null;
+  operationId: string | null;
 }
 
 export interface NavRoom {
@@ -34,9 +34,9 @@ export interface NavRoom {
 interface Nav {
   pose(): NavPose;
   rooms(): NavRoom[];
-  seat(floorId: string, seatId: string): { x: number; z: number } | null;
+  seat(operationId: string, seatId: string): { x: number; z: number } | null;
   walkTo(x: number, z: number): boolean;
-  walkToSeat(floorId: string, seatId: string): boolean;
+  walkToSeat(operationId: string, seatId: string): boolean;
   terminalDesk(): string | null;
   camera(): CameraState;
 }
@@ -91,9 +91,9 @@ export async function wheelZoomTo(page: Page, zoom: number): Promise<CameraState
 export const walkTo = (page: Page, x: number, z: number): Promise<boolean> =>
   page.evaluate(`(${probe.toString()})().walkTo(${x}, ${z})`) as Promise<boolean>;
 /** Walk up behind a desk's chair; true when a path exists. */
-export const walkToSeat = (page: Page, floorId: string, seatId: string): Promise<boolean> =>
+export const walkToSeat = (page: Page, operationId: string, seatId: string): Promise<boolean> =>
   page.evaluate(
-    `(${probe.toString()})().walkToSeat(${JSON.stringify(floorId)}, ${JSON.stringify(seatId)})`,
+    `(${probe.toString()})().walkToSeat(${JSON.stringify(operationId)}, ${JSON.stringify(seatId)})`,
   ) as Promise<boolean>;
 
 /** The room called `name`, once it is finished and this page may enter it. */
@@ -121,19 +121,19 @@ export async function waitStill(page: Page, timeout = 60_000): Promise<NavPose> 
 /**
  * Walk from wherever the player is into `name` (through the corridors, its door opening on
  * the way), on to the middle of the room so all of it is in view, and wait until the HUD is
- * in that room with its FloorRoom state in.
+ * in that room with its OperationRoom state in.
  */
 export async function walkInto(page: Page, name: string): Promise<NavRoom> {
   const room = await roomNamed(page, name);
   await expect(async () => {
     const pose = await navPose(page);
-    if (pose.room === room.id && pose.floorId === room.id) return;
+    if (pose.room === room.id && pose.operationId === room.id) return;
     if (!pose.walking) expect(await walkTo(page, room.inside.x, room.inside.z)).toBe(true);
     throw new Error(`walking into ${name}`);
   }).toPass({ timeout: 90_000, intervals: [500, 1_000] });
   // On to the middle (the nearest free spot to it, like a click on a desk there).
   if (await walkTo(page, room.x + room.w / 2, room.z + room.d / 2)) await waitStill(page);
-  await expect(page.locator(".rg-topbar__floor")).toHaveText(name);
+  await expect(page.locator(".rg-topbar__operation")).toHaveText(name);
   await expect(page.getByRole("list", { name: "Work in this operation" })).toBeVisible();
   return room;
 }
@@ -148,7 +148,7 @@ export async function walkToLobby(page: Page): Promise<void> {
     if (!pose.walking) await walkTo(page, lobby.inside.x, lobby.inside.z);
     throw new Error("walking to the lobby");
   }).toPass({ timeout: 90_000, intervals: [500, 1_000] });
-  await expect(page.locator(".rg-topbar__floor")).toHaveText("Lobby");
+  await expect(page.locator(".rg-topbar__operation")).toHaveText("Lobby");
 }
 
 /** Quick travel (`F`) to a room's door, then walk in. */
@@ -166,15 +166,15 @@ export async function travelInto(page: Page, name: string): Promise<NavRoom> {
 }
 
 /**
- * Walk up to a robot's desk by nav state (#205): to just behind its chair, until the player
+ * Walk up to a henchman's desk by nav state (#205): to just behind its chair, until the player
  * stands still where `E` opens that desk's terminal (the rule the live laptop panel follows
  * too, so wherever the panel shows, `E` reaches).
  */
-export async function walkUpToDesk(page: Page, floorId: string, seatId: string): Promise<void> {
+export async function walkUpToDesk(page: Page, operationId: string, seatId: string): Promise<void> {
   await expect(async () => {
     const pose = await navPose(page);
     if (!pose.walking && (await terminalDesk(page)) === seatId) return;
-    if (!pose.walking) expect(await walkToSeat(page, floorId, seatId)).toBe(true);
+    if (!pose.walking) expect(await walkToSeat(page, operationId, seatId)).toBe(true);
     throw new Error(`walking to desk ${seatId}`);
   }).toPass({ timeout: 60_000, intervals: [500, 1_000] });
 }

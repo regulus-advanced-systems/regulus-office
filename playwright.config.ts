@@ -12,7 +12,7 @@
  * step registers the owner, so the office must have no users yet.
  *
  * E2E_AGENTS=1 (`bun run e2e:agents`) runs only tests/e2e/agents.e2e.ts, the M1
- * robot flow. That spec starts and restarts its own office-server (docker runner
+ * henchman flow. That spec starts and restarts its own office-server (docker runner
  * backend, fake `claude` in a test runner image), so no webServer is started.
  *
  * Runners (#215): the office this config starts gets its own runner prefix, `rgo2e-<run>`,
@@ -99,9 +99,9 @@ export default defineConfig({
           OFFICE_PORT: String(port),
           OFFICE_PUBLIC_URL: baseURL,
           OFFICE_DATA_DIR: process.env.E2E_DATA_DIR ?? "",
-          // Floors clone from local bare repos the spec creates (no network in tests).
+          // Operations clone from local bare repos the spec creates (no network in tests).
           OFFICE_PROJECTS_DIR: join(process.env.E2E_DATA_DIR ?? "", "projects"),
-          // Humans' clones and worktrees stay in the throwaway dir too (deleting a floor removes them).
+          // Humans' clones and worktrees stay in the throwaway dir too (deleting an operation removes them).
           OFFICE_WORKTREES_DIR: join(process.env.E2E_DATA_DIR ?? "", "worktrees"),
           OFFICE_GITHUB_REMOTE_BASE: `file://${join(process.env.E2E_DATA_DIR ?? "", "remotes")}`,
           // Only reached once the board step connects a (fake) org token; see tests/e2e/fakeGitHub.ts.

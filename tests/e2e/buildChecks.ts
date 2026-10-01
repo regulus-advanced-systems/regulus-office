@@ -2,7 +2,7 @@
  * Build mode in the e2e flows (#187): read the ghost through
  * `window.__regulusBuild` (published with `?stats`, apps/web/src/ui/build-mode),
  * aim it with the real mouse at a compound spot, and add a project room the
- * way an owner does: Add floor, Choose a spot…, then build on the map.
+ * way an owner does: Add operation, Choose a spot…, then build on the map.
  */
 import { expect, type Page } from "@playwright/test";
 import { cameraSettled } from "./compoundProbes.ts";
@@ -74,7 +74,7 @@ export const middleOf = (p: Placement) => ({
   z: (p.gridY + p.depth / 2) * 2,
 });
 
-/** Open Add floor, name the floor and its repo, and continue into build mode. */
+/** Open Add operation, name the operation and its repo, and continue into build mode. */
 export async function openBuildMode(page: Page, name: string, repo: string): Promise<BuildProbe> {
   const rooms = page.getByRole("navigation", { name: "Rooms" });
   await rooms.getByRole("button", { name: "New operation…" }).click();
@@ -90,9 +90,11 @@ export async function openBuildMode(page: Page, name: string, repo: string): Pro
 /** A room's settings as the server has them (#182). */
 export async function roomSettingsOf(
   page: Page,
-  floorId: string,
+  operationId: string,
 ): Promise<{ deskCount: number; decorStyle: string }> {
-  const res = await page.request.get(`/api/floors/${encodeURIComponent(floorId)}/room-settings`);
+  const res = await page.request.get(
+    `/api/operations/${encodeURIComponent(operationId)}/room-settings`,
+  );
   expect(res.ok()).toBe(true);
   return (await res.json()) as { deskCount: number; decorStyle: string };
 }
@@ -101,7 +103,7 @@ export async function roomSettingsOf(
  * In a room the page manages: Room settings, one more desk (D8 rooms start
  * with one), previewed live before Save, kept after it.
  */
-export async function addDeskInRoomSettings(page: Page, floorId: string, name: string) {
+export async function addDeskInRoomSettings(page: Page, operationId: string, name: string) {
   const desk = (seat: string) =>
     page.evaluate(
       (object) =>
@@ -115,7 +117,7 @@ export async function addDeskInRoomSettings(page: Page, floorId: string, name: s
       `desk-hotspot-${seat}`,
     );
   // A placed room starts vanilla: one desk of four seats (D8).
-  expect((await roomSettingsOf(page, floorId)).deskCount).toBe(1);
+  expect((await roomSettingsOf(page, operationId)).deskCount).toBe(1);
   expect(await desk("d2s1")).toBe(false);
   const rooms = page.getByRole("navigation", { name: "Rooms" });
   await rooms.getByRole("button", { name: "Room settings…" }).click();
@@ -127,7 +129,7 @@ export async function addDeskInRoomSettings(page: Page, floorId: string, name: s
   // ...and Save keeps it.
   await panel.getByRole("button", { name: "Save" }).click();
   await expect(panel.getByText("The room shows your changes")).toHaveCount(0);
-  expect((await roomSettingsOf(page, floorId)).deskCount).toBe(2);
+  expect((await roomSettingsOf(page, operationId)).deskCount).toBe(2);
   await panel.getByRole("button", { name: "Close" }).click();
   await expect(panel).toHaveCount(0);
   await expect.poll(() => desk("d2s1")).toBe(true);

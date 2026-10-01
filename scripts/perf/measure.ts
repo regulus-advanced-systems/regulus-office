@@ -1,6 +1,6 @@
 /**
  * Compound performance measurement (#190, SPEC §11): drives a production
- * build of the office harness (apps/web/dev/robots.html, 12 rooms, 20
+ * build of the office harness (apps/web/dev/office.html, 12 rooms, 20
  * henchmen working in the Dev room, 3 nearby rooms with 4 each, 4 humans)
  * in Chromium and prints frame-time percentiles, main-thread time, draw
  * calls, triangles and texture memory per view and per profile.
@@ -81,7 +81,7 @@ const TYPES: Record<string, string> = {
   ".woff2": "font/woff2",
 };
 
-if (!existsSync(join(dir, "dev/robots.html"))) {
+if (!existsSync(join(dir, "dev/office.html"))) {
   console.error(`no harness build in ${dir}; build it first (see the header)`);
   process.exit(1);
 }
@@ -119,7 +119,7 @@ for (const name of profiles) {
       await cdp.send("Emulation.setCPUThrottlingRate", { rate: profile.cpuRate });
     }
     const q = quality === "auto" ? "" : `&quality=${quality}`;
-    await page.goto(`http://127.0.0.1:${port}/dev/robots.html?${BASE}${VIEW[view] ?? ""}${q}`);
+    await page.goto(`http://127.0.0.1:${port}/dev/office.html?${BASE}${VIEW[view] ?? ""}${q}`);
     await page.waitForFunction(() => Boolean(window.__regulusPerf), null, { timeout: 120_000 });
     // Let models load, shaders compile and the camera settle before the window opens.
     await page.waitForTimeout(name === "software" ? 8000 : 5000);

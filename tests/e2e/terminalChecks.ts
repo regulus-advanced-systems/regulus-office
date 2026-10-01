@@ -1,7 +1,7 @@
 /**
  * Terminal checks for the agents e2e (#156): the terminal box and the xterm
  * screen inside it, a mouse drag over the text, the clipboard, and the whole
- * robot-terminal step ({@link checkRobotTerminal}).
+ * henchman-terminal step ({@link checkHenchmanTerminal}).
  */
 import { expect, type Locator, type Page } from "@playwright/test";
 import { dialogSettled, insideViewport, settledDialogLayout } from "./dialogLayout.ts";
@@ -57,12 +57,12 @@ export const writeClipboard = (page: Page, text: string): Promise<void> =>
   page.evaluate((t) => navigator.clipboard.writeText(t), text);
 
 /**
- * The robot's terminal at 1920x1080: expand (about 60 % of the window, layout rules of #149
+ * The henchman's terminal at 1920x1080: expand (about 60 % of the window, layout rules of #149
  * kept, the watcher's grid scaled to fit), select text and find it on the clipboard, take
  * control and see tmux reflow (within 160x45), release and see the window restored.
  * `windowSize` reads the agent's tmux window as "COLSxROWS"; `open` opens the terminal.
  */
-export async function checkRobotTerminal(
+export async function checkHenchmanTerminal(
   page: Page,
   windowSize: () => string,
   open: () => Promise<void>,

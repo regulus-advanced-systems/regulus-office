@@ -1,7 +1,7 @@
 /**
  * The merge gong in the office e2e (#43): with a (fake) org token connected, a PR merged from
  * the PR board rings the gong once: the disc swings, confetti flies and is gone within 3 s,
- * any robot on the floor cheers and ends exactly where it sat. Then a manual bang by click
+ * any henchman on the operation cheers and ends exactly where it sat. Then a manual bang by click
  * rings it, `E` at the gong rings it again once the ring is over, and a second bang at once is
  * refused (rate limit).
  */
@@ -13,14 +13,14 @@ import {
   boneDriftDeg,
   boneSnapshot,
   gongStrikes,
+  henchmanPoses,
   poseDrift,
-  robotPoses,
   sampleGong,
 } from "./gongProbes.ts";
 
 const GONG = "gong-hotspot-gong";
 
-export async function checkMergeGong(page: Page, opts: { githubPort: number; floor: string }) {
+export async function checkMergeGong(page: Page, opts: { githubPort: number; operation: string }) {
   const orgToken = "github_pat_E2Egong_0123456789abcdefghijk";
   const pull = {
     number: 12,
@@ -51,11 +51,11 @@ export async function checkMergeGong(page: Page, opts: { githubPort: number; flo
       headers: { origin },
     });
     expect(connect.status()).toBe(200);
-    await walkInto(page, opts.floor);
+    await walkInto(page, opts.operation);
     await expect.poll(() => scenePoint(page, GONG)).not.toBeNull();
     const strikes = await gongStrikes(page);
     const ringBefore = (await sampleGong(page, 0)).swing.ringId;
-    const seated = await robotPoses(page);
+    const seated = await henchmanPoses(page);
 
     // Merge from the PR board: the office rings at once, without waiting for a poll.
     const panel = page.getByRole("dialog", { name: "PR board" });
@@ -79,25 +79,25 @@ export async function checkMergeGong(page: Page, opts: { githubPort: number; flo
     expect(ringing.swing.frames, JSON.stringify(ringing)).toBeGreaterThan(0);
     expect(ringing.maxConfetti, JSON.stringify(ringing)).toBeGreaterThan(0);
     for (const [id, pose] of Object.entries(seated))
-      if (pose.seated) expect(ringing.cheered, `robot ${id} cheers`).toContain(id);
+      if (pose.seated) expect(ringing.cheered, `henchman ${id} cheers`).toContain(id);
     await panel.getByRole("button", { name: "Close", exact: true }).click();
     await expect(panel).toHaveCount(0);
 
-    // Over within 3 s (plus the crossfade): still disc, no confetti, robots back as they were.
+    // Over within 3 s (plus the crossfade): still disc, no confetti, henchmen back as they were.
     await page.waitForTimeout(1_500);
     const after = await sampleGong(page, 300);
     expect(after.lastSwing, JSON.stringify(after)).toBe(0);
     expect(after.lastConfetti, JSON.stringify(after)).toBe(0);
     expect(after.strikes).toBe(strikes + 1);
-    for (const [id, pose] of Object.entries(after.robots)) {
-      expect(pose.cheering, `robot ${id} stopped cheering`).toBe(false);
-      expect(pose.animation, `robot ${id} animation`).toBe(seated[id]?.animation);
+    for (const [id, pose] of Object.entries(after.henchmen)) {
+      expect(pose.cheering, `henchman ${id} stopped cheering`).toBe(false);
+      expect(pose.animation, `henchman ${id} animation`).toBe(seated[id]?.animation);
     }
-    expect(poseDrift(seated, after.robots)).toBeLessThan(1e-6);
+    expect(poseDrift(seated, after.henchmen)).toBeLessThan(1e-6);
 
     // A bang by click rings it, and walks us over to the gong. The camera follows the walk, so
     // the gong's screen point moves: a second click at the same point lands on the wall or the
-    // floor on a slow runner (#229). The refused bang below is pressed with `E` instead.
+    // operation on a slow runner (#229). The refused bang below is pressed with `E` instead.
     const gong = await scenePoint(page, GONG);
     if (!gong) throw new Error("gong not in view");
     await page.mouse.click(gong.x, gong.y);
@@ -113,7 +113,7 @@ export async function checkMergeGong(page: Page, opts: { githubPort: number; flo
       await expect.poll(() => gongStrikes(page), { timeout: 5_000 }).toBe(strikes + 3);
     }).toPass({ timeout: 30_000 });
 
-    // Another bang straight away is refused (the floor's cooldown) and spends nothing.
+    // Another bang straight away is refused (the operation's cooldown) and spends nothing.
     const refused = page.locator(".rg-toast", { hasText: "The gong is still ringing." });
     await expect(refused).toHaveCount(0);
     await page.keyboard.press("e");
@@ -128,16 +128,16 @@ export async function checkMergeGong(page: Page, opts: { githubPort: number; flo
 }
 
 /**
- * The agents e2e (#43): a real robot at its desk. A bang on the gong makes it cheer in its chair
+ * The agents e2e (#43): a real henchman at its desk. A bang on the gong makes it cheer in its chair
  * (its bones move a lot), then it sits back: the same placement, the same animation and every
  * bone exactly where it was, and still again afterwards (#159).
  */
-export async function checkRobotCheers(page: Page, agentId: string) {
+export async function checkHenchmanCheers(page: Page, agentId: string) {
   await page.bringToFront();
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await expect.poll(() => scenePoint(page, GONG)).not.toBeNull();
-  const before = await robotPoses(page);
+  const before = await henchmanPoses(page);
   expect(before[agentId]?.seated, JSON.stringify(before)).toBe(true);
   const bones = await boneSnapshot(page, agentId);
   const strikes = await gongStrikes(page);
@@ -153,11 +153,11 @@ export async function checkRobotCheers(page: Page, agentId: string) {
   // About 3 s after the ring, plus the crossfade back.
   await page.waitForTimeout(2_600);
   const after = await sampleGong(page, 300);
-  const pose = after.robots[agentId];
+  const pose = after.henchmen[agentId];
   expect(pose?.cheering, JSON.stringify(after)).toBe(false);
   expect(pose?.animation).toBe(before[agentId]?.animation);
   expect(pose?.seated).toBe(true);
-  expect(poseDrift(before, after.robots)).toBeLessThan(1e-6);
+  expect(poseDrift(before, after.henchmen)).toBeLessThan(1e-6);
   if (pose?.animation === "sit_idle") {
     expect(boneDriftDeg(bones, await boneSnapshot(page, agentId))).toBeLessThan(0.1);
     await page.waitForTimeout(1_000);

@@ -1,5 +1,7 @@
 # ADR 0004: Running apps discovery and the services proxy
 
+> Since #226, floors are called operations and robots henchmen.
+
 Date: 2026-09-30. Status: accepted (#39; SPEC §9.4, research 01 §12).
 
 ## Context

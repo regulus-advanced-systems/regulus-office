@@ -1,8 +1,8 @@
 /**
  * Copying out of every terminal surface (#164), with the clipboard read back each time:
- * the robot's terminal (watch and control), the live laptop panel on the desk, and the
+ * the henchman's terminal (watch and control), the live laptop panel on the desk, and the
  * login terminal. Each surface is checked for drag-select, Ctrl+Shift+C, right-click → Copy,
- * the "Copy selection" / "Copy screen" buttons and the "Copied" flash; the robot's terminal
+ * the "Copy selection" / "Copy screen" buttons and the "Copied" flash; the henchman's terminal
  * also with the Clipboard API refused (the copy-command fallback must still copy).
  *
  * The fake `claude` turns on mouse tracking like Claude Code does, so these fail if a drag is
@@ -66,10 +66,10 @@ export async function checkCopyEveryWay(page: Page, root: Locator): Promise<stri
 }
 
 /**
- * The robot's terminal, watching and in control. `open` opens it; `stream` is what the
+ * The henchman's terminal, watching and in control. `open` opens it; `stream` is what the
  * page's terminal sockets received (proof the program asked for mouse tracking).
  */
-export async function checkRobotTerminalCopy(
+export async function checkHenchmanTerminalCopy(
   page: Page,
   context: BrowserContext,
   open: () => Promise<void>,
@@ -123,14 +123,14 @@ export async function checkRobotTerminalCopy(
 }
 
 /**
- * The live laptop panel: the player walks up to the robot's desk, the laptop shows the live
+ * The live laptop panel: the player walks up to the henchman's desk, the laptop shows the live
  * terminal, which is display-only (under the 3D canvas, a few pixels wide in the 3/4 view).
- * `E` at the desk and a click on the laptop both open the robot's terminal, where copying works.
+ * `E` at the desk and a click on the laptop both open the henchman's terminal, where copying works.
  *
  * Each step waits for a state, not a moment or a screen position (#199, #205): the walk-up
  * goes by nav state (compoundProbes.ts `walkUpToDesk`) until the player stands where `E`
  * opens this desk, which is exactly where the live panel shows (one rule for both, #205);
- * then a point where the laptop is the nearest clickable object (the seated robot hides most
+ * then a point where the laptop is the nearest clickable object (the seated henchman hides most
  * of it).
  */
 export async function checkLaptopCopy(page: Page, seatId: string): Promise<void> {
@@ -138,9 +138,9 @@ export async function checkLaptopCopy(page: Page, seatId: string): Promise<void>
   const panel = page.locator("section.rg-agent-panel");
   if (await panel.isVisible()) await panel.getByRole("button", { name: /Close/ }).first().click();
   await expect(panel).toHaveCount(0);
-  const floorId = (await navPose(page)).floorId;
-  if (!floorId) throw new Error("not in the robot's room");
-  await walkUpToDesk(page, floorId, seatId);
+  const operationId = (await navPose(page)).operationId;
+  if (!operationId) throw new Error("not in the henchman's room");
+  await walkUpToDesk(page, operationId, seatId);
   // Standing at the desk: the laptop shows the live terminal.
   await expect(live).toHaveCount(1);
   await expect(live.locator(".xterm-screen")).toHaveCount(1);
@@ -150,13 +150,13 @@ export async function checkLaptopCopy(page: Page, seatId: string): Promise<void>
     await dialog.getByRole("button", { name: /Close/ }).first().click();
     await expect(dialog).toHaveCount(0);
   };
-  // E at the desk opens the robot's terminal.
+  // E at the desk opens the henchman's terminal.
   await page.keyboard.press("e");
   await expect(dialog).toBeVisible();
   await expect(dialog.getByTestId("terminal-screen")).toHaveAttribute("data-status", "open");
   await closeDialog();
 
-  // So does a click on the laptop, where no robot or furniture is in front of it.
+  // So does a click on the laptop, where no henchman or furniture is in front of it.
   await expect(live).toHaveCount(1);
   const point = await laptopClickPoint(page, seatId);
   expect(point, "a visible part of the laptop to click").not.toBeNull();

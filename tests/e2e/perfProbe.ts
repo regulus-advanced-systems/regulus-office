@@ -1,9 +1,9 @@
 /**
  * The e2e perf probe (#190, SPEC §11): frame-time percentiles, main-thread
- * time, draw calls, triangles, texture memory and FloorRoom join times from
+ * time, draw calls, triangles, texture memory and OperationRoom join times from
  * `window.__regulusPerf` (published with `?stats`, apps/web/src/scene/perf/PerfProbe.tsx).
  * Report only: CI renders in software (SwiftShader) on shared runners, so the
- * only floor is that the scene keeps drawing; the numbers go to the test's
+ * only operation is that the scene keeps drawing; the numbers go to the test's
  * attachments and the log, for trends.
  */
 import { expect, type Page, test } from "@playwright/test";
@@ -26,13 +26,13 @@ export interface PerfReport {
   renderer: string;
   width: number;
   height: number;
-  joins: { floorId: string; ms: number }[];
+  joins: { operationId: string; ms: number }[];
 }
 
 type PerfWindow = { __regulusPerf?: { reset(): void; sample(): PerfReport } };
 
 /** A generous floor: some frames, and a median frame under 2 s (about 0.5 fps). */
-export const PERF_FLOOR = { minFrames: 3, maxP50Ms: 2000 } as const;
+export const PERF_OPERATION = { minFrames: 3, maxP50Ms: 2000 } as const;
 
 /** Record `seconds` of frames on `page`, attach the report as `perf-<label>.json` and log it. */
 export async function reportFramePerf(page: Page, label: string, seconds = 5): Promise<PerfReport> {
@@ -47,13 +47,13 @@ export async function reportFramePerf(page: Page, label: string, seconds = 5): P
     `perf ${label}: ${report.fps} fps, frame p50 ${report.p50} / p90 ${report.p90} / p99 ${report.p99} ms, ` +
     `main ${report.cpuP50} / ${report.cpuP90} ms, ${report.drawCalls} draws, ` +
     `${Math.round(report.triangles / 1000)}k tris, ${report.textureMB} MB textures, ` +
-    `tier ${report.quality} (${report.renderer}), joins ${report.joins.map((j) => `${j.floorId} ${j.ms} ms`).join(", ") || "none"}`;
+    `tier ${report.quality} (${report.renderer}), joins ${report.joins.map((j) => `${j.operationId} ${j.ms} ms`).join(", ") || "none"}`;
   console.log(line);
   await test.info().attach(`perf-${label}.json`, {
     body: JSON.stringify(report, null, 2),
     contentType: "application/json",
   });
-  expect(report.frames).toBeGreaterThanOrEqual(PERF_FLOOR.minFrames);
-  expect(report.p50).toBeLessThan(PERF_FLOOR.maxP50Ms);
+  expect(report.frames).toBeGreaterThanOrEqual(PERF_OPERATION.minFrames);
+  expect(report.p50).toBeLessThan(PERF_OPERATION.maxP50Ms);
   return report;
 }

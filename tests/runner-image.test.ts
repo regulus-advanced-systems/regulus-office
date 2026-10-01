@@ -1,7 +1,7 @@
 /**
  * runner/Dockerfile keeps the agent CLIs from updating themselves (#162): they are installed
  * root-owned and runners are non-root, so an in-runner update can only fail and show errors in
- * robot and login terminals. Versions come from the pinned image.
+ * henchman and login terminals. Versions come from the pinned image.
  */
 import { expect, test } from "bun:test";
 import { join } from "node:path";

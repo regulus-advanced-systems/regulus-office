@@ -2,12 +2,12 @@
  * Probes for the merge gong (#43; needs `?stats`, see probes.ts): the gong group
  * `gong-<anchorId>` (userData: strikes heard, ring id, the ring's swing animation: its peak and
  * the frames drawn with the disc off centre), its swinging part `gong-swing`, the
- * `gong-confetti` instanced mesh, and each robot's `robot-<agentId>` group (userData
+ * `gong-confetti` instanced mesh, and each henchman's `henchman-<agentId>` group (userData
  * `cheering`, `animation`, `seated`; its placement on the seat).
  */
 import type { Page } from "@playwright/test";
 
-export interface RobotPose {
+export interface HenchmanPose {
   x: number;
   y: number;
   z: number;
@@ -39,14 +39,14 @@ export interface GongSample {
   /** Most confetti instances alive at once, and how many at the end. */
   maxConfetti: number;
   lastConfetti: number;
-  /** Robots seen cheering at least once. */
+  /** Henchmen seen cheering at least once. */
   cheered: string[];
-  /** Robots' poses when sampling ended. */
-  robots: Record<string, RobotPose>;
+  /** Henchmen's poses when sampling ended. */
+  henchmen: Record<string, HenchmanPose>;
 }
 
 /**
- * Samples the gong, its confetti and the robots every frame for `ms`. With `afterStrikes`, the
+ * Samples the gong, its confetti and the henchmen every frame for `ms`. With `afterStrikes`, the
  * `ms` window starts once the page has heard more strikes than that (a ring the test caused is
  * still on its way from the server), waiting up to `waitMs` for it: how long the round trip takes
  * does not eat into the window (#229).
@@ -81,9 +81,9 @@ export function sampleGong(
       maxConfetti: 0,
       lastConfetti: 0,
       cheered: [] as string[],
-      robots: {} as Record<string, RobotPose>,
+      henchmen: {} as Record<string, HenchmanPose>,
     };
-    type RobotPose = {
+    type HenchmanPose = {
       x: number;
       y: number;
       z: number;
@@ -97,7 +97,7 @@ export function sampleGong(
     do {
       let swing = 0;
       let confetti = 0;
-      const robots: Record<string, RobotPose> = {};
+      const henchmen: Record<string, HenchmanPose> = {};
       r3f?.scene.traverse((o) => {
         if (o.name.startsWith("gong-") && typeof o.userData.strikes === "number") {
           out.strikes = o.userData.strikes;
@@ -110,10 +110,10 @@ export function sampleGong(
         }
         if (o.name === "gong-swing") swing = Math.max(swing, Math.abs(o.rotation.x));
         if (o.name === "gong-confetti" && o.visible) confetti += o.count ?? 0;
-        if (o.name.startsWith("robot-") && "status" in o.userData) {
-          const id = o.name.slice("robot-".length);
+        if (o.name.startsWith("henchman-") && "status" in o.userData) {
+          const id = o.name.slice("henchman-".length);
           const d = o.userData;
-          robots[id] = {
+          henchmen[id] = {
             x: o.position.x,
             y: o.position.y,
             z: o.position.z,
@@ -129,7 +129,7 @@ export function sampleGong(
       out.lastSwing = swing;
       out.maxConfetti = Math.max(out.maxConfetti, confetti);
       out.lastConfetti = confetti;
-      out.robots = robots;
+      out.henchmen = henchmen;
       if (end === Number.POSITIVE_INFINITY) {
         if (afterStrikes !== null && out.strikes > afterStrikes) end = performance.now() + duration;
         else if (performance.now() > giveUp) break;
@@ -140,9 +140,9 @@ export function sampleGong(
   }, args);
 }
 
-/** Robots' poses now (a zero-length sample). */
-export async function robotPoses(page: Page): Promise<Record<string, RobotPose>> {
-  return (await sampleGong(page, 0)).robots;
+/** Henchmen's poses now (a zero-length sample). */
+export async function henchmanPoses(page: Page): Promise<Record<string, HenchmanPose>> {
+  return (await sampleGong(page, 0)).henchmen;
 }
 
 /** Strikes the page has heard so far. */
@@ -150,10 +150,10 @@ export async function gongStrikes(page: Page): Promise<number> {
   return (await sampleGong(page, 0)).strikes;
 }
 
-/** How far each robot moved or turned between two samples (metres + radians), largest first. */
+/** How far each henchman moved or turned between two samples (metres + radians), largest first. */
 export function poseDrift(
-  before: Record<string, RobotPose>,
-  after: Record<string, RobotPose>,
+  before: Record<string, HenchmanPose>,
+  after: Record<string, HenchmanPose>,
 ): number {
   let drift = 0;
   for (const [id, a] of Object.entries(before)) {
@@ -164,7 +164,7 @@ export function poseDrift(
   return drift;
 }
 
-/** Local rotations (x, y, z, w) of every bone of one robot, by bone name. */
+/** Local rotations (x, y, z, w) of every bone of one henchman, by bone name. */
 export function boneSnapshot(page: Page, agentId: string): Promise<Record<string, number[]>> {
   return page.evaluate((id) => {
     type Obj = {
@@ -179,7 +179,7 @@ export function boneSnapshot(page: Page, agentId: string): Promise<Record<string
       }
     ).__regulusR3F;
     const out: Record<string, number[]> = {};
-    r3f?.scene.getObjectByName(`robot-${id}`)?.traverse((b) => {
+    r3f?.scene.getObjectByName(`henchman-${id}`)?.traverse((b) => {
       if (b.isBone && !out[b.name])
         out[b.name] = [b.quaternion.x, b.quaternion.y, b.quaternion.z, b.quaternion.w];
     });

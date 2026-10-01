@@ -51,8 +51,8 @@ jobs:
 
   # M1 exit criteria, automated half (#120): tests/e2e/agents.e2e.ts starts office-server in
   # production mode with the docker runner backend and a small test runner image holding a fake
-  # `claude` (never the real CLI, no account), then spawns a robot, approves its permission
-  # request, opens a PR against a fake GitHub, restarts the office and sends the robot home.
+  # `claude` (never the real CLI, no account), then spawns a henchman, approves its permission
+  # request, opens a PR against a fake GitHub, restarts the office and sends the henchman home.
   e2e-agents:
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -98,7 +98,7 @@ jobs:
             playwright-report/
             test-results/
           retention-days: 14
-      - name: Leftover runners and robot sandboxes
+      - name: Leftover runners and henchman sandboxes
         if: always()
         run: |
           for role in runner sandbox; do
@@ -188,7 +188,7 @@ jobs:
             bun --version; uv --version; node --version; gh --version | head -1; tmux -V; git --version
             curl --version | head -1
             for cli in claude codex gemini kimi opencode; do printf "%s " "$cli"; command -v "$cli"; done'
-      # SPEC §8: the office provisions a runner through docker-proxy, mounts a floor from the shared
+      # SPEC §8: the office provisions a runner through docker-proxy, mounts an operation from the shared
       # volumes, runs the fake agent in tmux, reaches the office over the runners network and
       # cannot reach docker-proxy or Caddy; then removes everything it created.
       - name: Runner end to end through the office
@@ -362,7 +362,7 @@ jobs:
         with:
           bun-version: latest
       - run: bun install --frozen-lockfile
-      # nftables: robot sandboxes' NAT (#169).
+      # nftables: henchman sandboxes' NAT (#169).
       - name: Install tmux, acl and nftables
         run: sudo apt-get update -q && sudo apt-get install -y -q tmux acl nftables
       - run: shellcheck apps/server/src/runners/linux-user/helper/office-runner-helper

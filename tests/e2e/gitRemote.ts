@@ -1,6 +1,6 @@
 /**
  * A local bare git repo standing in for a GitHub repo: the e2e server clones
- * from `file://<E2E_DATA_DIR>/remotes` (OFFICE_GITHUB_REMOTE_BASE), so floor
+ * from `file://<E2E_DATA_DIR>/remotes` (OFFICE_GITHUB_REMOTE_BASE), so operation
  * creation is tested without network access.
  */
 import { execFileSync } from "node:child_process";

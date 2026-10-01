@@ -1,8 +1,8 @@
 /**
- * Read-only probe for clicking a robot's laptop (#164, #199), through `window.__regulusR3F`
+ * Read-only probe for clicking a henchman's laptop (#164, #199), through `window.__regulusR3F`
  * (the page must be opened with `?stats`, see probes.ts): a screen point where the laptop is
  * the nearest clickable object, found with the same raycast the scene's pointer events use
- * (the seated robot hides most of the laptop). Walking up to the desk goes by nav state
+ * (the seated henchman hides most of the laptop). Walking up to the desk goes by nav state
  * (compoundProbes.ts `walkUpToDesk`, #205).
  */
 import type { Page } from "@playwright/test";
@@ -25,7 +25,7 @@ type Obj = {
 /**
  * A viewport point where a click reaches `laptop-<seatId>`: the nearest object the scene's
  * pointer events hit there belongs to the laptop, and no HTML covers the canvas. Null when the
- * laptop is hidden everywhere (e.g. behind its robot).
+ * laptop is hidden everywhere (e.g. behind its henchman).
  */
 export function laptopClickPoint(
   page: Page,
