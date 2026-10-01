@@ -36,6 +36,7 @@ import {
   statuses,
 } from "./agentProbes.ts";
 import { type BoneSegment, boneSegments, recordBones, sampleBones } from "./boneProbes.ts";
+import { settledVerdict } from "./buildChecks.ts";
 import { checkChangesWindow } from "./changesChecks.ts";
 import { walkInto, walkToLobby } from "./compoundProbes.ts";
 import { checkLaptopCopy, checkLoginTerminalCopy, checkRobotTerminalCopy } from "./copyChecks.ts";
@@ -285,7 +286,10 @@ test("1. the owner connects GitHub, picks the repo in Add floor and walks into i
   await expect(picker.getByRole("checkbox")).toHaveCount(1);
   await picker.getByRole("checkbox", { name: new RegExp(`${REPO.owner}/${REPO.name}`) }).check();
   await expect(picker.getByText(`private · ${REPO.branch}`)).toBeVisible();
-  await dialog.getByRole("button", { name: "Create floor" }).click();
+  await dialog.getByRole("button", { name: "Choose a spot…" }).click();
+  // Build mode (#187): build where it offers.
+  expect((await settledVerdict(ownerPage)).server?.ok).toBe(true);
+  await ownerPage.keyboard.press("Enter");
   const added = ownerPage.getByRole("dialog", { name: "Floor added" });
   await expect(added.getByText(`Ready on ${REPO.branch}`)).toBeVisible();
 

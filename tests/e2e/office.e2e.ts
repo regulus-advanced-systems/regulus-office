@@ -24,6 +24,14 @@ import { join } from "node:path";
 import { type BrowserContext, expect, type Page, test } from "@playwright/test";
 import { checkBlastDoor } from "./blastDoorChecks.ts";
 import {
+  addDeskInRoomSettings,
+  aimAt,
+  buildProbe,
+  middleOf,
+  openBuildMode,
+  settledVerdict,
+} from "./buildChecks.ts";
+import {
   cameraSettled,
   cameraState,
   clickInScene,
@@ -429,16 +437,47 @@ test("the robot turns to follow the cursor and walks face-first to a click", asy
   await faceCursorAt(there.x, there.y - 160);
 });
 
-test("the owner adds a floor; its room is built and the owner walks in from the lobby and back (#186)", async () => {
+test("the owner adds a floor in build mode: a refused spot, then placed, built and walked into (#186, #187)", async () => {
   test.skip(!process.env.E2E_DATA_DIR, "needs the locally started server (local git remotes)");
   createRemoteRepo(process.env.E2E_DATA_DIR ?? "", "octo", "hello");
   await ownerPage.bringToFront();
-  const rooms = ownerPage.getByRole("navigation", { name: "Rooms" });
-  await rooms.getByRole("button", { name: "Add floor…" }).click();
-  const dialog = ownerPage.getByRole("dialog", { name: "Add floor" });
-  await dialog.getByLabel("Floor name").fill("Apollo");
-  await dialog.getByLabel("Repo 1", { exact: true }).fill("octo/hello");
-  await dialog.getByRole("button", { name: "Create floor" }).click();
+  // Add floor continues into build mode (#187): the ghost starts on a free spot.
+  const first = await openBuildMode(ownerPage, "Apollo", "octo/hello");
+  expect(first).toMatchObject({ kind: "create", server: { ok: true } });
+  const status = ownerPage.getByTestId("build-status");
+  const build = ownerPage.getByRole("button", { name: "Build here (Enter)" });
+  await expect(status).toContainText("Clear to build");
+  const spot = first.placement;
+  if (!spot) throw new Error("no ghost");
+
+  // Over the lobby the ghost turns red with the server's reason, and nothing can be built.
+  const lobby = (await navRooms(ownerPage)).find((r) => r.kind === "lobby");
+  if (!lobby) throw new Error("lobby missing");
+  await aimAt(ownerPage, lobby.x + lobby.w / 2, lobby.z + lobby.d / 2);
+  const refused = await settledVerdict(ownerPage);
+  expect(refused.server).toMatchObject({ ok: false, reason: "overlap", conflicts: ["lobby"] });
+  await expect(status).toHaveText("It overlaps the lobby.");
+  await expect(build).toBeDisabled();
+
+  // Back over the free spot with the mouse; a click holds the ghost there.
+  const middle = middleOf(spot);
+  await aimAt(ownerPage, middle.x, middle.z);
+  await ownerPage.mouse.down();
+  await ownerPage.mouse.up();
+  await expect.poll(async () => (await buildProbe(ownerPage)).pinned).toBe(true);
+  expect((await buildProbe(ownerPage)).placement).toEqual(spot);
+  // The keyboard: R turns the door, Shift+R back; arrows nudge the ghost a tile and back.
+  await ownerPage.keyboard.press("r");
+  expect((await buildProbe(ownerPage)).placement?.doorSide).not.toBe(spot.doorSide);
+  await ownerPage.keyboard.press("Shift+R");
+  await ownerPage.keyboard.press("ArrowLeft");
+  expect((await buildProbe(ownerPage)).placement).not.toEqual(spot);
+  await ownerPage.keyboard.press("ArrowRight");
+  expect((await buildProbe(ownerPage)).placement).toEqual(spot);
+  expect((await settledVerdict(ownerPage)).server?.ok).toBe(true);
+  await expect(build).toBeEnabled();
+  await ownerPage.keyboard.press("Enter");
+  await expect(ownerPage.getByRole("dialog", { name: "Build Apollo" })).toHaveCount(0);
   const added = ownerPage.getByRole("dialog", { name: "Floor added" });
   await expect(added.getByText("Ready on trunk")).toBeVisible();
 
@@ -446,12 +485,27 @@ test("the owner adds a floor; its room is built and the owner walks in from the 
   const apolloRoom = async () => {
     const res = await ownerPage.request.get("/api/compound");
     const body = (await res.json()) as {
-      rooms: Array<{ name: string; gridX: number; buildState: string }>;
+      rooms: Array<{
+        name: string;
+        gridX: number;
+        gridY: number;
+        width: number;
+        depth: number;
+        doorSide: string;
+        buildState: string;
+      }>;
     };
     return body.rooms.find((r) => r.name === "Apollo");
   };
   await expect.poll(async () => (await apolloRoom())?.buildState).toBe("ready");
-  expect((await apolloRoom())?.gridX).toBeGreaterThanOrEqual(0);
+  // Built exactly where it was placed.
+  expect(await apolloRoom()).toMatchObject({
+    gridX: spot.gridX,
+    gridY: spot.gridY,
+    width: spot.width,
+    depth: spot.depth,
+    doorSide: spot.doorSide,
+  });
   await added.getByRole("button", { name: "Done" }).click();
   await expect(added).toHaveCount(0);
 
@@ -565,6 +619,13 @@ test("clicking a free desk opens the spawn dialog and the server answers agent.s
   await expect(dialog).toHaveCount(0);
 });
 
+test("a room manager adds a desk in room settings; the room shows it live (#187)", async () => {
+  test.skip(!process.env.E2E_DATA_DIR, "needs the floor from the previous step");
+  await ownerPage.bringToFront();
+  const apollo = await walkInto(ownerPage, "Apollo");
+  await addDeskInRoomSettings(ownerPage, apollo.id, "Apollo");
+});
+
 test("the owner archives, restores and deletes a floor; its files go with it", async () => {
   test.skip(!process.env.E2E_DATA_DIR, "needs the locally started server (local git remotes)");
   const dataDir = process.env.E2E_DATA_DIR ?? "";
@@ -583,11 +644,14 @@ test("the owner archives, restores and deletes a floor; its files go with it", a
     await rooms.getByRole("button", { name: "Quick travel (F)" }).click();
     await travel.getByRole("button", { name: "Floor settings: Hermes" }).click();
   };
-  await rooms.getByRole("button", { name: "Add floor…" }).click();
-  const create = ownerPage.getByRole("dialog", { name: "Add floor" });
-  await create.getByLabel("Floor name").fill("Hermes");
-  await create.getByLabel("Repo 1", { exact: true }).fill("octo/hello");
-  await create.getByRole("button", { name: "Create floor" }).click();
+  // Escape leaves build mode and builds nothing (#187); the second time it builds where offered.
+  await openBuildMode(ownerPage, "Hermes", "octo/hello");
+  await ownerPage.keyboard.press("Escape");
+  await expect(ownerPage.getByRole("dialog", { name: "Build Hermes" })).toHaveCount(0);
+  expect((await buildProbe(ownerPage)).active).toBe(false);
+  expect((await navRooms(ownerPage)).some((r) => r.name === "Hermes")).toBe(false);
+  expect((await openBuildMode(ownerPage, "Hermes", "octo/hello")).server?.ok).toBe(true);
+  await ownerPage.keyboard.press("Enter");
   const added = ownerPage.getByRole("dialog", { name: "Floor added" });
   await expect(added.getByText("Ready on trunk")).toBeVisible();
   await added.getByRole("button", { name: "Done" }).click();

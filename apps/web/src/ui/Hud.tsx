@@ -1,12 +1,14 @@
 /**
  * HUD layered over the office canvas: top bar, floor work counters, status box, rooms panel,
- * lobby chat, corner buttons for settings and shortcut help, dialogs and toasts.
+ * lobby chat, corner buttons for settings and shortcut help, build mode and room settings
+ * (docked bottom right, #187), dialogs and toasts.
  * The container ignores pointer events so the scene stays clickable
  * between panels.
  */
 import { useUiStore } from "../state/ui.ts";
 import { AgentHost } from "./agent/AgentHost.tsx";
 import { BoardsHost } from "./boards/BoardsHost.tsx";
+import { BuildModeHost } from "./build-mode/BuildModeHost.tsx";
 import { ChatPanel } from "./chat/ChatPanel.tsx";
 import { Button } from "./components/Button.tsx";
 import { GearIcon, QuestionIcon } from "./components/icons.tsx";
@@ -23,6 +25,7 @@ import { WorkCounters } from "./hud/WorkCounters.tsx";
 import { NotificationsHost } from "./notifications/NotificationsHost.tsx";
 import { ProvidersPanelHost } from "./providers/ProvidersPanel.tsx";
 import { QueueHost } from "./queue/QueueHost.tsx";
+import { RoomSettingsDock } from "./room-settings/RoomSettingsDock.tsx";
 import { SearchHost } from "./search/SearchHost.tsx";
 import { RunningApps } from "./services/RunningApps.tsx";
 import { SettingsForm } from "./settings/SettingsPanel.tsx";
@@ -104,6 +107,8 @@ export function Hud() {
           Help
         </Button>
       </div>
+      <BuildModeHost />
+      <RoomSettingsDock />
       <HudDialogs />
       <AgentHost />
       <BoardsHost />

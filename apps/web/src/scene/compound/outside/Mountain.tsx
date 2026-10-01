@@ -2,15 +2,14 @@
  * The mountain round the compound (#188; the #190 note that the compound
  * floated on a flat dark plane): mountain.ts's heightfield as one mesh with
  * the lair's cutaway material, so rock between the camera and the player
- * fades like the walls. Rebuilt only when the layout changes. In the
- * software-WebGL tier the light is baked into the vertex colours and the
- * mesh drawn unlit, which costs a fraction per pixel.
+ * fades like the walls. Rebuilt only when the layout changes. The
+ * software-WebGL tier leaves it out, as it left out the old bedrock plane:
+ * there every pixel of rock is CPU work.
  */
 import type { TileRect } from "@regulus/protocol";
 import { useEffect, useMemo } from "react";
 import { type BufferGeometry, Vector3 } from "three";
 import { useLairMaterials } from "../../lair/components/LairKit.tsx";
-import { useQualityStore } from "../quality.ts";
 import type { CompoundWorld } from "../world.ts";
 import type { OutsideLayout } from "./layout.ts";
 import { mountainGeometry } from "./mountain.ts";
@@ -43,25 +42,18 @@ export function Mountain({
   layout: OutsideLayout | null;
 }) {
   const mats = useLairMaterials();
-  const low = useQualityStore((s) => s.quality) === "low";
   const key = `${world.version}:${world.width}:${world.depth}:${world.rooms.map((r) => `${r.rect.x},${r.rect.y},${r.rect.w},${r.rect.d}`).join(";")}`;
-  const geo = useMemo(() => {
-    const g = mountainGeometry({
-      width: world.width,
-      depth: world.depth,
-      tileMetres: world.tileMetres,
-      open: openTiles(world),
-      layout,
-    });
-    return low ? bakeLight(g) : g;
-  }, [key, layout, low]);
-  useEffect(() => () => geo.dispose(), [geo]);
-  return (
-    <mesh
-      name="mountain"
-      geometry={geo}
-      material={low ? mats.cutGlow : mats.cutBody}
-      raycast={() => null}
-    />
+  const geo = useMemo(
+    () =>
+      mountainGeometry({
+        width: world.width,
+        depth: world.depth,
+        tileMetres: world.tileMetres,
+        open: openTiles(world),
+        layout,
+      }),
+    [key, layout],
   );
+  useEffect(() => () => geo.dispose(), [geo]);
+  return <mesh name="mountain" geometry={geo} material={mats.cutBody} raycast={() => null} />;
 }

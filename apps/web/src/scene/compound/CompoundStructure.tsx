@@ -8,6 +8,7 @@
  * other rooms get static ones here.
  */
 import { useMemo } from "react";
+import { selectReducedMotion, useUiStore } from "../../state/ui.ts";
 import { BlinkingLamps } from "../lair/components/BlinkingLamps.tsx";
 import { BlobShadows } from "../lair/components/BlobShadows.tsx";
 import { PieceSet } from "../lair/components/InstancedPieces.tsx";
@@ -92,8 +93,11 @@ export function CompoundStructure({
         .map((r) => r.room),
     [rooms, visibleRooms],
   );
-  // Sparks and dust over at most one visible build site (two draws).
-  const site = rooms.find((r) => r.art.look === "building" && visibleRooms.has(r.room.id));
+  // Sparks and dust over at most one visible build site (two draws); none with reduced motion.
+  const still = useUiStore(selectReducedMotion);
+  const site = still
+    ? undefined
+    : rooms.find((r) => r.art.look === "building" && visibleRooms.has(r.room.id));
   return (
     <group name="compound-structure">
       <PieceSet items={lists.pieces} />

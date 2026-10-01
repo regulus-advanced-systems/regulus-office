@@ -99,6 +99,8 @@ export function BlastDoor({ layout }: { layout: OutsideLayout }) {
   const beamRef = useRef<InstancedMesh>(null);
   const lightRefs = useRef<(PointLight | null)[]>([]);
   const motion = useRef<LeafMotion>(SHUT);
+  /** The travel last written to the leaves' matrices (-1: rewrite next frame). */
+  const written = useRef(-1);
   const sinceShut = useRef(Number.POSITIVE_INFINITY);
   const lastPhase = useRef<string | null>(null);
   const [alarm, setAlarm] = useState(false);
@@ -168,7 +170,10 @@ export function BlastDoor({ layout }: { layout: OutsideLayout }) {
       { piece: "door_leaf", position: [x0 + LEAF.w / 2 - off, shake, z], rotationY: 0 },
       { piece: "door_leaf", position: [x1 - LEAF.w / 2 + off, -shake, z], rotationY: Math.PI },
     ];
-    for (const mesh of [bodyRef.current, glowRef.current]) {
+    // Still and already written: nothing to upload.
+    const still = shake === 0 && written.current === next.travel;
+    written.current = still ? written.current : shake === 0 ? next.travel : -1;
+    for (const mesh of still ? [] : [bodyRef.current, glowRef.current]) {
       if (!mesh) continue;
       placements.forEach((p, i) => mesh.setMatrixAt(i, placementMatrix(p, m)));
       mesh.instanceMatrix.needsUpdate = true;

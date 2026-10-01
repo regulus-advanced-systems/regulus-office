@@ -10,6 +10,8 @@
  * and the lobby's blast door opens onto the beach, the dock and the sea
  * (outside/, #188); the nav grid follows the door. Pixel ratio 1, render
  * loop paused while the tab is hidden; `V` still swaps in the first-person rig.
+ * Build mode (#187, build/) adds the ghost, construction crews and the room
+ * transitions, and frames the compound while a room is being placed.
  */
 import { Canvas } from "@react-three/fiber";
 import type { Pose } from "@regulus/floor-layout";
@@ -18,7 +20,9 @@ import { useCompoundStore } from "../../state/compound.ts";
 import { useFloorStore } from "../../state/floor.ts";
 import { usePlayerStore } from "../../state/player.ts";
 import { occupancyKey, parseOccupancy, useRoomsStore } from "../../state/rooms.ts";
+import { selectReducedMotion, useUiStore } from "../../state/ui.ts";
 import { useViewStore } from "../../state/view.ts";
+import { useBuildModeStore } from "../../ui/build-mode/store.ts";
 import { useViewHotkey } from "../../ui/hud/ViewToggle.tsx";
 import { CarriedCards } from "../boards/CarriedCards.tsx";
 import { CompoundCamera } from "../camera/CompoundCamera.tsx";
@@ -32,6 +36,9 @@ import { MovementController } from "../movement/MovementController.tsx";
 import { StatsOverlay } from "../perf/StatsOverlay.tsx";
 import { statsEnabled } from "../perf/stats.ts";
 import { UsageScreen } from "../usage/UsageScreen.tsx";
+import { BuildLayer } from "./build/BuildLayer.tsx";
+import { useRoomDraftStore, withDraft } from "./build/preview.ts";
+import { useRoomTransitions } from "./build/RoomTransitions.tsx";
 import { CompoundStructure } from "./CompoundStructure.tsx";
 import { corridorChunks } from "./corridors.ts";
 import { CompoundDoors } from "./Doors.tsx";
@@ -79,7 +86,13 @@ function Scene({ world, avatars, presence, send, children }: CompoundCanvasProps
   const extent = worldExtent(world);
   // The overview frames the built rooms and corridors, not the whole empty grid.
   const built = useMemo(() => builtBounds(world), [world]);
-  const rooms = useMemo(() => world.rooms.map(placeRoom), [world]);
+  // Room settings' live preview (#187) draws the room as edited; changes animate (build/).
+  const draft = useRoomDraftStore((s) => s.draft);
+  const reduced = useUiStore(selectReducedMotion);
+  const placed = useMemo(() => withDraft(world.rooms, draft).map(placeRoom), [world, draft]);
+  const { rooms, playing } = useRoomTransitions(placed, reduced);
+  // While placing a room the camera frames the compound with room to build around it.
+  const frame = useBuildModeStore((s) => s.frame);
   const chunks = useMemo(
     () =>
       corridorChunks({
@@ -143,7 +156,11 @@ function Scene({ world, avatars, presence, send, children }: CompoundCanvasProps
   return (
     <>
       <color attach="background" args={[BACKGROUND]} />
-      <CompoundCamera centre={built.centre} extent={built.extent} enabled={!firstPerson} />
+      <CompoundCamera
+        centre={frame?.centre ?? built.centre}
+        extent={frame?.extent ?? built.extent}
+        enabled={!firstPerson}
+      />
       {rigMounted && (
         <FirstPersonRig
           grid={grid}
@@ -161,7 +178,7 @@ function Scene({ world, avatars, presence, send, children }: CompoundCanvasProps
         color="#FFE6C4"
       />
       <LairKit>
-        <Mountain world={world} layout={outside} />
+        {quality === "high" && <Mountain world={world} layout={outside} />}
         {outside && <Outside layout={outside} />}
         <CutawayDriver focus={focus} enabled={!firstPerson} />
         {quality === "high" && (
@@ -176,6 +193,7 @@ function Scene({ world, avatars, presence, send, children }: CompoundCanvasProps
           joined={joined}
         />
         <CompoundDoors rooms={rooms} extra={NO_EXTRA_DOORS} />
+        <BuildLayer world={world} visible={visibleRooms} playing={playing} />
       </LairKit>
       <Culling rooms={rooms} chunks={chunks} />
       <MovementController grid={grid} spawn={spawn} spawnKey="compound" plane={plane} send={send} />
