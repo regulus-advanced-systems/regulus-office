@@ -65,7 +65,9 @@ export async function checkMergeGong(page: Page, opts: { githubPort: number; flo
     await card.click();
     await panel.getByRole("button", { name: "Merge…" }).click();
     await panel.getByRole("button", { name: "Confirm merge" }).click();
-    const ringing = await sampleGong(page, 2_500);
+    // Sample from when the ring arrives: the merge goes through the server and (fake) GitHub
+    // first, which takes seconds on a loaded runner.
+    const ringing = await sampleGong(page, 2_500, { afterStrikes: strikes, waitMs: 30_000 });
     await expect(
       page.locator(".rg-toast", { hasText: "Pull request merged" }).filter({ hasText: "#12" }),
     ).toBeVisible();
@@ -143,7 +145,7 @@ export async function checkRobotCheers(page: Page, agentId: string) {
   const gong = await scenePoint(page, GONG);
   if (!gong) throw new Error("gong not in view");
   await page.mouse.click(gong.x, gong.y);
-  const ringing = await sampleGong(page, 1_200);
+  const ringing = await sampleGong(page, 1_200, { afterStrikes: strikes });
   expect(ringing.strikes).toBe(strikes + 1);
   expect(ringing.cheered, JSON.stringify(ringing)).toContain(agentId);
   expect(boneDriftDeg(bones, await boneSnapshot(page, agentId))).toBeGreaterThan(10);
