@@ -132,6 +132,7 @@ test("the first-login genius picker works by keyboard; the server keeps the pick
 
 test("the owner creates an invite link in the UI", async () => {
   await ownerPage.getByRole("button", { name: "Settings" }).click();
+  await ownerPage.getByRole("tab", { name: "You" }).click();
   await ownerPage.getByRole("button", { name: "Invite someone…" }).click();
   const dialog = ownerPage.getByRole("dialog", { name: "Invite someone" });
   await dialog.getByRole("button", { name: "Create invite link" }).click();
@@ -173,6 +174,7 @@ test("the owner changes genius in Settings; the member sees it at once (#185)", 
   await ownerPage.bringToFront();
   await ownerPage.getByRole("button", { name: "Settings" }).click();
   const settings = ownerPage.getByRole("dialog", { name: "Settings" });
+  await settings.getByRole("tab", { name: "You" }).click();
   await expect(settings.getByText(/Scientist in crimson with flask/)).toBeVisible();
   await settings.getByRole("button", { name: "Change genius…" }).click();
   const picker = ownerPage.getByRole("dialog", { name: "Change your genius" });
@@ -198,18 +200,22 @@ test("the member sees the owner walk", async () => {
   // WASD walk; D is screen-right in the isometric view, away from the spawn wall.
   await ownerPage.bringToFront();
   await ownerPage.locator("canvas").first().hover();
-  for (const key of ["d", "s"]) {
-    await ownerPage.keyboard.down(key);
-    await ownerPage.waitForTimeout(700);
-    await ownerPage.keyboard.up(key);
+  const walked = async () => {
+    const self = (await humans(ownerPage))["local-human"];
+    return self ? distance(self, selfBefore) : 0;
+  };
+  // Right after the genius change (previous step), the first walk on a loaded software-GL
+  // machine can stall to a single capped frame step (also on master); walk again if so.
+  for (let attempt = 0; attempt < 3 && (await walked()) <= 0.5; attempt++) {
+    for (const key of ["d", "s"]) {
+      await ownerPage.keyboard.down(key);
+      await ownerPage.waitForTimeout(700);
+      await ownerPage.keyboard.up(key);
+    }
+    await ownerPage.waitForTimeout(500);
   }
 
-  await expect
-    .poll(async () => {
-      const self = (await humans(ownerPage))["local-human"];
-      return self ? distance(self, selfBefore) : 0;
-    })
-    .toBeGreaterThan(0.5);
+  await expect.poll(walked).toBeGreaterThan(0.5);
   await expect
     .poll(async () => {
       const seen = (await humans(memberPage))[ownerOnMember];
@@ -597,6 +603,52 @@ test("Operation settings and Add operation fit a 1280×720 window with the X in 
   await ownerPage.setViewportSize({ width: 1280, height: 800 });
 });
 
+test("Settings: tabs by keyboard, and a skin rule picked from the thumbnail gallery (#225)", async () => {
+  await ownerPage.bringToFront();
+  await ownerPage.setViewportSize({ width: 1280, height: 720 });
+  await ownerPage.getByRole("button", { name: "Settings", exact: true }).click();
+  const dialog = ownerPage.getByRole("dialog", { name: "Settings", exact: true });
+  const layout = await settledDialogLayout(ownerPage, dialog);
+  expect(insideViewport(layout), "Settings: X inside the viewport").toBe(true);
+  expect(layout.closeHittable, "Settings: X not clipped or covered").toBe(true);
+  expect(layout.horizontalOverflow, "Settings: no horizontal scrollbar").toEqual([]);
+
+  const tab = (name: string) => dialog.getByRole("tab", { name, exact: true });
+  await tab("You").click();
+  await ownerPage.keyboard.press("ArrowDown");
+  await expect(tab("Office")).toHaveAttribute("aria-selected", "true");
+  await expect(tab("Office")).toBeFocused();
+  await expect(dialog.getByRole("tabpanel")).toContainText("GitHub");
+  await ownerPage.keyboard.press("End");
+  await expect(tab("Display and sound")).toBeFocused();
+  await expect(dialog.getByRole("tabpanel")).toContainText("Reduce motion");
+  await ownerPage.keyboard.press("Home");
+  await expect(tab("You")).toHaveAttribute("aria-selected", "true");
+
+  await tab("Henchmen").click();
+  const skins = dialog.getByRole("region", { name: "Henchman skins" });
+  await skins.getByRole("button", { name: "Add a rule…" }).click();
+  const editor = skins.getByRole("form", { name: "New skin rule" });
+  await editor.getByRole("radio", { name: /^The PM/ }).check();
+  await editor.getByRole("radio", { name: "Chef" }).check();
+  // The gallery's thumbnails are images drawn once by one offscreen renderer.
+  await expect(editor.locator('.rg-skin-gallery img[src^="data:image/png"]')).toHaveCount(5);
+  await expect(editor).toContainText("The PM wears the Chef.");
+  await editor.getByRole("button", { name: "Add rule" }).click();
+  const rules = skins.getByRole("list", { name: "Skin rules" });
+  await expect(rules.getByRole("listitem")).toHaveCount(1);
+  await expect(rules).toContainText("The PM");
+  await expect(rules).toContainText("wears the Chef");
+  const listed = await (await ownerPage.request.get("/api/skin-rules")).json();
+  expect(listed.rules).toMatchObject([{ match: "role:pm", skinId: "chef", priority: 0 }]);
+  await skins.getByRole("button", { name: "Delete rule for The PM" }).click();
+  await expect(skins.getByText(/No rules yet/)).toBeVisible();
+
+  await dialog.getByRole("button", { name: "Done" }).click();
+  await expect(dialog).toHaveCount(0);
+  await ownerPage.setViewportSize({ width: 1280, height: 800 });
+});
+
 test("clicking a free desk opens the spawn dialog and the server answers agent.spawn", async () => {
   test.skip(!process.env.E2E_DATA_DIR, "needs the operation from the previous step");
   await ownerPage.bringToFront();
@@ -684,9 +736,10 @@ test("the owner archives, restores and deletes an operation; its files go with i
   await inQuickTravel(0);
   expect(existsSync(mirror)).toBe(true);
 
-  // Restore from Settings → Operations.
+  // Restore from Settings → Office → Archived operations.
   await ownerPage.getByRole("button", { name: "Settings", exact: true }).click();
   const panel = ownerPage.getByRole("dialog", { name: "Settings", exact: true });
+  await panel.getByRole("tab", { name: "Office" }).click();
   await expect(panel.getByRole("list", { name: "Archived operations" })).toContainText("Hermes");
   await panel.getByRole("button", { name: "Restore Hermes" }).click();
   await expect(panel.getByText("Hermes is back in the compound.")).toBeVisible();

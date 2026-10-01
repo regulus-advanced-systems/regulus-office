@@ -8,8 +8,8 @@ export function GeniusSettingsSection() {
   const look = useSessionStore((s) => s.user?.avatar);
   if (!look) return null;
   return (
-    <div className="rg-field">
-      <div className="rg-field__label">Your genius</div>
+    <section className="rg-settings__group" aria-label="Your genius">
+      <h3 className="rg-settings__heading">Your genius</h3>
       <div>
         <Button
           variant="secondary"
@@ -23,6 +23,6 @@ export function GeniusSettingsSection() {
       <div className="rg-field__hint">
         {describeLook(look)}. {ARCHETYPE_INFO[look.archetype].blurb}
       </div>
-    </div>
+    </section>
   );
 }

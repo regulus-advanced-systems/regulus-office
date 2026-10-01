@@ -171,11 +171,12 @@ export async function checkLaptopCopy(page: Page, seatId: string): Promise<void>
 }
 
 /**
- * The login terminal (Settings → Connect providers → Claude Code): the fake prints a sign-in
+ * The login terminal (Settings → Office → Connect providers → Claude Code): the fake prints a sign-in
  * link and waits for a code. Copy every way, then paste a code to finish the sign-in.
  */
 export async function checkLoginTerminalCopy(page: Page): Promise<void> {
   await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await page.getByRole("tab", { name: "Office" }).click();
   await page.getByRole("button", { name: "Connect providers" }).click();
   const panel = page.getByRole("dialog", { name: "Connect providers" });
   const claude = panel.locator('[data-provider="claude-code"]');

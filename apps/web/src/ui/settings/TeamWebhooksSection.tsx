@@ -109,8 +109,8 @@ export function TeamWebhooksSection({ api }: { api: NotificationsApi }) {
           .join(", ") || "No operations";
 
   return (
-    <section className="rg-field" aria-label="Team notifications">
-      <div className="rg-field__label">Team notifications</div>
+    <section className="rg-settings__group" aria-label="Team notifications">
+      <h3 className="rg-settings__heading">Team notifications</h3>
       <div className="rg-field__hint">
         Post henchman events to Slack, Discord or Telegram. Events wait 5 s to settle, repeats are
         deduplicated, and each channel is rate limited.
@@ -131,11 +131,7 @@ export function TeamWebhooksSection({ api }: { api: NotificationsApi }) {
             onCancel={() => setEditing(null)}
           />
         ) : (
-          <div
-            key={c.id}
-            className="rg-notify-channel"
-            style={{ borderTop: "1px solid var(--rg-color-panel-border)", paddingTop: 6 }}
-          >
+          <div key={c.id} className="rg-notify-channel">
             <Switch
               checked={c.enabled}
               disabled={busy}
@@ -149,7 +145,7 @@ export function TeamWebhooksSection({ api }: { api: NotificationsApi }) {
                 {c.lastDelivery.ok ? "sent" : describeDeliveryCode(c.lastDelivery.code)}
               </div>
             )}
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <div className="rg-settings__row">
               <Button variant="secondary" size="sm" disabled={busy} onClick={() => void test(c)}>
                 Send test
               </Button>

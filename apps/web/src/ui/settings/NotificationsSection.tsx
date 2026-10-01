@@ -108,8 +108,8 @@ export function NotificationsSection({ api = defaultApi }: { api?: Notifications
 
   return (
     <>
-      <section className="rg-field" aria-label="Notifications">
-        <div className="rg-field__label">Notifications</div>
+      <section className="rg-settings__group" aria-label="Notifications">
+        <h3 className="rg-settings__heading">Desktop notifications</h3>
         <div className="rg-field__hint">
           For your own henchmen. The tab title shows how many of them wait for you.
         </div>
@@ -141,7 +141,7 @@ export function NotificationsSection({ api = defaultApi }: { api?: Notifications
           hint="No desktop notifications in this window (this computer's time)."
         />
         {prefs.quietHours.enabled && (
-          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <div className="rg-settings__row">
             <label htmlFor={ids.start}>From</label>
             <input
               id={ids.start}
@@ -149,7 +149,6 @@ export function NotificationsSection({ api = defaultApi }: { api?: Notifications
               type="time"
               value={prefs.quietHours.start}
               onChange={(e) => e.currentTarget.value && setQuiet({ start: e.currentTarget.value })}
-              style={{ width: 120 }}
             />
             <label htmlFor={ids.end}>to</label>
             <input
@@ -158,7 +157,6 @@ export function NotificationsSection({ api = defaultApi }: { api?: Notifications
               type="time"
               value={prefs.quietHours.end}
               onChange={(e) => e.currentTarget.value && setQuiet({ end: e.currentTarget.value })}
-              style={{ width: 120 }}
             />
           </div>
         )}

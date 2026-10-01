@@ -18,6 +18,8 @@ export interface ModalProps {
   /** Buttons, right-aligned. */
   footer?: ReactNode;
   width?: number;
+  /** Extra class on the dialog frame (e.g. a fixed height for a tabbed dialog). */
+  className?: string;
   /** Render inline instead of portalling to <body> (ui-kit previews). */
   inline?: boolean;
   /** Clicking the backdrop closes the dialog (default true). */
@@ -33,6 +35,7 @@ export function Modal({
   children,
   footer,
   width = 520,
+  className,
   inline = false,
   dismissOnBackdrop = true,
   initialFocus,
@@ -56,7 +59,7 @@ export function Modal({
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className="rg-modal"
+        className={className ? `rg-modal ${className}` : "rg-modal"}
         style={{ "--rg-modal-width": `${width}px` } as CSSProperties}
       >
         <CloseButton className="rg-modal__close" onClick={onClose} />

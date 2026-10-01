@@ -219,7 +219,7 @@ export function ExistingAppForm({
         The office checks the ID and key with GitHub, then stores them encrypted. They are never
         shown again.
       </div>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+      <div className="rg-settings__row">
         <Button variant="primary" size="sm" disabled={busy} onClick={() => void submit()}>
           Connect app
         </Button>

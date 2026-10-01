@@ -1,0 +1,251 @@
+/* Settings → Henchmen (#225): the skin rules as ordered cards with a small
+   picture each, and the editor: "who" radio cards and provider chips, a
+   gallery of skin thumbnails and the turntable. Native radios, visually
+   hidden; the card around each shows checked and focus. */
+
+/* ---------- Henchman skins: rule cards ---------- */
+.rg-skin-rules {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.rg-skin-rule {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 12px;
+  padding: 8px 10px;
+  background: var(--rg-color-panel-surface);
+  border: 1px solid var(--rg-color-panel-border);
+  border-radius: var(--rg-radius-panel);
+}
+.rg-skin-rules > li:first-child .rg-skin-rule {
+  border-color: var(--rg-color-gold);
+}
+.rg-skin-rule__rank {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--rg-color-plate);
+  color: var(--rg-color-plate-ink);
+  font-family: var(--rg-font-stencil);
+  font-size: 14px;
+}
+.rg-skin-rule__text {
+  flex: 1 1 150px;
+  display: grid;
+  min-width: 0;
+}
+.rg-skin-rule__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-left: auto;
+}
+.rg-skin-rule__move {
+  min-width: 30px;
+  justify-content: center;
+}
+
+/* ---------- Thumbnails ---------- */
+.rg-skin-thumb {
+  flex: none;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 4px;
+  background:
+    radial-gradient(ellipse at 50% 92%, rgba(0, 0, 0, 0.35) 0 22%, transparent 23%),
+    linear-gradient(180deg, #3a3f47 0%, #262a30 100%);
+}
+.rg-skin-thumb--md {
+  width: 80px;
+  height: 96px;
+}
+.rg-skin-thumb--sm {
+  width: 48px;
+  height: 58px;
+}
+.rg-skin-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.rg-skin-thumb__fallback {
+  font-family: var(--rg-font-stencil);
+  font-size: 22px;
+  color: var(--rg-color-hench-yellow);
+}
+
+/* ---------- Editor: who, skin gallery, turntable ---------- */
+.rg-skin-editor {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "choices preview"
+    "actions actions";
+  gap: 12px 16px;
+  padding: 12px;
+  background: var(--rg-color-panel-surface);
+  border: 2px solid var(--rg-color-gold);
+  border-radius: var(--rg-radius-panel);
+}
+.rg-skin-editor__choices {
+  grid-area: choices;
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+.rg-skin-editor__preview {
+  grid-area: preview;
+  margin: 0;
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 4px;
+  text-align: center;
+}
+.rg-skin-editor__stage {
+  width: 220px;
+  height: 270px;
+  border-radius: 6px;
+  background: linear-gradient(180deg, #3a3f47 0%, #262a30 100%);
+  box-shadow: inset 0 0 0 1px var(--rg-color-panel-border);
+}
+.rg-skin-editor__actions {
+  grid-area: actions;
+  display: flex;
+  gap: 8px;
+}
+.rg-skin-editor__summary {
+  margin: 6px 0 0;
+}
+.rg-skin-choice {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.rg-skin-choice > legend {
+  padding: 0;
+  margin-bottom: 6px;
+}
+/* Native radios, visually hidden: the card or chip around them shows the state. */
+.rg-skin-who input,
+.rg-skin-chips input,
+.rg-skin-gallery input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+}
+.rg-skin-who {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
+}
+.rg-skin-who__card {
+  position: relative;
+  display: grid;
+  gap: 2px;
+  padding: 7px 10px;
+  border: 2px solid var(--rg-color-panel-border);
+  border-radius: 6px;
+  background: var(--rg-color-raised);
+  cursor: pointer;
+}
+.rg-skin-who__title {
+  font-weight: 700;
+}
+.rg-skin-who__hint {
+  font-size: 12px;
+  color: var(--rg-color-ink-muted);
+}
+.rg-skin-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.rg-skin-chip {
+  position: relative;
+  cursor: pointer;
+}
+.rg-skin-chip > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 2px solid var(--rg-color-panel-border);
+  border-radius: 999px;
+  background: var(--rg-color-raised);
+  font-size: 13px;
+}
+.rg-skin-chip i {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35);
+}
+.rg-skin-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 8px;
+}
+.rg-skin-gallery__item {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  padding: 6px 4px;
+  border: 2px solid var(--rg-color-panel-border);
+  border-radius: 6px;
+  background: var(--rg-color-raised);
+  cursor: pointer;
+  text-align: center;
+}
+.rg-skin-gallery__label {
+  font-size: 12px;
+  line-height: 1.2;
+}
+.rg-skin-who__card:hover,
+.rg-skin-chip:hover > span,
+.rg-skin-gallery__item:hover {
+  background: var(--rg-color-hover);
+}
+.rg-skin-who__card:has(input:checked),
+.rg-skin-chip:has(input:checked) > span,
+.rg-skin-gallery__item:has(input:checked) {
+  border-color: var(--rg-color-amber);
+  background: var(--rg-color-selected);
+}
+.rg-skin-gallery__item:has(input:checked) {
+  box-shadow: 0 0 0 2px var(--rg-color-gold);
+}
+.rg-skin-chip:has(input:checked) > span,
+.rg-skin-gallery__item:has(input:checked) .rg-skin-gallery__label {
+  font-weight: 700;
+}
+.rg-skin-who__card:has(input:focus-visible),
+.rg-skin-chip:has(input:focus-visible) > span,
+.rg-skin-gallery__item:has(input:focus-visible) {
+  outline: 3px solid var(--rg-color-blue);
+  outline-offset: 2px;
+}
+
+/* ---------- Narrow ---------- */
+@media (max-width: 620px) {
+  .rg-skin-editor {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "preview"
+      "choices"
+      "actions";
+  }
+}

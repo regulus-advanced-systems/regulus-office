@@ -44,7 +44,8 @@ export function HudDialogs() {
         open={overlay === "settings"}
         onClose={() => close("settings")}
         title="Settings"
-        width={460}
+        width={880}
+        className="rg-modal--settings"
         footer={
           <Button variant="primary" onClick={() => close("settings")}>
             Done
