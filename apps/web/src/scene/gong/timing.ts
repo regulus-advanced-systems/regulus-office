@@ -88,6 +88,23 @@ export function swingAngle(
   return angle;
 }
 
+/**
+ * The largest swing the ring's animation reaches, radians: the curve's own
+ * peak, evaluated over its whole span at 1 ms steps (not at rendered
+ * frames, which at a few fps can all land near a zero crossing). 0 with
+ * reduced motion or no ring.
+ */
+export function swingPeak(
+  ring: Pick<GongRingView, "at" | "strikes"> | null,
+  reducedMotion: boolean,
+): number {
+  if (!ring || reducedMotion) return 0;
+  let peak = 0;
+  for (let t = ring.at; t < lastStrikeAt(ring) + SWING_MS; t += 1)
+    peak = Math.max(peak, Math.abs(swingAngle(ring, t, false)));
+  return peak;
+}
+
 /** 0..1 glow of the disc: full at each strike, fading out over `GLOW_MS`. */
 export function glowAt(ring: Pick<GongRingView, "at" | "strikes"> | null, now: number): number {
   if (!ring) return 0;
