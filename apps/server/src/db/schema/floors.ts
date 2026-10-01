@@ -3,6 +3,7 @@
  * in desks.ts because they reference agents.
  */
 import {
+  DECOR_STYLES,
   DOOR_SIDES,
   FLOOR_ACCESSES,
   REPO_CLONE_STATUSES,
@@ -36,6 +37,12 @@ export const floors = sqliteTable(
     doorSide: enumText("door_side", DOOR_SIDES).notNull().default("south"),
     buildState: enumText("build_state", ROOM_BUILD_STATES).notNull().default("ready"),
     buildStartedAt: timestampMs("build_started_at"),
+    /**
+     * Room settings (#182): desks in the generated interior and its lair decor
+     * style. Floors migrated from a template get enough desks for its seats.
+     */
+    deskCount: integer("desk_count").notNull().default(1),
+    decorStyle: enumText("decor_style", DECOR_STYLES).notNull().default("ops_room"),
     archivedAt: timestampMs("archived_at"),
     ...timestamps(),
   },

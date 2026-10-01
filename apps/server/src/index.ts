@@ -44,6 +44,7 @@ import {
   createSessionRoomAuth,
   type RoomAuth,
 } from "./rooms/index.ts";
+import { mountRoomSettingsRoutes, RoomSettingsService } from "./rooms/settings/index.ts";
 import { createSearch } from "./search/index.ts";
 import { loadMasterKeyring, type MasterKeyring } from "./secrets/index.ts";
 import { createServices, type Services } from "./services/index.ts";
@@ -311,6 +312,16 @@ async function main(): Promise<void> {
     compound,
     floors: floors.service,
     lifecycle: floors.lifecycle,
+  });
+  // Room settings (#182): desk count and decor style, republished to the FloorRoom.
+  mountRoomSettingsRoutes(server.router, {
+    auth,
+    settings: new RoomSettingsService({
+      db,
+      onChange: (floorId) => {
+        rooms.floorChanged(floorId).catch((err) => logger.error({ err }, "floor refresh failed"));
+      },
+    }),
   });
   logger.info({ projectsDir: config.projectsDir }, "floor repos clone here");
   // Per-agent worktrees + one-click PR (#31). The AgentManager (#26) takes
