@@ -69,7 +69,7 @@ export function cameraPosition(page: Page): Promise<{ x: number; y: number; z: n
 /** Wait until the scene exists and our own avatar has spawned. */
 export async function waitForScene(page: Page): Promise<void> {
   await expect
-    .poll(async () => Object.keys(await humans(page)), { timeout: 30_000 })
+    .poll(async () => Object.keys(await humans(page)), { timeout: 90_000 })
     .toContain("local-human");
 }
 

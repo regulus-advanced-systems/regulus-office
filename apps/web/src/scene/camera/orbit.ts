@@ -18,7 +18,7 @@ export const CLOSE_PITCH_DEG = 30;
 /** Camera distance to its target at the closest zoom, metres. */
 export const MIN_DISTANCE = 5;
 /** Never zoom out less far than this, even in a tiny compound. */
-export const MIN_OVERVIEW_DISTANCE = 60;
+export const MIN_OVERVIEW_DISTANCE = 45;
 /** Default zoom: one room and its corridor junction fill the view. */
 export const DEFAULT_ZOOM = 0.42;
 /** Q/E turn this much per press. */
@@ -48,7 +48,7 @@ const smooth = (a: number, b: number, t: number) => {
 /** Distance to the target that frames a compound of `extent` metres (its larger side). */
 export function overviewDistance(extent: number, fovDeg = ORBIT_FOV_DEG): number {
   const half = Math.tan((fovDeg * DEG) / 2);
-  return Math.max(MIN_OVERVIEW_DISTANCE, (extent * 0.62) / half);
+  return Math.max(MIN_OVERVIEW_DISTANCE, (extent * 0.42) / half);
 }
 
 /** Camera distance for a zoom in [0, 1]: 0 is close third person, 1 the compound overview. */

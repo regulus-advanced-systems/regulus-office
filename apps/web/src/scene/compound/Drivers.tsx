@@ -8,15 +8,27 @@
 import { useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useMemo, useRef } from "react";
 import { getOfficeClient } from "../../net/index.ts";
+import { cameraView } from "../../state/camera.ts";
 import { useConnectionStore } from "../../state/connection.ts";
 import { usePlayerStore } from "../../state/player.ts";
 import type { CorridorChunk } from "./corridors.ts";
-import type { PlacedRoom } from "./placed.ts";
+import type { Bounds, PlacedRoom } from "./placed.ts";
 import { createPresenceMemory, pickRooms, type RoomPick, samePick } from "./presence.ts";
-import { frustumOf, sameSet, useVisibleStore, visibleIds } from "./visibility.ts";
+import { LOW_DRAW_DISTANCE, useQualityStore } from "./quality.ts";
+import { FAR_DISTANCE, frustumOf, sameSet, useVisibleStore, visibleIds } from "./visibility.ts";
 import type { CompoundWorld } from "./world.ts";
 
 const CULL_S = 0.25;
+
+/** Boxes within `radius` metres of the player (ground distance to the box). */
+function nearPlayer(radius: number) {
+  const p = usePlayerStore.getState();
+  return (b: { bounds: Bounds }) => {
+    const dx = Math.max(b.bounds.minX - p.x, 0, p.x - b.bounds.maxX);
+    const dz = Math.max(b.bounds.minZ - p.z, 0, p.z - b.bounds.maxZ);
+    return Math.hypot(dx, dz) <= radius;
+  };
+}
 const PRESENCE_S = 0.4;
 
 export function Culling({
@@ -48,11 +60,15 @@ export function Culling({
     const cam = state.camera ?? camera;
     cam.updateMatrixWorld();
     const frustum = frustumOf(cam);
-    const nextRooms = visibleIds(frustum, roomBoxes);
-    const nextChunks = visibleIds(frustum, chunkBoxes);
+    // The low tier only draws what is near the player (quality.ts).
+    const near =
+      useQualityStore.getState().quality === "low" ? nearPlayer(LOW_DRAW_DISTANCE) : undefined;
+    const nextRooms = visibleIds(frustum, near ? roomBoxes.filter(near) : roomBoxes);
+    const nextChunks = visibleIds(frustum, near ? chunkBoxes.filter(near) : chunkBoxes);
     const now = useVisibleStore.getState();
-    if (!sameSet(now.rooms, nextRooms) || !sameSet(now.chunks, nextChunks))
-      now.set({ rooms: nextRooms, chunks: nextChunks });
+    const far = cameraView.distance > (now.far ? FAR_DISTANCE * 0.9 : FAR_DISTANCE);
+    if (!sameSet(now.rooms, nextRooms) || !sameSet(now.chunks, nextChunks) || far !== now.far)
+      now.set({ rooms: nextRooms, chunks: nextChunks, far });
   });
   return null;
 }

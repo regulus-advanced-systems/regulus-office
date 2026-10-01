@@ -14,7 +14,12 @@ const HEIGHT = 3.6;
 export interface Visible {
   rooms: ReadonlySet<string>;
   chunks: ReadonlySet<string>;
+  /** The camera is far out (the overview): small fixtures are left out, they would be specks. */
+  far: boolean;
 }
+
+/** Camera distance beyond which the scene draws with less detail, metres (with hysteresis). */
+export const FAR_DISTANCE = 60;
 
 export interface VisibleStore extends Visible {
   set: (v: Visible) => void;
@@ -23,6 +28,7 @@ export interface VisibleStore extends Visible {
 export const useVisibleStore = create<VisibleStore>()((set) => ({
   rooms: new Set(),
   chunks: new Set(),
+  far: false,
   set: (v) => set(v),
 }));
 

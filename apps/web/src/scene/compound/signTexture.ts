@@ -64,7 +64,7 @@ export function paintSign(ctx: Ctx, t: SignText): void {
   ctx.fillStyle = t.building ? LAIR.yellow : "#F2E6C8";
   ctx.font = "bold 52px 'Courier New', monospace";
   ctx.fillText(title.toUpperCase(), w / 2, h * 0.38);
-  ctx.font = "bold 26px 'Courier New', monospace";
+  ctx.font = "bold 21px 'Courier New', monospace";
   ctx.fillStyle = t.building ? LAIR.yellow : t.waiting > 0 ? "#F28C28" : "#2EC4B6";
   ctx.fillText(status, w / 2, h * 0.74);
 }

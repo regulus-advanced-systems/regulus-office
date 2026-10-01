@@ -37,6 +37,7 @@ import { Culling, type PresenceTarget, RoomPresence } from "./Drivers.tsx";
 import { compoundNavGrid, lobbySpawn, navKey } from "./navigation.ts";
 import { createNavProbe } from "./navProbe.ts";
 import { blastDoors, placeRoom } from "./placed.ts";
+import { detectQuality, useQualityStore } from "./quality.ts";
 import { RoomLayers } from "./RoomLayers.tsx";
 import { useVisibleStore } from "./visibility.ts";
 import { builtBounds, type CompoundWorld, lobbyOf, worldExtent } from "./world.ts";
@@ -64,6 +65,7 @@ function Scene({ world, avatars, presence, send, children }: CompoundCanvasProps
   const firstPerson = cameraMode === "first_person";
   const rigMounted = firstPerson || mode === "first_person";
   const spawned = usePlayerStore((s) => s.spawned);
+  const quality = useQualityStore((s) => s.quality);
 
   const extent = worldExtent(world);
   // The overview frames the built rooms and corridors, not the whole empty grid.
@@ -144,17 +146,21 @@ function Scene({ world, avatars, presence, send, children }: CompoundCanvasProps
         intensity={1.4}
         color="#FFE6C4"
       />
-      <mesh
-        rotation-x={-Math.PI / 2}
-        position={[extent.w / 2, -0.03, extent.d / 2]}
-        raycast={() => null}
-      >
-        <planeGeometry args={[extent.w + 40, extent.d + 40]} />
-        <meshBasicMaterial color={BEDROCK} />
-      </mesh>
+      {quality === "high" && (
+        <mesh
+          rotation-x={-Math.PI / 2}
+          position={[extent.w / 2, -0.03, extent.d / 2]}
+          raycast={() => null}
+        >
+          <planeGeometry args={[extent.w + 40, extent.d + 40]} />
+          <meshBasicMaterial color={BEDROCK} />
+        </mesh>
+      )}
       <LairKit>
         <CutawayDriver focus={focus} enabled={!firstPerson} />
-        <LampLights lamps={lamps} focus={focus} count={6} intensity={4} distance={8} />
+        {quality === "high" && (
+          <LampLights lamps={lamps} focus={focus} count={6} intensity={4} distance={8} />
+        )}
         <CompoundStructure
           world={world}
           rooms={rooms}
@@ -190,6 +196,12 @@ function Scene({ world, avatars, presence, send, children }: CompoundCanvasProps
 export function CompoundCanvas(props: CompoundCanvasProps) {
   const hidden = useDocumentHidden();
   const showStats = useMemo(() => statsEnabled(window.location.search), []);
+  // Software WebGL (quality.ts): no MSAA, which multiplies its per-pixel work.
+  const quality = useMemo(() => {
+    const q = detectQuality(window.location.search);
+    useQualityStore.getState().set(q);
+    return q;
+  }, []);
   useEffect(() => {
     if (!showStats) return;
     window.__regulusNav = createNavProbe(() => useCompoundStore.getState().world ?? props.world);
@@ -203,17 +215,14 @@ export function CompoundCanvas(props: CompoundCanvasProps) {
         flat
         dpr={1}
         frameloop={hidden ? "never" : "always"}
-        gl={{ antialias: true, powerPreference: "high-performance" }}
+        gl={{ antialias: quality === "high", powerPreference: "high-performance" }}
         camera={{ fov: 40, near: 0.3, far: 600, position: [0, 30, 30] }}
         style={{ position: "absolute", inset: 0 }}
-        onCreated={
-          showStats
-            ? (state) => {
-                window.__regulusR3F = state;
-                window.__regulusFloorStore = useFloorStore;
-              }
-            : undefined
-        }
+        onCreated={(state) => {
+          if (!showStats) return;
+          window.__regulusR3F = state;
+          window.__regulusFloorStore = useFloorStore;
+        }}
       >
         <Scene {...props} />
         {showStats && <StatsOverlay />}
