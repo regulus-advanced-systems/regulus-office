@@ -5,12 +5,16 @@
 import { schema, t } from "@colyseus/schema";
 import { WorldPosSchema } from "./common.ts";
 
-export const AvatarLookSchema = schema(
+export const GeniusLookSchema = schema(
   {
-    colorSet: t.string().default(""),
-    accessory: t.string().default(""),
+    archetype: t.string().default("mastermind"),
+    outfit: t.string().default("charcoal"),
+    trim: t.string().default("brass"),
+    skin: t.string().default("light"),
+    hair: t.string().default("black"),
+    accessory: t.string().default("none"),
   },
-  "AvatarLook",
+  "GeniusLook",
 );
 
 export const HumanPresenceSchema = schema(
@@ -19,7 +23,7 @@ export const HumanPresenceSchema = schema(
     userId: t.string().default(""),
     displayName: t.string().default(""),
     role: t.string().default("viewer"),
-    avatar: AvatarLookSchema,
+    avatar: GeniusLookSchema,
     floorId: t.string().default(""),
     position: WorldPosSchema,
     animation: t.string().default("idle"),

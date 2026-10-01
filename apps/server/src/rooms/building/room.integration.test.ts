@@ -14,6 +14,8 @@ import {
   type ChatMessage,
   COMMAND_REJECTED_MESSAGE,
   type CommandRejected,
+  DEFAULT_GENIUS_LOOK,
+  type GeniusLookValue,
   LOBBY_FLOOR_ID,
   ROOM_NAMES,
 } from "@regulus/protocol";
@@ -278,6 +280,31 @@ describe("BuildingRoom over the wire", () => {
       ws.onerror = () => {};
     });
     expect(closed).not.toBe(1000);
+  });
+
+  test("another human sees the chosen genius, and a change in settings at once (#185)", async () => {
+    const diva: GeniusLookValue = {
+      ...DEFAULT_GENIUS_LOOK,
+      archetype: "diva",
+      outfit: "plum",
+      accessory: "tiara",
+    };
+    const ada = await joinAs(
+      JSON.stringify({ userId: "u-ada8", displayName: "Ada", avatar: diva }),
+    );
+    const bob = await joinAs(user("u-bob8", "Bob"));
+    await waitFor(() => bob.state.humans.has(ada.sessionId), "Ada visible");
+    expect(bob.state.humans.get(ada.sessionId)?.avatar.toJSON()).toEqual(diva);
+    expect(bob.state.humans.get(bob.sessionId)?.avatar.archetype).toBe("mastermind");
+
+    const general: GeniusLookValue = { ...diva, archetype: "general", accessory: "medals" };
+    rooms.building.setAvatar("u-ada8", general);
+    await waitFor(
+      () => bob.state.humans.get(ada.sessionId)?.avatar.archetype === "general",
+      "Bob sees Ada's new genius",
+    );
+    expect(bob.state.humans.get(ada.sessionId)?.avatar.toJSON()).toEqual(general);
+    expect(bob.state.humans.get(bob.sessionId)?.avatar.archetype).toBe("mastermind");
   });
 
   test("leaving removes presence and updates counters", async () => {

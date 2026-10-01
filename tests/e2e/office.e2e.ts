@@ -1,7 +1,7 @@
 /**
- * M0 smoke test (docs/SPEC.md §10 M0 exit criteria): the owner registers,
- * mints an invite in the UI, a second browser joins through the link, both
- * reach /office and see each other, one walks and the other sees it move,
+ * M0 smoke test (docs/SPEC.md §10 M0 exit criteria): the owner registers and
+ * picks a genius by keyboard in the first-login picker (#185), mints an invite in the UI, a second browser joins through the link, both
+ * reach /office and see each other's genius (and a genius changed in Settings at once), one walks and the other sees it move,
  * chat crosses between them and `/` search finds it (#41), the first-person view toggles on V and back,
  * the owner's robot turns to follow the mouse and walks face-first to a click,
  * the owner adds a floor bound to a (local) repo and rides to it, Floor
@@ -22,6 +22,7 @@ import { join } from "node:path";
 import { type BrowserContext, expect, type Page, test } from "@playwright/test";
 import { insideViewport, settledDialogLayout } from "./dialogLayout.ts";
 import { type FakeGitHub, startFakeGitHub } from "./fakeGitHub.ts";
+import { type GeniusLook, geniusOf, pickGenius, pickGeniusByKeyboard } from "./geniusChecks.ts";
 import { createRemoteRepo } from "./gitRemote.ts";
 import { checkMergeGong } from "./gongChecks.ts";
 import {
@@ -60,6 +61,8 @@ let memberPage: Page;
 let inviteUrl = "";
 /** The desk the spawn step used. */
 let spawnSeat = "";
+/** The owner's genius as picked at first login (#185). */
+let ownerGenius: GeniusLook;
 
 test.beforeAll(async ({ browser }) => {
   ownerCtx = await browser.newContext();
@@ -90,6 +93,19 @@ test("the first account becomes the owner", async () => {
   expect(await me.json()).toMatchObject({ displayName: owner.name, role: "owner" });
 });
 
+test("the first-login genius picker works by keyboard; the server keeps the pick (#185)", async () => {
+  const picked = await pickGeniusByKeyboard(ownerPage);
+  ownerGenius = picked;
+  expect(await (await ownerPage.request.get("/api/me")).json()).toMatchObject({
+    avatar: picked,
+    avatarChosen: true,
+  });
+  // Chosen once: the picker does not come back on the next visit.
+  await ownerPage.reload();
+  await expect(ownerPage.getByRole("button", { name: "Settings" })).toBeVisible();
+  await expect(ownerPage.getByRole("dialog", { name: "Choose your genius" })).toBeHidden();
+});
+
 test("the owner creates an invite link in the UI", async () => {
   await ownerPage.getByRole("button", { name: "Settings" }).click();
   await ownerPage.getByRole("button", { name: "Invite someone…" }).click();
@@ -109,6 +125,7 @@ test("a second browser joins through the invite", async () => {
   await register(memberPage, member, "Create account and join");
   const me = await memberPage.request.get("/api/me");
   expect(await me.json()).toMatchObject({ displayName: member.name, role: "member" });
+  await pickGenius(memberPage, "Diva");
 });
 
 test("both reach the office and see each other's avatar", async () => {
@@ -118,6 +135,33 @@ test("both reach the office and see each other's avatar", async () => {
   await waitForScene(memberPage);
   await expect.poll(() => remoteHumans(ownerPage)).toHaveLength(1);
   await expect.poll(() => remoteHumans(memberPage)).toHaveLength(1);
+  // Each sees the other's chosen genius (#185), and their own.
+  const [memberOnOwner] = await remoteHumans(ownerPage);
+  const [ownerOnMember] = await remoteHumans(memberPage);
+  await expect.poll(() => geniusOf(ownerPage, "local-human")).toEqual(ownerGenius);
+  await expect.poll(() => geniusOf(memberPage, ownerOnMember ?? "")).toEqual(ownerGenius);
+  await expect
+    .poll(async () => (await geniusOf(ownerPage, memberOnOwner ?? ""))?.archetype)
+    .toBe("diva");
+});
+
+test("the owner changes genius in Settings; the member sees it at once (#185)", async () => {
+  await ownerPage.bringToFront();
+  await ownerPage.getByRole("button", { name: "Settings" }).click();
+  const settings = ownerPage.getByRole("dialog", { name: "Settings" });
+  await expect(settings.getByText(/Scientist in crimson with flask/)).toBeVisible();
+  await settings.getByRole("button", { name: "Change genius…" }).click();
+  const picker = ownerPage.getByRole("dialog", { name: "Change your genius" });
+  await picker.getByText("General", { exact: true }).click();
+  await picker.getByRole("radio", { name: "Medals" }).check();
+  await picker.getByRole("button", { name: "Save genius" }).click();
+  // Back in Settings, which now describes the new genius.
+  await expect(settings.getByText(/General in crimson with medals/)).toBeVisible();
+  await settings.getByRole("button", { name: "Done" }).click();
+  ownerGenius = { ...ownerGenius, archetype: "general", accessory: "medals" };
+  const [ownerOnMember] = await remoteHumans(memberPage);
+  await expect.poll(() => geniusOf(memberPage, ownerOnMember ?? "")).toEqual(ownerGenius);
+  await expect.poll(() => geniusOf(ownerPage, "local-human")).toEqual(ownerGenius);
 });
 
 test("the member sees the owner walk", async () => {

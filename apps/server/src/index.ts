@@ -30,6 +30,7 @@ import { WsRouter } from "./http/ws-router.ts";
 import { createShutdownController, installSignalHandlers } from "./lifecycle.ts";
 import { createLogger } from "./logging.ts";
 import { createNotifications } from "./notifications/setup.ts";
+import { mountProfileRoutes } from "./profile/routes.ts";
 import { allObservers, createTaskQueue } from "./queue/index.ts";
 import {
   composeRoomAuth,
@@ -164,6 +165,11 @@ async function main(): Promise<void> {
       .use(rooms.transport.attachment),
   });
   mountAuthRoutes(server.router, auth);
+  // Genius avatars (#185): the picker saves here; the building room shows the change at once.
+  mountProfileRoutes(server.router, {
+    auth,
+    onAvatarChanged: (userId, look) => rooms.building.setAvatar(userId, look),
+  });
 
   let keyring: MasterKeyring | undefined;
   if (config.masterKey) {

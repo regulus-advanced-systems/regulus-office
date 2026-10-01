@@ -1,5 +1,5 @@
 /**
- * Another human's robot, interpolated toward its last presence through a
+ * Another human's genius (#185), interpolated toward its last presence through a
  * small delay buffer (scene/movement/remoteInterpolation.ts). Positions are
  * pushed into the buffer straight from the building store subscription and
  * applied in useFrame, so a 20 Hz patch stream causes no React renders; only
@@ -14,8 +14,9 @@ import type { Group } from "three";
 import { useShallow } from "zustand/react/shallow";
 import { type BuildingStore, useBuildingStore } from "../../state/building.ts";
 import { useFloorStore } from "../../state/floor.ts";
-import { HUMAN_PLATE_STYLE, presenceAnimation, RobotAvatar } from "../avatar/index.ts";
+import { presenceAnimation } from "../avatar/index.ts";
 import { sitAnchors } from "../furniture/sitAnchor.ts";
+import { GeniusAvatar } from "../geniuses/GeniusAvatar.tsx";
 import { createPoseBuffer } from "../movement/remoteInterpolation.ts";
 import { robotPlacement } from "../robots/seatPlacement.ts";
 
@@ -34,7 +35,11 @@ export function RemoteAvatar({ sessionId }: RemoteAvatarProps) {
       return h
         ? {
             name: h.displayName,
-            colorSet: h.avatar.colorSet,
+            archetype: h.avatar.archetype,
+            outfit: h.avatar.outfit,
+            trim: h.avatar.trim,
+            skin: h.avatar.skin,
+            hair: h.avatar.hair,
             accessory: h.avatar.accessory,
             seatId: h.seatId,
             doing: h.doing,
@@ -83,12 +88,11 @@ export function RemoteAvatar({ sessionId }: RemoteAvatarProps) {
   const animation: AvatarAnimation = walking ? "walk" : presenceAnimation(info);
   return (
     <group ref={group} name={`human-${sessionId}`}>
-      <RobotAvatar
-        look={{ colorSet: info.colorSet, accessory: info.accessory }}
+      <GeniusAvatar
+        look={info}
         animation={animation}
+        seated={seated !== null && !walking}
         name={info.name}
-        plateStyle={HUMAN_PLATE_STYLE}
-        badge
       />
     </group>
   );

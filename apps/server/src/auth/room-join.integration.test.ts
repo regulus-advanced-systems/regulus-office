@@ -107,7 +107,7 @@ describe("room join with the session cookie", () => {
     expect(presence?.userId).toBe(user.id);
     expect(presence?.displayName).toBe("Ada");
     expect(presence?.role).toBe("owner");
-    expect(presence?.avatar.colorSet).toBe("default");
+    expect(presence?.avatar.archetype).toBe("mastermind");
     expect(presence?.avatar.accessory).toBe("none");
   });
 

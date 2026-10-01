@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { DEFAULT_GENIUS_LOOK, type GeniusLookValue } from "@regulus/protocol";
 import type { SessionUser } from "../auth/auth.ts";
 import {
   composeRoomAuth,
@@ -8,6 +9,13 @@ import {
   denyAllAuth,
   type RoomAuthUser,
 } from "./auth.ts";
+
+const TEAL_SCIENTIST: GeniusLookValue = {
+  ...DEFAULT_GENIUS_LOOK,
+  archetype: "scientist",
+  outfit: "teal",
+  accessory: "goggles",
+};
 
 const request = (header?: string) =>
   new Request("http://office.test/matchmake/joinOrCreate/building", {
@@ -29,7 +37,7 @@ describe("dev header auth", () => {
       userId: "u1",
       displayName: "Ada",
       role: "member",
-      avatar: { colorSet: "default", accessory: "none" },
+      avatar: DEFAULT_GENIUS_LOOK,
     });
   });
 
@@ -40,12 +48,18 @@ describe("dev header auth", () => {
           userId: "u2",
           displayName: "Bob",
           role: "owner",
-          avatar: { colorSet: "teal", accessory: "cap" },
+          avatar: { archetype: "hacker", outfit: "teal", accessory: "visor", skin: "nope" },
         }),
       ),
     );
     expect(user?.role).toBe("owner");
-    expect(user?.avatar).toEqual({ colorSet: "teal", accessory: "cap" });
+    // Valid fields are kept; an unknown one falls back to the default genius's.
+    expect(user?.avatar).toEqual({
+      ...DEFAULT_GENIUS_LOOK,
+      archetype: "hacker",
+      outfit: "teal",
+      accessory: "visor",
+    });
   });
 
   test("rejects a missing, malformed or invalid header", async () => {
@@ -65,7 +79,7 @@ describe("composeRoomAuth", () => {
     userId: "u9",
     displayName: "Nine",
     role: "admin",
-    avatar: { colorSet: "default", accessory: "none" },
+    avatar: DEFAULT_GENIUS_LOOK,
   };
 
   test("returns the first user found and null when nobody matches", async () => {
@@ -81,7 +95,8 @@ describe("session room auth", () => {
     email: "ada@example.com",
     displayName: "Ada",
     role: "owner",
-    avatar: { colorSet: "teal", accessory: "visor" },
+    avatar: TEAL_SCIENTIST,
+    avatarChosen: true,
     sessionId: "s-1",
     sessionExpiresAt: new Date(0),
   };
@@ -101,7 +116,7 @@ describe("session room auth", () => {
       userId: "u-1",
       displayName: "Ada",
       role: "owner",
-      avatar: { colorSet: "teal", accessory: "visor" },
+      avatar: TEAL_SCIENTIST,
     });
     expect(await auth.authenticate(request())).toBeNull();
     expect(seen).toHaveLength(2);
