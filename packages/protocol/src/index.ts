@@ -4,6 +4,7 @@
  *
  * - enums.ts           string-literal enums + type guards
  * - common.ts          shared zod primitives (ids, timestamps, positions)
+ * - blast-door.ts      the lobby blast door: shared phases, buttons and timing (#188)
  * - building-state.ts  BuildingRoom state shapes (zod + inferred types)
  * - compound.ts        compound grid conventions, room placement, layout state and REST (#181)
  * - floor-state.ts     FloorRoom state shapes (zod + inferred types)
@@ -34,6 +35,7 @@
 export * from "./acl.ts";
 export * from "./agent-events.ts";
 export * from "./agent-messages.ts";
+export * from "./blast-door.ts";
 export * from "./boards-api.ts";
 export * from "./building-state.ts";
 export * from "./celebrations.ts";

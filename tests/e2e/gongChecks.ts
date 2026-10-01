@@ -54,6 +54,7 @@ export async function checkMergeGong(page: Page, opts: { githubPort: number; flo
     await walkInto(page, opts.floor);
     await expect.poll(() => scenePoint(page, GONG)).not.toBeNull();
     const strikes = await gongStrikes(page);
+    const ringBefore = (await sampleGong(page, 0)).swing.ringId;
     const seated = await robotPoses(page);
 
     // Merge from the PR board: the office rings at once, without waiting for a poll.
@@ -69,7 +70,11 @@ export async function checkMergeGong(page: Page, opts: { githubPort: number; flo
       page.locator(".rg-toast", { hasText: "Pull request merged" }).filter({ hasText: "#12" }),
     ).toBeVisible();
     expect(ringing.strikes, JSON.stringify(ringing)).toBe(strikes + 1);
-    expect(ringing.maxSwing, JSON.stringify(ringing)).toBeGreaterThan(0.05);
+    // The disc swings: a new ring whose swing animation reaches a real angle, and that the page
+    // drew off centre. Read from the gong's own record, not from frames sampled at 1-3 fps.
+    expect(ringing.swing.ringId, JSON.stringify(ringing)).toBeGreaterThan(ringBefore);
+    expect(ringing.swing.peak, JSON.stringify(ringing)).toBeGreaterThan(0.05);
+    expect(ringing.swing.frames, JSON.stringify(ringing)).toBeGreaterThan(0);
     expect(ringing.maxConfetti, JSON.stringify(ringing)).toBeGreaterThan(0);
     for (const [id, pose] of Object.entries(seated))
       if (pose.seated) expect(ringing.cheered, `robot ${id} cheers`).toContain(id);

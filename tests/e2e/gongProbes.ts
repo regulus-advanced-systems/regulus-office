@@ -1,6 +1,7 @@
 /**
  * Probes for the merge gong (#43; needs `?stats`, see probes.ts): the gong group
- * `gong-<anchorId>` (userData: strikes heard, ring id), its swinging part `gong-swing`, the
+ * `gong-<anchorId>` (userData: strikes heard, ring id, the ring's swing animation: its peak and
+ * the frames drawn with the disc off centre), its swinging part `gong-swing`, the
  * `gong-confetti` instanced mesh, and each robot's `robot-<agentId>` group (userData
  * `cheering`, `animation`, `seated`; its placement on the seat).
  */
@@ -16,10 +17,22 @@ export interface RobotPose {
   cheering: boolean;
 }
 
+/** The gong's own record of its current ring's swing (GongObject userData). */
+export interface GongSwing {
+  /** The ring the record is for (0: none heard). */
+  ringId: number;
+  /** The peak of the swing curve this ring plays, radians (not a frame sample). */
+  peak: number;
+  /** Frames drawn with the disc off centre for this ring. */
+  frames: number;
+}
+
 export interface GongSample {
   /** Strikes the page has heard, from the gong's userData. */
   strikes: number;
-  /** Largest swing of the disc seen, radians. */
+  /** The gong's record of its current ring's swing, when sampling ended. */
+  swing: GongSwing;
+  /** Largest swing of the disc seen in a sampled frame, radians (for the report only). */
   maxSwing: number;
   /** The swing when sampling ended. */
   lastSwing: number;
@@ -48,6 +61,7 @@ export function sampleGong(page: Page, ms: number): Promise<GongSample> {
     ).__regulusR3F;
     const out = {
       strikes: 0,
+      swing: { ringId: 0, peak: 0, frames: 0 },
       maxSwing: 0,
       lastSwing: 0,
       maxConfetti: 0,
@@ -70,8 +84,15 @@ export function sampleGong(page: Page, ms: number): Promise<GongSample> {
       let confetti = 0;
       const robots: Record<string, RobotPose> = {};
       r3f?.scene.traverse((o) => {
-        if (o.name.startsWith("gong-") && typeof o.userData.strikes === "number")
+        if (o.name.startsWith("gong-") && typeof o.userData.strikes === "number") {
           out.strikes = o.userData.strikes;
+          const swung = o.userData.swung as { ringId: number; frames: number } | undefined;
+          out.swing = {
+            ringId: Number(o.userData.ringId ?? 0),
+            peak: Number(o.userData.swingPeak ?? 0),
+            frames: swung && swung.ringId === o.userData.ringId ? swung.frames : 0,
+          };
+        }
         if (o.name === "gong-swing") swing = Math.max(swing, Math.abs(o.rotation.x));
         if (o.name === "gong-confetti" && o.visible) confetti += o.count ?? 0;
         if (o.name.startsWith("robot-") && "status" in o.userData) {

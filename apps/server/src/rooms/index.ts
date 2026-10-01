@@ -4,6 +4,7 @@
  * and the FloorRoom (SPEC §6 channel 2, one instance per floor).
  */
 import { ROOM_NAMES } from "@regulus/protocol";
+import { AUDIT_ACTIONS, writeAudit } from "../auth/audit.ts";
 import { originPolicyFor } from "../auth/origin.ts";
 import type { Db } from "../db/index.ts";
 import type { Logger } from "../logging.ts";
@@ -40,6 +41,8 @@ export interface RoomsOptions {
   /** OFFICE_PUBLIC_URL; browsers may only connect from this origin (plus localhost in dev). */
   publicUrl: string;
   production: boolean;
+  /** How long the blast door stays open after a press, ms (default 60 s, #188). */
+  blastDoorMs?: number;
 }
 
 export interface Rooms {
@@ -54,7 +57,7 @@ export interface Rooms {
 }
 
 export function createRooms(options: RoomsOptions): Rooms {
-  const { db, logger, auth, publicUrl, production } = options;
+  const { db, logger, auth, publicUrl, production, blastDoorMs } = options;
   const transport = new ColyseusRoomTransport({
     auth,
     logger,
@@ -66,6 +69,22 @@ export function createRooms(options: RoomsOptions): Rooms {
     floors: new DrizzleFloorSource(db),
     logger: logger.child({ room: ROOM_NAMES.building }),
     canVisit: (user, floorId) => floorSource.canEnter(user, floorId),
+    blastDoor: {
+      openMs: blastDoorMs,
+      audit: (press) => {
+        try {
+          writeAudit(db, {
+            userId: press.userId,
+            action: AUDIT_ACTIONS.compoundBlastDoorOpen,
+            targetKind: "compound",
+            targetId: "blast_door",
+            meta: { side: press.side, held: press.held },
+          });
+        } catch (err) {
+          logger.error({ err }, "blast door audit failed");
+        }
+      },
+    },
   });
   const floors = createFloorRooms({
     source: floorSource,

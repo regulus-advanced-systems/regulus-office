@@ -31,6 +31,7 @@ import { applyUsageSummary } from "../../usage/room-state.ts";
 import type { RoomAuthUser } from "../auth.ts";
 import { CHAT_REPLAY, type ChatStore } from "../chat/store.ts";
 import type { RoomClient, RoomDefinition, RoomHandle } from "../transport.ts";
+import { type BlastDoorOptions, createBlastDoor } from "./blast-door.ts";
 import { checkCommand, wrapHeading } from "./commands.ts";
 import { type FloorRecord, type FloorSource, isKnownFloor } from "./floors.ts";
 import { RateLimiter } from "./rate-limiter.ts";
@@ -56,6 +57,8 @@ export interface BuildingRoomDeps {
   now?: () => number;
   /** May this user go to this floor (lobby excluded)? Default: yes. */
   canVisit?(user: RoomAuthUser, floorId: string): boolean;
+  /** The lobby's blast door (#188): open time and the audit of presses. */
+  blastDoor?: BlastDoorOptions;
 }
 
 export interface BuildingRoom extends RoomDefinition<BuildingState, BuildingJoinOptions> {
@@ -96,6 +99,7 @@ export function createBuildingRoom(deps: BuildingRoomDeps): BuildingRoom {
   let usage: UsageSummary | undefined;
   let compound: CompoundSnapshot | undefined;
   let handle: RoomHandle<BuildingState> | undefined;
+  const blastDoor = createBlastDoor(deps.blastDoor ?? {}, now);
 
   const reject = (client: RoomClient, type: string, reason: string) => {
     const notice: CommandRejected = { type, reason };
@@ -159,6 +163,7 @@ export function createBuildingRoom(deps: BuildingRoomDeps): BuildingRoom {
 
   const sweep = () => {
     if (!handle) return;
+    blastDoor.tick(handle.state.blastDoor);
     const t = now();
     handle.state.humans.forEach((human, sessionId) => {
       const book = books.get(sessionId);
@@ -236,6 +241,17 @@ export function createBuildingRoom(deps: BuildingRoomDeps): BuildingRoom {
           setAnimation(human, "idle");
           recountHumans();
         }
+        return;
+      }
+      case "blast_door.press": {
+        const result = blastDoor.press(
+          room.state.blastDoor,
+          { userId: human.userId, displayName: human.displayName },
+          human.position,
+          compound?.state,
+        );
+        if (!result.ok) reject(client, command.type, result.reason);
+        else logger.info(result.press, "blast door pressed");
         return;
       }
       default:

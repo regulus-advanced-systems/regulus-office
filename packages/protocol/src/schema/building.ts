@@ -178,6 +178,17 @@ export const CompoundStateSchema = schema(
   "CompoundState",
 );
 
+export const BlastDoorStateSchema = schema(
+  {
+    phase: t.string().default("closed"),
+    openedAt: t.number().default(0),
+    closesAt: t.number().default(0),
+    openedBy: t.string().default(""),
+    presses: t.uint32().default(0),
+  },
+  "BlastDoorState",
+);
+
 export const BuildingStateSchema = schema(
   {
     humans: t.map(HumanPresenceSchema),
@@ -187,6 +198,7 @@ export const BuildingStateSchema = schema(
     usage: UsageSummarySchema,
     pm: PmStateSchema,
     compound: CompoundStateSchema,
+    blastDoor: BlastDoorStateSchema,
   },
   "BuildingState",
 );

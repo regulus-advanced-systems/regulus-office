@@ -4,6 +4,7 @@
  * classes in ./schema mirror them field-for-field (see schema/lockstep.test.ts).
  */
 import { z } from "zod";
+import { BlastDoorState } from "./blast-door.ts";
 import { Count, Id, TimestampMs, WorldPos } from "./common.ts";
 import { CompoundState, DOOR_SIDES, ROOM_BUILD_STATES } from "./compound.ts";
 import {
@@ -241,5 +242,7 @@ export const BuildingState = z.object({
   pm: PmState,
   /** Compound grid, special rooms and corridors (SPEC §9.1); rooms are in `floors`. */
   compound: CompoundState,
+  /** The lobby's blast door (#188): shared, opened by a button, shuts on a timer. */
+  blastDoor: BlastDoorState,
 });
 export type BuildingState = z.infer<typeof BuildingState>;

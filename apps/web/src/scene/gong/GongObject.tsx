@@ -13,7 +13,7 @@ import { anchorPlacement } from "../furniture/placement.ts";
 import { scopedName, useRoomScope } from "../roomScope.ts";
 import { BrassGongLook, GONG_DEPTH, type GongLook } from "./BrassGongLook.tsx";
 import { useGongStore } from "./gongStore.ts";
-import { glowAt, swingAngle } from "./timing.ts";
+import { glowAt, swingAngle, swingPeak } from "./timing.ts";
 
 export interface GongObjectProps {
   wall: Wall;
@@ -46,10 +46,23 @@ export function GongObject({
     // Named for the e2e probes (tests/e2e/gongProbes.ts).
     if (swing.current) swing.current.name = scopedName(scope, "gong-swing");
   });
+  // The animation the current ring plays (e2e probes read it rather than sampling frames).
+  const peak = useMemo(() => swingPeak(ring, reducedMotion), [ring, reducedMotion]);
+  const swung = useRef({ ringId: 0, frames: 0, last: 0 });
   useFrame(() => {
     const now = performance.now();
-    if (swing.current) swing.current.rotation.x = swingAngle(ring, now, reducedMotion);
+    const angle = swingAngle(ring, now, reducedMotion);
+    if (swing.current) swing.current.rotation.x = angle;
     glow.value = glowAt(ring, now);
+    // Frames drawn with the disc off centre for this ring, and the time of the last one.
+    const id = ring?.id ?? 0;
+    // Mutated in place: `userData.swung` holds this very object.
+    if (swung.current.ringId !== id)
+      Object.assign(swung.current, { ringId: id, frames: 0, last: 0 });
+    if (angle !== 0) {
+      swung.current.frames += 1;
+      swung.current.last = now;
+    }
   });
 
   const click = (event: ThreeEvent<MouseEvent>) => {
@@ -64,7 +77,14 @@ export function GongObject({
       rotation-y={p.rotationY}
       name={scopedName(scope, `gong-${anchor.id}`)}
       // Read by the e2e probes; plain data, no behaviour.
-      userData={{ strikes, ringId: ring?.id ?? 0, cause: ring?.cause ?? null }}
+      userData={{
+        strikes,
+        ringId: ring?.id ?? 0,
+        cause: ring?.cause ?? null,
+        ringAt: ring?.at ?? 0,
+        swingPeak: peak,
+        swung: swung.current,
+      }}
     >
       <Look
         w={anchor.w}

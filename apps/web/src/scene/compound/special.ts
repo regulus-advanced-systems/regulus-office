@@ -86,13 +86,13 @@ function lobby(w: number, d: number): SpecialDressing {
       { model: "coffee_table", rect: R(w - 6.6, d - 6.6, 2, 1.2), facing: "north" },
       { model: "floor_lamp", rect: R(w - 2.4, d - 3.4, 0.7, 0.7), facing: "west" },
       { model: "jukebox", rect: R(w - 4.6, 0.5, 1.2, 0.8), facing: "south" },
-      // Plants in the corners, a bench by the blast door.
+      // Plants in the corners; a bench and a planter by the blast door, clear of its button.
       { model: "plant", rect: R(0.5, 0.4, 0.9, 0.9), facing: "south" },
       { model: "plant", rect: R(w - 1.4, 0.4, 0.9, 0.9), facing: "south" },
       { model: "plant", rect: R(w - 1.4, d - 1.3, 0.9, 0.9), facing: "north" },
-      { model: "planter", rect: R(w / 2 - 6.5, d - 1.1, 2.2, 0.6), facing: "north" },
+      { model: "planter", rect: R(w / 2 - 8.2, d - 1.1, 2, 0.6), facing: "north" },
       { model: "planter", rect: R(w / 2 + 4.3, d - 1.1, 2.2, 0.6), facing: "north" },
-      { model: "bench", rect: R(3.2, d - 1.1, 2.2, 0.6), facing: "north" },
+      { model: "bench", rect: R(1.6, d - 1.1, 2.2, 0.6), facing: "north" },
     ],
     extras: [
       chair("swivel_chair", 0.95, d / 2 - 0.5, "east"),

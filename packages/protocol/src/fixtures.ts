@@ -155,6 +155,13 @@ export const buildingFixture: BuildingState = {
     blastDoorY: 64,
     blastDoorWidth: 4,
   },
+  blastDoor: {
+    phase: "open",
+    openedAt: 1_700_000_100_000,
+    closesAt: 1_700_000_160_000,
+    openedBy: "Ante",
+    presses: 3,
+  },
 };
 
 export const robotFixture: RobotState = {

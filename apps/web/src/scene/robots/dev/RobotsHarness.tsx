@@ -21,6 +21,8 @@ import { FpsProbe } from "../../avatar/showcase/FpsProbe.tsx";
 import { AvatarLayer } from "../../avatars/AvatarLayer.tsx";
 import { CompoundCanvas } from "../../compound/CompoundCanvas.tsx";
 import { roomLayout } from "../../compound/interiors.ts";
+import { useDoorOverride } from "../../compound/outside/doorState.ts";
+import { dockPoint, type OutsideLayout, outsideLayout } from "../../compound/outside/layout.ts";
 import { type TestRoom, testWorld } from "../../compound/testing.ts";
 import { roomById } from "../../compound/world.ts";
 import { useGongStore } from "../../gong/gongStore.ts";
@@ -108,6 +110,15 @@ function ring(strikes: number) {
   });
 }
 
+/** Where `at=` puts the player: in the lobby facing the blast door, on the beach, on the dock. */
+function harnessSpot(layout: OutsideLayout, at: string | null) {
+  const c = layout.door.centre;
+  if (at === "lobby") return { x: c, z: layout.edgeZ - 4, heading: Math.PI };
+  if (at === "beach") return { x: c - 2, z: layout.edgeZ + 5, heading: 0 };
+  if (at === "dock") return { ...dockPoint(layout, 0.8), heading: 0 };
+  return null;
+}
+
 export function RobotsHarness({ search }: { search: string }) {
   const params = new URLSearchParams(search);
   const n = Number(params.get("n") ?? 12);
@@ -144,8 +155,23 @@ export function RobotsHarness({ search }: { search: string }) {
         },
         "compound",
       );
+    // The blast door and the outside (#188): `door=open|closing|closed|alarm`, `at=lobby|beach|dock`.
+    // `doorAfter=<ms>` applies it later, to catch the leaves moving.
+    const door = q.get("door");
+    const applyDoor = () => {
+      if (door === "open" || door === "closing" || door === "closed")
+        useDoorOverride.getState().set({ phase: door });
+      if (door === "alarm") useDoorOverride.getState().set({ phase: "closed", alarm: true });
+    };
+    const doorTimer = setTimeout(applyDoor, Number(q.get("doorAfter") ?? 0));
+    const outside = outsideLayout(world);
+    const spot = outside ? harnessSpot(outside, q.get("at")) : null;
+    if (spot) usePlayerStore.getState().spawnAt(spot, "compound");
     const timer = setInterval(() => setTick((t) => t + 1), 1000 / Math.max(0.1, rate));
-    return () => clearInterval(timer);
+    return () => {
+      clearInterval(timer);
+      clearTimeout(doorTimer);
+    };
   }, [rate, search, world]);
 
   useEffect(() => {

@@ -23,6 +23,7 @@ import {
   STRIKE_GAP_MS,
   SWING_MS,
   swingAngle,
+  swingPeak,
 } from "./timing.ts";
 
 describe("gong anchor", () => {
@@ -94,6 +95,11 @@ describe("timing", () => {
     expect(swingAngle(ring, 1000 + SWING_MS, false)).toBe(0);
     expect(swingAngle(ring, 1300, true)).toBe(0);
     expect(swingAngle(null, 1300, false)).toBe(0);
+    // The curve's own peak, whatever the frame rate that draws it.
+    expect(swingPeak(ring, false)).toBeGreaterThanOrEqual(max);
+    expect(swingPeak(ring, false)).toBeLessThan(max + 0.01);
+    expect(swingPeak(ring, true)).toBe(0);
+    expect(swingPeak(null, false)).toBe(0);
     // Three strikes: the last one lands two gaps later and the swing ends after it.
     expect(lastStrikeAt(triple)).toBe(1000 + 2 * STRIKE_GAP_MS);
     expect(swingAngle(triple, lastStrikeAt(triple) + 200, false)).not.toBe(0);
