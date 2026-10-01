@@ -120,6 +120,13 @@
       "when": 1790818492416,
       "tag": "0016_genius_avatar",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "6",
+      "when": 1790819000000,
+      "tag": "0017_room_seats",
+      "breakpoints": true
     }
   ]
 }

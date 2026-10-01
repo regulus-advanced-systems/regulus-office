@@ -221,6 +221,8 @@ describe("BuildingRoom over the wire", () => {
       robotsWorking: 0,
       robotsTotal: 0,
       humansPresent: 0,
+      deskCount: 1,
+      decorStyle: "ops_room",
     });
 
     ada.send("floor.go", { floorId, mode: "teleport" });

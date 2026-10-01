@@ -21,16 +21,17 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 import { createDingGate, playDing } from "../../audio/ding.ts";
 import { useFloorStore } from "../../state/floor.ts";
 import { useFloorsStore } from "../../state/floors.ts";
-import { usePlayerStore } from "../../state/player.ts";
 import { useRobotOverrides } from "../../state/robotOverrides.ts";
 import { useSpawnStore } from "../../state/spawn.ts";
 import { selectReducedMotion, useUiStore } from "../../state/ui.ts";
 import { openAgentPanel } from "../../ui/agent/agentStore.ts";
 import { carriedPrefill, dropCard, useMyCarried } from "../../ui/boards/carry.ts";
+import type { HotkeyEventDetail } from "../../ui/hotkeys/registry.ts";
 import { useHotkeyEvents } from "../../ui/hotkeys/useHotkeys.ts";
-import { FALLBACK_ANCHOR, sitAnchors } from "../furniture/sitAnchor.ts";
+import { FALLBACK_ANCHOR, type SitAnchor, sitAnchors } from "../furniture/sitAnchor.ts";
 import { useGongStore } from "../gong/gongStore.ts";
 import { ROBOT_CONFETTI } from "../gong/timing.ts";
+import { playerInRoom, scopedName, useRoomScope, walkInRoom } from "../roomScope.ts";
 import { type BubbleSource, WorkBubbles } from "./bubbles/WorkBubbles.tsx";
 import { Confetti, createConfettiBus } from "./Confetti.tsx";
 import { freeDeskAt } from "./deskInteraction.ts";
@@ -45,6 +46,8 @@ export interface RobotLayerProps {
   template: FloorTemplate;
   /** Robots to draw; defaults to the FloorRoom's (the dev harness passes fakes). */
   robots?: Readonly<Record<string, RobotState>>;
+  /** Sit anchors per seat; defaults to the template's furniture models (the lair's chairs in the compound). */
+  anchorsFor?: (template: FloorTemplate) => ReadonlyMap<string, SitAnchor>;
 }
 
 /** Open the spawn dialog at a free desk (prefilled from a carried card), if this human may spawn here. */
@@ -86,6 +89,7 @@ function DeskHotspots({
   agentAt: (seatId: string) => string | undefined;
   onSpawn: (seatId: string) => void;
 }) {
+  const scope = useRoomScope();
   return (
     <group name="desk-hotspots">
       {seats.map((seat) => {
@@ -99,13 +103,15 @@ function DeskHotspots({
             return;
           }
           // Walk over to the desk while the dialog is up.
-          usePlayerStore.getState().setTarget(seat.pose.x, seat.pose.z);
+          walkInRoom(scope, seat.pose.x, seat.pose.z);
           onSpawn(seat.id);
         };
         return (
           <mesh
             key={seat.id}
             name={`desk-hotspot-${seat.id}`}
+            // Hit target only: invisible objects still take pointer events but cost no draw call.
+            visible={false}
             position={[seat.pose.x - f.x * 0.05, 0.6, seat.pose.z - f.z * 0.05]}
             rotation-y={seat.pose.heading}
             onClick={click}
@@ -121,8 +127,9 @@ function DeskHotspots({
   );
 }
 
-export function RobotLayer({ template, robots: given }: RobotLayerProps) {
-  const live = useFloorStore((s) => s.state?.robots ?? EMPTY);
+export function RobotLayer({ template, robots: given, anchorsFor = sitAnchors }: RobotLayerProps) {
+  const scope = useRoomScope();
+  const live = scope.store((s) => s.state?.robots ?? EMPTY);
   const robots = given ?? live;
   const overrides = useRobotOverrides((s) => s.overrides);
   const reducedMotion = useUiStore(selectReducedMotion);
@@ -131,7 +138,7 @@ export function RobotLayer({ template, robots: given }: RobotLayerProps) {
 
   const deskSeats = useMemo(() => template.seats.filter((s) => s.kind === "desk"), [template]);
   const seatsById = useMemo(() => new Map(template.seats.map((s) => [s.id, s])), [template]);
-  const anchors = sitAnchors(template);
+  const anchors = useMemo(() => anchorsFor(template), [anchorsFor, template]);
   const occupiedKey = Object.values(robots)
     .map((r) => `${r.seatId}=${r.agentId}`)
     .sort()
@@ -149,14 +156,17 @@ export function RobotLayer({ template, robots: given }: RobotLayerProps) {
   // `E` at a free desk.
   useHotkeyEvents(
     useCallback(
-      (detail: { id: string }) => {
-        if (detail.id !== "interact") return;
-        const player = usePlayerStore.getState();
+      (detail: HotkeyEventDetail) => {
+        if (detail.id !== "interact" || !scope.interactive) return;
+        const player = playerInRoom(scope);
         if (!player.spawned) return;
         const seat = freeDeskAt(deskSeats, player, (id) => occupied.has(id));
-        if (seat) openSpawn(seat.id);
+        if (seat) {
+          detail.handled = true;
+          openSpawn(seat.id);
+        }
       },
-      [deskSeats, occupied, openSpawn],
+      [deskSeats, occupied, openSpawn, scope],
     ),
   );
 
@@ -173,7 +183,7 @@ export function RobotLayer({ template, robots: given }: RobotLayerProps) {
   useEffect(
     () =>
       useGongStore.subscribe((s, prev) => {
-        if (!s.ring || s.ring.id === prev.ring?.id || reducedMotion) return;
+        if (!s.ring || s.ring.id === prev.ring?.id || reducedMotion || !scope.interactive) return;
         for (const seat of seatsOfRobots.current) {
           confetti.pending.push({
             x: seat.pose.x,
@@ -183,9 +193,9 @@ export function RobotLayer({ template, robots: given }: RobotLayerProps) {
           });
         }
       }),
-    [confetti, reducedMotion],
+    [confetti, reducedMotion, scope],
   );
-  // A ding when a hand goes up.
+  // A ding when a hand goes up (in the room the player is in).
   const ding = useMemo(() => createDingGate(), []);
   const prev = useRef<Readonly<Record<string, RobotState>>>({});
   useEffect(() => {
@@ -194,12 +204,12 @@ export function RobotLayer({ template, robots: given }: RobotLayerProps) {
     let rang = false;
     for (const r of Object.values(robots)) {
       const old = before[r.agentId];
-      if (!rang && raisesHand(old, r)) {
+      if (!rang && scope.interactive && raisesHand(old, r)) {
         rang = true;
         if (ding({ now: performance.now(), volume, reducedMotion })) playDing(volume);
       }
     }
-  }, [robots, reducedMotion, volume, ding]);
+  }, [robots, reducedMotion, volume, ding, scope]);
 
   const visible = useMemo(
     () => Object.values(robots).filter((r) => !(r.agentId in overrides) && seatsById.has(r.seatId)),
@@ -217,7 +227,7 @@ export function RobotLayer({ template, robots: given }: RobotLayerProps) {
   );
 
   return (
-    <group name="robots">
+    <group name={scopedName(scope, "robots")}>
       {visible.map((r) => {
         const seat = seatsById.get(r.seatId) as Seat;
         return (
@@ -227,15 +237,17 @@ export function RobotLayer({ template, robots: given }: RobotLayerProps) {
               seat={seat}
               anchor={anchors.get(seat.id) ?? FALLBACK_ANCHOR}
               reducedMotion={reducedMotion}
-              onSelect={openAgentPanel}
+              onSelect={scope.interactive ? openAgentPanel : undefined}
               onCelebrate={burst}
             />
             <NameDecal seat={seat} ownerName={r.ownerName} model={r.model} />
           </group>
         );
       })}
-      <DeskHotspots seats={deskSeats} agentAt={agentAt} onSpawn={openSpawn} />
-      {!reducedMotion && <WorkBubbles sources={sources} />}
+      {scope.interactive && (
+        <DeskHotspots seats={deskSeats} agentAt={agentAt} onSpawn={openSpawn} />
+      )}
+      {!reducedMotion && scope.interactive && <WorkBubbles sources={sources} />}
       {!reducedMotion && <Confetti bus={confetti} />}
     </group>
   );

@@ -1,0 +1,180 @@
+/**
+ * Walking the compound in the e2e flows (#186): read the player's nav state through
+ * `window.__regulusNav` (published with `?stats`, apps/web/src/scene/compound/navProbe.ts)
+ * and walk by state, never by a screen position. `walkTo` does what a floor click does
+ * (A* across corridors and through doors); the flows wait for where the player ends up
+ * (the room under them, the room the HUD shows), whatever the page's frame rate.
+ */
+import { expect, type Page } from "@playwright/test";
+
+export interface NavPose {
+  x: number;
+  z: number;
+  heading: number;
+  spawned: boolean;
+  walking: boolean;
+  room: string | null;
+  floorId: string | null;
+}
+
+export interface NavRoom {
+  id: string;
+  name: string;
+  kind: string;
+  enterable: boolean;
+  buildState: string;
+  x: number;
+  z: number;
+  w: number;
+  d: number;
+  /** A walkable point just inside the door (a special room's middle). */
+  inside: { x: number; z: number };
+}
+
+interface Nav {
+  pose(): NavPose;
+  rooms(): NavRoom[];
+  seat(floorId: string, seatId: string): { x: number; z: number } | null;
+  walkTo(x: number, z: number): boolean;
+  walkToSeat(floorId: string, seatId: string): boolean;
+  terminalDesk(): string | null;
+  camera(): CameraState;
+}
+
+export interface CameraState {
+  yaw: number;
+  wantYaw: number;
+  zoom: number;
+  wantZoom: number;
+  distance: number;
+}
+
+function probe(): Nav {
+  const n = (window as unknown as { __regulusNav?: Nav }).__regulusNav;
+  if (!n) throw new Error("no __regulusNav (open the page with ?stats)");
+  return n;
+}
+
+export const navPose = (page: Page): Promise<NavPose> =>
+  page.evaluate(`(${probe.toString()})().pose()`) as Promise<NavPose>;
+export const navRooms = (page: Page): Promise<NavRoom[]> =>
+  page.evaluate(`(${probe.toString()})().rooms()`) as Promise<NavRoom[]>;
+/** The desk `E` would open the terminal of, here and now (the live laptop panel's rule). */
+export const terminalDesk = (page: Page): Promise<string | null> =>
+  page.evaluate(`(${probe.toString()})().terminalDesk()`) as Promise<string | null>;
+/** The 3/4 camera's shown and requested yaw and zoom. */
+export const cameraState = (page: Page): Promise<CameraState> =>
+  page.evaluate(`(${probe.toString()})().camera()`) as Promise<CameraState>;
+
+/** Wait until the camera has eased to the yaw and zoom asked for; returns that state. */
+export async function cameraSettled(page: Page): Promise<CameraState> {
+  await expect
+    .poll(async () => {
+      const c = await cameraState(page);
+      return Math.abs(c.yaw - c.wantYaw) + Math.abs(c.zoom - c.wantZoom);
+    })
+    .toBeLessThan(0.002);
+  return cameraState(page);
+}
+
+/** Turn the mouse wheel over the scene until the camera asks for `zoom` (0 close .. 1 overview). */
+export async function wheelZoomTo(page: Page, zoom: number): Promise<CameraState> {
+  for (let i = 0; i < 80; i++) {
+    const want = (await cameraState(page)).wantZoom;
+    if (Math.abs(want - zoom) <= 0.02) break;
+    await page.mouse.wheel(0, Math.max(-200, Math.min(200, (zoom - want) / 0.0008)));
+  }
+  return cameraSettled(page);
+}
+
+/** Walk to a compound point, like a click on the floor there; true when a path exists. */
+export const walkTo = (page: Page, x: number, z: number): Promise<boolean> =>
+  page.evaluate(`(${probe.toString()})().walkTo(${x}, ${z})`) as Promise<boolean>;
+/** Walk up behind a desk's chair; true when a path exists. */
+export const walkToSeat = (page: Page, floorId: string, seatId: string): Promise<boolean> =>
+  page.evaluate(
+    `(${probe.toString()})().walkToSeat(${JSON.stringify(floorId)}, ${JSON.stringify(seatId)})`,
+  ) as Promise<boolean>;
+
+/** The room called `name`, once it is finished and this page may enter it. */
+export async function roomNamed(page: Page, name: string): Promise<NavRoom> {
+  let found: NavRoom | undefined;
+  await expect
+    .poll(
+      async () => {
+        found = (await navRooms(page)).find((r) => r.name === name);
+        return found ? `${found.buildState}/${found.enterable}` : "missing";
+      },
+      { timeout: 45_000 },
+    )
+    .toBe("ready/true");
+  if (!found) throw new Error(`room ${name} missing`);
+  return found;
+}
+
+/** Wait until the player stands still (the walk ended). */
+export async function waitStill(page: Page, timeout = 60_000): Promise<NavPose> {
+  await expect.poll(async () => (await navPose(page)).walking, { timeout }).toBe(false);
+  return navPose(page);
+}
+
+/**
+ * Walk from wherever the player is into `name` (through the corridors, its door opening on
+ * the way), on to the middle of the room so all of it is in view, and wait until the HUD is
+ * in that room with its FloorRoom state in.
+ */
+export async function walkInto(page: Page, name: string): Promise<NavRoom> {
+  const room = await roomNamed(page, name);
+  await expect(async () => {
+    const pose = await navPose(page);
+    if (pose.room === room.id && pose.floorId === room.id) return;
+    if (!pose.walking) expect(await walkTo(page, room.inside.x, room.inside.z)).toBe(true);
+    throw new Error(`walking into ${name}`);
+  }).toPass({ timeout: 90_000, intervals: [500, 1_000] });
+  // On to the middle (the nearest free spot to it, like a click on a desk there).
+  if (await walkTo(page, room.x + room.w / 2, room.z + room.d / 2)) await waitStill(page);
+  await expect(page.locator(".rg-topbar__floor")).toHaveText(name);
+  await expect(page.getByRole("list", { name: "Work on this floor" })).toBeVisible();
+  return room;
+}
+
+/** Walk back out to the lobby. */
+export async function walkToLobby(page: Page): Promise<void> {
+  const lobby = (await navRooms(page)).find((r) => r.kind === "lobby");
+  if (!lobby) throw new Error("no lobby");
+  await expect(async () => {
+    const pose = await navPose(page);
+    if (pose.room === lobby.id) return;
+    if (!pose.walking) await walkTo(page, lobby.inside.x, lobby.inside.z);
+    throw new Error("walking to the lobby");
+  }).toPass({ timeout: 90_000, intervals: [500, 1_000] });
+  await expect(page.locator(".rg-topbar__floor")).toHaveText("Lobby");
+}
+
+/** Quick travel (`F`) to a room's door, then walk in. */
+export async function travelInto(page: Page, name: string): Promise<NavRoom> {
+  await page.bringToFront();
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  await page.keyboard.press("f");
+  const dialog = page.getByRole("dialog", { name: "Quick travel" });
+  await dialog
+    .getByRole("list", { name: "Rooms you can enter" })
+    .getByRole("button", { name: new RegExp(`^${name}`) })
+    .click();
+  await expect(dialog).toHaveCount(0);
+  return walkInto(page, name);
+}
+
+/**
+ * Walk up to a robot's desk by nav state (#205): to just behind its chair, until the player
+ * stands still where `E` opens that desk's terminal (the rule the live laptop panel follows
+ * too, so wherever the panel shows, `E` reaches).
+ */
+export async function walkUpToDesk(page: Page, floorId: string, seatId: string): Promise<void> {
+  await expect(async () => {
+    const pose = await navPose(page);
+    if (!pose.walking && (await terminalDesk(page)) === seatId) return;
+    if (!pose.walking) expect(await walkToSeat(page, floorId, seatId)).toBe(true);
+    throw new Error(`walking to desk ${seatId}`);
+  }).toPass({ timeout: 60_000, intervals: [500, 1_000] });
+}

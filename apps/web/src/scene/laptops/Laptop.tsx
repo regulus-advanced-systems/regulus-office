@@ -8,22 +8,40 @@ import type { ThreeEvent } from "@react-three/fiber";
 import { type ReactNode, useEffect, useMemo } from "react";
 import {
   BoxGeometry,
+  type BufferGeometry,
   type CanvasTexture,
+  Matrix4,
   MeshBasicMaterial,
   type MeshToonMaterial,
   PlaneGeometry,
 } from "three";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { createToonMaterial } from "../materials/toon.ts";
 import { LAPTOP_DIMENSIONS } from "./dimensions.ts";
 import type { LaptopPlacement } from "./placement.ts";
 import { SCREEN_COLORS } from "./screenPaint.ts";
 
 interface Shared {
-  base: BoxGeometry;
-  lid: BoxGeometry;
+  /** Base and tilted lid in one geometry: one draw per laptop body (#186, SPEC §11). */
+  body3d: BufferGeometry;
   screen: PlaneGeometry;
   body: MeshToonMaterial;
   off: MeshBasicMaterial;
+}
+
+/** The base box, and the lid box hinged at the base's back edge and tilted back. */
+function laptopBodyGeometry(): BufferGeometry {
+  const L = LAPTOP_DIMENSIONS;
+  const base = new BoxGeometry(L.w, L.baseH, L.d).translate(0, L.baseH / 2, 0);
+  const lid = new BoxGeometry(L.w, L.lidH, L.lidT)
+    .translate(0, L.lidH / 2, 0)
+    .applyMatrix4(new Matrix4().makeRotationX(-L.tilt))
+    .applyMatrix4(new Matrix4().makeTranslation(0, L.baseH, -L.d / 2 + L.lidT / 2));
+  const merged = mergeGeometries([base, lid]);
+  base.dispose();
+  lid.dispose();
+  if (!merged) throw new Error("laptop geometry did not merge");
+  return merged;
 }
 
 let shared: Shared | null = null;
@@ -31,8 +49,7 @@ let shared: Shared | null = null;
 function sharedParts(): Shared {
   const L = LAPTOP_DIMENSIONS;
   shared ??= {
-    base: new BoxGeometry(L.w, L.baseH, L.d),
-    lid: new BoxGeometry(L.w, L.lidH, L.lidT),
+    body3d: laptopBodyGeometry(),
     screen: new PlaneGeometry(L.screenW, L.screenH),
     body: createToonMaterial("#B9BEC6"),
     off: new MeshBasicMaterial({ color: SCREEN_COLORS.off, toneMapped: false }),
@@ -47,9 +64,11 @@ export interface LaptopProps {
   /** Live DOM panel mounted on the screen (focused desk). */
   live?: ReactNode;
   onSelect?: () => void;
+  /** Object name (`laptop-<seatId>` unless given; e2e probes find laptops by it). */
+  name?: string;
 }
 
-export function Laptop({ placement, texture, live, onSelect }: LaptopProps) {
+export function Laptop({ placement, texture, live, onSelect, name }: LaptopProps) {
   const L = LAPTOP_DIMENSIONS;
   const parts = sharedParts();
   const screenMaterial = useMemo(
@@ -67,14 +86,13 @@ export function Laptop({ placement, texture, live, onSelect }: LaptopProps) {
     <group
       position={placement.position as [number, number, number]}
       rotation-y={placement.rotationY}
-      name={`laptop-${placement.seatId}`}
+      name={name ?? `laptop-${placement.seatId}`}
       onClick={click}
       onPointerOver={onSelect ? () => (document.body.style.cursor = "pointer") : undefined}
       onPointerOut={onSelect ? () => (document.body.style.cursor = "") : undefined}
     >
-      <mesh geometry={parts.base} material={parts.body} position={[0, L.baseH / 2, 0]} />
+      <mesh geometry={parts.body3d} material={parts.body} />
       <group position={[0, L.baseH, -L.d / 2 + L.lidT / 2]} rotation-x={-L.tilt}>
-        <mesh geometry={parts.lid} material={parts.body} position={[0, L.lidH / 2, 0]} />
         <mesh
           geometry={parts.screen}
           material={screenMaterial ?? parts.off}

@@ -46,6 +46,8 @@ export const LOBBY_FLOOR: FloorRecord = {
   robotsWorking: 0,
   robotsWaiting: 0,
   robotsTotal: 0,
+  deskCount: 0,
+  decorStyle: "ops_room",
 };
 
 export class DrizzleFloorSource implements FloorSource {
@@ -63,6 +65,8 @@ export class DrizzleFloorSource implements FloorSource {
         slug: floors.slug,
         index: floors.index,
         paletteId: floors.paletteId,
+        deskCount: floors.deskCount,
+        decorStyle: floors.decorStyle,
       })
       .from(floors)
       .where(isNull(floors.archivedAt))
@@ -94,6 +98,8 @@ export class DrizzleFloorSource implements FloorSource {
           robotsWorking: acc.working,
           robotsWaiting: acc.waiting,
           robotsTotal: acc.total,
+          deskCount: row.deskCount,
+          decorStyle: row.decorStyle,
         };
       }),
     ];

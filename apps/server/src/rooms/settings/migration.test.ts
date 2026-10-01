@@ -18,15 +18,15 @@ const dir = mkdtempSync(join(tmpdir(), "rg-room-settings-migration-"));
 
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
-/** The migrations folder as it was before this one. */
-function before(): string {
-  const old = join(dir, "drizzle");
+/** The migrations folder as it was before `tag` (this one by default). */
+function before(tag = TAG): string {
+  const old = join(dir, `drizzle-${tag}`);
   cpSync(MIGRATIONS, old, { recursive: true });
   const journalPath = join(old, "meta/_journal.json");
   const journal = JSON.parse(readFileSync(journalPath, "utf8")) as {
     entries: Array<{ tag: string }>;
   };
-  const at = journal.entries.findIndex((e) => e.tag.endsWith(TAG));
+  const at = journal.entries.findIndex((e) => e.tag.endsWith(tag));
   expect(at).toBeGreaterThan(0);
   journal.entries = journal.entries.slice(0, at);
   writeFileSync(journalPath, JSON.stringify(journal));
@@ -48,7 +48,8 @@ test("migrated floors get desks for every template seat; seat ids stay", () => {
     "INSERT INTO desks (id, floor_id, seat_id, created_at, updated_at) VALUES ('k1', 'f0', 'ceo-seat', 0, 0)",
   );
   db.$client.run("PRAGMA foreign_keys = ON");
-  runMigrations(db);
+  // Up to, not including, 0017, which renames the seats (#186; db/legacy-seats.test.ts).
+  runMigrations(db, before("room_seats"));
 
   const rows = db.select().from(floors).orderBy(asc(floors.index)).all();
   expect(rows.map((r) => [r.layoutTemplateId, r.deskCount, r.decorStyle])).toEqual([

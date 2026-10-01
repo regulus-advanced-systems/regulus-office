@@ -10,6 +10,7 @@ import type { Wall, WallAnchor } from "@regulus/floor-layout";
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Group } from "three";
 import { anchorPlacement } from "../furniture/placement.ts";
+import { scopedName, useRoomScope } from "../roomScope.ts";
 import { BrassGongLook, GONG_DEPTH, type GongLook } from "./BrassGongLook.tsx";
 import { useGongStore } from "./gongStore.ts";
 import { glowAt, swingAngle } from "./timing.ts";
@@ -32,16 +33,18 @@ export function GongObject({
   onBang,
   look: Look = BrassGongLook,
 }: GongObjectProps) {
-  const p = anchorPlacement(wall, anchor);
-  const ring = useGongStore((s) => s.ring);
-  const strikes = useGongStore((s) => s.strikes);
+  const scope = useRoomScope();
+  const p = anchorPlacement(wall, anchor, scope.wallDepth);
+  // The gong store follows the room the player is in; other rooms' gongs hang still.
+  const ring = useGongStore((s) => (scope.interactive ? s.ring : null));
+  const strikes = useGongStore((s) => (scope.interactive ? s.strikes : 0));
   const swing = useRef<Group>(null);
   const glow = useMemo(() => ({ value: 0 }), []);
   const [hover, setHover] = useState(false);
 
   useLayoutEffect(() => {
     // Named for the e2e probes (tests/e2e/gongProbes.ts).
-    if (swing.current) swing.current.name = "gong-swing";
+    if (swing.current) swing.current.name = scopedName(scope, "gong-swing");
   });
   useFrame(() => {
     const now = performance.now();
@@ -59,7 +62,7 @@ export function GongObject({
     <group
       position={p.position}
       rotation-y={p.rotationY}
-      name={`gong-${anchor.id}`}
+      name={scopedName(scope, `gong-${anchor.id}`)}
       // Read by the e2e probes; plain data, no behaviour.
       userData={{ strikes, ringId: ring?.id ?? 0, cause: ring?.cause ?? null }}
     >
@@ -71,23 +74,27 @@ export function GongObject({
         swingRef={swing}
         glow={glow}
       />
-      <mesh
-        name={`gong-hotspot-${anchor.id}`}
-        position={[0, anchor.h / 2 - tall / 2, GONG_DEPTH]}
-        onClick={click}
-        onPointerOver={(e) => {
-          e.stopPropagation();
-          setHover(true);
-          document.body.style.cursor = "pointer";
-        }}
-        onPointerOut={() => {
-          setHover(false);
-          document.body.style.cursor = "";
-        }}
-      >
-        <boxGeometry args={[anchor.w + 0.1, tall, GONG_DEPTH * 2]} />
-        <meshBasicMaterial transparent opacity={0} depthWrite={false} colorWrite={false} />
-      </mesh>
+      {scope.interactive && (
+        <mesh
+          name={`gong-hotspot-${anchor.id}`}
+          // Hit target only: invisible objects still take pointer events but cost no draw call.
+          visible={false}
+          position={[0, anchor.h / 2 - tall / 2, GONG_DEPTH]}
+          onClick={click}
+          onPointerOver={(e) => {
+            e.stopPropagation();
+            setHover(true);
+            document.body.style.cursor = "pointer";
+          }}
+          onPointerOut={() => {
+            setHover(false);
+            document.body.style.cursor = "";
+          }}
+        >
+          <boxGeometry args={[anchor.w + 0.1, tall, GONG_DEPTH * 2]} />
+          <meshBasicMaterial transparent opacity={0} depthWrite={false} colorWrite={false} />
+        </mesh>
+      )}
     </group>
   );
 }

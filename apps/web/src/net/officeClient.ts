@@ -1,34 +1,32 @@
 /**
- * Client-side session with the office: always in the BuildingRoom, in at most
- * one FloorRoom (SPEC §6). Patches room state into the zustand stores and
- * re-joins with exponential backoff when a room is lost for a reason we did
- * not consent to. Talks to the server only through `RoomTransport`.
+ * Client-side session with the office: always in the BuildingRoom, and in
+ * the FloorRooms of the room the player is in plus up to three nearby
+ * visible rooms (SPEC §6, §9.1; #186, floorLinks.ts). Patches room state
+ * into the zustand stores (the room the player is in also into the floor
+ * store the HUD reads) and re-joins with exponential backoff when a room is
+ * lost for a reason we did not consent to. Talks to the server only
+ * through `RoomTransport`.
  */
 import {
   type BuildingState,
   type ClientCommandPayload,
   type ClientCommandType,
   type CommandRejected,
-  type FloorState,
   LOBBY_FLOOR_ID,
 } from "@regulus/protocol";
 import { useBuildingStore } from "../state/building.ts";
 import { useConnectionStore } from "../state/connection.ts";
 import { useFloorStore } from "../state/floor.ts";
+import { useRoomsStore } from "../state/rooms.ts";
 import { type BackoffOptions, backoffDelay, DEFAULT_BACKOFF } from "./backoff.ts";
 import { roomForCommand } from "./commandRouting.ts";
+import { FloorLinks } from "./floorLinks.ts";
 import {
   isConsentedClose,
   type RoomHandle,
   type RoomTransport,
   type Unsubscribe,
 } from "./transport.ts";
-
-/** Matchmaking refused the join for authorisation reasons (Colyseus `ServerError.code`). */
-function isDenied(err: unknown): boolean {
-  const code = (err as { code?: unknown } | null)?.code;
-  return code === 401 || code === 403;
-}
 
 export type RejectionListener = (notice: CommandRejected) => void;
 export type MessageListener = (payload: unknown) => void;
@@ -46,6 +44,7 @@ export interface OfficeClientOptions {
     building: typeof useBuildingStore;
     floor: typeof useFloorStore;
     connection: typeof useConnectionStore;
+    rooms?: typeof useRoomsStore;
   };
   backoff?: BackoffOptions;
   /** Give up (status `failed`) after this many consecutive failed re-joins. */
@@ -63,20 +62,15 @@ export class OfficeClient {
   private readonly random: () => number;
 
   private building: RoomHandle<BuildingState> | null = null;
-  private floor: RoomHandle<FloorState> | null = null;
-  private floorHandleId: string | null = null;
-  private desiredFloorId: string | null = null;
+  private readonly floors: FloorLinks;
+  private readonly rooms: typeof useRoomsStore;
+  /** The room the player is in, as last told to the building (`floor.go`). */
+  private announcedFloor: string | null = null;
   private closed = false;
   private attempt = 0;
-  private floorAttempt = 0;
   private cancelBuildingRetry: (() => void) | null = null;
-  private cancelFloorRetry: (() => void) | null = null;
   private buildingSubs: Unsubscribe[] = [];
-  private floorSubs: Unsubscribe[] = [];
   private readonly rejectionListeners = new Set<RejectionListener>();
-  /** FloorRoom message listeners by type; they survive floor changes and re-joins. */
-  private readonly floorListeners = new Map<string, Set<MessageListener>>();
-  private floorMessageSubs = new Map<string, Unsubscribe>();
   /** BuildingRoom message listeners by type; they survive re-joins. */
   private readonly buildingListeners = new Map<string, Set<MessageListener>>();
   private buildingMessageSubs = new Map<string, Unsubscribe>();
@@ -95,17 +89,49 @@ export class OfficeClient {
     this.maxAttempts = options.maxAttempts ?? 10;
     this.schedule = options.schedule ?? defaultScheduler;
     this.random = options.random ?? Math.random;
+    this.rooms = this.stores.rooms ?? useRoomsStore;
+    this.floors = new FloorLinks({
+      transport: this.transport,
+      backoff: this.backoff,
+      maxAttempts: this.maxAttempts,
+      schedule: this.schedule,
+      random: this.random,
+      connected: () => this.building !== null,
+      onState: (floorId, state) => {
+        this.rooms.getState().apply(floorId, state);
+        if (floorId === this.floors.primary) this.stores.floor.getState().apply(state);
+      },
+      onGone: (floorId) => {
+        this.rooms.getState().drop(floorId);
+        if (floorId === this.floors.primary) {
+          const floor = this.stores.floor.getState();
+          floor.clear();
+          floor.setFloorId(floorId);
+        }
+      },
+      onError: (message) => this.stores.connection.getState().set({ lastError: message }),
+      onDenied: (floorId) => {
+        if (floorId === this.floors.primary) this.stores.floor.getState().clear();
+      },
+      onRejected: this.emitRejected,
+    });
   }
 
   get status() {
     return this.stores.connection.getState().status;
   }
 
+  /** The room the player is in, once its FloorRoom is joined. */
   get currentFloorId(): string | null {
-    return this.floorHandleId;
+    return this.floors.primaryHandle() ? this.floors.primary : null;
   }
 
-  /** Join the BuildingRoom (and the desired floor, if any). Safe to call again after `failed`. */
+  /** Floor ids whose FloorRooms are joined now. */
+  get joinedFloorIds(): string[] {
+    return this.floors.joined();
+  }
+
+  /** Join the BuildingRoom (and the wanted FloorRooms). Safe to call again after `failed`. */
   async connect(): Promise<void> {
     this.closed = false;
     if (this.building) return;
@@ -126,52 +152,67 @@ export class OfficeClient {
       return;
     }
     this.bindBuilding(handle);
-    if (this.desiredFloorId) await this.joinFloorNow(this.desiredFloorId);
+    // A new building session starts in the lobby; tell it if we are in a room.
+    this.announcedFloor = LOBBY_FLOOR_ID;
+    if (this.floors.primary) this.announce(this.floors.primary, true);
+    await this.floors.rejoin();
   }
 
   /** Leave everything on purpose; no reconnect is attempted. */
   async disconnect(): Promise<void> {
     this.closed = true;
     this.cancelBuildingRetry?.();
-    this.cancelFloorRetry?.();
-    this.cancelBuildingRetry = this.cancelFloorRetry = null;
-    this.attempt = this.floorAttempt = 0;
-    await this.dropFloor(true);
+    this.cancelBuildingRetry = null;
+    this.attempt = 0;
+    this.floors.close();
+    await this.floors.dropAll(true);
+    this.rooms.getState().clear();
+    this.stores.floor.getState().clear();
     const building = this.building;
     this.unbindBuilding();
     await building?.leave(true).catch(() => undefined);
     this.stores.connection.getState().set({ status: "disconnected", attempt: 0 });
   }
 
-  /** Switch to `floorId`, leaving the previous floor first (exactly one FloorRoom at a time). */
-  async goToFloor(floorId: string): Promise<void> {
-    this.desiredFloorId = floorId;
-    if (this.floorHandleId === floorId) return;
-    await this.dropFloor(true);
-    this.stores.floor.getState().setFloorId(floorId);
-    if (!this.building) return; // joined once the building connection is back
-    await this.joinFloorNow(floorId);
-  }
-
-  async leaveFloor(): Promise<void> {
-    this.desiredFloorId = null;
-    await this.dropFloor(true);
-  }
-
   /**
-   * Take the elevator (SPEC §9.1): tell the BuildingRoom where we are
-   * (`floor.go`, so presence and counters follow) and switch FloorRoom. The
-   * lobby is not a FloorRoom; going there just leaves the current floor.
+   * Be in the FloorRooms of `current` (the room the player is in; null in
+   * the lobby, the corridors and the other special rooms) and of up to
+   * three `nearby` rooms (SPEC §9.1); leave every other FloorRoom. The
+   * building hears where the player is (`floor.go`) whenever `current` changes.
    */
-  async rideTo(floorId: string, mode: "ride" | "teleport" = "ride"): Promise<void> {
-    if (this.building) this.building.send("floor.go", { floorId, mode });
-    if (floorId === LOBBY_FLOOR_ID) await this.leaveFloor();
-    else await this.goToFloor(floorId);
+  async setRooms(current: string | null, nearby: readonly string[] = []): Promise<void> {
+    const before = this.floors.primary;
+    const floor = this.stores.floor.getState();
+    const promise = this.floors.set(current, nearby);
+    if (before !== current) {
+      // Already joined as a nearby room: the HUD switches at once.
+      const joined = current ? this.floors.snapshot(current) : null;
+      if (joined) floor.apply(joined);
+      else {
+        floor.clear();
+        floor.setFloorId(current);
+      }
+      this.announce(current, false);
+    }
+    await promise;
+  }
+
+  /** Be in exactly one FloorRoom (tests and tools); `setRooms` is the general form. */
+  async goToFloor(floorId: string): Promise<void> {
+    await this.setRooms(floorId, []);
+  }
+
+  private announce(floorId: string | null, force: boolean): void {
+    const id = floorId ?? LOBBY_FLOOR_ID;
+    if (!this.building || (!force && id === this.announcedFloor)) return;
+    this.announcedFloor = id;
+    this.building.send("floor.go", { floorId: id, mode: "teleport" });
   }
 
   /** Send a typed command to the room that owns it. Throws when that room is not joined. */
   send<T extends ClientCommandType>(type: T, payload: ClientCommandPayload<T>): void {
-    const target = roomForCommand(type) === "building" ? this.building : this.floor;
+    const target =
+      roomForCommand(type) === "building" ? this.building : this.floors.primaryHandle();
     if (!target) throw new Error(`Cannot send "${type}": ${roomForCommand(type)} room not joined`);
     target.send(type, payload);
   }
@@ -184,19 +225,10 @@ export class OfficeClient {
 
   /**
    * Listen for a server→client FloorRoom message (e.g. `agent.permissions`)
-   * on whichever floor we are on now or later. Payloads are unvalidated.
+   * from the room the player is in, now or later. Payloads are unvalidated.
    */
   onFloorMessage(type: string, listener: MessageListener): Unsubscribe {
-    let set = this.floorListeners.get(type);
-    if (!set) {
-      set = new Set();
-      this.floorListeners.set(type, set);
-    }
-    set.add(listener);
-    if (this.floor) this.subscribeFloorMessage(this.floor, type);
-    return () => {
-      set.delete(listener);
-    };
+    return this.floors.onMessage(type, listener);
   }
 
   /**
@@ -222,16 +254,6 @@ export class OfficeClient {
       type,
       handle.onMessage(type, (payload) => {
         for (const listener of this.buildingListeners.get(type) ?? []) listener(payload);
-      }),
-    );
-  }
-
-  private subscribeFloorMessage(handle: RoomHandle<FloorState>, type: string) {
-    if (this.floorMessageSubs.has(type)) return;
-    this.floorMessageSubs.set(
-      type,
-      handle.onMessage(type, (payload) => {
-        for (const listener of this.floorListeners.get(type) ?? []) listener(payload);
       }),
     );
   }
@@ -268,8 +290,9 @@ export class OfficeClient {
 
   private onBuildingLeft(code: number, reason?: string) {
     this.unbindBuilding();
-    // The floor seat dies with the building session; rejoin both after backoff.
-    void this.dropFloor(false);
+    this.announcedFloor = null;
+    // The floor seats die with the building session; rejoin them after backoff.
+    void this.floors.dropAll(false);
     if (this.closed || isConsentedClose(code)) {
       this.stores.connection.getState().set({ status: "disconnected", lastError: reason ?? null });
       return;
@@ -292,78 +315,5 @@ export class OfficeClient {
       lastError: message,
     });
     this.cancelBuildingRetry = this.schedule(() => void this.connect(), delay);
-  }
-
-  private async joinFloorNow(floorId: string): Promise<void> {
-    this.cancelFloorRetry?.();
-    this.cancelFloorRetry = null;
-    let handle: RoomHandle<FloorState>;
-    try {
-      handle = await this.transport.joinFloor({ floorId });
-    } catch (err) {
-      this.scheduleFloorRetry(floorId, err);
-      return;
-    }
-    if (this.closed || this.desiredFloorId !== floorId || this.floor) {
-      await handle.leave(true).catch(() => undefined); // superseded while joining
-      return;
-    }
-    this.floor = handle;
-    this.floorHandleId = floorId;
-    this.floorAttempt = 0;
-    const floor = this.stores.floor.getState();
-    floor.apply(handle.snapshot());
-    this.floorSubs = [
-      handle.onState((state) => floor.apply(state)),
-      handle.onLeave((code, reason) => this.onFloorLeft(floorId, code, reason)),
-      handle.onRejected(this.emitRejected),
-    ];
-    for (const type of this.floorListeners.keys()) this.subscribeFloorMessage(handle, type);
-  }
-
-  private onFloorLeft(floorId: string, code: number, reason?: string) {
-    this.unbindFloor();
-    if (this.closed || isConsentedClose(code) || this.desiredFloorId !== floorId) return;
-    if (!this.building) return; // building retry will bring the floor back
-    this.scheduleFloorRetry(floorId, new Error(reason ?? `floor room closed (${code})`));
-  }
-
-  private scheduleFloorRetry(floorId: string, err: unknown) {
-    if (this.closed || this.desiredFloorId !== floorId) return;
-    const message = err instanceof Error ? err.message : String(err);
-    if (isDenied(err)) {
-      // No access (or the floor is gone): retrying cannot help.
-      this.desiredFloorId = null;
-      this.stores.floor.getState().clear();
-      this.stores.connection.getState().set({ lastError: message });
-      return;
-    }
-    if (this.floorAttempt >= this.maxAttempts) {
-      this.stores.connection.getState().set({ lastError: message });
-      return;
-    }
-    const delay = backoffDelay(this.floorAttempt, this.backoff, this.random);
-    this.floorAttempt += 1;
-    this.stores.connection.getState().set({ lastError: message });
-    this.cancelFloorRetry = this.schedule(() => void this.joinFloorNow(floorId), delay);
-  }
-
-  private unbindFloor() {
-    for (const off of this.floorSubs) off();
-    this.floorSubs = [];
-    for (const off of this.floorMessageSubs.values()) off();
-    this.floorMessageSubs.clear();
-    this.floor = null;
-    this.floorHandleId = null;
-  }
-
-  private async dropFloor(consented: boolean) {
-    this.cancelFloorRetry?.();
-    this.cancelFloorRetry = null;
-    this.floorAttempt = 0;
-    const handle = this.floor;
-    this.unbindFloor();
-    this.stores.floor.getState().clear();
-    if (handle) await handle.leave(consented).catch(() => undefined);
   }
 }

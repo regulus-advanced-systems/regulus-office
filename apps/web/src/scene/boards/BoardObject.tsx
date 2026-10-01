@@ -10,6 +10,7 @@ import { useEffect, useMemo, useState } from "react";
 import { CanvasTexture, LinearFilter, SRGBColorSpace } from "three";
 import type { BoardColumnView } from "../../ui/boards/columns.ts";
 import { anchorPlacement } from "../furniture/placement.ts";
+import { scopedName, useRoomScope } from "../roomScope.ts";
 import {
   type BoardCanvas,
   layoutBoard,
@@ -65,7 +66,8 @@ export function BoardObject({
   onOpen,
   look: Look = CorkBoardLook,
 }: BoardObjectProps) {
-  const p = anchorPlacement(wall, anchor);
+  const scope = useRoomScope();
+  const p = anchorPlacement(wall, anchor, scope.wallDepth);
   const texture = useBoardTexture(anchor.w, anchor.h, columns);
   const [hover, setHover] = useState(false);
   const click = (event: ThreeEvent<MouseEvent>) => {
@@ -74,25 +76,33 @@ export function BoardObject({
     onOpen();
   };
   return (
-    <group position={p.position} rotation-y={p.rotationY} name={`board-${anchor.id}`}>
+    <group
+      position={p.position}
+      rotation-y={p.rotationY}
+      name={scopedName(scope, `board-${anchor.id}`)}
+    >
       <Look w={anchor.w} h={anchor.h} texture={texture} highlighted={hover || inReach} />
-      <mesh
-        name={`board-hotspot-${anchor.id}`}
-        position={[0, 0, 0.1]}
-        onClick={click}
-        onPointerOver={(e) => {
-          e.stopPropagation();
-          setHover(true);
-          document.body.style.cursor = "pointer";
-        }}
-        onPointerOut={() => {
-          setHover(false);
-          document.body.style.cursor = "";
-        }}
-      >
-        <boxGeometry args={[anchor.w + 0.1, anchor.h + 0.1, 0.1]} />
-        <meshBasicMaterial transparent opacity={0} depthWrite={false} colorWrite={false} />
-      </mesh>
+      {scope.interactive && (
+        <mesh
+          name={`board-hotspot-${anchor.id}`}
+          // Hit target only: invisible objects still take pointer events but cost no draw call.
+          visible={false}
+          position={[0, 0, 0.1]}
+          onClick={click}
+          onPointerOver={(e) => {
+            e.stopPropagation();
+            setHover(true);
+            document.body.style.cursor = "pointer";
+          }}
+          onPointerOut={() => {
+            setHover(false);
+            document.body.style.cursor = "";
+          }}
+        >
+          <boxGeometry args={[anchor.w + 0.1, anchor.h + 0.1, 0.1]} />
+          <meshBasicMaterial transparent opacity={0} depthWrite={false} colorWrite={false} />
+        </mesh>
+      )}
     </group>
   );
 }

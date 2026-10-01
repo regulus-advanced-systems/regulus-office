@@ -7,6 +7,7 @@
  */
 import { expect, type Page } from "@playwright/test";
 import { scenePoint } from "./agentProbes.ts";
+import { walkInto } from "./compoundProbes.ts";
 import { startFakeGitHub } from "./fakeGitHub.ts";
 import {
   boneDriftDeg,
@@ -51,9 +52,7 @@ export async function checkMergeGong(page: Page, opts: { githubPort: number; flo
       headers: { origin },
     });
     expect(connect.status()).toBe(200);
-    const elevator = page.getByRole("navigation", { name: "Elevator" });
-    await elevator.getByRole("button", { name: new RegExp(`\\d+\\. ${opts.floor}`) }).click();
-    await expect(page.locator(".rg-topbar__floor")).toHaveText(opts.floor);
+    await walkInto(page, opts.floor);
     await expect.poll(() => scenePoint(page, GONG)).not.toBeNull();
     const strikes = await gongStrikes(page);
     const seated = await robotPoses(page);

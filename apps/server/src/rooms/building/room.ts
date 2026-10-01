@@ -130,6 +130,8 @@ export function createBuildingRoom(deps: BuildingRoomDeps): BuildingRoom {
       entry.robotsWorking = f.robotsWorking;
       entry.robotsWaiting = f.robotsWaiting;
       entry.robotsTotal = f.robotsTotal;
+      if (entry.deskCount !== f.deskCount) entry.deskCount = f.deskCount;
+      if (entry.decorStyle !== f.decorStyle) entry.decorStyle = f.decorStyle;
       applyRoomFields(entry, compound?.rooms.get(f.floorId));
       if (!handle.state.floors.has(f.floorId)) handle.state.floors.set(f.floorId, entry);
     }

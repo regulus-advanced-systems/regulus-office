@@ -5,9 +5,9 @@
  */
 import type { FloorRepoInfo } from "@regulus/protocol";
 import { useState } from "react";
-import { getOfficeClient } from "../../net/index.ts";
-import { useBuildingStore } from "../../state/building.ts";
+import { useCompoundStore } from "../../state/compound.ts";
 import { useFloorsStore } from "../../state/floors.ts";
+import { travelTo } from "../../state/travel.ts";
 import { FormAlert } from "../auth/AuthCard.tsx";
 import { Button } from "../components/Button.tsx";
 import { describeFloorError, type FloorsApi } from "./api.ts";
@@ -34,7 +34,9 @@ export function CloneStatusList({
 }) {
   const floor = useFloorsStore((s) => s.floors?.find((f) => f.floorId === floorId));
   const refresh = useFloorsStore((s) => s.refresh);
-  const inBuilding = useBuildingStore((s) => Boolean(s.state?.floors[floorId]));
+  // The room is on the compound map and finished building (#181, #186): quick travel there.
+  const room = useCompoundStore((s) => s.world?.rooms.find((r) => r.id === floorId));
+  const reachable = Boolean(room?.enterable && room.buildState === "ready");
   const [error, setError] = useState<string | null>(null);
   if (!floor) return <div className="rg-muted">Loading…</div>;
 
@@ -48,7 +50,7 @@ export function CloneStatusList({
   return (
     <div>
       <p>
-        <strong>{floor.name}</strong> is floor {floor.index}.
+        <strong>{floor.name}</strong> has a room in the compound.
       </p>
       <ul className="rg-list" aria-label="Repos">
         {floor.repos.map((repo) => (
@@ -70,13 +72,13 @@ export function CloneStatusList({
       <div style={{ marginTop: 12 }}>
         <Button
           variant="primary"
-          disabled={!inBuilding}
+          disabled={!reachable}
           onClick={() => {
-            void getOfficeClient().rideTo(floorId);
+            travelTo(floorId, { walkIn: true });
             onRide?.();
           }}
         >
-          Go to floor
+          {room && room.buildState === "building" ? "Building…" : "Go to room"}
         </Button>
       </div>
     </div>

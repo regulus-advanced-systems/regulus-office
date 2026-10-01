@@ -3,13 +3,21 @@
  * inside the world and `floor.go` must name a floor that exists. Pure
  * functions so they are unit-testable without a transport.
  */
-import { type ClientCommand, parseClientCommand } from "@regulus/protocol";
+import {
+  type ClientCommand,
+  COMPOUND_TILE_METRES,
+  MAX_COMPOUND_SIZE_TILES,
+  OUTSIDE_STRIP_TILES,
+  parseClientCommand,
+} from "@regulus/protocol";
 
 /**
- * Half-extent of the walkable world in world units, applied on both axes.
- * Placeholder until packages/floor-layout provides per-floor nav bounds (M2).
+ * Half-extent of the walkable world in metres, applied on both axes. Since the
+ * compound (#186) a position is anywhere in it, in compound metres from its
+ * north-west corner, so the bound covers the largest compound plus its beach.
  */
-export const WORLD_HALF_EXTENT = 256;
+export const WORLD_HALF_EXTENT =
+  (MAX_COMPOUND_SIZE_TILES + OUTSIDE_STRIP_TILES) * COMPOUND_TILE_METRES;
 
 export type CommandCheck = { ok: true; command: ClientCommand } | { ok: false; reason: string };
 

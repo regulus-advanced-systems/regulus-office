@@ -1,4 +1,9 @@
-import { EMPTY_COMPOUND, UNPLACED_ROOM, type UsageSummary } from "@regulus/protocol";
+import {
+  DEFAULT_ROOM_SETTINGS,
+  EMPTY_COMPOUND,
+  UNPLACED_ROOM,
+  type UsageSummary,
+} from "@regulus/protocol";
 import { useCallback, useState } from "react";
 import { useBuildingStore } from "../../../state/building.ts";
 import type { ConnectionStatus } from "../../../state/connection.ts";
@@ -7,7 +12,7 @@ import { Button } from "../../components/Button.tsx";
 import { HotkeyList } from "../../hotkeys/HotkeyHelp.tsx";
 import type { HotkeyEventDetail } from "../../hotkeys/registry.ts";
 import { useGlobalHotkeys, useHotkeyEvents } from "../../hotkeys/useHotkeys.ts";
-import { ElevatorPanel } from "../../hud/ElevatorPanel.tsx";
+import { RoomsPanel } from "../../hud/RoomsPanel.tsx";
 import { ConnectionChip, StatusBox, UsageRows } from "../../hud/StatusBox.tsx";
 import { TopBar } from "../../hud/TopBar.tsx";
 import { Panel } from "../../Panel.tsx";
@@ -45,9 +50,10 @@ const floor = (index: number, name: string, working: number, total: number) => (
   robotsTotal: total,
   humansPresent: 0,
   ...UNPLACED_ROOM,
+  ...DEFAULT_ROOM_SETTINGS,
 });
 
-/** Seed the building/floor stores with fake floors so the elevator has rows. */
+/** Seed the building/floor stores with fake floors (counters, quick travel). */
 function seedFloors() {
   const current = useBuildingStore.getState().state;
   useBuildingStore.getState().apply({
@@ -128,9 +134,9 @@ export function HudSection() {
           <UsageRows usage={null} />
         </Panel>
       </Row>
-      <Row label="elevator">
+      <Row label="rooms">
         <div style={{ width: 260 }}>
-          <ElevatorPanel />
+          <RoomsPanel />
         </div>
         <Button variant="secondary" size="sm" onClick={seedFloors}>
           Seed fake floors

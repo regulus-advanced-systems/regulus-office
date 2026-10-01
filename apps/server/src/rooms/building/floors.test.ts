@@ -78,6 +78,9 @@ describe("DrizzleFloorSource", () => {
       index: 1,
       paletteId: "oak-sky",
       robotsTotal: 0,
+      // Room settings travel with the summary so every client can draw the room (#186).
+      deskCount: 1,
+      decorStyle: "ops_room",
     });
   });
 

@@ -37,6 +37,7 @@ import {
 } from "./agentProbes.ts";
 import { type BoneSegment, boneSegments, recordBones, sampleBones } from "./boneProbes.ts";
 import { checkChangesWindow } from "./changesChecks.ts";
+import { walkInto, walkToLobby } from "./compoundProbes.ts";
 import { checkLaptopCopy, checkLoginTerminalCopy, checkRobotTerminalCopy } from "./copyChecks.ts";
 import { type FakeGitHub, startFakeGitHub } from "./fakeGitHub.ts";
 import { pickGenius } from "./geniusChecks.ts";
@@ -93,7 +94,8 @@ test.beforeAll(async ({ browser }) => {
   }
   buildRunnerImage();
   dataDir = mkdtempSync(join(tmpdir(), "regulus-e2e-agents-"));
-  prefix = `rge2e-${run}`;
+  // Container and volume name prefix; E2E_RUNNER_PREFIX keeps parallel worktrees apart.
+  prefix = `${process.env.E2E_RUNNER_PREFIX ?? "rge2e"}-${run}`;
   github = await startFakeGitHub({
     orgToken: REPO_TOKEN,
     repos: [
@@ -210,13 +212,6 @@ async function api(page: Page, method: string, path: string, data?: unknown): Pr
   return text ? JSON.parse(text) : null;
 }
 
-async function rideTo(page: Page, floor: string): Promise<void> {
-  const elevator = page.getByRole("navigation", { name: "Elevator" });
-  await elevator.getByRole("button", { name: new RegExp(`\\d+\\. ${floor}`) }).click();
-  await expect(page.locator(".rg-topbar__floor")).toHaveText(floor);
-  await expect(page.getByRole("list", { name: "Work on this floor" })).toBeVisible();
-}
-
 /** Opens the robot panel by clicking its desk (occupied desks open the panel). */
 async function openRobotPanel(page: Page): Promise<void> {
   await page.bringToFront();
@@ -266,7 +261,7 @@ test("the owner, an invited member and an invited admin sign in", async () => {
   expect(await api(adminPage, "GET", "/api/me")).toMatchObject({ role: "admin" });
 });
 
-test("1. the owner connects GitHub, picks the repo in Add floor and rides to it", async () => {
+test("1. the owner connects GitHub, picks the repo in Add floor and walks into its room", async () => {
   await ownerPage.goto(OFFICE_PROBE_PATH);
   await waitForScene(ownerPage);
   // Settings → GitHub: connect the office with an org token (#141; the App flow needs github.com).
@@ -281,8 +276,8 @@ test("1. the owner connects GitHub, picks the repo in Add floor and rides to it"
   await settingsDialog.getByRole("button", { name: "Done" }).click();
   await expect(settingsDialog).toHaveCount(0);
 
-  const elevator = ownerPage.getByRole("navigation", { name: "Elevator" });
-  await elevator.getByRole("button", { name: "Add floor…" }).click();
+  const rooms = ownerPage.getByRole("navigation", { name: "Rooms" });
+  await rooms.getByRole("button", { name: "Add floor…" }).click();
   const dialog = ownerPage.getByRole("dialog", { name: "Add floor" });
   await dialog.getByLabel("Floor name").fill(FLOOR);
   const picker = dialog.getByRole("list", { name: "Repos from GitHub" });
@@ -304,11 +299,11 @@ test("1. the owner connects GitHub, picks the repo in Add floor and rides to it"
   await expect(settings.getByLabel(`Access for ${member.name}`)).toHaveValue("view");
   await settings.getByRole("button", { name: "Done" }).click();
   await expect(settings).toHaveCount(0);
-  await rideTo(ownerPage, FLOOR);
+  await walkInto(ownerPage, FLOOR);
 
   await memberPage.goto(OFFICE_PROBE_PATH);
   await waitForScene(memberPage);
-  await rideTo(memberPage, FLOOR);
+  await walkInto(memberPage, FLOOR);
 });
 
 test("2. the owner spawns Claude Code at a free desk with their login and a prompt", async () => {
@@ -457,7 +452,7 @@ test("4. the permission prompt reaches the owner, not the member nor an admin", 
   // emergency stop (not pressed here; the server tests cover it).
   await adminPage.goto(OFFICE_PROBE_PATH);
   await waitForScene(adminPage);
-  await rideTo(adminPage, FLOOR);
+  await walkInto(adminPage, FLOOR);
   await openRobotPanel(adminPage);
   const adminPanel = adminPage.locator("section.rg-agent-panel");
   await expect(adminPanel.locator('[data-key="status"] dd')).toHaveText("Waiting for approval");
@@ -599,7 +594,7 @@ test("7. after an office-server restart the robot and its tmux session are still
   for (const page of [ownerPage, memberPage]) {
     await page.goto(OFFICE_PROBE_PATH);
     await waitForScene(page);
-    await rideTo(page, FLOOR);
+    await walkInto(page, FLOOR);
     await expect
       .poll(async () => {
         const r = await robotOn(page);
@@ -663,9 +658,7 @@ test("7c. copying works in the robot's terminal, on the laptop and in the login 
 test("7d. a member searches the robot's terminal from the lobby and jumps to its desk (#41)", async () => {
   const page = memberPage;
   await page.bringToFront();
-  const elevator = page.getByRole("navigation", { name: "Elevator" });
-  await elevator.getByRole("button", { name: /0\. Lobby/ }).click();
-  await expect(page.locator(".rg-topbar__floor")).toHaveText("Lobby");
+  await walkToLobby(page);
   await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
   await page.keyboard.press("/");
   const box = page.getByTestId("search-input");

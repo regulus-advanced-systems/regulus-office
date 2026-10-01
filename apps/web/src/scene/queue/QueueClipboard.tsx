@@ -10,14 +10,15 @@ import type { FloorTemplate, Wall, WallAnchor } from "@regulus/floor-layout";
 import type { QueueTask } from "@regulus/protocol";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CanvasTexture, LinearFilter, SRGBColorSpace } from "three";
-import { useFloorStore } from "../../state/floor.ts";
 import { usePlayerStore } from "../../state/player.ts";
 import { dropCard, useMyCarried } from "../../ui/boards/carry.ts";
+import type { HotkeyEventDetail } from "../../ui/hotkeys/registry.ts";
 import { useHotkeyEvents } from "../../ui/hotkeys/useHotkeys.ts";
 import { cardQueuePrefill } from "../../ui/queue/queueModel.ts";
 import { useQueueStore } from "../../ui/queue/queueStore.ts";
 import type { BoardCanvas } from "../boards/boardTexture.ts";
 import { anchorPlacement } from "../furniture/placement.ts";
+import { playerInRoom, scopedName, toRoom, useRoomScope, walkInRoom } from "../roomScope.ts";
 import { type ClipboardLook, HardboardClipboardLook } from "./ClipboardLook.tsx";
 import { clipboardAnchors, clipboardInReach } from "./clipboardAnchors.ts";
 import {
@@ -82,7 +83,8 @@ function Clipboard({
   onOpen: () => void;
   look: ClipboardLook;
 }) {
-  const p = anchorPlacement(wall, anchor);
+  const scope = useRoomScope();
+  const p = anchorPlacement(wall, anchor, scope.wallDepth);
   const texture = useClipboardTexture(anchor.w, anchor.h, tasks);
   const [hover, setHover] = useState(false);
   const click = (event: ThreeEvent<MouseEvent>) => {
@@ -91,30 +93,38 @@ function Clipboard({
     onOpen();
   };
   return (
-    <group position={p.position} rotation-y={p.rotationY} name={`queue-${anchor.id}`}>
+    <group
+      position={p.position}
+      rotation-y={p.rotationY}
+      name={scopedName(scope, `queue-${anchor.id}`)}
+    >
       <Look
         w={anchor.w}
         h={anchor.h}
         texture={texture}
-        highlighted={hover || inReach || dropTarget}
+        highlighted={hover || inReach || (dropTarget && scope.interactive)}
       />
-      <mesh
-        name={`queue-hotspot-${anchor.id}`}
-        position={[0, 0, 0.1]}
-        onClick={click}
-        onPointerOver={(e) => {
-          e.stopPropagation();
-          setHover(true);
-          document.body.style.cursor = "pointer";
-        }}
-        onPointerOut={() => {
-          setHover(false);
-          document.body.style.cursor = "";
-        }}
-      >
-        <boxGeometry args={[anchor.w + 0.1, anchor.h + 0.1, 0.1]} />
-        <meshBasicMaterial transparent opacity={0} depthWrite={false} colorWrite={false} />
-      </mesh>
+      {scope.interactive && (
+        <mesh
+          name={`queue-hotspot-${anchor.id}`}
+          // Hit target only: invisible objects still take pointer events but cost no draw call.
+          visible={false}
+          position={[0, 0, 0.1]}
+          onClick={click}
+          onPointerOver={(e) => {
+            e.stopPropagation();
+            setHover(true);
+            document.body.style.cursor = "pointer";
+          }}
+          onPointerOut={() => {
+            setHover(false);
+            document.body.style.cursor = "";
+          }}
+        >
+          <boxGeometry args={[anchor.w + 0.1, anchor.h + 0.1, 0.1]} />
+          <meshBasicMaterial transparent opacity={0} depthWrite={false} colorWrite={false} />
+        </mesh>
+      )}
     </group>
   );
 }
@@ -126,25 +136,30 @@ export function QueueLayer({
   template: FloorTemplate;
   look?: ClipboardLook;
 }) {
+  const scope = useRoomScope();
   const clipboards = useMemo(() => clipboardAnchors(template), [template]);
-  const tasks = useFloorStore((s) => s.state?.queue ?? NO_TASKS);
+  const tasks = scope.store((s) => s.state?.queue ?? NO_TASKS);
   const carrying = useMyCarried() !== null;
   const act = useClipboardAction();
   const reachId = usePlayerStore((s) =>
-    s.spawned ? (clipboardInReach(clipboards, s)?.anchor.id ?? null) : null,
+    s.spawned && scope.interactive
+      ? (clipboardInReach(clipboards, toRoom(scope, s))?.anchor.id ?? null)
+      : null,
   );
   useHotkeyEvents(
     useCallback(
-      (detail: { id: string }) => {
-        if (detail.id !== "interact") return;
-        const player = usePlayerStore.getState();
-        if (player.spawned && clipboardInReach(clipboards, player)) act();
+      (detail: HotkeyEventDetail) => {
+        if (detail.id !== "interact" || !scope.interactive) return;
+        const player = playerInRoom(scope);
+        if (!player.spawned || !clipboardInReach(clipboards, player)) return;
+        detail.handled = true;
+        act();
       },
-      [clipboards, act],
+      [clipboards, act, scope],
     ),
   );
   return (
-    <group name="queue">
+    <group name={scopedName(scope, "queue")}>
       {clipboards.map((c) => (
         <Clipboard
           key={c.anchor.id}
@@ -154,7 +169,7 @@ export function QueueLayer({
           inReach={reachId === c.anchor.id}
           dropTarget={carrying}
           onOpen={() => {
-            usePlayerStore.getState().setTarget(c.stand.x, c.stand.z);
+            walkInRoom(scope, c.stand.x, c.stand.z);
             act();
           }}
           look={look}

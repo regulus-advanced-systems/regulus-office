@@ -22,6 +22,7 @@ import {
   GENIUS_SKINS,
   GENIUS_TRIMS,
 } from "./genius.ts";
+import { DECOR_STYLES } from "./room-settings-api.ts";
 
 /**
  * Robot colour set and accessory, derived on the client (scene/robots); not
@@ -102,6 +103,12 @@ export const FloorSummary = z.object({
   buildState: z.enum(ROOM_BUILD_STATES),
   /** When the build phase ends (server ms); 0 when ready. */
   buildEndsAt: TimestampMs,
+  /**
+   * Room settings (#182), so every client can draw a room's generated
+   * interior (#186) without joining its FloorRoom; 0 desks for the lobby.
+   */
+  deskCount: Count,
+  decorStyle: z.enum(DECOR_STYLES),
 });
 export type FloorSummary = z.infer<typeof FloorSummary>;
 
@@ -130,6 +137,12 @@ export const UNPLACED_ROOM: RoomSummaryFields = {
   doorY: -1,
   buildState: "ready",
   buildEndsAt: 0,
+};
+
+/** Room settings of a room summary before its settings are read (a vanilla room, #182). */
+export const DEFAULT_ROOM_SETTINGS: Pick<FloorSummary, "deskCount" | "decorStyle"> = {
+  deskCount: 1,
+  decorStyle: "ops_room",
 };
 
 export const ChatMessage = z.object({

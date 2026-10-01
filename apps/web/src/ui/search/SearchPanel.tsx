@@ -9,8 +9,8 @@
  */
 import { LOBBY_FLOOR_ID, type SearchGroup, type SearchHit } from "@regulus/protocol";
 import { type KeyboardEvent, useEffect, useId, useRef } from "react";
-import { getOfficeClient } from "../../net/index.ts";
 import { useFloorStore } from "../../state/floor.ts";
+import { travelTo } from "../../state/travel.ts";
 import { useUiStore } from "../../state/ui.ts";
 import { Modal } from "../components/Modal.tsx";
 import { defaultSearchApi, type SearchApi, type SearchFailure } from "./api.ts";
@@ -96,7 +96,8 @@ export function SearchPanel({ api = defaultSearchApi, now = Date.now }: SearchPa
       return;
     }
     const here = useFloorStore.getState().floorId ?? LOBBY_FLOOR_ID;
-    if (group.floorId !== here) void getOfficeClient().rideTo(group.floorId, "teleport");
+    if (group.floorId !== here && group.floorId !== LOBBY_FLOOR_ID)
+      travelTo(group.floorId, { walkIn: true });
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {

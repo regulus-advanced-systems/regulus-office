@@ -20,6 +20,17 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { type BrowserContext, expect, type Page, test } from "@playwright/test";
+import {
+  cameraSettled,
+  cameraState,
+  navPose,
+  navRooms,
+  roomNamed,
+  travelInto,
+  walkInto,
+  walkToLobby,
+  wheelZoomTo,
+} from "./compoundProbes.ts";
 import { insideViewport, settledDialogLayout } from "./dialogLayout.ts";
 import { type FakeGitHub, startFakeGitHub } from "./fakeGitHub.ts";
 import { type GeniusLook, geniusOf, pickGenius, pickGeniusByKeyboard } from "./geniusChecks.ts";
@@ -28,10 +39,11 @@ import { checkMergeGong } from "./gongChecks.ts";
 import {
   angleBetween,
   boardPoint,
+  cameraName,
+  cameraPosition,
   cameraType,
   carriedCardsInScene,
   distance,
-  floorSize,
   freeDeskPoint,
   groundUnder,
   headingToward,
@@ -274,11 +286,13 @@ test("V toggles the first-person view and back", async () => {
   await ownerPage.bringToFront();
   const toggle = ownerPage.getByRole("button", { name: /First person/ });
   await expect(toggle).toHaveAttribute("aria-pressed", "false");
-  expect(await cameraType(ownerPage)).toBe("OrthographicCamera");
+  // The compound's 3/4 camera (#186) is a perspective camera too; first person swaps in its own.
+  expect(await cameraType(ownerPage)).toBe("PerspectiveCamera");
+  expect(await cameraName(ownerPage)).not.toBe("fpv-camera");
 
   await ownerPage.keyboard.press("v");
   await expect(toggle).toHaveAttribute("aria-pressed", "true");
-  await expect.poll(() => cameraType(ownerPage)).toBe("PerspectiveCamera");
+  await expect.poll(() => cameraName(ownerPage)).toBe("fpv-camera");
   // #144: the projection matches the canvas (it once stayed at aspect 1).
   const projection = await ownerPage.evaluate(() => {
     const r3f = (
@@ -301,7 +315,53 @@ test("V toggles the first-person view and back", async () => {
 
   await ownerPage.keyboard.press("v");
   await expect(toggle).toHaveAttribute("aria-pressed", "false");
-  await expect.poll(() => cameraType(ownerPage)).toBe("OrthographicCamera");
+  await expect.poll(() => cameraName(ownerPage)).not.toBe("fpv-camera");
+});
+
+test("Q, E and a right-drag turn the camera; the wheel zooms out to the compound and back (#186)", async () => {
+  await ownerPage.bringToFront();
+  const canvas = ownerPage.locator("canvas").first();
+  await canvas.hover();
+  /** The camera's yaw round the player (0 looks north), measured from where it is drawn. */
+  const drawnYaw = async () => {
+    const cam = await cameraPosition(ownerPage);
+    const me = await localPose(ownerPage);
+    if (!cam || !me) throw new Error("camera or player missing");
+    return Math.atan2(cam.x - me.x, cam.z - me.z);
+  };
+  const start = await cameraSettled(ownerPage);
+  expect(angleBetween(await drawnYaw(), start.yaw)).toBeLessThan(0.01);
+  await ownerPage.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  await ownerPage.keyboard.press("q");
+  const left = await cameraSettled(ownerPage);
+  expect(angleBetween(left.yaw, start.yaw)).toBeCloseTo(Math.PI / 4, 2);
+  expect(angleBetween(await drawnYaw(), left.yaw)).toBeLessThan(0.01);
+  // E turns the other way when there is nothing in reach to interact with.
+  await ownerPage.keyboard.press("e");
+  const back = await cameraSettled(ownerPage);
+  expect(angleBetween(back.yaw, start.yaw)).toBeLessThan(0.01);
+  // A right-drag turns freely.
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error("no canvas");
+  await ownerPage.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await ownerPage.mouse.down({ button: "right" });
+  await ownerPage.mouse.move(box.x + box.width / 2 + 160, box.y + box.height / 2, { steps: 8 });
+  await ownerPage.mouse.up({ button: "right" });
+  const dragged = await cameraSettled(ownerPage);
+  expect(angleBetween(dragged.yaw, back.yaw)).toBeGreaterThan(0.3);
+  // The wheel: out to the compound overview, then in close behind the player.
+  for (let i = 0; i < 6; i++) await ownerPage.mouse.wheel(0, 400);
+  const far = await cameraSettled(ownerPage);
+  for (let i = 0; i < 12; i++) await ownerPage.mouse.wheel(0, -400);
+  const near = await cameraSettled(ownerPage);
+  expect(far.zoom).toBeCloseTo(1, 2);
+  expect(far.distance).toBeGreaterThan(50);
+  expect(near.zoom).toBeCloseTo(0, 2);
+  expect(near.distance).toBeLessThan(6);
+  // Back to the default framing for the next steps.
+  await wheelZoomTo(ownerPage, start.wantZoom);
+  await ownerPage.keyboard.press("q");
+  await cameraSettled(ownerPage);
 });
 
 test("the robot turns to follow the cursor and walks face-first to a click", async () => {
@@ -336,10 +396,10 @@ test("the robot turns to follow the cursor and walks face-first to a click", asy
   await ownerPage.waitForTimeout(400);
   expect((await localPose(ownerPage))?.heading).toBeCloseTo(settled, 5);
 
-  // Click the middle of the floor: the robot walks there, facing where it goes.
-  const size = (await floorSize(ownerPage))?.split("x").map(Number);
-  if (!size || size.length !== 2) throw new Error("floor size missing");
-  const target = { x: (size[0] ?? 0) / 2, z: (size[1] ?? 0) / 2 };
+  // Click open floor in the lobby: the robot walks there, facing where it goes.
+  const lobby = (await navRooms(ownerPage)).find((r) => r.kind === "lobby");
+  if (!lobby) throw new Error("lobby missing");
+  const target = { x: lobby.x + lobby.w / 2 - 4, z: lobby.z + lobby.d / 2 + 2 };
   const click = await screenPointOf(ownerPage, target);
   if (!click) throw new Error("target not on screen");
   await ownerPage.mouse.click(click.x, click.y);
@@ -366,36 +426,18 @@ test("the robot turns to follow the cursor and walks face-first to a click", asy
   await faceCursorAt(there.x, there.y - 160);
 });
 
-test("the owner adds a floor from a repo and rides the elevator to it and back", async () => {
+test("the owner adds a floor; its room is built and the owner walks in from the lobby and back (#186)", async () => {
   test.skip(!process.env.E2E_DATA_DIR, "needs the locally started server (local git remotes)");
   createRemoteRepo(process.env.E2E_DATA_DIR ?? "", "octo", "hello");
   await ownerPage.bringToFront();
-  const lobbySize = await floorSize(ownerPage);
-  const elevator = ownerPage.getByRole("navigation", { name: "Elevator" });
-  await elevator.getByRole("button", { name: "Add floor…" }).click();
+  const rooms = ownerPage.getByRole("navigation", { name: "Rooms" });
+  await rooms.getByRole("button", { name: "Add floor…" }).click();
   const dialog = ownerPage.getByRole("dialog", { name: "Add floor" });
   await dialog.getByLabel("Floor name").fill("Apollo");
   await dialog.getByLabel("Repo 1", { exact: true }).fill("octo/hello");
   await dialog.getByRole("button", { name: "Create floor" }).click();
   const added = ownerPage.getByRole("dialog", { name: "Floor added" });
   await expect(added.getByText("Ready on trunk")).toBeVisible();
-  await added.getByRole("button", { name: "Go to floor" }).click();
-
-  await expect(ownerPage.locator(".rg-topbar__floor")).toHaveText("Apollo");
-  await expect(elevator.getByRole("button", { name: /1\. Apollo/ })).toHaveAttribute(
-    "aria-current",
-    "true",
-  );
-  await expect.poll(() => floorSize(ownerPage)).not.toBe(lobbySize);
-  // The member has no access to the new floor and no longer sees the owner.
-  const memberElevator = memberPage.getByRole("navigation", { name: "Elevator" });
-  await expect(memberElevator.getByRole("button", { name: /Apollo/ })).toHaveCount(0);
-  await expect.poll(() => remoteHumans(memberPage)).toHaveLength(0);
-
-  await elevator.getByRole("button", { name: /0\. Lobby/ }).click();
-  await expect(ownerPage.locator(".rg-topbar__floor")).toHaveText("Lobby");
-  await expect.poll(() => floorSize(ownerPage)).toBe(lobbySize);
-  await expect.poll(() => remoteHumans(memberPage)).toHaveLength(1);
 
   // The compound (#181): Apollo got a room on the map, which finishes its build phase.
   const apolloRoom = async () => {
@@ -407,22 +449,78 @@ test("the owner adds a floor from a repo and rides the elevator to it and back",
   };
   await expect.poll(async () => (await apolloRoom())?.buildState).toBe("ready");
   expect((await apolloRoom())?.gridX).toBeGreaterThanOrEqual(0);
+  await added.getByRole("button", { name: "Done" }).click();
+  await expect(added).toHaveCount(0);
+
+  // Walk there from the lobby with the mouse: zoom out until Apollo is on screen, click inside.
+  const apollo = await roomNamed(ownerPage, "Apollo");
+  await ownerPage.locator("canvas").first().hover();
+  const zoom = (await cameraState(ownerPage)).wantZoom;
+  await expect(async () => {
+    const pose = await navPose(ownerPage);
+    if (pose.room === apollo.id) return;
+    if (!pose.walking) {
+      const inside = await screenPointOf(ownerPage, apollo.inside);
+      const viewport = ownerPage.viewportSize();
+      const onScreen =
+        inside &&
+        viewport &&
+        inside.x > 300 &&
+        inside.x < viewport.width - 300 &&
+        inside.y > 150 &&
+        inside.y < viewport.height - 200;
+      if (onScreen) await ownerPage.mouse.click(inside.x, inside.y);
+      else await ownerPage.mouse.wheel(0, 300);
+    }
+    throw new Error("walking to Apollo");
+  }).toPass({ timeout: 90_000, intervals: [700] });
+  await expect(ownerPage.locator(".rg-topbar__floor")).toHaveText("Apollo");
+  await expect(ownerPage.getByRole("list", { name: "Work on this floor" })).toBeVisible();
+  await wheelZoomTo(ownerPage, zoom);
+
+  // The member has no access: no Apollo in quick travel, a shut door with its plaque, and
+  // nobody inside is drawn for them.
+  const member = (await navRooms(memberPage)).find((r) => r.name === "Apollo");
+  expect(member?.enterable).toBe(false);
+  await memberPage.bringToFront();
+  await memberPage.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  await memberPage.keyboard.press("f");
+  const travel = memberPage.getByRole("dialog", { name: "Quick travel" });
+  await expect(travel.getByRole("button", { name: /^Lobby/ })).toBeVisible();
+  await expect(travel.getByRole("button", { name: /^Apollo/ })).toHaveCount(0);
+  await memberPage.keyboard.press("Escape");
+  await expect(travel).toHaveCount(0);
+  await expect.poll(() => remoteHumans(memberPage)).toHaveLength(0);
+
+  // Out again: the member sees the owner in the corridors and the lobby.
+  await ownerPage.bringToFront();
+  await walkToLobby(ownerPage);
+  await expect.poll(() => remoteHumans(memberPage)).toHaveLength(1);
 });
 
 test("Floor settings and Add floor fit a 1280×720 window with the X in view", async () => {
   test.skip(!process.env.E2E_DATA_DIR, "needs the floor from the previous step");
   await ownerPage.bringToFront();
   await ownerPage.setViewportSize({ width: 1280, height: 720 });
-  const elevator = ownerPage.getByRole("navigation", { name: "Elevator" });
+  const rooms = ownerPage.getByRole("navigation", { name: "Rooms" });
   const dialogs = [
     {
       name: "Floor settings",
-      opener: elevator.getByRole("button", { name: "Floor settings: Apollo" }),
+      open: async () => {
+        await rooms.getByRole("button", { name: "Quick travel (F)" }).click();
+        await ownerPage
+          .getByRole("dialog", { name: "Quick travel" })
+          .getByRole("button", { name: "Floor settings: Apollo" })
+          .click();
+      },
     },
-    { name: "Add floor", opener: elevator.getByRole("button", { name: "Add floor…" }) },
+    {
+      name: "Add floor",
+      open: () => rooms.getByRole("button", { name: "Add floor…" }).click(),
+    },
   ];
-  for (const { name, opener } of dialogs) {
-    await opener.click();
+  for (const { name, open } of dialogs) {
+    await open();
     const dialog = ownerPage.getByRole("dialog", { name });
     const layout = await settledDialogLayout(ownerPage, dialog);
     expect(insideViewport(layout), `${name}: X inside the viewport`).toBe(true);
@@ -438,11 +536,8 @@ test("Floor settings and Add floor fit a 1280×720 window with the X in view", a
 test("clicking a free desk opens the spawn dialog and the server answers agent.spawn", async () => {
   test.skip(!process.env.E2E_DATA_DIR, "needs the floor from the previous step");
   await ownerPage.bringToFront();
-  const elevator = ownerPage.getByRole("navigation", { name: "Elevator" });
-  await elevator.getByRole("button", { name: /1\. Apollo/ }).click();
-  await expect(ownerPage.locator(".rg-topbar__floor")).toHaveText("Apollo");
-  // The floor HUD counters appear once the FloorRoom state is in.
-  await expect(ownerPage.getByRole("list", { name: "Work on this floor" })).toBeVisible();
+  // Quick travel to Apollo's door and walk in; the HUD counters appear once its FloorRoom is in.
+  await travelInto(ownerPage, "Apollo");
 
   await expect.poll(() => freeDeskPoint(ownerPage)).not.toBeNull();
   const desk = await freeDeskPoint(ownerPage);
@@ -471,8 +566,21 @@ test("the owner archives, restores and deletes a floor; its files go with it", a
   test.skip(!process.env.E2E_DATA_DIR, "needs the locally started server (local git remotes)");
   const dataDir = process.env.E2E_DATA_DIR ?? "";
   await ownerPage.bringToFront();
-  const elevator = ownerPage.getByRole("navigation", { name: "Elevator" });
-  await elevator.getByRole("button", { name: "Add floor…" }).click();
+  const rooms = ownerPage.getByRole("navigation", { name: "Rooms" });
+  const travel = ownerPage.getByRole("dialog", { name: "Quick travel" });
+  const hermes = travel.getByRole("button", { name: /^Hermes/ });
+  /** Hermes's row in quick travel (rooms you can enter), checked with the menu open. */
+  const inQuickTravel = async (count: number) => {
+    await rooms.getByRole("button", { name: "Quick travel (F)" }).click();
+    await expect(hermes).toHaveCount(count);
+    await ownerPage.keyboard.press("Escape");
+    await expect(travel).toHaveCount(0);
+  };
+  const openSettings = async () => {
+    await rooms.getByRole("button", { name: "Quick travel (F)" }).click();
+    await travel.getByRole("button", { name: "Floor settings: Hermes" }).click();
+  };
+  await rooms.getByRole("button", { name: "Add floor…" }).click();
   const create = ownerPage.getByRole("dialog", { name: "Add floor" });
   await create.getByLabel("Floor name").fill("Hermes");
   await create.getByLabel("Repo 1", { exact: true }).fill("octo/hello");
@@ -480,8 +588,10 @@ test("the owner archives, restores and deletes a floor; its files go with it", a
   const added = ownerPage.getByRole("dialog", { name: "Floor added" });
   await expect(added.getByText("Ready on trunk")).toBeVisible();
   await added.getByRole("button", { name: "Done" }).click();
-  const hermes = elevator.getByRole("button", { name: /\d+\. Hermes/ });
-  await expect(hermes).toBeVisible();
+  await expect
+    .poll(async () => (await navRooms(ownerPage)).find((r) => r.name === "Hermes")?.buildState)
+    .toBe("ready");
+  await inQuickTravel(1);
   const mirror = join(dataDir, "projects", "hermes");
   expect(existsSync(join(mirror, "hello", ".git"))).toBe(true);
   // A human's area on the floor, as a spawn would leave it.
@@ -489,12 +599,15 @@ test("the owner archives, restores and deletes a floor; its files go with it", a
   mkdirSync(area, { recursive: true });
   writeFileSync(join(area, "work.txt"), "work\n");
 
-  // Archive from the Danger zone of Floor settings: gone from the elevator, files kept.
+  // Archive from the Danger zone of Floor settings: its room goes from the compound, files kept.
   const settings = ownerPage.getByRole("dialog", { name: "Floor settings" });
-  await elevator.getByRole("button", { name: "Floor settings: Hermes" }).click();
+  await openSettings();
   await settings.getByRole("button", { name: "Archive floor" }).click();
   await expect(settings).toBeHidden();
-  await expect(hermes).toHaveCount(0);
+  await expect
+    .poll(async () => (await navRooms(ownerPage)).some((r) => r.name === "Hermes"))
+    .toBe(false);
+  await inQuickTravel(0);
   expect(existsSync(mirror)).toBe(true);
 
   // Restore from Settings → Floors.
@@ -502,26 +615,32 @@ test("the owner archives, restores and deletes a floor; its files go with it", a
   const panel = ownerPage.getByRole("dialog", { name: "Settings", exact: true });
   await expect(panel.getByRole("list", { name: "Archived floors" })).toContainText("Hermes");
   await panel.getByRole("button", { name: "Restore Hermes" }).click();
-  await expect(panel.getByText("Hermes is back in the elevator.")).toBeVisible();
-  await ownerPage.keyboard.press("Escape");
+  await expect(panel.getByText("Hermes is back in the compound.")).toBeVisible();
+  // The Restore button went with the list row, and keyboard focus with it: close with Done.
+  await panel.getByRole("button", { name: "Done" }).click();
   await expect(panel).toBeHidden();
-  await expect(hermes).toBeVisible();
+  await expect
+    .poll(async () => (await navRooms(ownerPage)).find((r) => r.name === "Hermes")?.buildState)
+    .toBe("ready");
+  await inQuickTravel(1);
 
   // Delete for good, after typing the name.
-  await elevator.getByRole("button", { name: "Floor settings: Hermes" }).click();
+  await openSettings();
   await settings.getByRole("button", { name: "Delete floor…" }).click();
   const confirm = settings.getByRole("button", { name: "Delete floor", exact: true });
   await expect(confirm).toBeDisabled();
   await settings.getByLabel("Type the floor name to confirm").fill("Hermes");
   await confirm.click();
   await expect(settings).toBeHidden();
-  await expect(hermes).toHaveCount(0);
+  await expect
+    .poll(async () => (await navRooms(ownerPage)).some((r) => r.name === "Hermes"))
+    .toBe(false);
   // The dialog closes as soon as the floor is archived (step one of the delete).
   await expect.poll(() => existsSync(mirror)).toBe(false);
   await expect.poll(() => existsSync(join(dataDir, "worktrees", "hermes"))).toBe(false);
   // The other floor is untouched.
   expect(existsSync(join(dataDir, "projects", "apollo", "hello", ".git"))).toBe(true);
-  await expect(elevator.getByRole("button", { name: /1\. Apollo/ })).toBeVisible();
+  expect((await navRooms(ownerPage)).some((r) => r.name === "Apollo")).toBe(true);
 });
 
 test("a card from the issue board carried to a free desk opens the spawn dialog prefilled", async () => {
@@ -568,9 +687,7 @@ test("a card from the issue board carried to a free desk opens the spawn dialog 
     });
     expect(connect.status()).toBe(200);
 
-    const elevator = ownerPage.getByRole("navigation", { name: "Elevator" });
-    await elevator.getByRole("button", { name: /1\. Apollo/ }).click();
-    await expect(ownerPage.locator(".rg-topbar__floor")).toHaveText("Apollo");
+    await walkInto(ownerPage, "Apollo");
     await expect.poll(() => boardPoint(ownerPage, "issue-board")).not.toBeNull();
     const board = await boardPoint(ownerPage, "issue-board");
     if (!board) throw new Error("issue board missing from the scene");

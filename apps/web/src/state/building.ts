@@ -20,7 +20,7 @@ export const useBuildingStore = create<BuildingStore>()((set) => ({
   clear: () => set({ state: null, sessionId: null }),
 }));
 
-/** Floors in elevator order. */
+/** Floors in their creation order (`index`). */
 export function selectFloors(store: BuildingStore): FloorSummary[] {
   const floors = store.state ? Object.values(store.state.floors) : [];
   return floors.sort((a, b) => a.index - b.index);

@@ -55,3 +55,18 @@ describe("findPath", () => {
     for (const p of path ?? []) expect(grid.isWalkable(p.x, p.z)).toBe(true);
   });
 });
+
+describe("findPath on a compound-sized grid (#186)", () => {
+  test("crosses a 128 x 140 m grid of 0.25 m cells quickly and optimally", () => {
+    const grid = new NavGrid(128, 140, 0.25);
+    // A wall across the middle with one gap at the east end forces a long detour.
+    grid.blockRect({ x: 0, z: 69, w: 120, d: 1 });
+    const started = performance.now();
+    const path = findPath(grid, { col: 2, row: 2 }, { col: 2, row: 550 });
+    const ms = performance.now() - started;
+    expect(path).not.toBeNull();
+    expect(path?.at(-1)).toEqual({ col: 2, row: 550 });
+    // Generous for slow CI runners; the old linear open list took tens of seconds here.
+    expect(ms).toBeLessThan(3000);
+  });
+});

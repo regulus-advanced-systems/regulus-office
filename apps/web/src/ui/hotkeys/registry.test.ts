@@ -8,9 +8,10 @@ import {
 } from "./registry.ts";
 
 describe("hotkey registry", () => {
-  test("ships F, V, E, T, Enter, / and ? by default", () => {
+  test("ships F, Q, V, E, T, Enter, / and ? by default", () => {
     const r = createHotkeyRegistry(DEFAULT_HOTKEYS);
-    expect(r.resolve({ key: "f" })?.id).toBe("floorMenu");
+    expect(r.resolve({ key: "f" })?.id).toBe("quickTravel");
+    expect(r.resolve({ key: "q" })?.id).toBe("turnLeft");
     expect(r.resolve({ key: "V" })?.id).toBe("toggleView");
     expect(r.resolve({ key: "e" })?.id).toBe("interact");
     expect(r.resolve({ key: "T" })?.id).toBe("focusChat");
@@ -18,7 +19,8 @@ describe("hotkey registry", () => {
     expect(r.resolve({ key: "/" })?.id).toBe("search");
     expect(r.resolve({ key: "?" })?.id).toBe("help");
     expect(r.list().map((b) => b.id)).toEqual([
-      "floorMenu",
+      "quickTravel",
+      "turnLeft",
       "toggleView",
       "interact",
       "focusChat",

@@ -8,7 +8,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Client, type Room } from "@colyseus/sdk";
-import { smallTemplate } from "@regulus/floor-layout";
+import { legacyDeskCount, ROOM_LAYOUT_ID, roomDeskSeatIds } from "@regulus/floor-layout";
 import {
   BuildingStateSchema,
   COMMAND_REJECTED_MESSAGE,
@@ -127,16 +127,19 @@ afterAll(async () => {
   await rm(dir, { recursive: true, force: true });
 });
 
+/** A small-tier floor is a generated room with 2 desks (#186). */
+const SMALL_ROOM_SEATS = roomDeskSeatIds(legacyDeskCount("office-small") ?? 1);
+
 describe("FloorRoom over the wire", () => {
-  test("a member with view access joins and sees the floor, repos and template desks", async () => {
+  test("a member with view access joins and sees the floor, repos and its room's desks", async () => {
     const room = await joinFloor(users.member, floorId);
     await waitFor(() => room.state.floorId === floorId, "state");
     expect(room.state.name).toBe("Apollo");
-    expect(room.state.layoutTemplateId).toBe(smallTemplate.id);
+    expect(room.state.layoutTemplateId).toBe(ROOM_LAYOUT_ID);
     expect(room.state.repos.map((r) => `${r.owner}/${r.name}@${r.defaultBranch}`)).toEqual([
       "octo/hello@trunk",
     ]);
-    const seats = smallTemplate.seats.filter((s) => s.kind === "desk").map((s) => s.id);
+    const seats = SMALL_ROOM_SEATS;
     expect([...room.state.desks.keys()].sort()).toEqual([...seats].sort());
     expect(room.state.robots.size).toBe(0);
     expect(room.state.decor.size).toBe(0);
@@ -161,7 +164,7 @@ describe("FloorRoom over the wire", () => {
 
   test("published robots appear (and occupy their desk) until removed", async () => {
     const room = await joinFloor(users.member, floorId);
-    const seatId = smallTemplate.seats.find((s) => s.kind === "desk")?.id ?? "";
+    const seatId = SMALL_ROOM_SEATS[0] ?? "";
     rooms.floors.publishRobot(floorId, { ...robotFixture, agentId: "agent-1", seatId });
     await waitFor(() => room.state.robots.has("agent-1"), "robot published");
     expect(room.state.robots.get("agent-1")?.status).toBe(robotFixture.status);
@@ -255,7 +258,7 @@ describe("FloorRoom over the wire", () => {
     carrier.send("card.pick", { cardKind: "issue", repoId, number: 12 });
     await waitFor(() => watcher.state.carriedCards.has(carrier.sessionId), "carried card seen");
     expect(watcher.state.carriedCards.get(carrier.sessionId)?.userId).toBe(users.owner.userId);
-    const seatId = smallTemplate.seats.find((s) => s.kind === "desk")?.id ?? "";
+    const seatId = SMALL_ROOM_SEATS[0] ?? "";
     carrier.send("card.drop", { seatId });
     await waitFor(() => watcher.state.carriedCards.size === 0, "dropped on a desk");
     carrier.send("card.pick", { cardKind: "issue", repoId, number: 12 });

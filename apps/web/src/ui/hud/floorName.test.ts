@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { type FloorSummary, UNPLACED_ROOM } from "@regulus/protocol";
+import { DEFAULT_ROOM_SETTINGS, type FloorSummary, UNPLACED_ROOM } from "@regulus/protocol";
 import { currentFloorName, LOBBY_NAME } from "./floorName.ts";
 
 const floor = (index: number, name: string): FloorSummary => ({
@@ -13,6 +13,7 @@ const floor = (index: number, name: string): FloorSummary => ({
   robotsTotal: 0,
   humansPresent: 0,
   ...UNPLACED_ROOM,
+  ...DEFAULT_ROOM_SETTINGS,
 });
 
 describe("currentFloorName", () => {

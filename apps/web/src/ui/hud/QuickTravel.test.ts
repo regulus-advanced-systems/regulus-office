@@ -1,35 +1,25 @@
 import { describe, expect, test } from "bun:test";
-import { type FloorInfo, type FloorSummary, UNPLACED_ROOM } from "@regulus/protocol";
+import type { FloorInfo } from "@regulus/protocol";
+import { rowPlacement, testWorld } from "../../scene/compound/testing.ts";
 import { anyCloning, cloneBadge } from "../../state/floors.ts";
-import { visibleFloors } from "./ElevatorPanel.tsx";
+import { travelRooms } from "./QuickTravel.tsx";
 
-const summary = (floorId: string, index: number): FloorSummary => ({
-  floorId,
-  name: floorId,
-  slug: floorId,
-  index,
-  paletteId: "teal-cream",
-  robotsWorking: 0,
-  robotsWaiting: 0,
-  robotsTotal: 0,
-  humansPresent: 0,
-  ...UNPLACED_ROOM,
-});
-
-const directory = {
-  f2: summary("f2", 2),
-  lobby: summary("lobby", 0),
-  f1: summary("f1", 1),
-};
-
-describe("elevator floors", () => {
-  test("lobby always; project floors only when accessible; elevator order", () => {
-    expect(visibleFloors(directory, null).map((f) => f.floorId)).toEqual(["lobby", "f1", "f2"]);
-    expect(visibleFloors(directory, new Set(["f2"])).map((f) => f.floorId)).toEqual([
+describe("quick travel rooms (#186)", () => {
+  test("special rooms first, then finished rooms this viewer may enter", () => {
+    const world = testWorld(
+      [
+        { id: "apollo", placement: rowPlacement(4) },
+        { id: "hermes", placement: rowPlacement(16), building: true },
+        { id: "zeus", placement: rowPlacement(28) },
+      ],
+      ["apollo", "hermes"],
+    );
+    expect(travelRooms(world.rooms).map((r) => r.id)).toEqual([
       "lobby",
-      "f2",
+      "conference",
+      "break_room",
+      "apollo",
     ]);
-    expect(visibleFloors(null, new Set())).toEqual([]);
   });
 
   test("clone badges: error wins over cloning; ready shows none", () => {
@@ -50,7 +40,7 @@ describe("elevator floors", () => {
       slug: "f",
       index: 1,
       paletteId: "oak-sky",
-      layoutTemplateId: "office-l2",
+      layoutTemplateId: "room",
       archivedAt: null,
       access: "view",
       repos: statuses.map(repo),

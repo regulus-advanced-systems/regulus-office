@@ -3,7 +3,15 @@ import { randomBytes } from "node:crypto";
 import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { FLOOR_TIERS, officeL2Template, PALETTES, smallTemplate } from "@regulus/floor-layout";
+import {
+  FLOOR_TIERS,
+  legacyDeskCount,
+  officeL2Template,
+  PALETTES,
+  ROOM_LAYOUT_ID,
+  roomDeskSeatIds,
+  smallTemplate,
+} from "@regulus/floor-layout";
 import { FLOOR_TEMPLATE_TIERS } from "@regulus/protocol";
 import { eq } from "drizzle-orm";
 import { AuthHttpError } from "../auth/errors.ts";
@@ -67,7 +75,7 @@ describe("FloorService", () => {
     expect([...FLOOR_TEMPLATE_TIERS]).toEqual([...FLOOR_TIERS]);
   });
 
-  test("an admin creates a floor: repos clone, desks come from the template", async () => {
+  test("an admin creates a floor: repos clone, desks come from the generated room", async () => {
     const t = setup();
     const { floor, cloned } = t.floors.service.create(t.admin, {
       name: "Apollo Moon",
@@ -79,7 +87,7 @@ describe("FloorService", () => {
       slug: "apollo-moon",
       index: 1,
       paletteId: PALETTES[1]?.id,
-      layoutTemplateId: smallTemplate.id,
+      layoutTemplateId: ROOM_LAYOUT_ID,
       access: "manage",
     });
     expect(floor.repos.map((r) => [r.owner, r.name, r.cloneStatus, r.isPrimary])).toEqual([
@@ -104,7 +112,8 @@ describe("FloorService", () => {
     expect(gitConfig).not.toMatch(/sharedRepository/i);
 
     const deskSeats = t.db.select().from(desks).where(eq(desks.floorId, floor.floorId)).all();
-    const expected = smallTemplate.seats.filter((s) => s.kind === "desk").map((s) => s.id);
+    // A generated room (#186): the small tier is 2 desks, 8 seats.
+    const expected = roomDeskSeatIds(legacyDeskCount(smallTemplate.id) ?? 1);
     expect(deskSeats.map((d) => d.seatId).sort()).toEqual([...expected].sort());
 
     const stored = t.db.select().from(floorRepos).all();
@@ -137,7 +146,9 @@ describe("FloorService", () => {
       header: "http.extraHeader",
       redacted: "push with [redacted]",
     });
-    expect(floor.layoutTemplateId).toBe(officeL2Template.id);
+    // The medium tier is a generated room with the old Office L2 floor's desks (#186).
+    expect(floor.layoutTemplateId).toBe(ROOM_LAYOUT_ID);
+    expect(legacyDeskCount(officeL2Template.id)).toBe(3);
   });
 
   test("palettes cycle, slugs stay unique, same-named repos get owner-prefixed dirs", async () => {

@@ -32,15 +32,14 @@ describe("/ui-kit", () => {
     expect(document.querySelectorAll("[role=status]").length).toBeGreaterThanOrEqual(1);
     await act(async () => useUiStore.getState().clearToasts());
 
-    // Seeding fake floors fills the elevator.
+    // The rooms panel (#186, the elevator's successor) says where you are and offers quick travel.
     const seed = Array.from(document.querySelectorAll("button")).find((b) =>
       b.textContent?.includes("Seed fake floors"),
     );
     await click(seed as HTMLElement);
-    expect(m.container.querySelectorAll(".rg-list__item").length).toBe(3);
-    expect(m.container.querySelector(".rg-list__item[aria-current=true]")?.textContent).toContain(
-      "Regulus Web",
-    );
+    const rooms = m.container.querySelector('nav[aria-label="Rooms"]');
+    expect(rooms?.textContent).toContain("You are in Lobby");
+    expect(rooms?.textContent).toContain("Quick travel (F)");
     await m.unmount();
   });
 });

@@ -18,6 +18,6 @@ describe("hotkey help", () => {
       "Search",
       "Help",
     ]);
-    expect(groups[0]?.[1].map((b) => b.id)).toEqual(["floorMenu"]);
+    expect(groups[0]?.[1].map((b) => b.id)).toEqual(["quickTravel"]);
   });
 });
