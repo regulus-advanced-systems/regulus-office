@@ -46,7 +46,7 @@ export function SendHomeDialog() {
     <Modal
       open
       onClose={close}
-      title="Send robot home"
+      title="Send henchman home"
       width={520}
       footer={
         <>
@@ -64,7 +64,7 @@ export function SendHomeDialog() {
       }
     >
       <p>
-        The robot stops, packs up and leaves its desk
+        The henchman stops, packs up and leaves its desk
         {robot?.taskTitle ? ` (“${robot.taskTitle}”)` : ""}. Its worktree is removed.
       </p>
       <fieldset className="rg-field rg-agent-choice">

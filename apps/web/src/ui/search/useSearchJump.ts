@@ -74,7 +74,7 @@ export function tickJump(target: JumpTarget, progress: JumpProgress, deps: JumpD
     case "give_up":
       useUiStore.getState().toast({
         kind: "error",
-        message: "Could not reach that robot's floor.",
+        message: "Could not reach that henchman's room.",
       });
       return false;
     default:

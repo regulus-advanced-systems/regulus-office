@@ -157,7 +157,7 @@ export class AgentManager extends AgentRuntime {
       this.logger.info({ agentId, requestId, err: errorSummary(err) }, "permission answer refused");
       throw new AgentManagerError(
         "conflict",
-        "that request is no longer pending; answer it in the robot's terminal",
+        "that request is no longer pending; answer it in the henchman's terminal",
       );
     }
     this.permissions.remove(agentId, requestId);
@@ -227,7 +227,7 @@ export class AgentManager extends AgentRuntime {
     if (!mayEmergencyStop(actor)) {
       throw new AgentManagerError(
         "forbidden",
-        "only an office owner or admin may emergency-stop a robot",
+        "only an office owner or admin may emergency-stop a henchman",
       );
     }
     await this.#halt(live, "emergency stop");
@@ -295,7 +295,10 @@ export class AgentManager extends AgentRuntime {
     const live = this.agents.get(agentId);
     if (!live) throw new AgentManagerError("not_found", "no such agent");
     if (!mayEmergencyStop(actor)) {
-      throw new AgentManagerError("forbidden", "only an office owner or admin may clear a floor");
+      throw new AgentManagerError(
+        "forbidden",
+        "only an office owner or admin may clear an operation",
+      );
     }
     await this.#sendHome(live, { keepBranch: true });
     this.store.audit(actor.id, AUDIT_ACTIONS.agentSendHome, agentId, {
@@ -329,7 +332,7 @@ export class AgentManager extends AgentRuntime {
     const live = this.agents.get(agentId);
     if (!live) throw new AgentManagerError("not_found", "no such agent");
     if (!mayControlRobot(actor, live.view.ownerUserId)) {
-      throw new AgentManagerError("forbidden", "only the robot's owner may control it");
+      throw new AgentManagerError("forbidden", "only the henchman's owner may control it");
     }
     return live;
   }

@@ -166,7 +166,7 @@ export function QueuePanel({ send = officeSend() }: { send?: QueueSend }) {
     <Modal open onClose={closePanel} title="Task queue" width={640}>
       <div className="rg-queue">
         <p className="rg-queue__intro">
-          Each task starts a robot for the human who queued it, when a desk and a slot are free
+          Each task starts a henchman for the human who queued it, when a desk and a slot are free
           {settings ? ` (${settings.maxRunning} at once, ${settings.maxPerOwner} per person)` : ""}.
         </p>
         {hasFloorAccess(access, "spawn") && (

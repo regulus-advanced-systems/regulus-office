@@ -47,7 +47,7 @@ export function PermissionDialog({ now = Date.now }: { now?: () => number }) {
   useAgentOverlay(open, "agent-permission");
   if (!agentId || !request) return null;
 
-  const who = robot?.taskTitle ? `“${robot.taskTitle}”` : "This robot";
+  const who = robot?.taskTitle ? `“${robot.taskTitle}”` : "This henchman";
   const expiry = expiresIn(request, now());
   const answer = (decision: PermissionDecision) =>
     send("agent.approve", { agentId, requestId: request.requestId, decision });
@@ -79,12 +79,13 @@ export function PermissionDialog({ now = Date.now }: { now?: () => number }) {
       </pre>
       {request.options.includes("allow_always") && (
         <p className="rg-field__hint">
-          “Allow always” allows this kind of action for the rest of the robot's session.
+          “Allow always” allows this kind of action for the rest of the henchman's session.
         </p>
       )}
       {expiry && (
         <p className="rg-field__hint">
-          The office can answer for about {expiry} more; after that, answer in the robot's terminal.
+          The office can answer for about {expiry} more; after that, answer in the henchman's
+          terminal.
         </p>
       )}
       {refusal?.type === "agent.approve" && (

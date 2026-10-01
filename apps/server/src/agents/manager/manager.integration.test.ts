@@ -111,7 +111,7 @@ describe.skipIf(!hasTmux())("AgentManager (tmux)", () => {
 
     // Office owners watch other people's robots; only the robot's owner sends it home (#138).
     await expect(manager.sendHome(office.owner, agentId, { keepBranch: true })).rejects.toThrow(
-      "only the robot's owner may control it",
+      "only the henchman's owner may control it",
     );
     await manager.sendHome(office.member, agentId, { keepBranch: true });
     expect(robots.removed).toEqual([agentId]);

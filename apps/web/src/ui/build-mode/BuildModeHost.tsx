@@ -79,7 +79,7 @@ export async function confirmBuild(api: CompoundApi): Promise<void> {
     const n = res.robots?.length ?? 0;
     s.setBusy(
       false,
-      `${n === 1 ? "A robot is" : `${n || "Some"} robots are`} running in this room. Send them home first, then move it.`,
+      `${n === 1 ? "A henchman is" : `${n || "Some"} henchmen are`} running in this room. Send them home first, then move it.`,
     );
   } else s.setBusy(false, describeFloorError(res));
 }

@@ -38,14 +38,14 @@ export function admitSpawn(
 ): AdmittedSpawn {
   const access = floorAccessFor(deps.db, actor, input.floorId);
   if (access !== "spawn" && access !== "manage") {
-    throw new AgentManagerError("forbidden", "you may not spawn agents on this floor");
+    throw new AgentManagerError("forbidden", "you may not spawn henchmen in this operation");
   }
   const repo = deps.db
     .select()
     .from(floorRepos)
     .where(and(eq(floorRepos.id, input.repoId), eq(floorRepos.floorId, input.floorId)))
     .get();
-  if (!repo) throw new AgentManagerError("bad_request", "no such repo on this floor");
+  if (!repo) throw new AgentManagerError("bad_request", "no such repo in this operation");
   if (repo.cloneStatus !== "ready") {
     throw new AgentManagerError("unavailable", "the repo is not cloned yet");
   }

@@ -138,7 +138,7 @@ describe("floor settings panel", () => {
         <FloorSettingsDialogHost api={createFloorsApi({ fetch: f.fetch })} />
       </>,
     );
-    expect(button("Floor settings")).toBeUndefined();
+    expect(button("Operation settings")).toBeUndefined();
     await openPanel();
     expect(dialog()).toBeNull();
     expect(f.calls).toEqual([]);
@@ -165,7 +165,7 @@ describe("floor settings panel", () => {
         <FloorSettingsDialogHost api={createFloorsApi({ fetch: f.fetch })} />
       </>,
     );
-    const gear = labelled<HTMLButtonElement>("Floor settings: Hangar");
+    const gear = labelled<HTMLButtonElement>("Operation settings: Hangar");
     if (!gear) throw new Error("no quick travel gear");
     await click(gear);
     await settle();
@@ -173,7 +173,7 @@ describe("floor settings panel", () => {
     await click(button("Done") as HTMLButtonElement);
     expect(dialog()).toBeNull();
 
-    const top = button("Floor settings");
+    const top = button("Operation settings");
     if (!top) throw new Error("no top bar button");
     await click(top);
     await settle();
@@ -185,7 +185,7 @@ describe("floor settings panel", () => {
     const f = fakeServer([{ userId: "me", displayName: "Mia Manager", access: "manage" }]);
     await mount(<FloorSettingsDialogHost api={createFloorsApi({ fetch: f.fetch })} />);
     await openPanel();
-    expect(text()).toContain("Owners and admins can always manage every floor: Ada Owner.");
+    expect(text()).toContain("Owners and admins can always manage every operation: Ada Owner.");
     expect(text()).toContain("Mia Manager (you)");
 
     // Candidates: not owners/admins and not people already on the floor.
@@ -209,14 +209,14 @@ describe("floor settings panel", () => {
     expect(list?.textContent).toContain("Ben Member");
     expect(list?.textContent).toContain("Office viewer: can only watch");
     expect(labelled("People to add")).toBeNull();
-    expect(text()).toContain("Everyone in the office can already use this floor.");
+    expect(text()).toContain("Everyone in the office can already use this operation.");
     expect(text()).toContain("Added Ben Member, Vic Viewer.");
 
     // Change Ben to Spawn robots.
     await choose(labelled("Access for Ben Member"), "spawn");
     expect(f.calls.at(-3)).toMatchObject({ method: "PUT", body: { access: "spawn" } });
     expect(labelled<HTMLSelectElement>("Access for Ben Member")?.value).toBe("spawn");
-    expect(text()).toContain("Ben Member now has Spawn robots access.");
+    expect(text()).toContain("Ben Member now has Spawn henchmen access.");
 
     // Revoke Ben.
     await click(labelled("Remove Ben Member") as HTMLButtonElement);
@@ -245,7 +245,7 @@ describe("floor settings panel", () => {
     await click(ben?.querySelector("input") as HTMLInputElement);
     await click(button("Add 1 person") as HTMLButtonElement);
     await settle();
-    expect(text()).toContain("You need manage access to this floor");
+    expect(text()).toContain("You need manage access to this operation");
   });
 
   test("after a room is placed, Add people opens the new floor's settings", async () => {
@@ -259,7 +259,7 @@ describe("floor settings panel", () => {
         <FloorSettingsDialogHost api={api} />
       </>,
     );
-    expect(text()).toContain("Floor added");
+    expect(text()).toContain("Operation set up");
     await click(button("Add people…") as HTMLButtonElement);
     await settle();
     expect(useUiStore.getState().overlay).toBe(floorSettingsOverlay(FLOOR_ID));

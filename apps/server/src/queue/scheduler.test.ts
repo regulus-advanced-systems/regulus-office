@@ -179,7 +179,7 @@ describe("scheduler (#37)", () => {
       state: "failed",
       reason: "the repo is not cloned yet",
     });
-    spawner.refuse = new AgentManagerError("conflict", "no free desk on this floor");
+    spawner.refuse = new AgentManagerError("conflict", "no free desk in this operation");
     const b = queue.enqueueTask(f.member, freeform(f.floorId, f.repoId, "b"));
     await queue.scheduler.idle();
     await Bun.sleep(5);

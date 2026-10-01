@@ -134,7 +134,7 @@ export class GitWorktreeWorkspaces implements Workspaces, HumanClones {
       .from(floors)
       .where(eq(floors.id, input.floorId))
       .get();
-    if (!floor) throw new WorkspaceError("repo_not_found", "floor not found");
+    if (!floor) throw new WorkspaceError("repo_not_found", "operation not found");
     const area = humanAreaDir(this.#deps.worktreesDir, floor.slug, input.ownerUserId);
     return { repo, area, clone: join(area, CLONES_DIR, basename(repo.workdir)) };
   }

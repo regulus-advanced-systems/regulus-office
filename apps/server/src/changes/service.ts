@@ -57,7 +57,7 @@ export class ChangesService {
 
   #shell(row: AgentRow): { shell: RobotShell; baseRef: string } {
     const repo = this.deps.repos.getRepo(row.repoId);
-    if (!repo) throw new ChangesHttpError(409, "unavailable", "the robot's repo is gone");
+    if (!repo) throw new ChangesHttpError(409, "unavailable", "the henchman's repo is gone");
     let clone: string;
     try {
       const found = this.deps.clones.cloneFor(row);
@@ -65,13 +65,13 @@ export class ChangesService {
         throw new ChangesHttpError(
           409,
           "unavailable",
-          "this robot's workspace predates per-human clones; its runner cannot reach it",
+          "this henchman's workspace predates per-human clones; its runner cannot reach it",
         );
       }
       clone = found.clone;
     } catch (err) {
       if (err instanceof ChangesHttpError) throw err;
-      throw new ChangesHttpError(409, "unavailable", "the robot's workspace cannot be found");
+      throw new ChangesHttpError(409, "unavailable", "the henchman's workspace cannot be found");
     }
     const shell = new RobotShell(this.deps.runner, {
       userId: row.ownerUserId,
@@ -108,7 +108,7 @@ export class ChangesService {
   async #read<T>(agentId: string, fn: () => Promise<T>): Promise<T> {
     const n = this.#reads.get(agentId) ?? 0;
     if (n >= (this.deps.maxReads ?? 4)) {
-      throw new ChangesHttpError(429, "git_busy", "too many reads of this robot at once");
+      throw new ChangesHttpError(429, "git_busy", "too many reads of this henchman at once");
     }
     this.#reads.set(agentId, n + 1);
     try {

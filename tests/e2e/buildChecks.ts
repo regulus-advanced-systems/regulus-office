@@ -77,9 +77,9 @@ export const middleOf = (p: Placement) => ({
 /** Open Add floor, name the floor and its repo, and continue into build mode. */
 export async function openBuildMode(page: Page, name: string, repo: string): Promise<BuildProbe> {
   const rooms = page.getByRole("navigation", { name: "Rooms" });
-  await rooms.getByRole("button", { name: "Add floor…" }).click();
-  const dialog = page.getByRole("dialog", { name: "Add floor" });
-  await dialog.getByLabel("Floor name").fill(name);
+  await rooms.getByRole("button", { name: "New operation…" }).click();
+  const dialog = page.getByRole("dialog", { name: "New operation" });
+  await dialog.getByLabel("Operation name").fill(name);
   await dialog.getByLabel("Repo 1", { exact: true }).fill(repo);
   await dialog.getByRole("button", { name: "Choose a spot…" }).click();
   await expect(dialog).toHaveCount(0);

@@ -70,7 +70,7 @@ export function syncAgentMessages(deps: AgentSyncDeps): () => void {
       });
       // The PR dialog shows its own refusal with the file list.
       if (notice.type !== "agent.pr" && notice.type !== "agent.worktree") {
-        toast({ kind: "error", title: "Robot command refused", message: notice.reason });
+        toast({ kind: "error", title: "Henchman command refused", message: notice.reason });
       }
     }),
   ];

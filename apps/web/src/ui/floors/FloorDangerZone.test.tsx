@@ -73,7 +73,7 @@ async function openPanel() {
  * value moved (as in FirstPersonSettings.test.tsx).
  */
 async function typeName(value: string) {
-  const input = inputByLabel("Type the floor name to confirm");
+  const input = inputByLabel("Type the operation name to confirm");
   await act(async () => {
     input.focus();
     const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
@@ -108,7 +108,7 @@ describe("Floor settings danger zone", () => {
     await openPanel();
     expect(dialog()?.textContent).toContain("Who can use Hangar");
     expect(document.querySelector('[aria-label="Danger zone"]')).toBeNull();
-    expect(exactButton("Archive floor")).toBeUndefined();
+    expect(exactButton("Archive operation")).toBeUndefined();
   });
 
   test("an admin archives the floor; the dialog closes when it leaves the list", async () => {
@@ -121,7 +121,7 @@ describe("Floor settings danger zone", () => {
     });
     await mount(<FloorSettingsDialogHost api={createFloorsApi({ fetch: f.fetch })} />);
     await openPanel();
-    await click(exactButton("Archive floor") as HTMLButtonElement);
+    await click(exactButton("Archive operation") as HTMLButtonElement);
     await settle();
     expect(f.calls.map((c) => `${c.method} ${c.path}`)).toContain(`POST ${BASE}/archive`);
     expect(dialog()).toBeNull();
@@ -145,8 +145,8 @@ describe("Floor settings danger zone", () => {
     });
     await mount(<FloorSettingsDialogHost api={createFloorsApi({ fetch: f.fetch })} />);
     await openPanel();
-    await click(exactButton("Delete floor…") as HTMLButtonElement);
-    const remove = () => exactButton("Delete floor") as HTMLButtonElement;
+    await click(exactButton("Delete operation…") as HTMLButtonElement);
+    const remove = () => exactButton("Delete operation") as HTMLButtonElement;
     expect(text()).toContain("Nothing on GitHub is deleted.");
     expect(remove().disabled).toBe(true);
     await typeName("hangar");
@@ -156,13 +156,13 @@ describe("Floor settings danger zone", () => {
 
     await click(remove());
     await settle();
-    const robots = document.querySelector('[aria-label="Robots on this floor"]');
+    const robots = document.querySelector('[aria-label="Henchmen in this operation"]');
     expect(robots?.textContent).toContain("Fix the login page (Ben Member, working)");
-    expect(text()).toContain("Robots are still on this floor.");
+    expect(text()).toContain("Henchmen are still working in this operation.");
     await click(exactButton("Send all home") as HTMLButtonElement);
     await settle();
-    expect(text()).toContain("Sent 1 robot home. You can delete the floor now.");
-    expect(document.querySelector('[aria-label="Robots on this floor"]')).toBeNull();
+    expect(text()).toContain("Sent 1 henchman home. You can delete the operation now.");
+    expect(document.querySelector('[aria-label="Henchmen in this operation"]')).toBeNull();
 
     await click(remove());
     await settle();
@@ -180,7 +180,7 @@ describe("Settings → Floors", () => {
     signedInAs("member");
     const f = fakeFetch({});
     await mount(<FloorsSection api={createFloorsApi({ fetch: f.fetch })} />);
-    expect(document.querySelector('[aria-label="Floors"]')).toBeNull();
+    expect(document.querySelector('[aria-label="Operations"]')).toBeNull();
     expect(f.calls).toEqual([]);
   });
 
@@ -196,12 +196,12 @@ describe("Settings → Floors", () => {
       "GET /api/floors": { body: { floors: [floorInfo()] } },
     });
     await mount(<FloorsSection api={createFloorsApi({ fetch: f.fetch })} />);
-    const list = document.querySelector('[aria-label="Archived floors"]');
+    const list = document.querySelector('[aria-label="Archived operations"]');
     expect(list?.textContent).toContain("Hangar");
     await click(document.querySelector('[aria-label="Restore Hangar"]') as HTMLButtonElement);
     await settle();
     expect(text()).toContain("Hangar is back in the compound.");
-    expect(text()).toContain("No archived floors.");
+    expect(text()).toContain("No archived operations.");
     expect(useFloorsStore.getState().floors?.map((fl) => fl.name)).toEqual(["Hangar"]);
   });
 
@@ -218,9 +218,9 @@ describe("Settings → Floors", () => {
     await mount(<FloorsSection api={createFloorsApi({ fetch: f.fetch })} />);
     await click(document.querySelector('[aria-label="Delete Hangar…"]') as HTMLButtonElement);
     await typeName("Hangar");
-    await click(exactButton("Delete floor") as HTMLButtonElement);
+    await click(exactButton("Delete operation") as HTMLButtonElement);
     await settle();
     expect(text()).toContain("Hangar was deleted.");
-    expect(text()).toContain("No archived floors.");
+    expect(text()).toContain("No archived operations.");
   });
 });

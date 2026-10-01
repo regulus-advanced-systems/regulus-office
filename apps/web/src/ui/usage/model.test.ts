@@ -20,7 +20,9 @@ describe("usage model", () => {
     expect(m.my7dUsd).toBe("$21.00");
     expect(m.officeTodayUsd).toBe("$42.50");
     expect(m.officeTodayTokens).toBe("1M");
-    expect(m.top).toEqual([{ key: "a1", name: "Ada's Codex robot", owner: "Ada", tokens: "900K" }]);
+    expect(m.top).toEqual([
+      { key: "a1", name: "Ada's Codex henchman", owner: "Ada", tokens: "900K" },
+    ]);
   });
 
   test("before anything loaded", () => {

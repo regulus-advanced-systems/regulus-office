@@ -68,7 +68,7 @@ export function CardDetail({
   const carry = () => {
     // The HUD chip (BoardsHost) takes over from here.
     if (pickCard({ kind, repoId, number })) onCarried();
-    else toast({ kind: "error", message: "Not connected to this floor." });
+    else toast({ kind: "error", message: "Not connected to this operation." });
   };
 
   const title = detail?.title ?? summaryTitle;

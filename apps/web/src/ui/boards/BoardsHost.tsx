@@ -18,8 +18,8 @@ export function CarryChip() {
       <span className="rg-carry__card" aria-hidden="true" />
       <span className="rg-carry__text">
         Carrying {what} <strong>#{carried.number}</strong>
-        {carried.title ? ` ${carried.title}` : ""}. Click a free desk to spawn a robot on it, or the
-        queue clipboard to queue it.
+        {carried.title ? ` ${carried.title}` : ""}. Click a free desk to spawn a henchman at it, or
+        the queue clipboard to queue it.
       </span>
       <Button size="sm" variant="ghost" onClick={() => dropCard()}>
         Put back

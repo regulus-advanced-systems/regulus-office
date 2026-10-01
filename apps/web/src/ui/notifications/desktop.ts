@@ -38,7 +38,7 @@ export function notificationTitle(ev: NotifyEvent): string {
 }
 
 export function notificationBody(ev: NotifyEvent): string {
-  const lines = [ev.floorName ? `Floor: ${ev.floorName}` : "", ev.taskTitle];
+  const lines = [ev.floorName ? `Operation: ${ev.floorName}` : "", ev.taskTitle];
   if (ev.prNumber > 0) lines.push(`Pull request #${ev.prNumber}`);
   return lines.filter(Boolean).join("\n");
 }

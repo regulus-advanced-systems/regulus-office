@@ -45,12 +45,12 @@ const byLabel = (label: string) => document.querySelector(`[aria-label="${label}
 const nameField = () =>
   document.getElementById(
     Array.from(document.querySelectorAll("label"))
-      .find((l) => l.textContent === "Floor name")
+      .find((l) => l.textContent === "Operation name")
       ?.getAttribute("for") ?? "",
   );
 
 async function submit() {
-  const form = document.querySelector('form[aria-label="Add floor"]');
+  const form = document.querySelector('form[aria-label="New operation"]');
   await act(async () => {
     form?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
   });
@@ -90,7 +90,7 @@ describe("Add floor dialog", () => {
     signedInAs("admin");
     await mount(<AddFloorDialogHost />);
     await act(async () => useUiStore.getState().openOverlay(ADD_FLOOR_OVERLAY));
-    expect(text()).toContain("Add floor");
+    expect(text()).toContain("New operation");
     expect(text()).not.toContain("Size");
 
     await typeInto(nameField(), "Apollo");

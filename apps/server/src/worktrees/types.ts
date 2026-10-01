@@ -52,8 +52,8 @@ export interface HumanClones {
 
 /** Why a pre-#114 agent is offline and cannot be resumed (shown to humans). */
 export const LEGACY_WORKSPACE_MESSAGE =
-  "this robot's workspace is in the floor's shared clone, which runners can no longer use " +
-  "(each human now has their own clone): open its PR or send it home, then spawn a new robot";
+  "this henchman's workspace is in the operation's shared clone, which runners can no longer use " +
+  "(each human now has their own clone): open its PR or send it home, then spawn a new henchman";
 
 export type WorkspaceErrorCode =
   | "agent_not_found"

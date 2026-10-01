@@ -42,7 +42,7 @@ export function AccountSection() {
             aria-haspopup="dialog"
             onClick={() => openOverlay(ADD_FLOOR_OVERLAY)}
           >
-            Add floor…
+            New operation…
           </Button>
         )}
         <Button variant="destructive" size="sm" onClick={() => void signOut()}>

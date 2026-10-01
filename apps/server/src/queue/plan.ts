@@ -37,7 +37,7 @@ export const WAIT_REASONS = {
   slot: "waiting for a free slot in this room",
   desk: "waiting for a free desk",
   owner: "waiting: its owner already runs as many tasks as allowed",
-  access: "on hold: its owner may no longer spawn robots in this room",
+  access: "on hold: its owner may no longer spawn henchmen in this room",
 } as const;
 
 export function planQueue(input: PlanInput): QueuePlan {

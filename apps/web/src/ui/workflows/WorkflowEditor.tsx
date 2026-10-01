@@ -196,13 +196,13 @@ export function WorkflowEditor({ spec, onChange, canApprove }: EditorProps) {
         onChange={(drafts) => setFilters({ drafts })}
       />
 
-      <h3 className="rg-workflows__heading">Robot</h3>
+      <h3 className="rg-workflows__heading">Henchman</h3>
       <Select
         label="Provider"
         value={spec.robot.provider}
         options={WORKFLOW_PROVIDERS.map((p) => ({ value: p, label: PROVIDER_LABELS[p] }))}
         onChange={(provider) => setRobot({ provider })}
-        hint="Workflow robots use only the office's pay-per-use API keys; usage is counted for the office."
+        hint="Workflow henchmen use only the office's pay-per-use API keys; usage is counted for the office."
       />
       <TextField
         label="Model"
@@ -219,7 +219,7 @@ export function WorkflowEditor({ spec, onChange, canApprove }: EditorProps) {
       <Field
         label="Prompt template"
         htmlFor="rg-workflow-prompt"
-        hint={`Placeholders: ${WORKFLOW_PROMPT_VARIABLES.map((v) => `{{${v}}}`).join(" ")}. Text from GitHub is marked as untrusted for the robot.`}
+        hint={`Placeholders: ${WORKFLOW_PROMPT_VARIABLES.map((v) => `{{${v}}}`).join(" ")}. Text from GitHub is marked as untrusted for the henchman.`}
       >
         <textarea
           id="rg-workflow-prompt"
@@ -232,8 +232,8 @@ export function WorkflowEditor({ spec, onChange, canApprove }: EditorProps) {
       <Switch
         checked={spec.robot.executePrCode}
         onChange={(executePrCode) => setRobot({ executePrCode })}
-        label="Let the robot run the PR's code"
-        hint="Same-repo PRs only, never forks, inside the robot's sandbox. Off: it only reads files."
+        label="Let the henchman run the PR's code"
+        hint="Same-repo PRs only, never forks, inside the henchman's sandbox. Off: it only reads files."
       />
       <NumberField
         label="Time limit (minutes)"

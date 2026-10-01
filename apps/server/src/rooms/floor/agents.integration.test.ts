@@ -45,7 +45,7 @@ const users = {
 } satisfies Record<string, User>;
 const CONTROLLERS = ["robotOwner"] as const;
 const WATCHERS = ["owner", "admin", "member", "viewer"] as const;
-const NOT_OWNER = "only the robot's owner may control it";
+const NOT_OWNER = "only the henchman's owner may control it";
 const AGENT = "agent-7";
 
 let dir: string;
@@ -242,7 +242,7 @@ describe("FloorRoom robot controls", () => {
           {
             type: "agent.emergencyStop",
             agentId: AGENT,
-            reason: "only an office owner or admin may emergency-stop a robot",
+            reason: "only an office owner or admin may emergency-stop a henchman",
           },
         ]);
         expect(calls.length).toBe(before);
@@ -257,7 +257,7 @@ describe("FloorRoom robot controls", () => {
     who.room.send("agent.approve", { agentId: AGENT, requestId: "p1", decision: "maybe" });
     await waitFor(() => of(who, COMMAND_REJECTED_MESSAGE).length === 3, "three rejections");
     const reasons = of(who, COMMAND_REJECTED_MESSAGE) as { reason: string }[];
-    expect(reasons[0]?.reason).toBe("no such robot on this floor");
+    expect(reasons[0]?.reason).toBe("no such henchman in this operation");
     expect(reasons[1]?.reason).toContain("invalid agent.sendHome");
     expect(reasons[2]?.reason).toContain("invalid agent.approve");
   });

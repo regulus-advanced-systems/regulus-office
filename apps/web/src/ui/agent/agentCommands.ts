@@ -32,7 +32,7 @@ export const officeAgentSender: AgentSender = (type, payload) => {
   try {
     getOfficeClient().send(type, payload);
   } catch {
-    store.refused(payload.agentId, { type, reason: "not connected to this floor" });
+    store.refused(payload.agentId, { type, reason: "not connected to this operation" });
   }
 };
 

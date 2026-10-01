@@ -111,7 +111,7 @@ export function NotificationsSection({ api = defaultApi }: { api?: Notifications
       <section className="rg-field" aria-label="Notifications">
         <div className="rg-field__label">Notifications</div>
         <div className="rg-field__hint">
-          For your own robots. The tab title shows how many of them wait for you.
+          For your own henchmen. The tab title shows how many of them wait for you.
         </div>
         <PermissionLine
           permission={permission}
@@ -123,15 +123,15 @@ export function NotificationsSection({ api = defaultApi }: { api?: Notifications
             checked={prefs.desktop[event]}
             onChange={(on) => setEvent(event, on)}
             label={EVENT_SWITCH_LABELS[event]}
-            hint={`When one of your robots ${NOTIFICATION_EVENT_LABELS[event]}.`}
+            hint={`When one of your henchmen ${NOTIFICATION_EVENT_LABELS[event]}.`}
           />
         ))}
         {manager && (
           <Switch
             checked={prefs.adminErrors}
             onChange={(on) => void save({ ...prefs, adminErrors: on })}
-            label="Anyone's robot hits an error"
-            hint="Owners and admins: also notify me about other people's robots in error."
+            label="Anyone's henchman hits an error"
+            hint="Owners and admins: also notify me about other people's henchmen in error."
           />
         )}
         <Switch

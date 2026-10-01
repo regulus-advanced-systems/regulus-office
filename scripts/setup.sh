@@ -30,7 +30,7 @@ Usage: scripts/setup.sh [options]
                          in deploy/.env, else deploy/backups). Created with mode 700 for uid 1000,
                          the office user; existing backups in it are kept.
   --upgrade              git pull (fast-forward, clean checkout only), rebuild changed images and
-                         restart the office; robots keep running in their runner containers
+                         restart the office; henchmen keep running in their runner containers
   --install-docker       install Docker Engine and the Compose plugin (Ubuntu only; asks first)
   --non-interactive, -y  never prompt; use flags, deploy/.env and defaults, fail on questions
   -h, --help             show this help
@@ -600,13 +600,13 @@ cat <<EOF
     1. Open $PUBLIC_URL/login.$(is_local_domain "$DOMAIN" && printf ' Accept the certificate once (Caddy internal CA)\n       or run: cd deploy && docker compose exec caddy caddy trust.')
        The first account you register becomes the owner; invite others from
        Settings -> Invite someone...
-    2. Connect GitHub (floors are GitHub repos): Settings -> GitHub -> Create GitHub App...,
+    2. Connect GitHub (operations work on GitHub repos): Settings -> GitHub -> Create GitHub App...,
        then install the app on your organization. Webhooks need $PUBLIC_URL to be reachable
        from GitHub; otherwise the office polls. (Fallback: a fine-grained organization token.)
-    3. Notifications: each person turns on desktop notifications for their own robots in
+    3. Notifications: each person turns on desktop notifications for their own henchmen in
        Settings -> Notifications. For the team, an owner or admin opens
        Settings -> Team notifications -> Add channel..., picks Slack (incoming webhook URL),
-       Discord (channel webhook URL) or Telegram (bot token + chat id), the floors and events,
+       Discord (channel webhook URL) or Telegram (bot token + chat id), the operations and events,
        and clicks Send test. Steps for each service: README "Notifications".
     4. Each teammate signs in to their AI providers (Claude Code, Codex, ...) from their own
        runner terminal in the office; logins stay in their runner's HOME volume.
@@ -614,13 +614,13 @@ cat <<EOF
 
   Backups (README "Backups and restore")
     Where:      $BACKUP_DIR, daily at $BACKUP_TIME UTC, kept $([[ $BACKUP_RETENTION == 0 ]] && echo forever || echo "$BACKUP_RETENTION days")
-                (the database only; floor repos live on GitHub). Not in the office-data volume.
+                (the database only; operation repos live on GitHub). Not in the office-data volume.
     Now:        cd deploy && docker compose exec backup scripts/backup.sh
     Restore:    scripts/restore.sh                (lists backups)
                 scripts/restore.sh <backup-name>  (stops the office, restores, starts it again)
 
   Later
-    Upgrade:    scripts/setup.sh --upgrade      (robots keep running in their runners)
+    Upgrade:    scripts/setup.sh --upgrade      (henchmen keep running in their runners)
     Logs:       cd deploy && docker compose logs -f office
     Stop:       cd deploy && docker compose down (runners keep running; see README)
 EOF

@@ -71,7 +71,7 @@ export const DEFAULT_HOTKEYS: readonly HotkeyBinding[] = [
     group: "Chat",
     idleOnly: true,
   },
-  { id: "search", key: "/", description: "Search chat and robots' terminals", group: "Search" },
+  { id: "search", key: "/", description: "Search chat and henchmen's terminals", group: "Search" },
   { id: "help", key: "?", description: "Show keyboard shortcuts", group: "Help" },
 ];
 

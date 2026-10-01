@@ -68,7 +68,7 @@ export function TopBar({
               icon={<GearIcon />}
               onClick={() => openOverlay(floorSettingsOverlay(floorId))}
             >
-              Floor settings
+              Operation settings
             </Button>
           )}
           {floorId && (

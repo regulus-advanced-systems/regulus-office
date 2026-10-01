@@ -10,8 +10,8 @@ const ROLE_LABELS: Readonly<Record<UserRole, string>> = {
 
 const ROLE_HINTS: Readonly<Record<UserRole, string>> = {
   owner: "Full control, including other owners.",
-  admin: "Manages people, floors and invites.",
-  member: "Spawns and drives their own robots; watches everyone's.",
+  admin: "Manages people, operations and invites.",
+  member: "Spawns and drives their own henchmen; watches everyone's.",
   viewer: "Can look around and watch terminals only.",
 };
 

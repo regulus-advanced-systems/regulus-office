@@ -28,7 +28,7 @@ function OpenCell({ row }: { row: AppRow }) {
   const why =
     row.open === "localhost"
       ? LOCALHOST_HINT
-      : "Only the robot's owner can open it here. Shared previews need the office's app domain (OFFICE_SERVICES_DOMAIN).";
+      : "Only the henchman's owner can open it here. Shared previews need the office's app domain (OFFICE_SERVICES_DOMAIN).";
   return (
     <button
       type="button"

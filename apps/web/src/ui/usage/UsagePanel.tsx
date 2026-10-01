@@ -105,7 +105,7 @@ export function UsagePanel() {
       </div>
       {m.top.length > 0 && (
         <>
-          <h3 className="rg-usage__h">Top robots</h3>
+          <h3 className="rg-usage__h">Top henchmen</h3>
           <ol className="rg-usage__top">
             {m.top.map((r) => (
               <li key={r.key}>

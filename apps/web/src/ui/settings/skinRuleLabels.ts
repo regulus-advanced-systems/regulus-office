@@ -16,5 +16,5 @@ export function describeMatch(match: string): string {
   if (parsed.kind === "role") return "The PM";
   if (parsed.kind === "office_agent") return `Office agent ${parsed.value}`;
   const provider = PROVIDER_IDS.find((p) => p === parsed.value);
-  return `Every ${provider ? PROVIDER_LABELS[provider] : parsed.value} robot`;
+  return `Every ${provider ? PROVIDER_LABELS[provider] : parsed.value} henchman`;
 }

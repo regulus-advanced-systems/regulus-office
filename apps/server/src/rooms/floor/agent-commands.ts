@@ -46,7 +46,7 @@ export type AgentControlOutcome =
   | { ok: false; reason: string; files?: readonly string[] };
 
 /** Why a non-owner's control command is refused (the panel shows a note instead). */
-export const NOT_OWNER_REASON = "only the robot's owner may control it";
+export const NOT_OWNER_REASON = "only the henchman's owner may control it";
 
 export interface AgentActor {
   id: string;
@@ -91,12 +91,12 @@ export function handleAgentControl(ctx: AgentControlContext, command: AgentContr
       rejection(command.type, reason, { agentId: command.agentId, files }),
     );
   if (!robot) {
-    reject("no such robot on this floor");
+    reject("no such henchman in this operation");
     return;
   }
   if (command.type === "agent.emergencyStop") {
     if (!mayEmergencyStopAs(client)) {
-      reject("only an office owner or admin may emergency-stop a robot");
+      reject("only an office owner or admin may emergency-stop a henchman");
       return;
     }
   } else if (!mayControl(client, robot.ownerUserId)) {

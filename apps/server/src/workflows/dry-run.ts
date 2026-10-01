@@ -20,7 +20,7 @@ export function safetyNotes(spec: WorkflowSpec, ctx: WorkflowContext | null): st
   const notes = [
     `runs on the office's ${spec.robot.provider} API key only (usage → office); never a subscription`,
     "posts as the office's GitHub App with an installation token for this repo only",
-    "the robot reads a throwaway checkout in its own sandbox and cannot push",
+    "the henchman reads a throwaway checkout in its own sandbox and cannot push",
   ];
   if (fork) {
     notes.push(
@@ -31,9 +31,9 @@ export function safetyNotes(spec: WorkflowSpec, ctx: WorkflowContext | null): st
     notes.push(
       fork || !ctx?.pr
         ? "running PR code is on but does not apply here (same-repo PRs only)"
-        : "the robot may run the PR's code (same-repo PR) inside its sandbox",
+        : "the henchman may run the PR's code (same-repo PR) inside its sandbox",
     );
-  } else notes.push("the robot does not run any code from the PR");
+  } else notes.push("the henchman does not run any code from the PR");
   if (spec.actions.approve.enabled) notes.push("approve is on (an office admin allowed it)");
   if (spec.actions.fix.enabled) notes.push("fix is not available yet: runs would be refused");
   if (spec.trigger.kind === "command") {
@@ -51,7 +51,7 @@ export function dryRun(
   let matched = true;
   if (!ctx.floorIds.includes(floorId)) {
     matched = false;
-    reasons.push("the event is for a repo that is not on this floor");
+    reasons.push("the event is for a repo that is not in this operation");
   }
   const loop = loopReason(ctx);
   if (loop) {

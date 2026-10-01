@@ -46,7 +46,7 @@ describe("running apps rows (client mirror of the app ACL)", () => {
     expect(appRows(shared, other).map((r) => r.open)).toEqual(["watch"]);
     expect(appRows(shared, { id: "u1", role: "viewer" }).map((r) => r.open)).toEqual(["watch"]);
     expect(appRows(null, owner)).toEqual([]);
-    expect(appRows(state, owner)[0]?.robot).toBe("Ante's claude-code robot");
+    expect(appRows(state, owner)[0]?.robot).toBe("Ante's claude-code henchman");
   });
 });
 

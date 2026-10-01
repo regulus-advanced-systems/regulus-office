@@ -61,7 +61,7 @@ export function MemberList({
   onRemove: (member: FloorMemberInfo) => void;
 }) {
   if (members.length === 0) {
-    return <p className="rg-muted">No one has been added to this floor yet.</p>;
+    return <p className="rg-muted">No one has been added to this operation yet.</p>;
   }
   return (
     <ul className="rg-list" aria-label="People with access">
@@ -138,7 +138,8 @@ export function AddPeople({
   if (!anyone) {
     return (
       <p className="rg-muted">
-        Everyone in the office can already use this floor. Invite more people to the office first.
+        Everyone in the office can already use this operation. Invite more people to the office
+        first.
       </p>
     );
   }
@@ -198,7 +199,7 @@ export function OfficeManagersNote({ people }: { people: readonly OfficeUserInfo
   if (names.length === 0) return null;
   return (
     <p className="rg-field__hint">
-      Owners and admins can always manage every floor: {names.join(", ")}.
+      Owners and admins can always manage every operation: {names.join(", ")}.
     </p>
   );
 }

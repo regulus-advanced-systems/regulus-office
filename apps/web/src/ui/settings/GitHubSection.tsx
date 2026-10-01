@@ -87,7 +87,7 @@ export function describeConnection(status: GitHubConnectionStatus): string {
       .join(", ");
     return `Connected with the GitHub App ${name}${where ? `, installed on ${where}` : ""}.`;
   }
-  return "Not connected. Add floor takes typed repo names only.";
+  return "Not connected. New operation takes typed repo names only.";
 }
 
 export function GitHubSection({
@@ -152,7 +152,7 @@ export function GitHubSection({
       const res = await api.connectPat(token);
       if (!res.ok) return setError(describeGitHubError(res));
       setStatus(res.data);
-      setNotice({ ok: true, text: "Connected. Add floor now lists the token's repos." });
+      setNotice({ ok: true, text: "Connected. New operation now lists the token's repos." });
     });
 
   const disconnect = () =>

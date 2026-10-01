@@ -224,7 +224,7 @@ export function createBuildingRoom(deps: BuildingRoomDeps): BuildingRoom {
       }
       case "floor.go": {
         if (!isKnownFloor(command.floorId, known)) {
-          reject(client, command.type, `unknown floor ${command.floorId}`);
+          reject(client, command.type, `unknown operation ${command.floorId}`);
           return;
         }
         if (
@@ -232,7 +232,7 @@ export function createBuildingRoom(deps: BuildingRoomDeps): BuildingRoom {
           deps.canVisit &&
           !deps.canVisit(client.user, command.floorId)
         ) {
-          reject(client, command.type, `no access to floor ${command.floorId}`);
+          reject(client, command.type, `no access to operation ${command.floorId}`);
           return;
         }
         if (human.floorId !== command.floorId) {

@@ -161,7 +161,7 @@ describe("team channels", () => {
     const tested = await send(notificationChannelPath(view.id, true), "POST", owner.cookie);
     expect(await tested.json()).toEqual({ ok: true, code: "sent" });
     expect(fake.requests[0]?.path).toBe("/services/T000/B000/fakeSlackSecret123b");
-    expect(String(fake.requests[0]?.body.text)).toContain("Test robot");
+    expect(String(fake.requests[0]?.body.text)).toContain("Test henchman");
     const again = await send(notificationChannelPath(view.id, true), "POST", owner.cookie);
     expect(again.status).toBe(429);
 

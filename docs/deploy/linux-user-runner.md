@@ -20,7 +20,7 @@ Code: `apps/server/src/runners/linux-user/`. Helper:
 | tmux server scope | `office-tmux-<rid>.scope` |
 | Agent session / scope | tmux session `agent-<agentId>`, scope `agent-<agentId>.scope` |
 | Piped side process (e.g. `codex app-server`) | scope `agent-<agentId>.io-<random>.scope` |
-| Robot sandbox (#169) | record `/run/office/sandboxes/<agentId>`, network namespace `office-sbx<slot>`, host veth `osb<slot>` on bridge `office-sbx0`, tmux socket `/run/office/tmux/<rid>.sbx<slot>.sock` |
+| Henchman sandbox (#169) | record `/run/office/sandboxes/<agentId>`, network namespace `office-sbx<slot>`, host veth `osb<slot>` on bridge `office-sbx0`, tmux socket `/run/office/tmux/<rid>.sbx<slot>.sock` |
 
 All scopes live in `system.slice`, so `/sys/fs/cgroup/system.slice/agent-<agentId>*.scope/cgroup.procs`
 is the exact process list of an agent.
@@ -40,7 +40,7 @@ sudo install -d -m 0750 -o office -g office /srv/office/projects /srv/office/wor
 
 Requirements: systemd (cgroup v2), `tmux` >= 3.2, `acl` (`setfacl`), util-linux
 (`setpriv`, `nsenter`, `unshare`, `flock`), `busctl`, `useradd`/`userdel`, and
-for robot sandboxes iproute2 (`ip`, `bridge`) and `nftables` (`nft`). `/proc` must not be mounted with
+for henchman sandboxes iproute2 (`ip`, `bridge`) and `nftables` (`nft`). `/proc` must not be mounted with
 `hidepid` (office reads `/proc/<pid>/stat` of agent processes).
 
 ### Helper configuration
@@ -51,10 +51,10 @@ socket path from `provision`'s output.
 
 ```ini
 OFFICE_TMUX_DIR=/run/office/tmux          # per-human tmux sockets
-OFFICE_PROJECTS_ROOT=/srv/office/projects # office-only floor mirrors (reclaim only)
+OFFICE_PROJECTS_ROOT=/srv/office/projects # office-only operation mirrors (reclaim only)
 OFFICE_WORKTREES_ROOT=/srv/office/worktrees # humans' clones and worktrees
 OFFICE_SERVER_USER=office                 # gets rw ACLs on project files
-OFFICE_SANDBOX_NET=10.231                 # robot sandboxes' /16 (10.x, 172.16-31 or 192.168)
+OFFICE_SANDBOX_NET=10.231                 # henchman sandboxes' /16 (10.x, 172.16-31 or 192.168)
 OFFICE_PORT=4600                          # the office's port, forwarded into sandboxes
 ```
 
@@ -101,13 +101,13 @@ greppable and lets an operator drop verbs they do not want.
 | `Defaults!… !use_pty` | `attach` is spawned inside the terminal bridge's PTY and `spawn-piped` speaks JSON over pipes; an extra sudo PTY layer would only relay bytes. The helper still runs with sudo's `env_reset`. |
 | `provision` | `useradd` the account and group, HOME 0700, create the sticky run dir, start the account's tmux server in its own scope with `systemd-run --uid --gid --scope`. Root: account creation and cross-uid scopes. |
 | `deprovision` | Kill every process of the account, stop its tmux scope, `userdel --remove`. Root. |
-| `mount-project` | `mount-project <rid> <dir>`: `setfacl` on the human's own clone or agent worktree so their group and the office user can read and write it. `<dir>` must be canonical and inside `<worktrees>/<floor>/<rid>`, that human's own area (#114); mirrors, floor dirs and other humans' areas are refused before anything runs. It also removes "other" access from the area. Root: files in a checkout may belong to the human's account. |
-| `reclaim` | `reclaim <dir>`: upgrade from the shared layout before #114. `<dir>` is the projects root (floor mirrors) or a per-agent worktree directly in a floor dir, `<worktrees>/<floor>/<agent>` (never a runner id there: that is a human's area). Everything in it becomes the office user's again (`chown -R -P -h`), every extended ACL entry is removed (`setfacl -R -P -b`), and "other" loses access to the top dir. Root: those files belong to runner accounts. |
-| `remove-floor` | `remove-floor <slug>`: a floor was deleted in the office (#150). Removes `<projects>/<slug>` (the floor mirrors) and `<worktrees>/<slug>` (every human's area on it: clones and agent worktrees). `<slug>` must be a floor slug (`^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$`: no dots or slashes), so the target is exactly one level below a configured root; both roots must be canonical and the target a real directory, not a symlink. `rm -r --one-file-system` never follows symlinks. The office refuses the delete while robots are on the floor. Root: the areas hold files owned by runner accounts. |
+| `mount-project` | `mount-project <rid> <dir>`: `setfacl` on the human's own clone or agent worktree so their group and the office user can read and write it. `<dir>` must be canonical and inside `<worktrees>/<floor>/<rid>`, that human's own area (#114); mirrors, operation dirs and other humans' areas are refused before anything runs. It also removes "other" access from the area. Root: files in a checkout may belong to the human's account. |
+| `reclaim` | `reclaim <dir>`: upgrade from the shared layout before #114. `<dir>` is the projects root (operation mirrors) or a per-agent worktree directly in an operation dir, `<worktrees>/<floor>/<agent>` (never a runner id there: that is a human's area). Everything in it becomes the office user's again (`chown -R -P -h`), every extended ACL entry is removed (`setfacl -R -P -b`), and "other" loses access to the top dir. Root: those files belong to runner accounts. |
+| `remove-floor` | `remove-floor <slug>`: an operation was deleted in the office (#150). Removes `<projects>/<slug>` (the operation mirrors) and `<worktrees>/<slug>` (every human's area in it: clones and agent worktrees). `<slug>` must be an operation slug (`^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$`: no dots or slashes), so the target is exactly one level below a configured root; both roots must be canonical and the target a real directory, not a symlink. `rm -r --one-file-system` never follows symlinks. The office refuses the delete while henchmen are in the operation. Root: the areas hold files owned by runner accounts. |
 | `exec` | Start `agent-<agentId>` on the human's tmux server as the human and move the pane into its own `agent-<agentId>.scope`. Root: acting as another uid, creating a system scope. |
 | `spawn-piped` | `systemd-run --uid --gid --scope` a stdio process (e.g. `codex app-server`) as the human. Root: same. |
-| `kill` | Kill the session and `systemctl kill` every `agent-<agentId>*` scope (only if all its processes are the human's, or the root `unshare` that parents a sandbox's pid namespace), then remove the robot's sandbox (network namespace, veth, record). Root: the processes belong to another uid. |
-| `sandbox-up` | `sandbox-up <rid> <agentId> <slot> <memory bytes> <cpu %> <tasks> <owner>`: the robot's sandbox (#169). Records the limits, sets up the sandbox bridge and NAT on the host once, and the robot's network namespace `office-sbx<slot>` with its address `<net>.<(slot+2)/256>.<(slot+2)%256>`. Every argument is a bounded number or an id. Root: network namespaces, links, nftables. |
+| `kill` | Kill the session and `systemctl kill` every `agent-<agentId>*` scope (only if all its processes are the human's, or the root `unshare` that parents a sandbox's pid namespace), then remove the henchman's sandbox (network namespace, veth, record). Root: the processes belong to another uid. |
+| `sandbox-up` | `sandbox-up <rid> <agentId> <slot> <memory bytes> <cpu %> <tasks> <owner>`: the henchman's sandbox (#169). Records the limits, sets up the sandbox bridge and NAT on the host once, and the henchman's network namespace `office-sbx<slot>` with its address `<net>.<(slot+2)/256>.<(slot+2)%256>`. Every argument is a bounded number or an id. Root: network namespaces, links, nftables. |
 | `sandbox-list` | `<agentId> <rid> <slot> <address> <owner>` for every sandbox, so the office finds them again after a restart and reaps orphans. Root: the records are root-only. |
 | `sockets` | Socket inodes held by the agent's processes, for port detection. Root: `/proc/<pid>/fd` is readable only by the owner. |
 | `capture`, `pane-title`, `has-session`, `list-sessions` | Read the human's tmux server. Root only to switch to the human (`setpriv`); tmux sockets are private to their owner. |
@@ -156,7 +156,7 @@ marker, uid 0, and IDs outside `^[a-z0-9]{1,23}$` (runner), `^[A-Za-z0-9_-]{1,64
   `cgroup.procs` and `/proc/<pid>/stat` directly (no sudo). `listPorts` asks
   the helper for `<pid> <socket inode>` pairs and matches them against LISTEN
   rows of `/proc/<pid>/net/tcp{,6}` (the agent's own network namespace).
-- **Robot sandboxes (SPEC §8, D18, #169).** Every coding robot gets its own
+- **Henchman sandboxes (SPEC §8, D18, #169).** Every coding henchman gets its own
   sandbox inside its human's account (same uid, HOME and ACLs):
   - *Network.* `sandbox-up` gives it a network namespace `office-sbx<slot>`
     whose `eth0` is a veth on the bridge `office-sbx0` (`<net>.0.1/16` on the
@@ -170,33 +170,33 @@ marker, uid 0, and IDs outside `^[a-z0-9]{1,23}$` (runner), `^[A-Za-z0-9_-]{1,64
     unchanged. systemd-resolved's stub answers loopback clients only, so on
     such hosts a sandbox gets resolved's upstream servers
     (`/run/systemd/resolve/resolv.conf`) bind-mounted as its own
-    `/etc/resolv.conf`, in its private mount namespace. The office reaches a robot's dev server at the
-    sandbox's address; nothing is published. Two robots can both listen on
+    `/etc/resolv.conf`, in its private mount namespace. The office reaches a henchman's dev server at the
+    sandbox's address; nothing is published. Two henchmen can both listen on
     3000.
-  - *Processes.* `exec` starts the robot's own tmux server as pid 1 of a new
+  - *Processes.* `exec` starts the henchman's own tmux server as pid 1 of a new
     pid namespace with its own `/proc`, inside that network namespace, in
-    `agent-<agentId>.scope`; the robot's session runs there and the server
-    exits with it. `spawn-piped` of a sandboxed robot runs the same way. A
+    `agent-<agentId>.scope`; the henchman's session runs there and the server
+    exits with it. `spawn-piped` of a sandboxed henchman runs the same way. A
     sandbox sees only its own processes. Session verbs pick the sandbox's
-    socket for a sandboxed robot.
+    socket for a sandboxed henchman.
   - *Limits.* The scopes get `MemoryMax`, `MemorySwapMax=0`, `CPUQuota` and
     `TasksMax` from `sandbox-up` (the office's `OFFICE_SANDBOX_*`, defaults 2
-    GiB, 2 CPUs, 1024 tasks). Each scope of the robot (its tmux server, each
+    GiB, 2 CPUs, 1024 tasks). Each scope of the henchman (its tmux server, each
     piped process) gets the full limits.
   - *Ports.* Slot `n` also owns the ports `OFFICE_SANDBOX_PORT_BASE + n *
     OFFICE_SANDBOX_PORT_SPAN` onwards (`PORT` is the first), so dev servers
     that honour `PORT` do not collide even in the office's port view.
-  - *Not a wall between one human's robots.* They share the uid and HOME (so
+  - *Not a wall between one human's henchmen.* They share the uid and HOME (so
     CLI logins work); the boundary between humans is unchanged.
-  - `kill` removes the sandbox; the office reaps sandboxes of robots that are
+  - `kill` removes the sandbox; the office reaps sandboxes of henchmen that are
     gone or down (`sandbox-list`).
-- **Project workdirs: one area per human per floor (#114).** Humans on a
-  floor never share a git directory, because hooks and config in a shared
+- **Project workdirs: one area per human per operation (#114).** Humans in an
+  operation never share a git directory, because hooks and config in a shared
   `.git` would run in every other human's runner. The layout is:
 
   | Path | Who can reach it |
   |---|---|
-  | `<projects>/<floor>/<repo>` | the office only: the floor mirror, fetched with the floor credential |
+  | `<projects>/<floor>/<repo>` | the office only: the operation mirror, fetched with the operation credential |
   | `<worktrees>/<floor>/<rid>/` | the office and `office-u-<rid>`: that human's area |
   | `<worktrees>/<floor>/<rid>/_clones/<repo>` | the human's own clone, copied from the mirror |
   | `<worktrees>/<floor>/<rid>/<agentId>` | a worktree of that clone for one agent |
@@ -210,8 +210,8 @@ marker, uid 0, and IDs outside `^[a-z0-9]{1,23}$` (runner), `^[A-Za-z0-9_-]{1,64
   ancestor below the worktrees root. The helper checks that the path is inside
   `<worktrees>/<floor>/<rid>` for the same `<rid>` it grants, so the office
   cannot give a runner access to anything else, even by mistake. Chosen over a
-  shared per-floor group because supplementary groups only apply to new
-  processes: adding a human to a floor group would not reach their
+  shared per-operation group because supplementary groups only apply to new
+  processes: adding a human to an operation group would not reach their
   already-running tmux server. ACLs work immediately, need no `usermod`, and
   are per human. `setfacl -R -P` never follows symlinks inside the checkout.
 
@@ -228,7 +228,7 @@ marker, uid 0, and IDs outside `^[a-z0-9]{1,23}$` (runner), `^[A-Za-z0-9_-]{1,64
 
 ## Upgrading from the shared layout (before #114)
 
-Before #114 every human on a floor had ACLs on the floor's one clone and on
+Before #114 every human in an operation had ACLs on the operation's one clone and on
 each other's worktrees. Install the new helper and sudoers file (they add the
 `reclaim` verb) before starting the new office. On its first boot the office:
 
@@ -243,20 +243,20 @@ each other's worktrees. Install the new helper and sudoers file (they add the
    fails (an old helper or sudoers file), the office logs an error and tries
    again on the next boot.
 
-## Upgrading for floor deletion (#150)
+## Upgrading for operation deletion (#150)
 
-Deleting a floor in the office uses the `remove-floor` verb. Install the
+Deleting an operation in the office uses the `remove-floor` verb. Install the
 current helper and sudoers file before upgrading. With an older helper the
-delete fails: the floor stays archived with its files and rows, the office
-logs the helper error, and the delete can be retried from Settings → Floors
+delete fails: the operation stays archived with its files and rows, the office
+logs the helper error, and the delete can be retried from Settings → Operations
 once the helper is installed.
 
-## Upgrading for robot sandboxes (#169)
+## Upgrading for henchman sandboxes (#169)
 
 Install the current helper and sudoers file (they add `sandbox-up` and
 `sandbox-list`) and `nftables` before upgrading. With an older helper every
-spawn fails (`runner_helper`); set `OFFICE_SANDBOXES=false` to run robots on
-the human's tmux server as before. Robots started before the upgrade keep
+spawn fails (`runner_helper`); set `OFFICE_SANDBOXES=false` to run henchmen on
+the human's tmux server as before. Henchmen started before the upgrade keep
 running there until they are stopped or resumed.
 
 ## Verifying
@@ -279,5 +279,5 @@ a failure in one does not cascade. `OFFICE_TEST_HELPER_TIMEOUT_MS` and
 
 ## Not covered yet
 
-- Resource limits per human (all of a human's robots together): a slice later.
+- Resource limits per human (all of a human's henchmen together): a slice later.
 - IPv6 inside sandboxes (IPv4 only).

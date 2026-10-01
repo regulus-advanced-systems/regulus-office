@@ -102,7 +102,7 @@ export type BoardsApi = ReturnType<typeof createBoardsApi>;
 export function describeBoardFailure(f: BoardFailure): string {
   switch (f.code) {
     case "manage_required":
-      return "Only people who manage this floor can do that.";
+      return "Only people who manage this operation can do that.";
     case "office_credential_missing":
       return "The office has no GitHub connection for this repo. An owner or admin can connect one in Settings.";
     case "card_not_found":

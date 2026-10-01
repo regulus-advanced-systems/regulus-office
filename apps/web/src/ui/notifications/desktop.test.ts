@@ -23,7 +23,7 @@ const ev = (extra: Partial<NotifyEvent> = {}): NotifyEvent => ({
   agentId: "a1",
   floorId: "f1",
   floorName: "Web app",
-  robotName: "Mia's Codex robot",
+  robotName: "Mia's Codex henchman",
   ownerName: "Mia",
   provider: "codex",
   taskTitle: "Fix the login page",
@@ -71,9 +71,9 @@ describe("wantsDesktop", () => {
 });
 
 test("title and body", () => {
-  expect(notificationTitle(ev())).toBe("Mia's Codex robot needs your input");
+  expect(notificationTitle(ev())).toBe("Mia's Codex henchman needs your input");
   expect(notificationBody(ev({ prNumber: 4 }))).toBe(
-    "Floor: Web app\nFix the login page\nPull request #4",
+    "Operation: Web app\nFix the login page\nPull request #4",
   );
 });
 

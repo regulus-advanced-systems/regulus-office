@@ -130,7 +130,7 @@ describe("personal notifications", () => {
       event: "needs_input",
       agentId: "a1",
       floorName: "Web app",
-      robotName: "Mia's Codex robot",
+      robotName: "Mia's Codex henchman",
       taskTitle: "Fix the login page",
       own: true,
     });
@@ -253,8 +253,8 @@ describe("team webhooks", () => {
     s.settle();
     await s.dispatcher.drain();
     const text = String(fake.requests[0]?.body.text);
-    expect(text).toContain("Mia's Codex robot hit an error");
-    expect(text).toContain("Floor: Web app");
+    expect(text).toContain("Mia's Codex henchman hit an error");
+    expect(text).toContain("Operation: Web app");
     expect(text).toContain("Owner: Mia");
     expect(text).toContain("Task: Fix the login page");
     expect(Object.keys(fake.requests[0]!.body).sort()).toEqual([

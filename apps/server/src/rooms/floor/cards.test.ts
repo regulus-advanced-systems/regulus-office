@@ -89,10 +89,10 @@ describe("card.pick", () => {
     run(state, c, "manage", pick("issue", 9)); // #9 is a PR, not an issue
     run(state, c, "manage", pick("pr", 99));
     expect(rejected).toEqual([
-      "you may not spawn robots on this floor",
-      "you may not spawn robots on this floor",
-      "that card is not on this floor's board",
-      "that card is not on this floor's board",
+      "you may not spawn henchmen in this operation",
+      "you may not spawn henchmen in this operation",
+      "that card is not on this operation's board",
+      "that card is not on this operation's board",
     ]);
     expect(state.carriedCards.size).toBe(0);
   });
@@ -108,7 +108,7 @@ describe("card.drop", () => {
     run(state, c, "spawn", pick("issue", 7));
     run(state, c, "spawn", drop("desk-2"));
     run(state, c, "spawn", drop("no-such-desk"));
-    expect(rejected.slice(1)).toEqual(["that desk is taken", "no such desk on this floor"]);
+    expect(rejected.slice(1)).toEqual(["that desk is taken", "no such desk in this operation"]);
     expect(state.carriedCards.has("s1")).toBe(true);
 
     run(state, c, "spawn", drop("desk-1"));

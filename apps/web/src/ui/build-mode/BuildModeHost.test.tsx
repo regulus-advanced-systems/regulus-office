@@ -136,7 +136,7 @@ describe("build mode", () => {
     expect(useUiStore.getState().overlay).toBeNull();
     expect(useFloorsStore.getState().floors?.map((x) => x.floorId)).toEqual(["f2"]);
     // The new room's status panel; the camera stays out while it is built.
-    expect(text()).toContain("Floor added");
+    expect(text()).toContain("Operation set up");
     expect(store().watching).toBe("f2");
     expect(useCameraStore.getState().zoom).toBe(1);
     await act(async () => store().stopWatching());
@@ -234,7 +234,7 @@ describe("build mode", () => {
     await checked();
     await press(window, "Enter");
     await settle();
-    expect(status()).toContain("A robot is running in this room");
+    expect(status()).toContain("A henchman is running in this room");
     expect(store().intent?.kind).toBe("move");
     robots = false;
     await press(window, "Enter");

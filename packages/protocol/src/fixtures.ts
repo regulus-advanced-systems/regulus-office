@@ -109,7 +109,7 @@ export const buildingFixture: BuildingState = {
     topRobots: [
       {
         agentId: "a1",
-        name: "Ada's Claude Code robot",
+        name: "Ada's Claude Code henchman",
         ownerName: "Ada",
         provider: "claude-code",
         tokens: 90_000,

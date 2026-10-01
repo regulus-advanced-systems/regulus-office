@@ -104,7 +104,7 @@ export function TerminalModal({
   }, [element, inControl]);
 
   const title = robot
-    ? `${robot.ownerName}'s robot: ${robot.taskTitle || robot.model}`
+    ? `${robot.ownerName}'s henchman: ${robot.taskTitle || robot.model}`
     : "Terminal";
   return (
     <Modal
@@ -134,7 +134,7 @@ export function TerminalModal({
           )}
           {!canControl && robot && (
             <span className="rg-term__watch-only" data-testid="terminal-watch-only">
-              Only {robot.ownerName || "its owner"} can control this robot
+              Only {robot.ownerName || "its owner"} can control this henchman
             </span>
           )}
           <TerminalPeople

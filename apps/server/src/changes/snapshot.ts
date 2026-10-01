@@ -31,12 +31,12 @@ export function gitFailure(res: CmdResult, what: string): ChangesHttpError {
     return new ChangesHttpError(
       409,
       "git_busy",
-      "the robot's git is busy (index lock held); try again in a moment",
+      "the henchman's git is busy (index lock held); try again in a moment",
     );
   }
   if (res.timedOut) return new ChangesHttpError(504, "git_failed", `${what} timed out`);
   if (/not a git repository|cannot change to|No such file or directory/i.test(res.stderr)) {
-    return new ChangesHttpError(409, "unavailable", `the robot's worktree is not reachable`);
+    return new ChangesHttpError(409, "unavailable", `the henchman's worktree is not reachable`);
   }
   return new ChangesHttpError(500, "git_failed", `${what} failed${detail ? `: ${detail}` : ""}`);
 }

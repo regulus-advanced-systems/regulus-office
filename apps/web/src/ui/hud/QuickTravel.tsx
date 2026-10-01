@@ -89,8 +89,8 @@ export function QuickTravelDialog() {
                   size="sm"
                   className="rg-elevator__gear"
                   aria-haspopup="dialog"
-                  aria-label={`Floor settings: ${room.name}`}
-                  title={`Floor settings: who can use ${room.name}`}
+                  aria-label={`Operation settings: ${room.name}`}
+                  title={`Operation settings: who can use ${room.name}`}
                   icon={<GearIcon />}
                   onClick={() => openOverlay(floorSettingsOverlay(room.id))}
                 />

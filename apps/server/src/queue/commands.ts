@@ -29,7 +29,7 @@ export interface FloorQueueCommands {
 function run(queue: TaskQueue, actor: FloorActor, floorId: string, command: QueueCommand) {
   switch (command.type) {
     case "queue.add": {
-      if (command.floorId !== floorId) throw new QueueError("bad_request", "wrong floor");
+      if (command.floorId !== floorId) throw new QueueError("bad_request", "wrong operation");
       const { type: _type, ...input } = command;
       return queue.enqueueTask(actor, input).id;
     }

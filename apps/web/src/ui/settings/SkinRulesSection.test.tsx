@@ -93,8 +93,8 @@ describe("henchman skin settings", () => {
   test("an admin sees the rules and previews the skin being chosen with the provider's trim", async () => {
     await show("admin", [RULE]);
     expect(text()).toContain("Henchman skins");
-    expect(text()).toContain("Every Codex robot");
-    expect(labelled<HTMLSelectElement>("Skin for Every Codex robot")?.value).toBe("lab_coat");
+    expect(text()).toContain("Every Codex henchman");
+    expect(labelled<HTMLSelectElement>("Skin for Every Codex henchman")?.value).toBe("lab_coat");
     // The add form starts on Codex + lab coat: the preview shows that, in Codex teal.
     expect(preview()).toBe("lab_coat #10A37F");
     await choose("Skin", "chef");
@@ -119,14 +119,14 @@ describe("henchman skin settings", () => {
     });
     expect(text()).toContain("The PM");
 
-    await choose("Skin for Every Codex robot", "black_ops");
+    await choose("Skin for Every Codex henchman", "black_ops");
     expect(f.calls.find((c) => c.method === "PATCH")?.body).toEqual({ skinId: "black_ops" });
-    expect(labelled<HTMLSelectElement>("Skin for Every Codex robot")?.value).toBe("black_ops");
+    expect(labelled<HTMLSelectElement>("Skin for Every Codex henchman")?.value).toBe("black_ops");
 
-    await click(labelled<HTMLButtonElement>("Delete rule for Every Codex robot") as Element);
+    await click(labelled<HTMLButtonElement>("Delete rule for Every Codex henchman") as Element);
     await settle();
     expect(f.calls.some((c) => c.method === "DELETE")).toBe(true);
-    expect(text()).not.toContain("Every Codex robot");
+    expect(text()).not.toContain("Every Codex henchman");
   });
 
   test("an office agent rule needs an id", async () => {

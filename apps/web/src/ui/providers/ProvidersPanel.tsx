@@ -54,7 +54,7 @@ export function ProvidersPanelHost({
     >
       {role === "viewer" ? (
         <p className="rg-muted">
-          Viewers watch robots and do not run their own, so there is nothing to connect.
+          Viewers watch henchmen and do not run their own, so there is nothing to connect.
         </p>
       ) : (
         <div className="rg-providers" data-testid="providers-panel">

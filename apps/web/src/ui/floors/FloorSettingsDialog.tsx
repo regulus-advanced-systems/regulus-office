@@ -97,8 +97,7 @@ export function FloorSettingsBody({ floorId, api }: { floorId: string; api: Floo
   return (
     <div className="rg-floor-settings">
       <p>
-        Who can use <strong>{floor?.name ?? "this floor"}</strong>
-        {floor ? ` (floor ${floor.index})` : ""}.
+        Who can use <strong>{floor?.name ?? "this operation"}</strong>.
       </p>
       <p className="rg-field__hint">{ACCESS_HINT}</p>
       <OfficeManagersNote people={people} />
@@ -143,7 +142,7 @@ export function FloorSettingsDialogHost({ api = defaultApi }: { api?: FloorsApi 
     <Modal
       open
       onClose={done}
-      title="Floor settings"
+      title="Operation settings"
       width={560}
       footer={
         <Button variant="primary" onClick={done}>

@@ -67,7 +67,7 @@ export function RunHistory({
               <th>Workflow</th>
               <th>Trigger</th>
               <th>Target</th>
-              <th>Robot</th>
+              <th>Henchman</th>
               <th>Time</th>
               <th>Tokens</th>
               <th>Posted</th>
