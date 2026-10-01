@@ -126,17 +126,17 @@ export type ChangesApi = ReturnType<typeof createChangesApi>;
 export function describeChangesFailure(f: ChangesFailure): string {
   switch (f.code) {
     case "owner_only":
-      return "Only the robot's owner can commit or discard.";
+      return "Only the henchman's owner can commit or discard.";
     case "changed_since_viewed":
-      return "The robot changed these files after you looked. Review them and try again.";
+      return "The henchman changed these files after you looked. Review them and try again.";
     case "not_changed":
       return "That file has no uncommitted changes any more.";
     case "git_busy":
-      return "The robot's git is busy right now. Try again in a moment.";
+      return "The henchman's git is busy right now. Try again in a moment.";
     case "unavailable":
-      return f.message ?? "The robot's workspace cannot be reached.";
+      return f.message ?? "The henchman's workspace cannot be reached.";
     case "not_found":
-      return "This robot is not on a floor you can see.";
+      return "This henchman is not in an operation you can see.";
     case "network_error":
       return "The office could not be reached.";
     case "too_large":

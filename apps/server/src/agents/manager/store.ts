@@ -60,12 +60,12 @@ export class AgentStore {
       let seat: string | undefined;
       if (seatId !== undefined) {
         const desk = free.find((d) => d.seatId === seatId);
-        if (!desk) throw new AgentManagerError("bad_request", "no such desk on this floor");
+        if (!desk) throw new AgentManagerError("bad_request", "no such desk in this operation");
         if (desk.agentId) throw new AgentManagerError("conflict", "desk is taken");
         seat = seatId;
       } else {
         seat = free.find((d) => !d.agentId)?.seatId;
-        if (!seat) throw new AgentManagerError("conflict", "no free desk on this floor");
+        if (!seat) throw new AgentManagerError("conflict", "no free desk in this operation");
       }
       tx.insert(agents)
         .values({ ...row, deskSeatId: seat })

@@ -62,7 +62,7 @@ export const OFFICE: UsageSummary = {
   topRobots: [
     {
       agentId: "a1",
-      name: "Ada's Codex robot",
+      name: "Ada's Codex henchman",
       ownerName: "Ada",
       provider: "codex",
       tokens: 900_000,

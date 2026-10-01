@@ -33,7 +33,7 @@ export interface AppRow {
 }
 
 export const LOCALHOST_HINT =
-  "Listens on localhost only inside the robot's sandbox. Restart it bound to 0.0.0.0 (Vite: --host, Next.js: -H 0.0.0.0).";
+  "Listens on localhost only inside the henchman's sandbox. Restart it bound to 0.0.0.0 (Vite: --host, Next.js: -H 0.0.0.0).";
 
 export function appRows(state: FloorState | null, viewer: AppViewer | null): AppRow[] {
   if (!state) return [];
@@ -51,7 +51,7 @@ export function appRows(state: FloorState | null, viewer: AppViewer | null): App
     rows.push({
       id: s.id,
       agentId: s.agentId,
-      robot: robot ? `${robot.ownerName}'s ${robot.provider} robot` : "A robot",
+      robot: robot ? `${robot.ownerName}'s ${robot.provider} henchman` : "A henchman",
       title: s.title,
       port: s.port,
       url: s.url,

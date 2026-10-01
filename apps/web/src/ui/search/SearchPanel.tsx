@@ -30,7 +30,7 @@ const FAILURE_TEXT: Record<SearchFailure, string> = {
 function groupTitle(group: SearchGroup): string {
   if (group.kind === "chat") return `Chat · ${group.floorName}`;
   const owner = group.ownerName ? ` (${group.ownerName})` : "";
-  return `${group.robotName ?? "Robot"}${owner} · ${group.floorName}`;
+  return `${group.robotName ?? "Henchman"}${owner} · ${group.floorName}`;
 }
 
 function timeOf(ts: number): string {
@@ -119,7 +119,7 @@ export function SearchPanel({ api = defaultSearchApi, now = Date.now }: SearchPa
     <Modal open={open} onClose={onClose} title="Search" width={680} initialFocus={inputRef}>
       <div className="rg-search" onKeyDown={onKeyDown}>
         <label className="rg-field__label rg-search__label" htmlFor={inputId}>
-          Search chat and robots' terminals
+          Search chat and henchmen's terminals
         </label>
         <input
           ref={inputRef}
@@ -172,7 +172,7 @@ export function SearchPanel({ api = defaultSearchApi, now = Date.now }: SearchPa
         </div>
         {terms.length > 0 && groups.length > 0 && (
           <p className="rg-search__help">
-            Click a terminal match to walk to that robot's desk and open its terminal there.
+            Click a terminal match to walk to that henchman's desk and open its terminal there.
           </p>
         )}
       </div>

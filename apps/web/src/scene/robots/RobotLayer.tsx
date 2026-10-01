@@ -61,7 +61,7 @@ export function useOpenSpawn() {
   return useCallback(
     (seatId: string) => {
       if (access && !hasFloorAccess(access, "spawn")) {
-        toast({ kind: "info", message: "You can watch on this floor but not spawn robots." });
+        toast({ kind: "info", message: "You can watch this operation but not spawn henchmen." });
         return;
       }
       // A carried board card goes down on the desk and prefills the dialog (#36).

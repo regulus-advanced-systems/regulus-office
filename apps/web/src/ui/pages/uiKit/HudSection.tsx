@@ -141,7 +141,7 @@ export function HudSection() {
           <RoomsPanel />
         </div>
         <Button variant="secondary" size="sm" onClick={seedFloors}>
-          Seed fake floors
+          Seed fake operations
         </Button>
       </Row>
       <Row label="shortcuts">

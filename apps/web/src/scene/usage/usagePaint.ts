@@ -160,9 +160,9 @@ export function paintUsageScreen(
 
   // Right: top robots by tokens (robot name + owner only).
   x = pad + 2 * (colW + pad) + inner;
-  text(ctx, "TOP ROBOTS", x, top + 14, { px: 18, color: USAGE_COLORS.muted, bold: true });
+  text(ctx, "TOP HENCHMEN", x, top + 14, { px: 18, color: USAGE_COLORS.muted, bold: true });
   if (model.top.length === 0) {
-    text(ctx, "No robot work yet today", x, top + 50, { px: 17, color: USAGE_COLORS.muted });
+    text(ctx, "No henchman work yet today", x, top + 50, { px: 17, color: USAGE_COLORS.muted });
   }
   model.top.slice(0, 5).forEach((r, i) => {
     const y = top + 50 + i * 60;

@@ -28,7 +28,7 @@ const defaultApi = createSkinRulesApi();
 const LazyPreview = lazy(() => import("./SkinPreview.tsx"));
 
 const KIND_LABELS: Record<SkinRuleKind, string> = {
-  provider: "Every robot of a provider",
+  provider: "Every henchman of a provider",
   role: "An office-agent role",
   office_agent: "One office agent",
 };
@@ -113,7 +113,7 @@ export function SkinRulesSection({
     <section className="rg-field" aria-label="Henchman skins">
       <div className="rg-field__label">Henchman skins</div>
       <div className="rg-field__hint">
-        Robots wear the yellow jumpsuit with their provider's trim. A rule gives the robots it
+        Henchmen wear the yellow jumpsuit with their provider's trim. A rule gives the henchmen it
         matches a special skin; the highest priority wins.
       </div>
       <div style={{ display: "flex", gap: 12, alignItems: "flex-start", flexWrap: "wrap" }}>

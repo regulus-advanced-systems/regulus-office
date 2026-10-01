@@ -55,7 +55,7 @@ export function MoreOptions(props: MoreOptionsProps) {
           value={values.prompt}
           rows={3}
           maxLength={MAX_PROMPT}
-          placeholder="Leave empty and the robot waits for you at its desk."
+          placeholder="Leave empty and the henchman waits for you at its desk."
           onChange={(e) => set("prompt", e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) props.onSubmitShortcut(e);

@@ -32,7 +32,7 @@ export function WorkCounters() {
   if (!totals) return null;
   const shown = shownCounts(totals, inFlight);
   return (
-    <ul className="rg-workcounters" aria-label="Work on this floor">
+    <ul className="rg-workcounters" aria-label="Work in this operation">
       {BUBBLE_KINDS.map((kind) => (
         <li key={kind} className="rg-workcounter">
           <span

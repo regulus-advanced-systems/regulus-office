@@ -192,7 +192,10 @@ export class ServicesRoute implements WsRoute {
     const target = svc.target;
     if (!target) return appError(502, "The app is not reachable.");
     if (!methodAllowed(access, request.method)) {
-      return appError(405, "Read-only: only the robot's owner can use this app beyond viewing it.");
+      return appError(
+        405,
+        "Read-only: only the henchman's owner can use this app beyond viewing it.",
+      );
     }
     const ctx: ForwardContext = {
       target,
@@ -241,7 +244,7 @@ export class ServicesRoute implements WsRoute {
     if (svc.localOnly) {
       return appError(
         502,
-        `The app listens on localhost only inside the robot's sandbox, so the office cannot reach it.\nRestart it bound to 0.0.0.0 (Vite: --host, Next.js: -H 0.0.0.0, most others: --host 0.0.0.0).`,
+        `The app listens on localhost only inside the henchman's sandbox, so the office cannot reach it.\nRestart it bound to 0.0.0.0 (Vite: --host, Next.js: -H 0.0.0.0, most others: --host 0.0.0.0).`,
       );
     }
     return svc.target ? undefined : appError(502, "The app is not reachable from the office.");
@@ -252,7 +255,7 @@ export class ServicesRoute implements WsRoute {
     return reason === "owner_only"
       ? appError(
           403,
-          "Only the robot's owner can open this app. Sharing app previews needs OFFICE_SERVICES_DOMAIN.",
+          "Only the henchman's owner can open this app. Sharing app previews needs OFFICE_SERVICES_DOMAIN.",
         )
       : appError(404, "No such app.");
   }

@@ -39,7 +39,7 @@ export function checkViewed(look: WorktreeLook, files: readonly FileSig[]): void
     throw new ChangesHttpError(
       409,
       "changed_since_viewed",
-      "the robot changed these files after you looked; review them again",
+      "the henchman changed these files after you looked; review them again",
       stale,
     );
   }

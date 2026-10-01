@@ -46,7 +46,7 @@ describe("room settings panel", () => {
     );
     await settle();
     expect(text()).toContain("This 6×6 room fits up to 2 desks.");
-    expect(text()).toContain("Robots are working at desk 2");
+    expect(text()).toContain("Henchmen are working at desk 2");
     const desks = select("Desks (4 seats each)");
     expect([...desks.options].map((o) => [o.value, o.disabled])).toEqual([
       ["1", true],

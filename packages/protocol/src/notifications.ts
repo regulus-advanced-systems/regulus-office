@@ -50,7 +50,7 @@ const PROVIDER_NAMES: Record<ProviderId, string> = {
 /** How notifications name a robot: "Ada's Codex robot". */
 export function robotDisplayName(ownerName: string, provider: ProviderId): string {
   const who = ownerName.trim() || "Someone";
-  return `${who}'s ${PROVIDER_NAMES[provider] ?? "robot"} robot`;
+  return `${who}'s ${PROVIDER_NAMES[provider] ?? "henchman"} henchman`;
 }
 
 // ---- Personal notifications ------------------------------------------------

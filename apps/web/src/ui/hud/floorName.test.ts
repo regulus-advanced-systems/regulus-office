@@ -29,7 +29,7 @@ describe("currentFloorName", () => {
     expect(currentFloorName(floors, "f1")).toBe("Regulus Web");
   });
   test("a floor the building has not listed yet shows a placeholder", () => {
-    expect(currentFloorName(floors, "missing")).toBe("Floor …");
-    expect(currentFloorName(null, "f1")).toBe("Floor …");
+    expect(currentFloorName(floors, "missing")).toBe("Room …");
+    expect(currentFloorName(null, "f1")).toBe("Room …");
   });
 });

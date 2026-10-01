@@ -1,11 +1,11 @@
 # Running apps: the services proxy
 
-Robots' dev servers show up in the **Running apps** panel of their room with an
+Henchmen's dev servers show up in the **Running apps** panel of their room with an
 **Open** button. The office finds them by listing the listening sockets in each
-robot's sandbox every few seconds and proxies them with authentication. Design:
+henchman's sandbox every few seconds and proxies them with authentication. Design:
 `docs/adr/0004-services-proxy.md`.
 
-## What a robot's server needs
+## What a henchman's server needs
 - **Listen on `0.0.0.0`, not `localhost`.** The office reaches a sandbox over
   the network (docker: the runners network; linux-user: the sandbox bridge).
   A server bound to `127.0.0.1` inside the sandbox is listed as
@@ -18,9 +18,9 @@ robot's sandbox every few seconds and proxies them with authentication. Design:
 ## Path mode (default)
 Apps open at `/p/<floorId>/a/<agentId>/port/<n>/` on the office's own origin.
 
-- **Only the robot's owner can open it.** On the office origin the app's
+- **Only the henchman's owner can open it.** On the office origin the app's
   scripts run with the viewer's office session; letting other people run a
-  robot's code that way would let the robot act as them. Teammates see the app
+  henchman's code that way would let the henchman act as them. Teammates see the app
   in the list but need app domain mode (below) to open it.
 - **The prefix is passed through unchanged**, so the app must know it is served
   under it, or its absolute links (`/assets/…`, `/@vite/client`) go to the
@@ -39,7 +39,7 @@ its own origin, `https://<port>-<agentId>.apps.office.example`, and is served
 at `/` (no base path needed). Open goes through the office, which checks the
 session and redirects with a one-time ticket; the app host sets its own cookie.
 
-- The robot's owner gets full access; everyone else who can see the room may
+- The henchman's owner gets full access; everyone else who can see the room may
   **watch** the app: pages load (GET/HEAD), live reload works, but forms, API
   writes and WebSocket messages from them are not passed on (D12).
 - DNS: a wildcard record `*.apps.office.example` pointing at the office.
@@ -66,7 +66,7 @@ session and redirects with a one-time ticket; the app host sets its own cookie.
 | Status | Why |
 |---|---|
 | 401 | Not signed in (path mode), or no app cookie (app domain, non-GET) |
-| 403 | Not the robot's owner in path mode; cross-origin request |
-| 404 | No such app: not your room, the port is not listening, or the robot is gone |
+| 403 | Not the henchman's owner in path mode; cross-origin request |
+| 404 | No such app: not your room, the port is not listening, or the henchman is gone |
 | 405 | Watching read-only (app domain mode) |
 | 502 | Localhost only, or the app does not answer |

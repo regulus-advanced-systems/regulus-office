@@ -138,19 +138,19 @@ export function describeFloorError(err: ApiFailure): string {
     case "owner_or_admin_required":
       return "Only office owners and admins can do that.";
     case "floor_has_robots":
-      return "Robots are still on this floor. Send them home first, then delete it.";
+      return "Henchmen are still working in this operation. Send them home first, then delete it.";
     case "floor_cloning":
-      return "A repo of this floor is still cloning. Wait until it has finished, then try again.";
+      return "A repo of this operation is still cloning. Wait until it has finished, then try again.";
     case "floor_busy":
-      return "This floor is being deleted already.";
+      return "This operation is being deleted already.";
     case "floor_not_archived":
-      return "That floor is not archived.";
+      return "That operation is not archived.";
     case "confirm_name_mismatch":
-      return "The name you typed does not match the floor's name.";
+      return "The name you typed does not match the operation's name.";
     case "floor_files_not_removed":
-      return "The floor's files could not all be removed, so it was archived instead. The server log has the details; try again from Settings → Floors.";
+      return "The operation's files could not all be removed, so it was archived instead. The server log has the details; try again from Settings → Operations.";
     case "robots_unavailable":
-      return "Robots cannot be sent home right now. Try again in a moment.";
+      return "Henchmen cannot be sent home right now. Try again in a moment.";
     case "invalid_repo":
       return `${err.reason ?? "A repo"} is not a GitHub repo. Use owner/name or https://github.com/owner/name.`;
     case "unsupported_host":
@@ -166,13 +166,13 @@ export function describeFloorError(err: ApiFailure): string {
     case "invalid_body":
       return `Some fields are missing or invalid${err.reason ? ` (${err.reason})` : ""}.`;
     case "floor_manage_required":
-      return "You need manage access to this floor to change who can use it.";
+      return "You need manage access to this operation to change who can use it.";
     case "floor_not_found":
-      return "That floor no longer exists or you no longer have access to it.";
+      return "That operation no longer exists or you no longer have access to it.";
     case "user_not_found":
       return "That person is no longer in the office.";
     case "member_not_found":
-      return "That person no longer has access to this floor.";
+      return "That person no longer has access to this operation.";
     case "unauthorized":
       return "Your session has ended. Sign in again.";
     case "origin_mismatch":

@@ -231,7 +231,7 @@ describe("BuildingRoom over the wire", () => {
 
     const rejected = nextRejection(ada);
     ada.send("floor.go", { floorId: "nope" });
-    expect((await rejected).reason).toBe("unknown floor nope");
+    expect((await rejected).reason).toBe("unknown operation nope");
   });
 
   test("emote and sit drive the animation state", async () => {

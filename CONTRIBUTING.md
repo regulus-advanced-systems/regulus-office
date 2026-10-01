@@ -24,7 +24,7 @@ bun run dev        # server + web
 bun run typecheck
 bun test
 bun run e2e          # Playwright: the main office flow
-bun run e2e:agents   # Playwright: the robot flow (needs Docker)
+bun run e2e:agents   # Playwright: the henchman flow (needs Docker)
 ```
 
 ### E2E runners and cleanup

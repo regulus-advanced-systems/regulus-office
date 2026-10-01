@@ -120,7 +120,7 @@ export function ChannelForm({
         ref={labelRef}
         defaultValue={initial?.label ?? ""}
         maxLength={60}
-        placeholder="#robots"
+        placeholder="#henchmen"
       />
       <label className="rg-field__label" htmlFor={ids.secret}>
         {kind === "telegram" ? "Bot token" : "Webhook URL"}
@@ -148,14 +148,14 @@ export function ChannelForm({
         </>
       )}
       <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
-        <legend className="rg-field__label">Floors</legend>
+        <legend className="rg-field__label">Operations</legend>
         <label>
           <input
             type="checkbox"
             checked={floorIds === null}
             onChange={(e) => setFloorIds(e.currentTarget.checked ? null : [])}
           />{" "}
-          All floors
+          All operations
         </label>
         {floorIds !== null &&
           floors.map((f) => (
@@ -183,8 +183,9 @@ export function ChannelForm({
         ))}
       </fieldset>
       <div className="rg-field__hint">
-        Messages name the robot, its owner, floor, status, task title and PR link. Never terminal
-        output or permission details. The URL or token is stored encrypted and never shown again.
+        Messages name the henchman, its owner, operation, status, task title and PR link. Never
+        terminal output or permission details. The URL or token is stored encrypted and never shown
+        again.
       </div>
       <div style={{ display: "flex", gap: 8 }}>
         <Button variant="primary" size="sm" disabled={busy} onClick={submit}>

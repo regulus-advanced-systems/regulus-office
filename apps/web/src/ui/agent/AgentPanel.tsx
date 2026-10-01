@@ -91,7 +91,7 @@ function Controls({ robot }: { robot: RobotState }) {
           Review request{pending > 1 ? `s (${pending})` : ""}
         </Button>
       )}
-      <form className="rg-agent-prompt" aria-label="Prompt the robot" onSubmit={submit}>
+      <form className="rg-agent-prompt" aria-label="Prompt the henchman" onSubmit={submit}>
         <label className="rg-field__label" htmlFor={promptId}>
           Prompt
         </label>
@@ -102,7 +102,9 @@ function Controls({ robot }: { robot: RobotState }) {
           rows={3}
           maxLength={20_000}
           disabled={!running}
-          placeholder={running ? "Tell the robot what to do next" : "Resume the robot to prompt it"}
+          placeholder={
+            running ? "Tell the henchman what to do next" : "Resume the henchman to prompt it"
+          }
           onKeyDown={(e) => {
             if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) submit(e);
           }}
@@ -185,9 +187,9 @@ export function AgentPanel() {
     <Panel as="section" className="rg-agent-panel" aria-labelledby={titleId}>
       <div className="rg-agent-panel__head">
         <h2 id={titleId} className="rg-panel__title">
-          {robot.taskTitle || "Robot"}
+          {robot.taskTitle || "Henchman"}
         </h2>
-        <CloseButton small label="Close robot panel" onClick={close} />
+        <CloseButton small label="Close henchman panel" onClick={close} />
       </div>
       <Facts robot={robot} />
       <Button size="sm" block aria-haspopup="dialog" onClick={() => openTerminal(agentId)}>
@@ -202,7 +204,7 @@ export function AgentPanel() {
       ) : (
         <>
           <p className="rg-field__hint">
-            Only {robot.ownerName || "its owner"} can control this robot.
+            Only {robot.ownerName || "its owner"} can control this henchman.
           </p>
           {mayEmergencyStop(user) && isRunning(robot.status) && <EmergencyStop robot={robot} />}
         </>

@@ -10,7 +10,7 @@ const notice = (extra: Partial<RobotNotice> = {}): RobotNotice => ({
   floorName: "Web app",
   ownerUserId: "u1",
   ownerName: "Olga",
-  robotName: "Olga's Codex robot",
+  robotName: "Olga's Codex henchman",
   provider: "codex",
   taskTitle: "Fix the login page",
   prNumber: 12,
@@ -23,8 +23,8 @@ describe("webhook message bodies", () => {
   test("Slack: headline, fields and an escaped PR link", () => {
     const body = slackBody(notice({ taskTitle: "a <!channel> & <https://evil|x>" }));
     const text = String(body.text);
-    expect(text).toContain("*Olga's Codex robot needs your input*");
-    expect(text).toContain("Floor: Web app");
+    expect(text).toContain("*Olga's Codex henchman needs your input*");
+    expect(text).toContain("Operation: Web app");
     expect(text).toContain("Owner: Olga");
     expect(text).toContain("Task: a &lt;!channel&gt; &amp; &lt;https://evil|x&gt;");
     expect(text).toContain("<https://github.com/octo/web/pull/12|Pull request #12>");
@@ -52,9 +52,9 @@ describe("webhook message bodies", () => {
 
   test("user text is flattened to one line per field", () => {
     const text = String(
-      webhookBody("telegram", notice({ taskTitle: "a\nFloor: fake\r\tb" }), "1").text,
+      webhookBody("telegram", notice({ taskTitle: "a\nOperation: fake\r\tb" }), "1").text,
     );
-    expect(text.split("\n").filter((l) => l.startsWith("Floor:"))).toHaveLength(1);
+    expect(text.split("\n").filter((l) => l.startsWith("Operation:"))).toHaveLength(1);
   });
 
   test("no PR line without a PR", () => {

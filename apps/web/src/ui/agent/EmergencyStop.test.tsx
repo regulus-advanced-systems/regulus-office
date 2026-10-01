@@ -29,11 +29,11 @@ describe("emergency stop (D12, #138)", () => {
       const sent = await openPanel({ role, userId: "u-boss", robot: { status: "working" } });
       await click(buttonByText("Emergency stop") as HTMLButtonElement);
       expect(sent).toEqual([]);
-      expect(bodyText()).toContain("Stop Mia's robot?");
+      expect(bodyText()).toContain("Stop Mia's henchman?");
       expect(bodyText()).toContain("the branch, worktree and desk stay");
 
       await click(buttonByText("Cancel") as HTMLButtonElement);
-      expect(buttonByText("Stop robot")).toBeUndefined();
+      expect(buttonByText("Stop henchman")).toBeUndefined();
       expect(sent).toEqual([]);
 
       await click(buttonByText("Emergency stop") as HTMLButtonElement);
@@ -43,7 +43,7 @@ describe("emergency stop (D12, #138)", () => {
       await act(async () => {
         reason.value = "  runaway cost ";
       });
-      await click(buttonByText("Stop robot") as HTMLButtonElement);
+      await click(buttonByText("Stop henchman") as HTMLButtonElement);
       expect(sent).toEqual([
         { type: "agent.emergencyStop", payload: { agentId: "a1", reason: "runaway cost" } },
       ]);
@@ -58,7 +58,7 @@ describe("emergency stop (D12, #138)", () => {
   test("the reason is optional", async () => {
     const sent = await openPanel({ role: "admin", userId: "u-boss", robot: { status: "idle" } });
     await click(buttonByText("Emergency stop") as HTMLButtonElement);
-    await click(buttonByText("Stop robot") as HTMLButtonElement);
+    await click(buttonByText("Stop henchman") as HTMLButtonElement);
     expect(sent).toEqual([{ type: "agent.emergencyStop", payload: { agentId: "a1" } }]);
   });
 

@@ -37,11 +37,11 @@ export interface QueueSpawner {
 }
 
 export const FAIL_REASONS = {
-  error: "the robot hit an error",
-  exited: "the robot stopped before it finished",
-  offline: "the robot went offline",
-  gone: "the robot is gone",
-  start: "the robot could not be started",
+  error: "the henchman hit an error",
+  exited: "the henchman stopped before it finished",
+  offline: "the henchman went offline",
+  gone: "the henchman is gone",
+  start: "the henchman could not be started",
 } as const;
 
 export interface SchedulerDeps {

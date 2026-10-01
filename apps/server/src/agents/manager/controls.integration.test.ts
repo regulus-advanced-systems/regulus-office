@@ -115,7 +115,7 @@ describe.skipIf(!hasTmux())("robot controls (tmux)", () => {
         const outcome = await control(who, command);
         expect(outcome).toEqual({
           ok: false,
-          reason: "only the robot's owner may control it",
+          reason: "only the henchman's owner may control it",
           files: [],
         });
       }
@@ -142,7 +142,7 @@ describe.skipIf(!hasTmux())("robot controls (tmux)", () => {
     for (const who of [office.member, office.stranger, office.viewer, office.roleViewer]) {
       expect(await control(who, stop)).toEqual({
         ok: false,
-        reason: "only an office owner or admin may emergency-stop a robot",
+        reason: "only an office owner or admin may emergency-stop a henchman",
         files: [],
       });
     }
@@ -172,7 +172,7 @@ describe.skipIf(!hasTmux())("robot controls (tmux)", () => {
     // The stop grants nothing else: the admin still cannot resume it; its owner can.
     expect(await control(office.admin, { type: "agent.resume", agentId })).toMatchObject({
       ok: false,
-      reason: "only the robot's owner may control it",
+      reason: "only the henchman's owner may control it",
     });
     ok(await control(office.member, { type: "agent.resume", agentId }));
     await robots.waitFor(agentId, (r) => r.status === "idle");
@@ -184,7 +184,7 @@ describe.skipIf(!hasTmux())("robot controls (tmux)", () => {
   test("floor evacuation (#150): office owners/admins only, branch always kept", async () => {
     const { manager, robots, agentId, workspaces } = await setup();
     for (const who of [office.member, office.stranger]) {
-      await expect(manager.evacuate(who as never, agentId)).rejects.toThrow("clear a floor");
+      await expect(manager.evacuate(who as never, agentId)).rejects.toThrow("clear an operation");
     }
     await manager.evacuate(office.admin, agentId);
     expect(workspaces.released).toEqual([{ agentId, keepBranch: true }]);

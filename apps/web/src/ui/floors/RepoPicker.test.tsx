@@ -136,7 +136,7 @@ describe("Add floor with a GitHub connection", () => {
     await click(api);
     expect(text()).toContain("2 of 3 selected.");
 
-    await typeUncontrolled(inputFor("Floor name"), "Apollo");
+    await typeUncontrolled(inputFor("Operation name"), "Apollo");
     // A repo outside the connection, with its own token, goes after the picked ones.
     await typeUncontrolled(document.querySelector('[aria-label="Repo 1"]'), "other/thing");
     await typeUncontrolled(
@@ -145,7 +145,7 @@ describe("Add floor with a GitHub connection", () => {
     );
     await act(async () => {
       document
-        .querySelector('form[aria-label="Add floor"]')
+        .querySelector('form[aria-label="New operation"]')
         ?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
     });
     await settle();

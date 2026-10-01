@@ -99,8 +99,8 @@ function PullRequestForm({ agentId }: { agentId: string }) {
       ) : (
         <form id={ids.form} aria-label="Open pull request" onSubmit={submit}>
           <p className="rg-field__hint">
-            Pushes <code>{robot?.worktreeBranch || "the robot's branch"}</code> with the floor's
-            repo token and opens the PR on GitHub.
+            Pushes <code>{robot?.worktreeBranch || "the henchman's branch"}</code> with the
+            operation's repo token and opens the PR on GitHub.
           </p>
           <div className="rg-field">
             <label className="rg-field__label" htmlFor={ids.title}>

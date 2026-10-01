@@ -161,7 +161,7 @@ export function createFloorRooms(deps: FloorRoomsDeps): FloorRooms {
 
   const spawn = (floorId: string, client: RoomClient, command: SpawnCommand) => {
     if (command.floorId !== floorId) {
-      client.send(COMMAND_REJECTED_MESSAGE, reject(command.type, "wrong floor"));
+      client.send(COMMAND_REJECTED_MESSAGE, reject(command.type, "wrong operation"));
       return;
     }
     if (!agentCommands) {
@@ -256,7 +256,7 @@ export function createFloorRooms(deps: FloorRoomsDeps): FloorRooms {
         return;
       }
       const reason = parsed.success
-        ? "not handled by the floor room yet"
+        ? "not handled by the operation room yet"
         : `invalid ${type}: ${parsed.error.issues[0]?.message ?? "malformed"}`;
       client.send(COMMAND_REJECTED_MESSAGE, reject(type, reason));
     },

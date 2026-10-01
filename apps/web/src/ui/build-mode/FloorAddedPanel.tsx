@@ -45,7 +45,7 @@ export function FloorAddedPanel({
   const progress = room ? buildProgress(room.id, room.buildEndsAt, now, building) : null;
   return (
     <div role="dialog" aria-modal="false" aria-labelledby={title} className="rg-dock">
-      <Panel title={<span id={title}>Floor added</span>}>
+      <Panel title={<span id={title}>Operation set up</span>}>
         {/* Announced when the state changes, not every second. */}
         <div role="status" aria-live="polite" className="rg-muted" style={{ fontSize: 13 }}>
           {!room

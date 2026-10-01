@@ -160,13 +160,13 @@ export class WorkflowExecutor {
         .map((id) => deps.repos.getRepo(id))
         .find((r) => r && r.floorId === wf.floorId);
       if (!repoRow)
-        throw new WorkflowRefusal("repo_not_on_floor", "the repo is no longer on the floor");
+        throw new WorkflowRefusal("repo_not_on_floor", "the repo is no longer in the operation");
       const floor = deps.db
         .select({ slug: floors.slug })
         .from(floors)
         .where(eq(floors.id, wf.floorId))
         .get();
-      if (!floor) throw new WorkflowRefusal("floor_gone", "the floor was deleted");
+      if (!floor) throw new WorkflowRefusal("floor_gone", "the operation was deleted");
       const { client, token } = await appClientFor(deps.connection, ctx.repo);
       appClient = client;
       log.scrubber = new SecretScrubber({ installation_token: token });
@@ -241,7 +241,7 @@ export class WorkflowExecutor {
           headSha: target.sha,
           status: "in_progress",
           title: "Review in progress",
-          summary: "A Regulus Office robot is reviewing this commit.",
+          summary: "A Regulus Office henchman is reviewing this commit.",
         });
         checkOpen = true;
         writeAudit(deps.db, {
@@ -268,7 +268,9 @@ export class WorkflowExecutor {
         { workdir: mounted.workdir },
       );
       log.add(
-        sandbox ? `robot sandbox ready (${sandbox.host})` : "robot runs in the workflow runner",
+        sandbox
+          ? `henchman sandbox ready (${sandbox.host})`
+          : "henchman runs in the workflow runner",
       );
 
       const prompt = renderPrompt(
@@ -297,7 +299,7 @@ export class WorkflowExecutor {
       });
       const proc = await deps.runner.spawnPiped(user, plan);
       log.add(
-        `robot started (${spec.robot.provider}${spec.robot.model ? ` ${spec.robot.model}` : ""})`,
+        `henchman started (${spec.robot.provider}${spec.robot.model ? ` ${spec.robot.model}` : ""})`,
       );
       let timedOut = false;
       const kill = () => proc.kill("SIGKILL");
@@ -336,11 +338,11 @@ export class WorkflowExecutor {
         });
       }
       log.add(
-        `robot exited ${code ?? "by signal"}: ${usage.inputTokens} in / ${usage.outputTokens} out tokens`,
+        `henchman exited ${code ?? "by signal"}: ${usage.inputTokens} in / ${usage.outputTokens} out tokens`,
       );
       if (signal.aborted) return finish("cancelled", "cancelled", { usage });
       if (timedOut) {
-        return finish("failed", `robot timed out after ${spec.robot.timeoutMinutes} min`, {
+        return finish("failed", `henchman timed out after ${spec.robot.timeoutMinutes} min`, {
           usage,
         });
       }
@@ -358,7 +360,7 @@ export class WorkflowExecutor {
         });
         return finish(
           "failed",
-          `secret_in_output: the robot's answer contained a secret (${leak.kind}); nothing was posted`,
+          `secret_in_output: the henchman's answer contained a secret (${leak.kind}); nothing was posted`,
           { usage },
         );
       }
@@ -402,7 +404,7 @@ export class WorkflowExecutor {
           .completeCheckRun(check.id, {
             conclusion: "neutral",
             title: "Review did not finish",
-            summary: "The Regulus Office robot did not finish this review.",
+            summary: "The Regulus Office henchman did not finish this review.",
           })
           .catch(() => {});
       }

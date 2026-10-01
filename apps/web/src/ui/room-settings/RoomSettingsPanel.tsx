@@ -127,7 +127,7 @@ export function RoomSettingsForm({
         )}
         {info.occupiedDesks.length > 0 && (
           <p className="rg-field__hint">
-            Robots are working at desk {info.occupiedDesks.join(", ")}; those desks stay.
+            Henchmen are working at desk {info.occupiedDesks.join(", ")}; those desks stay.
           </p>
         )}
       </div>

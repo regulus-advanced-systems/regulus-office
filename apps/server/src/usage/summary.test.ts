@@ -76,9 +76,9 @@ describe("per-viewer privacy", () => {
     expect(s.officeKeysCostUsdEstimate).toBeCloseTo(0.5, 6);
     expect(s.activeHumans).toBe(2);
     expect(s.topRobots.map((r) => [r.name, r.ownerName, r.tokens])).toEqual([
-      ["Bob's Claude Code robot", "Bob", 9_000],
-      ["Ada's Codex robot", "Ada", 1_000],
-      ["Bob's Claude Code robot", "Bob", 500],
+      ["Bob's Claude Code henchman", "Bob", 9_000],
+      ["Ada's Codex henchman", "Ada", 1_000],
+      ["Bob's Claude Code henchman", "Bob", 500],
     ]);
     for (const r of s.topRobots) {
       expect(Object.keys(r).sort()).toEqual(["agentId", "name", "ownerName", "provider", "tokens"]);

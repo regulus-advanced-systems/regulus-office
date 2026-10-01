@@ -118,7 +118,7 @@ export function describeGitHubError(err: ApiFailure): string {
 export function describeManifestResult(result: string): { ok: boolean; text: string } {
   switch (result) {
     case "installed":
-      return { ok: true, text: "GitHub App installed. Its repos are listed in Add floor." };
+      return { ok: true, text: "GitHub App installed. Its repos are listed in New operation." };
     case "connected":
       return { ok: true, text: "GitHub App created. Install it on your organization next." };
     case "invalid_state":

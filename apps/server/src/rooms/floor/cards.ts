@@ -45,10 +45,10 @@ export function handleCardCommand(ctx: CardContext, command: CardCommand): void 
     client.send(COMMAND_REJECTED_MESSAGE, rejection(command.type, reason));
 
   if (command.type === "card.pick") {
-    if (!mayCarryCard(ctx.access)) return reject("you may not spawn robots on this floor");
+    if (!mayCarryCard(ctx.access)) return reject("you may not spawn henchmen in this operation");
     const key = boardCardKey(command.repoId, command.number);
     const onBoard = command.cardKind === "pr" ? state.pulls.has(key) : state.issues.has(key);
-    if (!onBoard) return reject("that card is not on this floor's board");
+    if (!onBoard) return reject("that card is not on this operation's board");
     const carried = new CarriedCardSchema();
     carried.sessionId = client.sessionId;
     carried.userId = client.user.userId;
@@ -63,7 +63,7 @@ export function handleCardCommand(ctx: CardContext, command: CardCommand): void 
   if (!state.carriedCards.has(client.sessionId)) return reject("you are not carrying a card");
   if (command.seatId !== undefined) {
     const desk = state.desks.get(command.seatId);
-    if (!desk) return reject("no such desk on this floor");
+    if (!desk) return reject("no such desk in this operation");
     if (desk.agentId !== "") return reject("that desk is taken");
   }
   state.carriedCards.delete(client.sessionId);

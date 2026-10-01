@@ -58,17 +58,17 @@ export function FloorsSection({ api = defaultApi }: { api?: FloorsApi }) {
   };
 
   return (
-    <section className="rg-field" aria-label="Floors">
-      <div className="rg-field__label">Floors</div>
+    <section className="rg-field" aria-label="Operations">
+      <div className="rg-field__label">Operations</div>
       <div className="rg-field__hint">
-        Archived floors leave the compound; their data and clones are kept.
+        Archived operations leave the compound; their data and clones are kept.
       </div>
       {archived === null ? (
         !error && <p className="rg-muted">Loading…</p>
       ) : archived.length === 0 ? (
-        <p className="rg-muted">No archived floors.</p>
+        <p className="rg-muted">No archived operations.</p>
       ) : (
-        <ul className="rg-list" aria-label="Archived floors">
+        <ul className="rg-list" aria-label="Archived operations">
           {archived.map((f) => (
             <li key={f.floorId} className="rg-archived-floor">
               <div className="rg-danger-zone__row">

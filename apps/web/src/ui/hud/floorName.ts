@@ -12,7 +12,7 @@ export function currentFloorName(
 ): string {
   if (!floorId) return LOBBY_NAME;
   const floor = floors?.[floorId];
-  if (!floor) return "Floor …";
+  if (!floor) return "Room …";
   return floor.index === 0 ? LOBBY_NAME : floor.name;
 }
 

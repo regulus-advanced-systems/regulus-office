@@ -122,7 +122,7 @@ export function AddFloorForm({
     const form = event.currentTarget;
     const request = readAddFloorForm(form, rows, listed ? picked : []);
     if (!request.name || request.repos.length === 0) {
-      setError("Give the floor a name and at least one repo.");
+      setError("Give the operation a name and at least one repo.");
       return;
     }
     // Tokens leave the page's inputs here; build mode holds them until the room is built.
@@ -165,7 +165,7 @@ export function AddFloorForm({
         </div>
       ))}
       <div className="rg-field__hint">
-        The first repo is the floor's primary repo. Public repos, and repos the office GitHub
+        The first repo is the operation's primary repo. Public repos, and repos the office GitHub
         connection covers, need no token; for another private repo use a fine-grained token scoped
         to that repo only. Tokens are stored encrypted and never shown again.
       </div>
@@ -178,10 +178,10 @@ export function AddFloorForm({
   );
 
   return (
-    <form onSubmit={submit} aria-label="Add floor">
+    <form onSubmit={submit} aria-label="New operation">
       <div className="rg-field">
         <label className="rg-field__label" htmlFor={ids.name}>
-          Floor name
+          Operation name
         </label>
         <input
           id={ids.name}
@@ -279,7 +279,7 @@ export function AddFloorDialogHost({ github = defaultGitHubApi }: { github?: Git
     useBuildModeStore.getState().start(world, { kind: "create", request }, buildFrame(world));
   };
   return (
-    <Modal open={open} onClose={() => close(ADD_FLOOR_OVERLAY)} title="Add floor" width={560}>
+    <Modal open={open} onClose={() => close(ADD_FLOOR_OVERLAY)} title="New operation" width={560}>
       <AddFloorForm
         key={draft ? "draft" : "new"}
         github={github}

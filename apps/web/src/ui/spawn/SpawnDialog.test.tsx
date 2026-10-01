@@ -116,7 +116,7 @@ const focused = () => {
 };
 
 async function submitForm() {
-  const form = document.querySelector('form[aria-label="Spawn robot"]');
+  const form = document.querySelector('form[aria-label="Spawn henchman"]');
   if (!form) throw new Error("no spawn form");
   await act(async () => {
     form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
@@ -148,9 +148,9 @@ describe("spawn dialog", () => {
   test("asks for model and effort, focuses the model, and never shows a secret field", async () => {
     const { client } = fakeClient();
     mounted = await mount(<SpawnDialogHost api={api} client={client} />);
-    expect(text()).not.toContain("Spawn a robot");
+    expect(text()).not.toContain("Spawn a henchman");
     await openAt();
-    expect(text()).toContain("Spawn a robot");
+    expect(text()).toContain("Spawn a henchman");
     expect(useUiStore.getState().overlay).toBe(SPAWN_OVERLAY);
     // One repo: preselected, named next to the desk, not asked for.
     expect(document.querySelector(".rg-spawn__desk")?.textContent).toBe(
@@ -351,7 +351,7 @@ describe("spawn dialog", () => {
     await act(async () => reject({ type: "agent.spawn", reason: "desk is taken" }));
     await settle();
     expect(document.querySelector('[role="alert"]')?.textContent).toContain("desk is taken");
-    expect(button("Spawn robot")?.disabled).toBe(false);
+    expect(button("Spawn henchman")?.disabled).toBe(false);
 
     await submitForm();
     expect(sent).toHaveLength(2);
@@ -365,8 +365,10 @@ describe("spawn dialog", () => {
     );
     await settle();
     expect(useSpawnStore.getState().request).toBeNull();
-    expect(text()).not.toContain("Spawn a robot");
-    expect(useUiStore.getState().toastQueue.toasts.map((t) => t.title)).toContain("Robot spawned");
+    expect(text()).not.toContain("Spawn a henchman");
+    expect(useUiStore.getState().toastQueue.toasts.map((t) => t.title)).toContain(
+      "Henchman spawned",
+    );
   });
 
   test("closing with Cancel clears the request", async () => {

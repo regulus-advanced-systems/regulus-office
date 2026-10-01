@@ -36,12 +36,12 @@ export const ACCESS_ORDER: readonly FloorAccess[] = ["view", "spawn", "manage"];
 
 export const ACCESS_LABELS: Record<FloorAccess, string> = {
   view: "View",
-  spawn: "Spawn robots",
+  spawn: "Spawn henchmen",
   manage: "Manage",
 };
 
 export const ACCESS_HINT =
-  "View: ride to the floor and watch. Spawn robots: also put robots to work. Manage: also add and remove people.";
+  "View: walk into the room and watch. Spawn henchmen: also put henchmen to work. Manage: also add and remove people.";
 
 /** Owners and admins manage every floor already; granting them anything is a no-op. */
 export const isOfficeManagerRole = (role: UserRole): boolean =>

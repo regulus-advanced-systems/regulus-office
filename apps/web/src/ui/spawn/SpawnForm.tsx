@@ -146,7 +146,7 @@ export function SpawnForm(props: SpawnFormProps) {
     <form
       ref={formRef}
       className="rg-spawn"
-      aria-label={props.labels?.form ?? "Spawn robot"}
+      aria-label={props.labels?.form ?? "Spawn henchman"}
       onSubmit={submit}
       noValidate
     >
@@ -224,7 +224,7 @@ export function SpawnForm(props: SpawnFormProps) {
         <Button variant="primary" type="submit" disabled={pending} aria-busy={pending}>
           {pending
             ? (props.labels?.pending ?? "Spawning…")
-            : (props.labels?.submit ?? "Spawn robot")}
+            : (props.labels?.submit ?? "Spawn henchman")}
         </Button>
       </div>
     </form>

@@ -134,7 +134,7 @@ export async function walkInto(page: Page, name: string): Promise<NavRoom> {
   // On to the middle (the nearest free spot to it, like a click on a desk there).
   if (await walkTo(page, room.x + room.w / 2, room.z + room.d / 2)) await waitStill(page);
   await expect(page.locator(".rg-topbar__floor")).toHaveText(name);
-  await expect(page.getByRole("list", { name: "Work on this floor" })).toBeVisible();
+  await expect(page.getByRole("list", { name: "Work in this operation" })).toBeVisible();
   return room;
 }
 

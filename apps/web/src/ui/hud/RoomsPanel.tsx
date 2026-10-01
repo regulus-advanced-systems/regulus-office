@@ -61,7 +61,7 @@ export function RoomsPanel() {
             aria-haspopup="dialog"
             onClick={() => openOverlay(ADD_FLOOR_OVERLAY)}
           >
-            Add floor…
+            New operation…
           </Button>
         )}
       </div>
@@ -82,7 +82,7 @@ export function RoomsPanel() {
               variant="secondary"
               size="sm"
               aria-haspopup="dialog"
-              title="Pick a new spot for this room (no robots may be running in it)"
+              title="Pick a new spot for this room (no henchmen may be running in it)"
               onClick={move}
             >
               Move room…

@@ -103,15 +103,16 @@ export function TeamWebhooksSection({ api }: { api: NotificationsApi }) {
 
   const floorNames = (ids: string[] | null) =>
     ids === null
-      ? "All floors"
-      : ids.map((id) => floors.find((f) => f.floorId === id)?.name ?? "removed floor").join(", ") ||
-        "No floors";
+      ? "All operations"
+      : ids
+          .map((id) => floors.find((f) => f.floorId === id)?.name ?? "removed operation")
+          .join(", ") || "No operations";
 
   return (
     <section className="rg-field" aria-label="Team notifications">
       <div className="rg-field__label">Team notifications</div>
       <div className="rg-field__hint">
-        Post robot events to Slack, Discord or Telegram. Events wait 5 s to settle, repeats are
+        Post henchman events to Slack, Discord or Telegram. Events wait 5 s to settle, repeats are
         deduplicated, and each channel is rate limited.
       </div>
       {!canStore && (

@@ -65,7 +65,7 @@ describe("notification settings", () => {
     const f = await show("member", {});
     expect(text()).toContain("Needs my input");
     expect(text()).not.toContain("Team notifications");
-    expect(text()).not.toContain("Anyone's robot");
+    expect(text()).not.toContain("Anyone's henchman");
     await click(switchNamed("Done"));
     await settle();
     const put = f.calls.find((c) => c.method === "PUT");
@@ -80,7 +80,7 @@ describe("notification settings", () => {
     });
     expect(text()).toContain("Team notifications");
     await click(button("Add channel…") as HTMLButtonElement);
-    const labelInput = document.querySelector('input[placeholder="#robots"]') as HTMLInputElement;
+    const labelInput = document.querySelector('input[placeholder="#henchmen"]') as HTMLInputElement;
     const secret = document.querySelector('input[type="password"]') as HTMLInputElement;
     await act(async () => {
       labelInput.value = "#robots";

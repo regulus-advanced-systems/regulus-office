@@ -52,7 +52,7 @@ export function spawnRepoOptions(
 
 /** Human wording for a rejected spawn. */
 export function describeSpawnRejection(reason: string): string {
-  return reason ? `The office could not spawn this robot: ${reason}.` : "The office refused.";
+  return reason ? `The office could not spawn this henchman: ${reason}.` : "The office refused.";
 }
 
 export function SpawnDialogHost({
@@ -118,7 +118,7 @@ export function SpawnDialogHost({
     closeSpawn();
     toast({
       kind: "success",
-      title: "Robot spawned",
+      title: "Henchman spawned",
       message: robot.taskTitle || `At desk ${robot.seatId}.`,
     });
   }, [pending, seatId, floorState, userId, closeSpawn, toast]);
@@ -137,7 +137,7 @@ export function SpawnDialogHost({
       target.send("agent.spawn", payload);
       setPending(true);
     } catch {
-      setServerError("Not connected to this floor yet. Try again in a moment.");
+      setServerError("Not connected to this operation yet. Try again in a moment.");
     }
   };
 
@@ -147,7 +147,7 @@ export function SpawnDialogHost({
     <Modal
       open
       onClose={closeSpawn}
-      title="Spawn a robot"
+      title="Spawn a henchman"
       width={640}
       dismissOnBackdrop={!pending}
       initialFocus={modelFocus}
@@ -160,7 +160,7 @@ export function SpawnDialogHost({
             <span className="rg-spawn__repo">{onlyRepo.label}</span>
           </>
         )}
-        {pending ? " · starting the robot…" : ""}
+        {pending ? " · starting the henchman…" : ""}
       </p>
       <SpawnForm
         key={request.seatId}

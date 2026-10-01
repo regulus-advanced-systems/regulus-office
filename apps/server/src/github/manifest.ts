@@ -82,7 +82,7 @@ export function buildManifest(publicUrl: string): Record<string, unknown> {
     name: `Regulus Office (${host})`.slice(0, 34),
     url: base,
     description:
-      "Clones floor repos, pushes robot branches and opens pull requests for Regulus Office.",
+      "Clones operation repos, pushes henchman branches and opens pull requests for Regulus Office.",
     redirect_url: `${base}${GITHUB_MANIFEST_CALLBACK_PATH}`,
     setup_url: `${base}${GITHUB_APP_SETUP_PATH}`,
     setup_on_update: true,

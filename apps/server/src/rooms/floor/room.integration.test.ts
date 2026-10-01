@@ -281,7 +281,7 @@ describe("FloorRoom over the wire", () => {
     rooms.floors.setAgentCommands({
       async spawn(actor, command) {
         calls.push({ actor: actor.id, floorId: command.floorId, prompt: command.prompt });
-        return { ok: false, reason: "no free desk on this floor" };
+        return { ok: false, reason: "no free desk in this operation" };
       },
     });
     const room = await joinFloor(users.member, floorId);
@@ -293,9 +293,9 @@ describe("FloorRoom over the wire", () => {
     room.send("agent.spawn", { ...base, floorId });
     await waitFor(() => reasons.length === 3, "three rejections");
     expect(reasons.map((r) => r.reason)).toEqual([
-      "wrong floor",
+      "wrong operation",
       expect.stringContaining("invalid agent.spawn"),
-      "no free desk on this floor",
+      "no free desk in this operation",
     ]);
     expect(calls).toEqual([{ actor: users.member.userId, floorId, prompt: "go" }]);
     rooms.floors.setAgentCommands(undefined);
@@ -314,7 +314,7 @@ describe("FloorRoom over the wire", () => {
       stranger.onMessage(COMMAND_REJECTED_MESSAGE, (m: CommandRejected) => resolve(m)),
     );
     stranger.send("floor.go", { floorId });
-    expect((await rejected).reason).toBe(`no access to floor ${floorId}`);
+    expect((await rejected).reason).toBe(`no access to operation ${floorId}`);
   });
 
   test("archiving a floor closes its room and drops it from the building list", async () => {

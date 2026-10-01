@@ -33,12 +33,12 @@ export function PanelsSection() {
             inline
             open
             onClose={() => {}}
-            title="Stop robot Ada?"
+            title="Stop henchman Ada?"
             width={440}
             footer={
               <>
                 <Button variant="secondary">Cancel</Button>
-                <Button variant="destructive">Stop robot</Button>
+                <Button variant="destructive">Stop henchman</Button>
               </>
             }
           >
@@ -73,7 +73,7 @@ export function PanelsSection() {
       <Modal
         open={open === "danger"}
         onClose={() => setOpen(null)}
-        title="Delete floor?"
+        title="Delete operation?"
         footer={
           <>
             <Button variant="secondary" onClick={() => setOpen(null)}>

@@ -54,7 +54,7 @@ describe("AgentPanel", () => {
     await setInput(box, "  add tests  ");
     await act(async () => {
       document
-        .querySelector("form[aria-label='Prompt the robot']")
+        .querySelector("form[aria-label='Prompt the henchman']")
         ?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
     });
     expect(box.value).toBe("");
@@ -133,7 +133,7 @@ describe("AgentPanel", () => {
     const { wrap } = recorder();
     useAgentStore.getState().openAgentPanel("a1");
     const m = track(await mount(wrap(<AgentPanel />)));
-    expect(bodyText()).toContain("Only Mia can control this robot.");
+    expect(bodyText()).toContain("Only Mia can control this henchman.");
     expect(document.querySelector("textarea")).toBeNull();
     expect(buttonByText("Stop")).toBeUndefined();
     expect(buttonByText("Interrupt")).toBeUndefined();

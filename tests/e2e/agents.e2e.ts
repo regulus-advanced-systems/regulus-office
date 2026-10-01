@@ -278,9 +278,9 @@ test("1. the owner connects GitHub, picks the repo in Add floor and walks into i
   await expect(settingsDialog).toHaveCount(0);
 
   const rooms = ownerPage.getByRole("navigation", { name: "Rooms" });
-  await rooms.getByRole("button", { name: "Add floor…" }).click();
-  const dialog = ownerPage.getByRole("dialog", { name: "Add floor" });
-  await dialog.getByLabel("Floor name").fill(FLOOR);
+  await rooms.getByRole("button", { name: "New operation…" }).click();
+  const dialog = ownerPage.getByRole("dialog", { name: "New operation" });
+  await dialog.getByLabel("Operation name").fill(FLOOR);
   const picker = dialog.getByRole("list", { name: "Repos from GitHub" });
   await dialog.getByLabel("Search repos").fill(REPO.name);
   await expect(picker.getByRole("checkbox")).toHaveCount(1);
@@ -290,12 +290,12 @@ test("1. the owner connects GitHub, picks the repo in Add floor and walks into i
   // Build mode (#187): build where it offers.
   expect((await settledVerdict(ownerPage)).server?.ok).toBe(true);
   await ownerPage.keyboard.press("Enter");
-  const added = ownerPage.getByRole("dialog", { name: "Floor added" });
+  const added = ownerPage.getByRole("dialog", { name: "Operation set up" });
   await expect(added.getByText(`Ready on ${REPO.branch}`)).toBeVisible();
 
   // A new floor offers "Add people" straight away: the owner lets the member watch (#131).
   await added.getByRole("button", { name: "Add people…" }).click();
-  const settings = ownerPage.getByRole("dialog", { name: "Floor settings" });
+  const settings = ownerPage.getByRole("dialog", { name: "Operation settings" });
   await settings.getByLabel("Search people").fill("ben");
   await settings.getByRole("checkbox", { name: new RegExp(member.name) }).check();
   await settings.getByLabel("Access for the people you add").selectOption("view");
@@ -327,7 +327,7 @@ test("2. the owner spawns Claude Code at a free desk with their login and a prom
     (r) => new URL(r.url()).pathname === "/api/provider-logins",
   );
   await ownerPage.mouse.click(desk.x, desk.y);
-  const dialog = ownerPage.getByRole("dialog", { name: "Spawn a robot" });
+  const dialog = ownerPage.getByRole("dialog", { name: "Spawn a henchman" });
   await expect(dialog).toBeVisible();
   // The floor's only repo is preselected and named next to the desk, not asked for (#142).
   await expect(dialog.getByText(`Desk ${seatId} · ${REPO.owner}/${REPO.name}`)).toBeVisible();
@@ -350,7 +350,7 @@ test("2. the owner spawns Claude Code at a free desk with their login and a prom
   await dialog.getByLabel("Issue").fill(String(ISSUE));
   // The fake holds the edit until step 3 has seen the robot type (tests/e2e/runner/claude, #179).
   await dialog.getByLabel(/^Prompt/).fill("Add a FAKE_CLAUDE.md that says hello [hold the edit]");
-  await dialog.getByRole("button", { name: "Spawn robot" }).click();
+  await dialog.getByRole("button", { name: "Spawn henchman" }).click();
   // The dialog stays pending until our robot sits down at that desk, then closes.
   await expect(dialog).toHaveCount(0, { timeout: 60_000 });
   // The login check ran to completion (the recreate did not kill it): Claude Code connected.
@@ -445,7 +445,7 @@ test("4. the permission prompt reaches the owner, not the member nor an admin", 
   const memberPanel = memberPage.locator("section.rg-agent-panel");
   await expect(memberPanel.locator('[data-key="status"] dd')).toHaveText("Waiting for approval");
   await expect(memberPanel.getByRole("button", { name: "Watch terminal" })).toBeVisible();
-  await expect(memberPanel.getByText("Only Ada Owner can control this robot.")).toBeVisible();
+  await expect(memberPanel.getByText("Only Ada Owner can control this henchman.")).toBeVisible();
   await expect(memberPanel.getByRole("button", { name: /Review request/ })).toHaveCount(0);
   await expect(memberPanel.getByRole("button", { name: "Emergency stop" })).toHaveCount(0);
   await expect(memberPage.getByRole("dialog", { name: "Permission needed" })).toHaveCount(0);
@@ -461,7 +461,7 @@ test("4. the permission prompt reaches the owner, not the member nor an admin", 
   const adminPanel = adminPage.locator("section.rg-agent-panel");
   await expect(adminPanel.locator('[data-key="status"] dd')).toHaveText("Waiting for approval");
   await expect(adminPanel.getByRole("button", { name: "Watch terminal" })).toBeVisible();
-  await expect(adminPanel.getByText("Only Ada Owner can control this robot.")).toBeVisible();
+  await expect(adminPanel.getByText("Only Ada Owner can control this henchman.")).toBeVisible();
   await expect(adminPanel.getByRole("button", { name: "Emergency stop" })).toBeVisible();
   await expect(adminPanel.getByRole("button", { name: /Review request/ })).toHaveCount(0);
   await expect(adminPanel.getByRole("button", { name: "Stop", exact: true })).toHaveCount(0);
@@ -718,7 +718,7 @@ test("8. send home frees the desk and deletes the branch as chosen", async () =>
   await openRobotPanel(ownerPage);
   const branch = await ownerPanel.locator('[data-key="branch"] dd').innerText();
   await ownerPanel.getByRole("button", { name: "Send home" }).click();
-  const dialog = ownerPage.getByRole("dialog", { name: "Send robot home" });
+  const dialog = ownerPage.getByRole("dialog", { name: "Send henchman home" });
   await expect(dialog.getByText(branch)).toBeVisible();
   await dialog.getByLabel(/Delete the branch/).check();
   await dialog.getByRole("button", { name: "Send home" }).click();
@@ -741,7 +741,7 @@ test("8. send home frees the desk and deletes the branch as chosen", async () =>
   const point = await scenePoint(ownerPage, `desk-hotspot-${seatId}`);
   if (!point) throw new Error("desk not in view");
   await ownerPage.mouse.click(point.x, point.y);
-  const spawn = ownerPage.getByRole("dialog", { name: "Spawn a robot" });
+  const spawn = ownerPage.getByRole("dialog", { name: "Spawn a henchman" });
   await expect(spawn).toBeVisible();
   await expect(spawn.getByText(seatId)).toBeVisible();
   await spawn.getByRole("button", { name: "Cancel", exact: true }).click();

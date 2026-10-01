@@ -483,7 +483,7 @@ test("the owner adds a floor in build mode: a refused spot, then placed, built a
   await expect(build).toBeEnabled();
   await ownerPage.keyboard.press("Enter");
   await expect(ownerPage.getByRole("dialog", { name: "Build Apollo" })).toHaveCount(0);
-  const added = ownerPage.getByRole("dialog", { name: "Floor added" });
+  const added = ownerPage.getByRole("dialog", { name: "Operation set up" });
   await expect(added.getByText("Ready on trunk")).toBeVisible();
 
   // The compound (#181): Apollo got a room on the map, which finishes its build phase.
@@ -537,7 +537,7 @@ test("the owner adds a floor in build mode: a refused spot, then placed, built a
     throw new Error("walking to Apollo");
   }).toPass({ timeout: 90_000, intervals: [700] });
   await expect(ownerPage.locator(".rg-topbar__floor")).toHaveText("Apollo");
-  await expect(ownerPage.getByRole("list", { name: "Work on this floor" })).toBeVisible();
+  await expect(ownerPage.getByRole("list", { name: "Work in this operation" })).toBeVisible();
   await wheelZoomTo(ownerPage, zoom);
   // The perf probe (#190): frame times in a room, report only (tests/e2e/perfProbe.ts).
   await reportFramePerf(ownerPage, "owner-in-apollo");
@@ -569,18 +569,18 @@ test("Floor settings and Add floor fit a 1280×720 window with the X in view", a
   const rooms = ownerPage.getByRole("navigation", { name: "Rooms" });
   const dialogs = [
     {
-      name: "Floor settings",
+      name: "Operation settings",
       open: async () => {
         await rooms.getByRole("button", { name: "Quick travel (F)" }).click();
         await ownerPage
           .getByRole("dialog", { name: "Quick travel" })
-          .getByRole("button", { name: "Floor settings: Apollo" })
+          .getByRole("button", { name: "Operation settings: Apollo" })
           .click();
       },
     },
     {
-      name: "Add floor",
-      open: () => rooms.getByRole("button", { name: "Add floor…" }).click(),
+      name: "New operation",
+      open: () => rooms.getByRole("button", { name: "New operation…" }).click(),
     },
   ];
   for (const { name, open } of dialogs) {
@@ -609,16 +609,16 @@ test("clicking a free desk opens the spawn dialog and the server answers agent.s
   // A runner may take the spawn (the robot then sits there); the board step picks another desk.
   spawnSeat = desk.seatId;
   await ownerPage.mouse.click(desk.x, desk.y);
-  const dialog = ownerPage.getByRole("dialog", { name: "Spawn a robot" });
+  const dialog = ownerPage.getByRole("dialog", { name: "Spawn a henchman" });
   await expect(dialog).toBeVisible();
   await expect(dialog.getByText(desk.seatId)).toBeVisible();
   // Repo preselected, model and effort defaulted: Spawn right away, with no prompt (#142).
   await expect(dialog.getByRole("radio", { name: "Opus" })).toBeChecked();
   await expect(dialog.locator('input[type="password"]')).toHaveCount(0);
-  await dialog.getByRole("button", { name: "Spawn robot" }).click();
+  await dialog.getByRole("button", { name: "Spawn henchman" }).click();
   // Without an agent CLI in the e2e server the spawn is refused (shown in the
   // dialog), unless a runner took it, in which case the robot sits down.
-  await expect(dialog.getByRole("alert").or(ownerPage.getByText("Robot spawned"))).toBeVisible({
+  await expect(dialog.getByRole("alert").or(ownerPage.getByText("Henchman spawned"))).toBeVisible({
     timeout: 30_000,
   });
   if (await dialog.isVisible())
@@ -649,7 +649,7 @@ test("the owner archives, restores and deletes a floor; its files go with it", a
   };
   const openSettings = async () => {
     await rooms.getByRole("button", { name: "Quick travel (F)" }).click();
-    await travel.getByRole("button", { name: "Floor settings: Hermes" }).click();
+    await travel.getByRole("button", { name: "Operation settings: Hermes" }).click();
   };
   // Escape leaves build mode and builds nothing (#187); the second time it builds where offered.
   await openBuildMode(ownerPage, "Hermes", "octo/hello");
@@ -659,7 +659,7 @@ test("the owner archives, restores and deletes a floor; its files go with it", a
   expect((await navRooms(ownerPage)).some((r) => r.name === "Hermes")).toBe(false);
   expect((await openBuildMode(ownerPage, "Hermes", "octo/hello")).server?.ok).toBe(true);
   await ownerPage.keyboard.press("Enter");
-  const added = ownerPage.getByRole("dialog", { name: "Floor added" });
+  const added = ownerPage.getByRole("dialog", { name: "Operation set up" });
   await expect(added.getByText("Ready on trunk")).toBeVisible();
   await added.getByRole("button", { name: "Done" }).click();
   await expect
@@ -674,9 +674,9 @@ test("the owner archives, restores and deletes a floor; its files go with it", a
   writeFileSync(join(area, "work.txt"), "work\n");
 
   // Archive from the Danger zone of Floor settings: its room goes from the compound, files kept.
-  const settings = ownerPage.getByRole("dialog", { name: "Floor settings" });
+  const settings = ownerPage.getByRole("dialog", { name: "Operation settings" });
   await openSettings();
-  await settings.getByRole("button", { name: "Archive floor" }).click();
+  await settings.getByRole("button", { name: "Archive operation" }).click();
   await expect(settings).toBeHidden();
   await expect
     .poll(async () => (await navRooms(ownerPage)).some((r) => r.name === "Hermes"))
@@ -684,10 +684,10 @@ test("the owner archives, restores and deletes a floor; its files go with it", a
   await inQuickTravel(0);
   expect(existsSync(mirror)).toBe(true);
 
-  // Restore from Settings → Floors.
+  // Restore from Settings → Operations.
   await ownerPage.getByRole("button", { name: "Settings", exact: true }).click();
   const panel = ownerPage.getByRole("dialog", { name: "Settings", exact: true });
-  await expect(panel.getByRole("list", { name: "Archived floors" })).toContainText("Hermes");
+  await expect(panel.getByRole("list", { name: "Archived operations" })).toContainText("Hermes");
   await panel.getByRole("button", { name: "Restore Hermes" }).click();
   await expect(panel.getByText("Hermes is back in the compound.")).toBeVisible();
   // The Restore button went with the list row, and keyboard focus with it: close with Done.
@@ -700,10 +700,10 @@ test("the owner archives, restores and deletes a floor; its files go with it", a
 
   // Delete for good, after typing the name.
   await openSettings();
-  await settings.getByRole("button", { name: "Delete floor…" }).click();
-  const confirm = settings.getByRole("button", { name: "Delete floor", exact: true });
+  await settings.getByRole("button", { name: "Delete operation…" }).click();
+  const confirm = settings.getByRole("button", { name: "Delete operation", exact: true });
   await expect(confirm).toBeDisabled();
-  await settings.getByLabel("Type the floor name to confirm").fill("Hermes");
+  await settings.getByLabel("Type the operation name to confirm").fill("Hermes");
   await confirm.click();
   await expect(settings).toBeHidden();
   await expect
@@ -786,7 +786,7 @@ test("a card from the issue board carried to a free desk opens the spawn dialog 
     const desk = await freeDeskPoint(ownerPage, [spawnSeat]);
     if (!desk) throw new Error("no free desk in the scene");
     await ownerPage.mouse.click(desk.x, desk.y);
-    const dialog = ownerPage.getByRole("dialog", { name: "Spawn a robot" });
+    const dialog = ownerPage.getByRole("dialog", { name: "Spawn a henchman" });
     await expect(dialog).toBeVisible();
     await expect(dialog.getByText(desk.seatId)).toBeVisible();
     await expect(dialog.getByLabel("Task title")).toHaveValue("#7 Fix the lift doors");

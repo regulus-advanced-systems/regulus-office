@@ -162,11 +162,11 @@ export function WorkflowsBody({
       ) : (
         <>
           <p className="rg-field__hint">
-            Workflows run a review robot when something happens on GitHub and post what it finds as
-            the office's GitHub App. Every action starts off.
+            Workflows run a review henchman when something happens on GitHub and post what it finds
+            as the office's GitHub App. Every action starts off.
           </p>
           {data.workflows.length === 0 && (
-            <p className="rg-muted">No workflows on this floor yet.</p>
+            <p className="rg-muted">No workflows in this operation yet.</p>
           )}
           <ul className="rg-workflows__list">
             {data.workflows.map((w) => (

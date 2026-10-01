@@ -18,7 +18,7 @@ const COPY: Readonly<Record<PermissionMode, PermissionModeCopy>> = {
   },
   default: {
     label: "Ask for everything",
-    hint: "The robot raises its hand before every edit and command.",
+    hint: "The henchman raises its hand before every edit and command.",
   },
   acceptEdits: {
     label: "Accept edits",
@@ -26,11 +26,11 @@ const COPY: Readonly<Record<PermissionMode, PermissionModeCopy>> = {
   },
   "on-request": {
     label: "Ask outside the sandbox",
-    hint: "Edits and commands run in the workspace sandbox; the robot asks before leaving it.",
+    hint: "Edits and commands run in the workspace sandbox; the henchman asks before leaving it.",
   },
   never: {
     label: "Never ask",
-    hint: "The robot never raises its hand; its commands stay inside the workspace sandbox.",
+    hint: "The henchman never raises its hand; its commands stay inside the workspace sandbox.",
   },
 };
 

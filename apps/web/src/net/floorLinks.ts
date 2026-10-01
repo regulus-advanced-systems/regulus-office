@@ -245,7 +245,7 @@ export class FloorLinks {
       return;
     }
     if (!this.deps.connected()) return; // the building retry brings it back
-    this.failed(link, new Error(reason ?? `floor room closed (${code})`));
+    this.failed(link, new Error(reason ?? `operation room closed (${code})`));
   }
 
   private unbind(link: Link): void {

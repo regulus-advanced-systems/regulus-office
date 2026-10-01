@@ -128,7 +128,7 @@ describe("TerminalModal", () => {
       const m = await openModal();
       await serverHello("watch");
       expect(button("Take control")).toBeUndefined();
-      expect(text("terminal-watch-only")).toBe("Only Rita can control this robot");
+      expect(text("terminal-watch-only")).toBe("Only Rita can control this henchman");
       expect(FakeSocket.last().url).toEndWith("mode=watch");
       await m.unmount();
     }

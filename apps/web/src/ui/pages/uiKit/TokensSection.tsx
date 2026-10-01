@@ -39,7 +39,7 @@ export function TokensSection() {
             ))}
         </Row>
       ))}
-      <Row label="Lamps (robot status lights)">
+      <Row label="Lamps (henchman status lights)">
         {(Object.keys(lampColors) as (keyof typeof lampColors)[]).map((lamp) => (
           <span key={lamp} className="rg-chip">
             <span className="rg-lamp" style={lampStyle(lamp)} aria-hidden="true" />

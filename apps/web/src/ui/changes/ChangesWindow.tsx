@@ -172,7 +172,7 @@ function ChangesWindow({
               {snapshot.truncated ? " · list cut short" : ""}
             </span>
           ) : (
-            <span>{error ? "" : "Looking at the robot's worktree…"}</span>
+            <span>{error ? "" : "Looking at the henchman's worktree…"}</span>
           )}
           {snapshot && !canWrite && (
             <span className="rg-changes__readonly" data-testid="changes-readonly">

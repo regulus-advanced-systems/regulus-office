@@ -37,7 +37,7 @@ export function EmergencyStop({ robot }: { robot: RobotState }) {
   return (
     <form className="rg-agent-estop" aria-label="Confirm emergency stop" onSubmit={confirm}>
       <p className="rg-agent-estop__lead">
-        Stop {owner}'s robot? Its session is killed; the branch, worktree and desk stay, and only{" "}
+        Stop {owner}'s henchman? Its session is killed; the branch, worktree and desk stay, and only{" "}
         {owner} can resume it. The stop is recorded in the audit log.
       </p>
       <label className="rg-field__label" htmlFor={reasonId}>
@@ -55,7 +55,7 @@ export function EmergencyStop({ robot }: { robot: RobotState }) {
           Cancel
         </Button>
         <Button type="submit" size="sm" variant="destructive" disabled={busy}>
-          Stop robot
+          Stop henchman
         </Button>
       </div>
     </form>

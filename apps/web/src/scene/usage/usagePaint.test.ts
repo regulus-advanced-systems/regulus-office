@@ -46,7 +46,7 @@ describe("usage wall rendering", () => {
     expect(texts).toContain("resets in 2h 10m");
     expect(texts).toContain("$3.46");
     expect(texts).toContain("$42.50");
-    expect(texts).toContain("1. Ada's Codex robot");
+    expect(texts).toContain("1. Ada's Codex henchman");
     // The 72 % bar is amber (warn) and 72.4 % of its track; the reset window is empty.
     const warn = ctx.rects.find((r) => r.color === USAGE_COLORS.warn);
     const track = ctx.rects.filter((r) => r.color === USAGE_COLORS.track)[0];
@@ -65,7 +65,7 @@ describe("usage wall rendering", () => {
     const texts = ctx.texts.map((t) => t.text);
     expect(texts).toContain("USAGE");
     expect(texts).toContain("$3.46");
-    expect(texts).not.toContain("1. Ada's Codex robot");
+    expect(texts).not.toContain("1. Ada's Codex henchman");
     expect(texts.some((t) => t.startsWith("office today $42.50"))).toBe(true);
     const { height } = USAGE_TEXTURE_SIZE.compact;
     for (const t of ctx.texts) expect(t.y).toBeLessThan(height);

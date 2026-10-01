@@ -23,10 +23,10 @@ const STATUS_WORDS: Partial<Record<FloorRobotInfo["status"], string>> = {
 
 function RobotList({ robots }: { robots: readonly FloorRobotInfo[] }) {
   return (
-    <ul className="rg-danger-zone__robots" aria-label="Robots on this floor">
+    <ul className="rg-danger-zone__robots" aria-label="Henchmen in this operation">
       {robots.map((r) => (
         <li key={r.agentId}>
-          <strong>{r.taskTitle || "Robot"}</strong> ({r.ownerName},{" "}
+          <strong>{r.taskTitle || "Henchman"}</strong> ({r.ownerName},{" "}
           {STATUS_WORDS[r.status] ?? r.status})
         </li>
       ))}
@@ -75,23 +75,23 @@ export function DeleteFloorForm({
     if (!res.ok) return setError(describeFloorError(res));
     const { sentHome, failed } = res.data;
     setRobots((left) => left.filter((r) => failed.some((f) => f.agentId === r.agentId)));
-    const n = `${sentHome} robot${sentHome === 1 ? "" : "s"}`;
+    const n = `${sentHome} ${sentHome === 1 ? "henchman" : "henchmen"}`;
     if (failed.length > 0) {
       setError(`Sent ${n} home; ${failed.length} could not be: ${failed[0]?.reason ?? ""}`);
     } else {
-      setStatus(`Sent ${n} home. You can delete the floor now.`);
+      setStatus(`Sent ${n} home. You can delete the operation now.`);
     }
   };
 
   return (
     <div className="rg-danger-zone__delete">
       <p>
-        This permanently deletes <strong>{floor.name}</strong>: its desks, members, robot history,
-        the office's copy of its repos and everyone's clones and worktrees on it. Unpushed work in
-        them is lost. Nothing on GitHub is deleted.
+        This permanently deletes <strong>{floor.name}</strong>: its desks, members, henchman
+        history, the office's copy of its repos and everyone's clones and worktrees on it. Unpushed
+        work in them is lost. Nothing on GitHub is deleted.
       </p>
       <label className="rg-field__label" htmlFor={inputId}>
-        Type the floor name to confirm
+        Type the operation name to confirm
       </label>
       <div className="rg-danger-zone__row">
         <input
@@ -108,7 +108,7 @@ export function DeleteFloorForm({
           disabled={!matches || busy}
           onClick={() => void remove()}
         >
-          Delete floor
+          Delete operation
         </Button>
       </div>
       {robots.length > 0 && (
@@ -125,7 +125,7 @@ export function DeleteFloorForm({
             </Button>
           </div>
           <div className="rg-field__hint">
-            Each robot is stopped and sent home; its branch is kept.
+            Each henchman is stopped and sent home; its branch is kept.
           </div>
         </>
       )}
@@ -167,10 +167,11 @@ export function FloorDangerZone({
       <h2 className="rg-floor-settings__heading">Danger zone</h2>
       <div className="rg-danger-zone__row">
         <Button variant="secondary" size="sm" disabled={busy} onClick={() => void archive()}>
-          Archive floor
+          Archive operation
         </Button>
         <span className="rg-field__hint">
-          Hides it from the elevator. Everything is kept; restore it from Settings → Floors.
+          Takes its room out of the compound. Everything is kept; restore it from Settings →
+          Operations.
         </span>
       </div>
       {error && <FormAlert>{error}</FormAlert>}
@@ -181,7 +182,7 @@ export function FloorDangerZone({
           aria-expanded={deleting}
           onClick={() => setDeleting((d) => !d)}
         >
-          Delete floor…
+          Delete operation…
         </Button>
       </div>
       {deleting && <DeleteFloorForm floor={floor} api={api} onDeleted={() => refreshFloors(api)} />}

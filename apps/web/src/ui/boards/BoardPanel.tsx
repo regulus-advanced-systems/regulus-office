@@ -64,7 +64,8 @@ function Columns({
   if (total === 0) {
     return (
       <p className="rg-board__empty">
-        No cards yet. They appear once the office's GitHub connection has synced this floor's repos.
+        No cards yet. They appear once the office's GitHub connection has synced this operation's
+        repos.
       </p>
     );
   }

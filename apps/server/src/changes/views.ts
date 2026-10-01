@@ -26,7 +26,7 @@ type Entry = ChangedFile & { regular: boolean };
 export function entryOf(look: WorktreeLook, path: string): Entry {
   const entry = look.byPath.get(path);
   if (!entry) {
-    throw new ChangesHttpError(404, "not_changed", "that file is not among the robot's changes");
+    throw new ChangesHttpError(404, "not_changed", "that file is not among the henchman's changes");
   }
   return entry;
 }

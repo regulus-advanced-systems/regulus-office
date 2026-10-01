@@ -34,7 +34,7 @@ describe("/ui-kit", () => {
 
     // The rooms panel (#186, the elevator's successor) says where you are and offers quick travel.
     const seed = Array.from(document.querySelectorAll("button")).find((b) =>
-      b.textContent?.includes("Seed fake floors"),
+      b.textContent?.includes("Seed fake operations"),
     );
     await click(seed as HTMLElement);
     const rooms = m.container.querySelector('nav[aria-label="Rooms"]');

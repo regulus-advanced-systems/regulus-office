@@ -40,7 +40,7 @@ interface Parts {
 function parts(n: RobotNotice, esc: (s: string) => string): Parts {
   const headline = `${esc(oneLine(n.robotName, 120))} ${NOTIFICATION_EVENT_LABELS[n.event]}`;
   const lines = [
-    `Floor: ${esc(oneLine(n.floorName, 100))}`,
+    `Operation: ${esc(oneLine(n.floorName, 100))}`,
     `Owner: ${esc(oneLine(n.ownerName, 64))}`,
   ];
   if (n.taskTitle.trim()) lines.push(`Task: ${esc(oneLine(n.taskTitle))}`);
@@ -97,10 +97,10 @@ export function testNotice(now: number): RobotNotice {
     event: "done",
     agentId: "test",
     floorId: "test",
-    floorName: "Test floor",
+    floorName: "Test operation",
     ownerUserId: "test",
     ownerName: "Regulus Office",
-    robotName: "Test robot",
+    robotName: "Test henchman",
     provider: "custom",
     taskTitle: "Checking that this channel receives office notifications",
     prNumber: 0,

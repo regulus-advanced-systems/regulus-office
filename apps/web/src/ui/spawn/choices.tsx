@@ -67,7 +67,7 @@ export function RepoPicker(props: {
     <fieldset className="rg-spawn__group">
       <legend className="rg-field__label">Repo</legend>
       {props.repos.length === 0 ? (
-        <p className="rg-field__hint rg-spawn__none">This floor has no repos yet.</p>
+        <p className="rg-field__hint rg-spawn__none">This operation has no repos yet.</p>
       ) : (
         <div className="rg-spawn__repos">
           {props.repos.map((r) => {

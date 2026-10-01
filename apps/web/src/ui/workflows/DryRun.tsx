@@ -53,7 +53,7 @@ export function DryRun({
         !error && <p className="rg-muted">Loading recent events…</p>
       ) : events.length === 0 ? (
         <p className="rg-muted">
-          No GitHub events for this floor yet. They appear here as they arrive.
+          No GitHub events for this operation yet. They appear here as they arrive.
         </p>
       ) : (
         <div className="rg-workflows__row">
