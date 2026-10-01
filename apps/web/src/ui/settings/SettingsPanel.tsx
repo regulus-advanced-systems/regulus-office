@@ -15,6 +15,7 @@ import { FirstPersonSettings } from "./FirstPersonSettings.tsx";
 import { FloorsSection } from "./FloorsSection.tsx";
 import { GitHubSection } from "./GitHubSection.tsx";
 import { NotificationsSection } from "./NotificationsSection.tsx";
+import { SkinRulesSection } from "./SkinRulesSection.tsx";
 import { DEFAULT_SETTINGS } from "./settingsStorage.ts";
 
 export function SettingsForm() {
@@ -33,6 +34,8 @@ export function SettingsForm() {
       <GitHubSection />
 
       <FloorsSection />
+
+      <SkinRulesSection />
 
       <div className="rg-field">
         <div className="rg-field__label">AI providers</div>

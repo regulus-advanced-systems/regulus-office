@@ -2,7 +2,8 @@
  * Dev-only genius showcase (apps/web/dev/geniuses.html), for screenshots and
  * the performance probe. Query: `mode=lineup|variants|crowd`, `archetype=`,
  * `anim=`, `n=` (crowd size), `yaw=` (degrees, turns every genius),
- * `iso=1` (the office's 3/4 camera instead of a close front view).
+ * `iso=1` (the office's 3/4 camera instead of a close front view),
+ * `henchman=1` (two henchmen at the ends of the lineup, for scale).
  * Not part of the production build.
  */
 import { Canvas } from "@react-three/fiber";
@@ -14,6 +15,7 @@ import {
   isOneOf,
 } from "@regulus/protocol";
 import { FpsProbe } from "../../avatar/showcase/FpsProbe.tsx";
+import { HenchmanAvatar } from "../../henchmen/HenchmanAvatar.tsx";
 import { GeniusAvatar } from "../GeniusAvatar.tsx";
 import { crowd, lineup, type ShowcaseGenius, variants } from "./roster.ts";
 
@@ -26,6 +28,7 @@ export interface GeniusShowcaseOptions {
   count: number;
   yaw: number;
   iso: boolean;
+  henchman: boolean;
 }
 
 export function geniusShowcaseOptions(search: string): GeniusShowcaseOptions {
@@ -40,6 +43,7 @@ export function geniusShowcaseOptions(search: string): GeniusShowcaseOptions {
     count: Number(q.get("n")) || 20,
     yaw: Number(q.get("yaw")) || 0,
     iso: q.get("iso") === "1",
+    henchman: q.get("henchman") === "1",
   };
 }
 
@@ -92,6 +96,16 @@ export function GeniusShowcase({ options }: { options: GeniusShowcaseOptions }) 
           name={g.name}
         />
       ))}
+      {options.henchman &&
+        [-5.2, 5.2].map((x) => (
+          <HenchmanAvatar
+            key={x}
+            position={[x, 0, 0]}
+            rotation-y={Math.PI + (options.yaw * Math.PI) / 180}
+            animation="idle"
+            status="idle"
+          />
+        ))}
       <FpsProbe probe={false} />
     </Canvas>
   );

@@ -1,6 +1,6 @@
 /**
  * Draws robots on their way home (#33): each send-home override from
- * `state/robotOverrides.ts` as a robot carrying a cardboard box, placed every
+ * `state/robotOverrides.ts` as a henchman (#184) carrying a cardboard box, placed every
  * frame from the override pose. Mount inside <OfficeCanvas> with the floor's
  * template; it also drives the walks (controller.ts).
  */
@@ -10,9 +10,8 @@ import { Suspense, useEffect, useRef } from "react";
 import type { Group } from "three";
 import { useShallow } from "zustand/react/shallow";
 import { type RobotOverride, useRobotOverrides } from "../../../state/robotOverrides.ts";
-import { RobotAvatar } from "../../avatar/index.ts";
-import { ROBOT_HEIGHT } from "../../avatar/RobotAvatar.tsx";
-import { robotAvatarLook } from "../robotLook.ts";
+import { HenchmanAvatar } from "../../henchmen/HenchmanAvatar.tsx";
+import { robotHenchmanLook } from "../robotLook.ts";
 import {
   resetSendHome,
   setSendHomeTemplate,
@@ -22,6 +21,8 @@ import {
 
 const BOX_COLOR = "#C8955A";
 const TAPE_COLOR = "#E8D2A6";
+/** Height of the box's centre, between the henchman's hands (CARRY pose). */
+const CARRY_HEIGHT = 0.82;
 
 function DepartingRobot({ override }: { override: RobotOverride }) {
   const group = useRef<Group>(null);
@@ -35,14 +36,15 @@ function DepartingRobot({ override }: { override: RobotOverride }) {
   });
   return (
     <group ref={group} name={`departing-${override.agentId}`}>
-      <RobotAvatar
-        {...robotAvatarLook(override.robot)}
+      <HenchmanAvatar
+        {...robotHenchmanLook(override.robot)}
         animation={override.animation}
         status={override.robot.status}
         handRaised={false}
+        carrying={override.carrying}
       />
       {override.carrying && (
-        <group position={[0, ROBOT_HEIGHT * 0.5, -0.32]}>
+        <group position={[0, CARRY_HEIGHT, -0.4]}>
           <mesh castShadow>
             <boxGeometry args={[0.42, 0.3, 0.32]} />
             <meshToonMaterial color={BOX_COLOR} />

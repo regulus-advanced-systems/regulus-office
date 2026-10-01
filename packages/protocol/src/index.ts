@@ -24,6 +24,7 @@
  * - queue-api.ts       room task queue: limits, results, who may queue/reorder/retry (#37)
  * - room-settings-api.ts room desk count and decor style (#182)
  * - search-api.ts     search across chat and terminal scrollback (#41)
+ * - skins.ts          henchman skins and the admin `skin_rules` that assign them (#184)
  * - schema/            @colyseus/schema classes mirroring the state shapes
  * - terminal.ts        terminal WebSocket control messages and constants
  * - terminal-screens.ts laptop screen feed (plain-text screens per floor)
@@ -54,6 +55,7 @@ export * from "./room-settings-api.ts";
 export * from "./rooms.ts";
 export * from "./schema/index.ts";
 export * from "./search-api.ts";
+export * from "./skins.ts";
 export * from "./terminal.ts";
 export * from "./terminal-screens.ts";
 export * from "./usage-api.ts";

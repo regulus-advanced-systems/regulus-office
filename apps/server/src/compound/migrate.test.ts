@@ -63,7 +63,7 @@ async function preCompoundOffice(): Promise<Db> {
   db.insert(users)
     .values({ id: "u1", name: "Olga", email: "o@x.test", emailVerified: false })
     .run();
-  // Raw SQL: the drizzle schema has user_profiles columns from later migrations (0015 avatar).
+  // Raw SQL: the drizzle schema has user_profiles columns from later migrations (0016 avatar).
   db.$client
     .prepare(
       `INSERT INTO user_profiles (id, user_id, display_name, role, created_at, updated_at)

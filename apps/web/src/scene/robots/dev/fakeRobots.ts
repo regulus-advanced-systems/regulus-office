@@ -5,7 +5,13 @@
  * without a server. Not used by the app.
  */
 import type { FloorTemplate } from "@regulus/floor-layout";
-import type { AgentAction, AgentStatus, RobotState } from "@regulus/protocol";
+import {
+  type AgentAction,
+  type AgentStatus,
+  HENCHMAN_SKIN_IDS,
+  PROVIDER_IDS,
+  type RobotState,
+} from "@regulus/protocol";
 
 const OWNERS = ["Ante", "Mia", "Olga", "Linus"];
 const MODELS = ["opus", "gpt-5-codex", "sonnet"];
@@ -51,12 +57,19 @@ function pairFor(mode: HarnessMode, i: number, tick: number): [AgentStatus, Agen
   }
 }
 
+/** Which skins and providers the fakes get (#184): `mixed` cycles through them all. */
+export interface FakeLooks {
+  skins?: "standard" | "mixed";
+  providers?: "two" | "all";
+}
+
 export function fakeRobots(
   template: FloorTemplate,
   count: number,
   tick: number,
   mode: HarnessMode,
   allSeats = false,
+  looks: FakeLooks = {},
 ): Record<string, RobotState> {
   // `allSeats`: meeting, bistro, reception and lounge seats too (#163 seating checks).
   const seats = template.seats.filter((s) => allSeats || s.kind === "desk").slice(0, count);
@@ -73,7 +86,12 @@ export function fakeRobots(
       ownerName: owner,
       repoId: "r1",
       seatId: seat.id,
-      provider: i % 2 === 0 ? "claude-code" : "codex",
+      provider:
+        looks.providers === "all"
+          ? (PROVIDER_IDS[i % PROVIDER_IDS.length] ?? "custom")
+          : i % 2 === 0
+            ? "claude-code"
+            : "codex",
       model: MODELS[i % MODELS.length] as string,
       effort: "",
       permissionMode: i % 2 === 0 ? "auto" : "on-request",
@@ -86,6 +104,10 @@ export function fakeRobots(
       worktreeBranch: "",
       handRaised: status === "waiting_permission",
       statusReason: status === "error" ? "demo: a fake failure" : "",
+      skin:
+        looks.skins === "mixed"
+          ? (HENCHMAN_SKIN_IDS[i % HENCHMAN_SKIN_IDS.length] ?? "standard")
+          : "standard",
       bubbleEmits: {
         toolCalls: count * 2 + (i % 3),
         fileEdits: Math.floor(count / 2),

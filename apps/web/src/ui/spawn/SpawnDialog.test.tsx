@@ -56,6 +56,7 @@ const robot = (seatId: string, ownerUserId: string): RobotState => ({
   worktreeBranch: "",
   handRaised: false,
   statusReason: "",
+  skin: "standard",
   bubbleEmits: { toolCalls: 0, fileEdits: 0, testRuns: 0, toolFailures: 0 },
   lastActivityAt: 0,
 });

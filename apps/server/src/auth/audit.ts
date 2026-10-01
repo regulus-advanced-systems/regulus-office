@@ -65,6 +65,10 @@ export const AUDIT_ACTIONS = {
   workflowRunCancel: "workflow_run.cancel",
   /** A robot's answer held a secret and was not posted (#155). */
   workflowRunSecretBlocked: "workflow_run.secret_blocked",
+  /** Henchman skin rules (#184). */
+  skinRuleCreate: "skin_rule.create",
+  skinRuleUpdate: "skin_rule.update",
+  skinRuleDelete: "skin_rule.delete",
 } as const;
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];
 
@@ -86,7 +90,8 @@ export interface AuditEntry {
     | "github_card"
     | "notification_channel"
     | "workflow"
-    | "workflow_run";
+    | "workflow_run"
+    | "skin_rule";
   targetId: string | null;
   meta?: Record<string, unknown>;
 }

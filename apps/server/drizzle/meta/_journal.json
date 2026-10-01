@@ -110,8 +110,15 @@
     {
       "idx": 15,
       "version": "6",
-      "when": 1790818089060,
-      "tag": "0015_genius_avatar",
+      "when": 1790817592608,
+      "tag": "0015_skin_rules",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "6",
+      "when": 1790818492416,
+      "tag": "0016_genius_avatar",
       "breakpoints": true
     }
   ]

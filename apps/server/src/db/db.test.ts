@@ -39,6 +39,7 @@ const SPEC_TABLES = [
   "services",
   "pm_briefs",
   "audit_log",
+  "skin_rules",
 ] as const;
 
 /** Tables outside SPEC §5 that the server adds for its own bookkeeping. */
