@@ -3,7 +3,7 @@
  * End; Office and Henchmen only for owners and admins; the open tab is
  * remembered for the session; the GitHub manifest return lands on Office.
  */
-import { afterAll, afterEach, beforeAll, describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import type { UserRole } from "@regulus/protocol";
 import { useSessionStore } from "../../state/session.ts";
 import { useUiStore } from "../../state/ui.ts";
@@ -22,20 +22,21 @@ import {
 
 useDom();
 
-let realFetch: typeof fetch;
-beforeAll(() => {
-  realFetch = globalThis.fetch;
-  // The sections load from the server; these tests are about the tabs, so nothing answers.
+// The sections load from the server; these tests are about the tabs, so nothing answers.
+// Stubbed per test, inside the DOM's lifetime (useDom swaps the globals in beforeAll/afterAll),
+// so the fetch put back is exactly the one this test replaced and nothing leaks to later files.
+let fetchBefore: typeof fetch | undefined;
+beforeEach(() => {
+  fetchBefore = globalThis.fetch;
   globalThis.fetch = (() => new Promise<Response>(() => {})) as unknown as typeof fetch;
-});
-afterAll(() => {
-  globalThis.fetch = realFetch;
 });
 
 const mounted: Mounted[] = [];
 afterEach(async () => {
   for (const m of mounted.splice(0)) await m.unmount();
   await settle();
+  if (fetchBefore) globalThis.fetch = fetchBefore;
+  fetchBefore = undefined;
   useSessionStore.setState({ status: "unknown", user: null, error: null });
   useSettingsTabStore.setState({ tab: "you" });
   useUiStore.getState().closeOverlay();
