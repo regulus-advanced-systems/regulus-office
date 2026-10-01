@@ -47,7 +47,7 @@ import { useHeldKeys } from "./useHeldKeys.ts";
  * quarter), against 0.76 m desks, 0.9 m counters and 3 m walls.
  */
 export const EYE_HEIGHT = EYE_HEIGHT_RATIO * ROBOT_HEIGHT;
-/** Group name of the local human's henchman (scene/avatars/LocalAvatar.tsx). */
+/** Group name of the local human's avatar (scene/avatars/LocalAvatar.tsx). */
 export const LOCAL_AVATAR_NAME = "local-human";
 
 export interface PlayerPose {
@@ -206,7 +206,7 @@ export function FirstPersonRig({
     };
   }, [controls, gl, invalidate]);
 
-  // Hide our own henchman while looking out of its eyes.
+  // Hide our own avatar while looking out of its eyes.
   useEffect(() => {
     if (!active) return;
     const hidden: Object3D[] = [];

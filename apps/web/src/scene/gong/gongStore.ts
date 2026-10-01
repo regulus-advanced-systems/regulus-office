@@ -1,5 +1,5 @@
 /**
- * The last ring of the merge gong heard on the floor we are on (#43). The
+ * The last ring of the merge gong heard in the operation we are in (#43). The
  * gong, the henchmen and the confetti all read it; gongSync.ts writes it from
  * the OperationRoom's `pr.merged` / `gong.ring` messages. Changing operations forgets it.
  */

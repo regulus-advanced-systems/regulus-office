@@ -3,7 +3,7 @@
  *
  * Personal: a human's own henchmen raise desktop notifications and the tab
  * badge. The server pushes `notify.event` / `notify.attention` BuildingRoom
- * messages to that human's clients only (admins may opt in to other henchmen'
+ * messages to that human's clients only (admins may opt in to other henchmen's
  * errors). Preferences are per user, stored by the office.
  *
  * Team: owners and admins route events to Slack, Discord or Telegram.

@@ -1,5 +1,5 @@
 /**
- * The search dialog (#41): `/` opens it. Typing searches chat and henchmen'
+ * The search dialog (#41): `/` opens it. Typing searches chat and henchmen's
  * terminal scrollback (debounced, the previous request aborted); results are
  * grouped by henchman and by operation with the matching words highlighted.
  * Clicking a henchman's hit walks the avatar to its desk (quick travel first

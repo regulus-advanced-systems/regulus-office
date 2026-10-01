@@ -1,5 +1,5 @@
 /**
- * Third-person cursor facing (#119): while standing, the local henchman turns
+ * Third-person cursor facing (#119): while standing, the local player turns
  * toward the floor point under the mouse. Pure pieces live here so they can
  * be tested without a browser: screen-to-NDC, the ground-plane intersection
  * of the camera ray, the heading toward that point (with a dead zone around

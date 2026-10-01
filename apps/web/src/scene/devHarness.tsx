@@ -4,7 +4,7 @@
  * (`/scene.html?stats`). `?template=<id>` picks the room template
  * (`lobby`, `office-small`, `office-l2`, `office-large`; default lobby) and
  * `?palette=<id>` its palette (default: the lobby palette for the lobby,
- * the first operation palette otherwise). The local henchman walks with click-to-walk / WASD
+ * the first operation palette otherwise). The local player walks with click-to-walk / WASD
  * (moves are not sent anywhere); `V` (through the shared hotkey registry)
  * or the corner button toggles first person. Not part of the production
  * build (only index.html is an entry).

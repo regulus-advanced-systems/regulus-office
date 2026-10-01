@@ -13,7 +13,7 @@ import { useHenchmanOverrides } from "../../../state/henchmanOverrides.ts";
 import { type OperationStore, useOperationStore } from "../../../state/operation.ts";
 import { advance, frameFor, planSendHome, type SendHomeState } from "./plan.ts";
 
-/** How long a henchman removed from the floor state can still be sent home. */
+/** How long a henchman removed from the operation state can still be sent home. */
 const REMEMBER_MS = 10_000;
 
 const plans = new Map<string, SendHomeState>();

@@ -87,7 +87,7 @@ export function syncGong(deps: GongSyncDeps): () => void {
   };
 }
 
-/** Bang the gong on the floor we are on; false when no floor room is joined. */
+/** Bang the gong in the operation we are in; false when no operation room is joined. */
 export function bangGong(
   send: (type: "gong.bang", payload: Record<string, never>) => void,
 ): boolean {

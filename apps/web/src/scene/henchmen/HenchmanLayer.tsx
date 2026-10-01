@@ -1,5 +1,5 @@
 /**
- * Henchmen on the floor we are on (SPEC §9.3, §9.4): one <Henchman> per
+ * Henchmen in the operation we are in (SPEC §9.3, §9.4): one <Henchman> per
  * `HenchmanState` from the OperationRoom at its desk seat, the GDT floor name
  * decals, work bubbles flying to the HUD counters, confetti when a henchman
  * starts its celebration and a soft ding when a hand goes up. Also the free-desk
@@ -185,7 +185,7 @@ export function HenchmanLayer({
     },
     [confetti, reducedMotion],
   );
-  // The merge gong rang: a little confetti over every henchman on the floor.
+  // The merge gong rang: a little confetti over every henchman in the operation.
   const seatsOfHenchmen = useRef<Seat[]>([]);
   useEffect(
     () =>

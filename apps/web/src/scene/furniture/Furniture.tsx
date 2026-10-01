@@ -1,5 +1,5 @@
 /**
- * Places every obstacle, seat chair and the elevator from the floor template
+ * Places every obstacle, seat chair and the elevator from the room template
  * (SPEC §9.1): Kenney GLBs where the catalog has one, boxes otherwise.
  */
 import { type ObstacleKind, type Palette, type RoomTemplate, wallById } from "@regulus/room-layout";

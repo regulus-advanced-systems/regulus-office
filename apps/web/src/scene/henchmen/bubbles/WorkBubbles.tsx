@@ -34,7 +34,7 @@ import {
   type V3,
 } from "./trajectory.ts";
 
-/** Pool size: bubbles on screen at once across the floor. */
+/** Pool size: bubbles on screen at once across the operation. */
 export const MAX_BUBBLES = 96;
 /** On-screen diameter at 1080p (research 03 §4: ~20-28 px). */
 const BUBBLE_PX = 24;

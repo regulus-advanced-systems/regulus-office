@@ -1,6 +1,6 @@
 /**
  * Client of the laptop screen feed `/ws/screens/<operationId>` (server
- * `terminals/screens.ts`): plain-text screens of every henchman on the floor,
+ * `terminals/screens.ts`): plain-text screens of every henchman in the operation,
  * pushed on change at ≤ 2 Hz. Reconnects with backoff; after a reconnect the
  * server sends every current screen again.
  */

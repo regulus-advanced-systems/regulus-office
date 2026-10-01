@@ -7,7 +7,7 @@
  * Holding Shift runs (WASD or a click path) and a double-click runs to the
  * spot (#223): the first click of the pair already set off walking, the
  * double-click upgrades the same path to a run.
- * While standing in third person the henchman turns toward the floor point
+ * While standing in third person the player turns toward the floor point
  * under the mouse (#119); that heading-only change goes out as `move` too.
  * Mount as a child of <OfficeCanvas>; the avatar itself is drawn by
  * scene/avatars/AvatarLayer.tsx from the same store.

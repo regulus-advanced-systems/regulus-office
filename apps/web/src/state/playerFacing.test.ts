@@ -1,5 +1,5 @@
 /**
- * #119: in third person the standing henchman turns toward the cursor at the
+ * #119: in third person the standing player turns toward the cursor at the
  * turn rate, faces its travel while walking, turns back to the cursor on
  * arrival, and each heading-only change is relayed through the move throttle.
  */

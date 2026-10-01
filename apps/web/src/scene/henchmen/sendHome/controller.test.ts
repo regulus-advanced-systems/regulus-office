@@ -48,7 +48,7 @@ describe("send-home controller", () => {
     expect(hasHenchmanOverride("a1")).toBe(false);
   });
 
-  test("henchmen removed from the floor state are remembered for a late leaving notice", () => {
+  test("henchmen removed from the operation state are remembered for a late leaving notice", () => {
     const off = watchRemovedHenchmen();
     useOperationStore.getState().apply(operationWith({ a1: henchman }));
     expect(henchmanSnapshot("a1")?.seatId).toBe(seatId);
