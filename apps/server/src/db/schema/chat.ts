@@ -16,8 +16,8 @@ export const chatMessages = sqliteTable(
     id: id(),
     userId: text("user_id").notNull(),
     displayName: text("display_name").notNull(),
-    /** Floor the sender was on; empty for building-wide lines. */
-    floorId: text("floor_id").notNull().default(""),
+    /** Operation the sender was on; empty for building-wide lines. */
+    operationId: text("operation_id").notNull().default(""),
     text: text("text").notNull(),
     ts: timestampMs("ts").notNull(),
     ...timestamps(),

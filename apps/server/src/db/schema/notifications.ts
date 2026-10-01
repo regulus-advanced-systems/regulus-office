@@ -19,8 +19,8 @@ export const notificationChannels = sqliteTable(
     encryptedSecret: text("encrypted_secret").notNull(),
     /** Telegram chat id; not a secret. */
     chatId: text("chat_id"),
-    /** JSON array of floor ids, or null for every floor. */
-    floorIdsJson: jsonText("floor_ids_json"),
+    /** JSON array of operation ids, or null for every operation. */
+    operationIdsJson: jsonText("operation_ids_json"),
     eventsJson: jsonText("events_json").notNull().default("[]"),
     enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
     lastDeliveryAt: timestampMs("last_delivery_at"),

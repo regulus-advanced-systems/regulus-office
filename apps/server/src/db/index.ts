@@ -62,9 +62,25 @@ export function openDatabase(config: DatabaseConfig): Db {
   return drizzle({ client, schema });
 }
 
-/** Apply every pending migration from `MIGRATIONS_DIR` (idempotent). */
+/**
+ * Apply every pending migration from `MIGRATIONS_DIR` (idempotent).
+ *
+ * Foreign keys are off while migrating: drizzle runs all pending migrations in
+ * one transaction, where a `PRAGMA foreign_keys` inside a migration does
+ * nothing, and a table rebuild (create the new copy, copy rows, drop the old
+ * one) must not cascade the drop into the tables that point at it (0018).
+ * The previous setting is restored afterwards.
+ */
 export function runMigrations(db: Db, migrationsFolder: string = MIGRATIONS_DIR): void {
-  migrate(db, { migrationsFolder });
+  const client = db.$client;
+  const row = client.query("PRAGMA foreign_keys").get() as { foreign_keys: number } | null;
+  const enforced = row?.foreign_keys === 1;
+  if (enforced) client.run("PRAGMA foreign_keys = OFF");
+  try {
+    migrate(db, { migrationsFolder });
+  } finally {
+    if (enforced) client.run("PRAGMA foreign_keys = ON");
+  }
 }
 
 /** Checkpoint the WAL and close the underlying connection. */

@@ -1,5 +1,5 @@
 /**
- * Operational tables (SPEC §5): detected dev servers, PM robot briefs, and the
+ * Operational tables (SPEC §5): detected dev servers, PM henchman briefs, and the
  * audit log of privileged actions.
  */
 import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
@@ -8,8 +8,8 @@ import { agents } from "./agents.ts";
 import { users } from "./users.ts";
 
 /**
- * Dev servers listening in a robot's sandbox (SPEC §9.4 services board, #39), one row
- * per robot and port, kept current by services/scanner.ts.
+ * Dev servers listening in a henchman's sandbox (SPEC §9.4 services board, #39), one row
+ * per henchman and port, kept current by services/scanner.ts.
  */
 export const services = sqliteTable(
   "services",
@@ -20,7 +20,7 @@ export const services = sqliteTable(
       .references(() => agents.id, { onDelete: "cascade" }),
     pid: integer("pid").notNull(),
     port: integer("port").notNull(),
-    /** Authenticated proxy path, `/p/<floorId>/a/<agentId>/port/<n>/`. */
+    /** Authenticated proxy path, `/p/<operationId>/a/<agentId>/port/<n>/`. */
     url: text("url").notNull(),
     title: text("title"),
     /** Bind address inside the sandbox (`0.0.0.0`, `::`, `127.0.0.1`, ...). */
@@ -32,7 +32,7 @@ export const services = sqliteTable(
   (t) => [uniqueIndex("services_agent_port_unique").on(t.agentId, t.port)],
 );
 
-/** Briefs written by the PM robot; `forUserId` null = office-wide (SPEC §10 M5). */
+/** Briefs written by the PM henchman; `forUserId` null = office-wide (SPEC §10 M5). */
 export const pmBriefs = sqliteTable(
   "pm_briefs",
   {

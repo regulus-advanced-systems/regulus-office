@@ -1,11 +1,11 @@
 /**
- * Floors (= projects), their repos and membership (SPEC §5, §9.1). Desks are
+ * Operations (= projects), their repos and membership (SPEC §5, §9.1). Desks are
  * in desks.ts because they reference agents.
  */
 import {
   DECOR_STYLES,
   DOOR_SIDES,
-  FLOOR_ACCESSES,
+  OPERATION_ACCESSES,
   REPO_CLONE_STATUSES,
   ROOM_BUILD_STATES,
 } from "@regulus/protocol";
@@ -14,21 +14,21 @@ import { check, index, integer, sqliteTable, text, uniqueIndex } from "drizzle-o
 import { enumText, id, inEnum, timestampMs, timestamps } from "./_columns.ts";
 import { users } from "./users.ts";
 
-export const floors = sqliteTable(
-  "floors",
+export const operations = sqliteTable(
+  "operations",
   {
     id: id(),
     name: text("name").notNull(),
     slug: text("slug").notNull(),
-    /** Elevator order; floor 0 is the lobby and is not a row here. */
+    /** Elevator order; operation 0 is the lobby and is not a row here. */
     index: integer("index").notNull(),
     paletteId: text("palette_id").notNull(),
     layoutTemplateId: text("layout_template_id").notNull(),
     /**
      * Placement in the compound (SPEC §9.1, #181), in tiles. `gridX`/`gridY`
      * are null only until the compound places the room (boot migration of
-     * pre-compound floors). Enums are checked in code: adding a CHECK here
-     * would make SQLite rebuild `floors`, and dropping it cascades.
+     * pre-compound operations). Enums are checked in code: adding a CHECK here
+     * would make SQLite rebuild `operations`, and dropping it cascades.
      */
     gridX: integer("grid_x"),
     gridY: integer("grid_y"),
@@ -39,14 +39,17 @@ export const floors = sqliteTable(
     buildStartedAt: timestampMs("build_started_at"),
     /**
      * Room settings (#182): desks in the generated interior and its lair decor
-     * style. Floors migrated from a template get enough desks for its seats.
+     * style. Operations migrated from a template get enough desks for its seats.
      */
     deskCount: integer("desk_count").notNull().default(1),
     decorStyle: enumText("decor_style", DECOR_STYLES).notNull().default("ops_room"),
     archivedAt: timestampMs("archived_at"),
     ...timestamps(),
   },
-  (t) => [uniqueIndex("floors_slug_unique").on(t.slug), index("floors_index_idx").on(t.index)],
+  (t) => [
+    uniqueIndex("operations_slug_unique").on(t.slug),
+    index("operations_index_idx").on(t.index),
+  ],
 );
 
 /**
@@ -69,19 +72,19 @@ export const compound = sqliteTable(
   () => [check("compound_single_row_check", sql.raw(`"id" = 'main'`))],
 );
 
-/** A floor has 1..n repos; desks, worktrees and boards bind to one repo. */
-export const floorRepos = sqliteTable(
-  "floor_repos",
+/** An operation has 1..n repos; desks, worktrees and boards bind to one repo. */
+export const operationRepos = sqliteTable(
+  "operation_repos",
   {
     id: id(),
-    floorId: text("floor_id")
+    operationId: text("operation_id")
       .notNull()
-      .references(() => floors.id, { onDelete: "cascade" }),
+      .references(() => operations.id, { onDelete: "cascade" }),
     owner: text("owner").notNull(),
     name: text("name").notNull(),
     url: text("url").notNull(),
     defaultBranch: text("default_branch").notNull().default("main"),
-    /** Clone location on the host, e.g. `/srv/office/projects/<floor>/<repo>` (SPEC §8). */
+    /** Clone location on the host, e.g. `/srv/office/projects/<operation>/<repo>` (SPEC §8). */
     workdir: text("workdir").notNull(),
     isPrimary: integer("is_primary", { mode: "boolean" }).notNull().default(false),
     /** Clone progress on the host; `cloneError` holds a redacted reason when it failed. */
@@ -96,27 +99,27 @@ export const floorRepos = sqliteTable(
     ...timestamps(),
   },
   (t) => [
-    uniqueIndex("floor_repos_floor_owner_name_unique").on(t.floorId, t.owner, t.name),
-    check("floor_repos_clone_status_check", inEnum("clone_status", REPO_CLONE_STATUSES)),
+    uniqueIndex("operation_repos_operation_owner_name_unique").on(t.operationId, t.owner, t.name),
+    check("operation_repos_clone_status_check", inEnum("clone_status", REPO_CLONE_STATUSES)),
   ],
 );
 
-export const floorMembers = sqliteTable(
-  "floor_members",
+export const operationMembers = sqliteTable(
+  "operation_members",
   {
     id: id(),
-    floorId: text("floor_id")
+    operationId: text("operation_id")
       .notNull()
-      .references(() => floors.id, { onDelete: "cascade" }),
+      .references(() => operations.id, { onDelete: "cascade" }),
     userId: text("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
-    access: enumText("access", FLOOR_ACCESSES).notNull().default("view"),
+    access: enumText("access", OPERATION_ACCESSES).notNull().default("view"),
     ...timestamps(),
   },
   (t) => [
-    uniqueIndex("floor_members_floor_user_unique").on(t.floorId, t.userId),
-    index("floor_members_user_id_idx").on(t.userId),
-    check("floor_members_access_check", inEnum("access", FLOOR_ACCESSES)),
+    uniqueIndex("operation_members_operation_user_unique").on(t.operationId, t.userId),
+    index("operation_members_user_id_idx").on(t.userId),
+    check("operation_members_access_check", inEnum("access", OPERATION_ACCESSES)),
   ],
 );

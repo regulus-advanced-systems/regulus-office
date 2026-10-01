@@ -127,6 +127,13 @@
       "when": 1790819000000,
       "tag": "0017_room_seats",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1790820000000,
+      "tag": "0018_operations_henchmen",
+      "breakpoints": true
     }
   ]
 }
