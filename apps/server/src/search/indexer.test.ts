@@ -197,4 +197,22 @@ describe("schema", () => {
     indexerFor(env.db, tmp.dir).syncChat();
     expect(docCount(env.db, "chat")).toBe(1);
   });
+
+  test("an index from before #226 (version 1, floor_id) is rebuilt with operation_id", () => {
+    const client = env.db.$client;
+    client.run("DROP TRIGGER IF EXISTS search_chat_gone");
+    for (const t of ["search_sources", "search_meta", "search_fts", "search_docs"])
+      client.run(`DROP TABLE IF EXISTS ${t}`);
+    client.run("CREATE TABLE search_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)");
+    client.run("INSERT INTO search_meta (key, value) VALUES ('version', '1')");
+    client.run(
+      "CREATE TABLE search_docs (id INTEGER PRIMARY KEY, kind TEXT NOT NULL, source_id TEXT NOT NULL, floor_id TEXT NOT NULL, ts INTEGER NOT NULL, body TEXT NOT NULL)",
+    );
+    ensureSearchSchema(client);
+    const cols = client.query<{ name: string }, []>("PRAGMA table_info(search_docs)").all();
+    expect(cols.map((c) => c.name)).toContain("operation_id");
+    addChat(env.db, "after the upgrade");
+    indexerFor(env.db, tmp.dir).syncChat();
+    expect(docCount(env.db, "chat")).toBeGreaterThan(0);
+  });
 });

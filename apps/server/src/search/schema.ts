@@ -18,8 +18,11 @@
  */
 import type { Database } from "bun:sqlite";
 
-/** Bump to drop and rebuild the index on the next boot. */
-export const SEARCH_SCHEMA_VERSION = "1";
+/**
+ * Bump to drop and rebuild the index on the next boot. 2: `floor_id` became
+ * `operation_id` (#226); an index built before that is rebuilt.
+ */
+export const SEARCH_SCHEMA_VERSION = "2";
 
 const TABLES = ["search_sources", "search_meta", "search_fts", "search_docs"] as const;
 
