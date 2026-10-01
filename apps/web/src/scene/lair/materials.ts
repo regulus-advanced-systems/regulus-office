@@ -3,25 +3,27 @@
  * so the whole kit needs only four materials, created once per scene and
  * shared by every instanced mesh:
  *
- * - `body`: MeshToonMaterial with a 4-step ramp that is darker in the
- *   shadow band than the office's (moodier rock, warm pools of light);
+ * - `body`: MeshToonMaterial on the avatars' 4-step ramp (avatar/
+ *   toonMaterial.ts), so the rooms shade exactly like the henchmen (#184)
+ *   standing in them;
  * - `glow`: unlit MeshBasicMaterial for bulbs, screens, lamps and lenses;
  * - `cutBody` / `cutGlow`: the same with the cutaway patch (cutaway.ts),
  *   for walls and wall-mounted pieces.
  */
 import { DataTexture, MeshBasicMaterial, MeshToonMaterial } from "three";
-import { createGradientMap } from "../materials/toon.ts";
+import { getGradientMap, TOON_STEPS, toonRampValues } from "../avatar/toonMaterial.ts";
 import { applyCutaway, type CutawayUniforms, createCutawayUniforms } from "./cutaway.ts";
 
-/** Lair toon ramp: 4 bands from 38 % (rock in shadow) to full. */
-export const LAIR_TOON_STEPS = 4;
-export const LAIR_TOON_DARKEST = 0.38;
+/** The lair shares the henchmen's toon ramp: 4 bands, the darkest at 45 %. */
+export const LAIR_TOON_STEPS = TOON_STEPS;
+export const LAIR_TOON_DARKEST = (toonRampValues()[0] ?? 115) / 255;
 
 export interface LairMaterials {
   body: MeshToonMaterial;
   glow: MeshBasicMaterial;
   cutBody: MeshToonMaterial;
   cutGlow: MeshBasicMaterial;
+  /** The shared avatar ramp (owned by avatar/toonMaterial.ts; never disposed here). */
   ramp: DataTexture;
   cutaway: CutawayUniforms;
 }
@@ -29,7 +31,7 @@ export interface LairMaterials {
 export function createLairMaterials(
   cutaway: CutawayUniforms = createCutawayUniforms(),
 ): LairMaterials {
-  const ramp = createGradientMap(LAIR_TOON_STEPS, LAIR_TOON_DARKEST);
+  const ramp = getGradientMap();
   const body = () =>
     new MeshToonMaterial({ color: 0xffffff, vertexColors: true, gradientMap: ramp });
   const glow = () =>
@@ -47,5 +49,4 @@ export function createLairMaterials(
 
 export function disposeLairMaterials(m: LairMaterials): void {
   for (const mat of [m.body, m.glow, m.cutBody, m.cutGlow]) mat.dispose();
-  m.ramp.dispose();
 }

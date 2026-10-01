@@ -12,12 +12,12 @@
 import { useFrame } from "@react-three/fiber";
 import { useEffect, useMemo } from "react";
 import { type BufferGeometry, MeshToonMaterial } from "three";
+import { getGradientMap } from "../../avatar/toonMaterial.ts";
 import type { BoardLookProps } from "../../boards/CorkBoardLook.tsx";
 import { GONG_DEPTH, type GongLookProps, gongGeometry } from "../../gong/BrassGongLook.tsx";
-import { createGradientMap, createToonMaterial } from "../../materials/toon.ts";
+import { createToonMaterial } from "../../materials/toon.ts";
 import type { ClipboardLookProps } from "../../queue/ClipboardLook.tsx";
 import { PartBuilder } from "../geometry/builder.ts";
-import { LAIR_TOON_DARKEST, LAIR_TOON_STEPS } from "../materials.ts";
 import { LAIR } from "../palette.ts";
 
 let shared: MeshToonMaterial | null = null;
@@ -26,7 +26,7 @@ function lookMaterial(): MeshToonMaterial {
   shared ??= new MeshToonMaterial({
     color: 0xffffff,
     vertexColors: true,
-    gradientMap: createGradientMap(LAIR_TOON_STEPS, LAIR_TOON_DARKEST),
+    gradientMap: getGradientMap(),
   });
   return shared;
 }
@@ -39,7 +39,11 @@ function useBuilt(build: () => BufferGeometry, deps: readonly unknown[]): Buffer
 }
 
 function useHighlight() {
-  const m = useMemo(() => createToonMaterial(LAIR.yellow), []);
+  const m = useMemo(() => {
+    const t = createToonMaterial(LAIR.yellow);
+    t.gradientMap = getGradientMap();
+    return t;
+  }, []);
   useEffect(() => () => m.dispose(), [m]);
   return m;
 }
@@ -160,6 +164,7 @@ export function LairGongLook({ w, h, floor, highlighted, swingRef, glow }: GongL
   const halo = useHighlight();
   const brass = useMemo(() => {
     const m = createToonMaterial(LAIR.brass);
+    m.gradientMap = getGradientMap();
     m.emissive.set(LAIR.yellow);
     m.emissiveIntensity = 0;
     return m;

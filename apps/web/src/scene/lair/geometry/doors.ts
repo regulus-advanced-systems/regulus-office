@@ -1,6 +1,6 @@
 /**
  * Room doors (#183): a heavy steel frame that takes the place of one wall
- * segment (one tile wide, room side toward +z), with chevron-striped jambs,
+ * segment, or two for the generator's two-tile doorways (room side toward +z), with chevron-striped jambs,
  * a riveted lintel, a header of rock above it and a socket for the red
  * alarm beacon; and the two sliding leaves that close the opening. The
  * leaves are their own piece so they can be instanced and animated
@@ -10,13 +10,17 @@ import { DOOR_OPENING, PLINTH_HEIGHT, TILE, WALL_HEIGHT, WALL_THICKNESS } from "
 import { LAIR } from "../palette.ts";
 import { PartBuilder, type PieceGeometry } from "./builder.ts";
 
-const L = TILE;
 const H = WALL_HEIGHT;
 const T = WALL_THICKNESS;
 const OW = DOOR_OPENING.w;
 const OH = DOOR_OPENING.h;
-/** Jamb width each side: what is left of the tile after the opening. */
-const JAMB = (L - OW) / 2;
+/** Jamb width each side: what is left of a tile after the one-tile opening. */
+const JAMB = (TILE - OW) / 2;
+
+/** Clear opening of a door `span` tiles wide. */
+export function doorOpening(span = 1): number {
+  return span * TILE - 2 * JAMB;
+}
 /** Depth of the frame, proud of the wall on both sides. */
 const FRAME_D = T + 0.14;
 
@@ -25,7 +29,9 @@ export const DOOR_BEACON_POS = [0, OH + 0.36, T / 2 + 0.1] as const;
 /** Leaf size: each leaf covers half the opening plus an overlap into the jamb. */
 export const DOOR_LEAF = { w: OW / 2 + 0.06, h: OH + 0.04, d: 0.07 } as const;
 
-export function doorFrame(): PieceGeometry {
+export function doorFrame(span = 1): PieceGeometry {
+  const L = span * TILE;
+  const OW = doorOpening(span);
   const b = new PartBuilder(21);
   for (const side of [-1, 1]) {
     const x = side * (OW / 2 + JAMB / 2);
@@ -44,7 +50,7 @@ export function doorFrame(): PieceGeometry {
   }
   // Lintel: a riveted steel beam spanning the tile.
   b.box([L, 0.28, FRAME_D + 0.04], [0, OH + 0.14, 0], LAIR.steel);
-  for (let x = -0.85; x <= 0.86; x += 0.34) {
+  for (let x = -L / 2 + 0.15; x <= L / 2 - 0.14; x += 0.34) {
     b.rivetZ(x, OH + 0.06, FRAME_D / 2 + 0.02, LAIR.steelLight, 0.02);
     b.rivetZ(x, OH + 0.22, FRAME_D / 2 + 0.02, LAIR.steelLight, 0.02);
   }
@@ -105,11 +111,17 @@ export function doorLeaf(): PieceGeometry {
   return { body: b.build(), glow: glow.build() };
 }
 
+/** Width of each leaf of a door `span` tiles wide (half the opening plus the overlap). */
+export function leafWidth(span = 1): number {
+  return doorOpening(span) / 2 + 0.06;
+}
+
 /** Local x of each leaf's centre for an openness in [0, 1] (0 closed, 1 fully in the pockets). */
-export function leafOffsets(openness: number): { left: number; right: number } {
+export function leafOffsets(openness: number, span = 1): { left: number; right: number } {
   const o = Math.min(1, Math.max(0, openness));
-  const closed = DOOR_LEAF.w / 2 - 0.03;
-  const open = OW / 2 + DOOR_LEAF.w / 2 - 0.08;
+  const lw = leafWidth(span);
+  const closed = lw / 2 - 0.03;
+  const open = doorOpening(span) / 2 + lw / 2 - 0.08;
   const x = closed + (open - closed) * o;
   return { left: -x, right: x };
 }

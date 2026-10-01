@@ -18,6 +18,7 @@ import {
   type Rect,
   type SeatKind,
 } from "@regulus/floor-layout";
+import type { SitAnchor } from "../avatar/seatedFit.ts";
 import type { SitSpec } from "../furniture/catalog.ts";
 import { centreBottomOffset, fitToFootprint } from "../furniture/placement.ts";
 import { CONSOLE_LAMPS, type LampSocket, MAINFRAME_LAMPS } from "./geometry/consoles.ts";
@@ -147,6 +148,15 @@ export function fitModel(model: LairModel, rect: Rect, heading: number): PiecePl
     pivot: box ? centreBottomOffset(box) : undefined,
     tint: model.tint,
   };
+}
+
+/**
+ * The sit anchor (avatar/seatedFit.ts) of a chair model placed at a seat
+ * point at its authored size: the cushion height and the backrest's front
+ * along the seat's facing. Feed it to `seatedOffset` with the sitter's body.
+ */
+export function lairSitAnchor(model: LairModel): SitAnchor | undefined {
+  return model.sit ? { seatY: model.sit.seatY, backFwd: model.sit.backFrontZ } : undefined;
 }
 
 /** `fitModel` for a model id from LAIR_MODEL_IDS. */

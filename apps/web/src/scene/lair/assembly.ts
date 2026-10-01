@@ -45,7 +45,8 @@ export interface RoomShellOptions {
 
 export interface RoomShell {
   pieces: PiecePlacement[];
-  doors: { position: Vec3; rotationY: number }[];
+  /** Door frames: centre of the doorway, facing into the room, and its width in tiles. */
+  doors: { position: Vec3; rotationY: number; span?: number }[];
   beacons: { position: Vec3; rotationY: number }[];
   lamps: PiecePlacement[];
 }
@@ -101,11 +102,11 @@ export function roomShell(opts: RoomShellOptions): RoomShell {
       const span = door?.span ?? 1;
       const isDoor = door !== undefined && i >= door.tile && i < door.tile + span;
       if (isDoor) {
-        doors.push({ position: at, rotationY: yaw });
         if (i === door.tile + span - 1) {
-          // One beacon over each face, centred on the whole doorway, frame-local to world.
+          // One door across the whole doorway, with a beacon over each face.
           const first = wallSegment(side, door.tile, w, d);
           const mid: Vec3 = [(first[0] + at[0]) / 2, 0, (first[2] + at[2]) / 2];
+          doors.push({ position: mid, rotationY: yaw, span });
           const c = Math.cos(yaw);
           const s = Math.sin(yaw);
           const [bx, by, bz] = DOOR_BEACON_POS;

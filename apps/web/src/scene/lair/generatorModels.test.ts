@@ -119,8 +119,9 @@ describe("lairRoomScene draws a generated room", () => {
     const deskSeats = layout.seats.filter((s) => s.kind === "desk").length;
     expect(count("swivel_chair")).toBe(deskSeats);
     expect(count("floor_concrete") + count("floor_concrete_worn")).toBe(80);
-    // The two-tile doorway is two frames with one pair of beacons.
-    expect(scene.doors).toHaveLength(2);
+    // The two-tile doorway is one wide blast door with a beacon over each face.
+    expect(scene.doors).toHaveLength(1);
+    expect(scene.doors[0]?.span).toBe(2);
     expect(scene.beacons).toHaveLength(2);
     expect(scene.looks.map((l) => l.look).sort()).toContain("board");
     expect(scene.lights.length).toBeGreaterThan(0);

@@ -3,8 +3,12 @@
  * steel, and the four accents (henchman yellow, alarm red, console teal,
  * brass), with warm tungsten light against cool rock. Every lair piece takes
  * its vertex colours from here, so a decor style can retint the kit in one
- * place. Plain sRGB hex strings; the geometry builder converts them.
+ * place. Plain sRGB hex strings; the geometry builder converts them. The
+ * accents come from the henchmen's palette so the characters and the rooms
+ * use the same yellow, red and brass.
  */
+import { STANDARD_PALETTE } from "../henchmen/palette.ts";
+
 export const LAIR = {
   // Rock: cool grey-browns, darker in the cracks, a lighter dusty top.
   rock: "#6F665C",
@@ -23,11 +27,11 @@ export const LAIR = {
   steelLight: "#8A939B",
   steelPaint: "#4F6A6E",
   olive: "#5F6B4E",
-  // Accents (SPEC §12).
-  yellow: "#F2C200",
-  red: "#D7263D",
+  // Accents (SPEC §12), shared with the henchmen's jumpsuit palette (#184).
+  yellow: STANDARD_PALETTE.suit,
+  red: STANDARD_PALETTE.accent,
   teal: "#2EC4B6",
-  brass: "#C9A227",
+  brass: STANDARD_PALETTE.metal,
   // Light and glow.
   tungsten: "#FFB65C",
   tungstenGlow: "#FFD9A0",

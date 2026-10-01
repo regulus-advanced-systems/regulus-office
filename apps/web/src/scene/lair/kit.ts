@@ -118,7 +118,8 @@ export const PIECES = {
   floor_concrete_worn: def("Worn concrete", "structure", 80, () => concreteFloor(15, true)),
   floor_steel: def("Steel deck", "structure", 200, () => steelFloor()),
   hazard_strip: def("Hazard strip", "structure", 40, hazardStrip),
-  door_frame: def("Door frame", "structure", 320, doorFrame, true),
+  door_frame: def("Door frame", "structure", 320, () => doorFrame(1), true),
+  door_frame_wide: def("Wide door frame", "structure", 520, () => doorFrame(2), true),
   door_leaf: def("Door leaf", "structure", 180, doorLeaf),
   rock_pile: def("Rubble", "clutter", 120, () => rockPile()),
   // Fixtures: lights, beacon, pipes, cables, vents.

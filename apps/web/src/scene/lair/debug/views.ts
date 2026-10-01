@@ -3,7 +3,8 @@
  * the PR screenshots use: `?view=overview|corner|junction|door|console|
  * scaffold|pieces|lounge|styles`, `style=ops_room|lab|workshop|war_room`
  * (the main room's decor), `door=open|closed`, `alarm=1`, `cut=0` (no cutaway),
- * `labels=0` (no catalogue labels), `stats=0` (no draw-call panel).
+ * `labels=0` (no catalogue labels), `stats=0` (no draw-call panel),
+ * `henchmen=0` (no henchmen).
  */
 import { DECOR_STYLES, type DecorStyle, isOneOf } from "@regulus/protocol";
 import type { Vec3 } from "../geometry/builder.ts";
@@ -40,6 +41,8 @@ export interface ShowcaseOptions {
   cutaway: boolean;
   labels: boolean;
   stats: boolean;
+  /** Henchmen (#184) at desks, consoles, in the corridor and on the site. */
+  henchmen: boolean;
 }
 
 export function showcaseOptions(search: string): ShowcaseOptions {
@@ -54,5 +57,6 @@ export function showcaseOptions(search: string): ShowcaseOptions {
     cutaway: q.get("cut") !== "0",
     labels: q.get("labels") !== "0",
     stats: q.get("stats") !== "0",
+    henchmen: q.get("henchmen") !== "0",
   };
 }

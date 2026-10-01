@@ -10,16 +10,18 @@ import { useLayoutEffect, useMemo, useRef } from "react";
 import { type InstancedMesh, Matrix4 } from "three";
 import { easeDoor, stepOpenness } from "../animation.ts";
 import type { Vec3 } from "../geometry/builder.ts";
-import { leafOffsets } from "../geometry/doors.ts";
+import { DOOR_LEAF, leafOffsets, leafWidth } from "../geometry/doors.ts";
 import { pieceGeometry } from "../kit.ts";
 import { type PiecePlacement, placementMatrix } from "../placements.ts";
-import { InstancedPiece } from "./InstancedPieces.tsx";
+import { PieceSet } from "./InstancedPieces.tsx";
 import { useLairMaterials } from "./LairKit.tsx";
 
 export interface DoorState {
   id: string;
   position: Vec3;
   rotationY?: number;
+  /** Tiles the doorway spans (1 or 2); wide doors get the wide frame and wider leaves. */
+  span?: number;
   open: boolean;
 }
 
@@ -28,7 +30,9 @@ export function leafPlacements(
   door: DoorState,
   openness: number,
 ): [PiecePlacement, PiecePlacement] {
-  const { left, right } = leafOffsets(easeDoor(openness));
+  const span = door.span ?? 1;
+  const { left, right } = leafOffsets(easeDoor(openness), span);
+  const sx = leafWidth(span) / DOOR_LEAF.w;
   const yaw = door.rotationY ?? 0;
   const c = Math.cos(yaw);
   const s = Math.sin(yaw);
@@ -38,9 +42,9 @@ export function leafPlacements(
     door.position[2] - x * s,
   ];
   return [
-    { piece: "door_leaf", position: at(left), rotationY: yaw },
+    { piece: "door_leaf", position: at(left), rotationY: yaw, scale: [sx, 1, 1] },
     // The right leaf is the left one turned round, so its rib and pocket edge mirror.
-    { piece: "door_leaf", position: at(right), rotationY: yaw + Math.PI },
+    { piece: "door_leaf", position: at(right), rotationY: yaw + Math.PI, scale: [sx, 1, 1] },
   ];
 }
 
@@ -53,7 +57,7 @@ export function SlidingDoors({ doors }: { doors: readonly DoorState[] }) {
   const frames = useMemo<PiecePlacement[]>(
     () =>
       doors.map((d) => ({
-        piece: "door_frame",
+        piece: (d.span ?? 1) > 1 ? "door_frame_wide" : "door_frame",
         position: d.position,
         rotationY: d.rotationY ?? 0,
       })),
@@ -91,7 +95,7 @@ export function SlidingDoors({ doors }: { doors: readonly DoorState[] }) {
   if (doors.length === 0) return null;
   return (
     <group name="lair:doors">
-      <InstancedPiece piece="door_frame" placements={frames} />
+      <PieceSet items={frames} />
       <instancedMesh key={`b${count}`} ref={bodyRef} args={[leaf.body, mats.cutBody, count]} />
       {leaf.glow && (
         <instancedMesh key={`g${count}`} ref={glowRef} args={[leaf.glow, mats.cutGlow, count]} />

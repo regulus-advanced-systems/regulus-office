@@ -9,7 +9,7 @@ import {
   stepOpenness,
 } from "./animation.ts";
 import { DOOR_OPENING } from "./dimensions.ts";
-import { DOOR_LEAF, leafOffsets } from "./geometry/doors.ts";
+import { DOOR_LEAF, doorOpening, leafOffsets, leafWidth } from "./geometry/doors.ts";
 
 describe("sliding doors", () => {
   test("openness moves toward the target at constant speed and stops there", () => {
@@ -35,6 +35,15 @@ describe("sliding doors", () => {
     const open = leafOffsets(1);
     // Only a lip of each leaf stays in the opening.
     expect(open.right - DOOR_LEAF.w / 2).toBeGreaterThan(DOOR_OPENING.w / 2 - 0.1);
+  });
+
+  test("a two-tile door's wider leaves meet in the middle and clear the wider opening", () => {
+    const closed = leafOffsets(0, 2);
+    expect(closed.right + leafWidth(2) / 2).toBeGreaterThan(doorOpening(2) / 2);
+    expect(closed.right - leafWidth(2) / 2).toBeLessThan(0);
+    const open = leafOffsets(1, 2);
+    expect(open.right - leafWidth(2) / 2).toBeGreaterThan(doorOpening(2) / 2 - 0.1);
+    expect(doorOpening(2)).toBeGreaterThan(2 * DOOR_OPENING.w);
   });
 });
 

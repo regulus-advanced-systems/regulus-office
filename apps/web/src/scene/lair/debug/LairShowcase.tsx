@@ -24,10 +24,18 @@ import { CORRIDOR_WIDTH, WALL_THICKNESS } from "../dimensions.ts";
 import { PIECES } from "../kit.ts";
 import { LAIR } from "../palette.ts";
 import { Dust, Sparks } from "../particles/BuildParticles.tsx";
+import { DebugHenchmen, extraCrew, roomCrew } from "./DebugHenchmen.tsx";
 import { RoomLooks } from "./RoomLooks.tsx";
-import { corridorOrigin, mainRoom, styleGallery } from "./sampleRooms.ts";
+import { corridorOrigin, mainRoom, mainRoomLayout, styleGallery } from "./sampleRooms.ts";
 import { BUILD_SITE, catalogue, sampleBuildSite, sampleCorridors } from "./sampleScene.ts";
 import { type ShowcaseOptions, VIEWS } from "./views.ts";
+
+/** Gallery rooms are staffed in a skin that suits their style. */
+const STYLE_SKINS: Readonly<Record<string, string>> = {
+  lab: "lab_coat",
+  workshop: "standard",
+  war_room: "black_ops",
+};
 
 declare global {
   interface Window {
@@ -66,10 +74,17 @@ function Scene({
   alarm: boolean;
 }) {
   const main = useMemo(() => mainRoom(options.style), [options.style]);
-  const rooms = useMemo(() => [main, ...styleGallery()], [main]);
-  const corridors = useMemo(
-    () => sampleCorridors(corridorOrigin(main, CORRIDOR_WIDTH, WALL_THICKNESS)),
-    [main],
+  const gallery = useMemo(styleGallery, []);
+  const rooms = useMemo(() => [main, ...gallery.map((g) => g.scene)], [main, gallery]);
+  const origin = useMemo(() => corridorOrigin(main, CORRIDOR_WIDTH, WALL_THICKNESS), [main]);
+  const corridors = useMemo(() => sampleCorridors(origin), [origin]);
+  const crew = useMemo(
+    () => [
+      ...roomCrew(mainRoomLayout(options.style), "main"),
+      ...gallery.flatMap((g) => roomCrew(g.layout, g.style, STYLE_SKINS[g.style], g.offset)),
+      ...extraCrew(origin[0] + CORRIDOR_WIDTH / 2, origin[2], BUILD_SITE),
+    ],
+    [options.style, gallery, origin],
   );
   const site = useMemo(sampleBuildSite, []);
   const cat = useMemo(catalogue, []);
@@ -139,6 +154,7 @@ function Scene({
       <BlobShadows items={pieces} />
       <BlinkingLamps lamps={consoleLamps} />
       <RoomLooks looks={looks} />
+      {options.henchmen && <DebugHenchmen spots={crew} />}
       <SlidingDoors doors={doors} />
       <Beacons items={beacons} active={alarm} lights={2} />
       <Sparks origin={[BUILD_SITE.x + 7, 2.5, BUILD_SITE.z + 3]} />

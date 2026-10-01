@@ -86,18 +86,27 @@ export function offsetScene(s: LairRoomScene, dx: number, dz: number): LairRoomS
 /** The gallery: one 6 x 5 room per other decor style, in a row north of the main room. */
 export const GALLERY = { w: 6, d: 5, z: -14, pitch: 15 } as const;
 
-export function styleGallery(): LairRoomScene[] {
-  return DECOR_STYLES.filter((s) => s !== "ops_room").map((decorStyle, i) => {
+export interface GalleryRoom {
+  style: DecorStyle;
+  layout: RoomLayout;
+  /** Where the room's north-west corner sits in the debug scene. */
+  offset: readonly [number, number];
+  scene: LairRoomScene;
+}
+
+export function styleGallery(): GalleryRoom[] {
+  return DECOR_STYLES.filter((s) => s !== "ops_room").map((style, i) => {
     const layout = generateRoom({
       width: GALLERY.w,
       depth: GALLERY.d,
       doorSide: "south",
       deskCount: 2,
-      decorStyle,
+      decorStyle: style,
     });
     const scene = lairRoomScene(layout);
     const withLaptops = { ...scene, pieces: [...scene.pieces, ...deskLaptops(layout)] };
-    return offsetScene(withLaptops, i * GALLERY.pitch, GALLERY.z);
+    const offset = [i * GALLERY.pitch, GALLERY.z] as const;
+    return { style, layout, offset, scene: offsetScene(withLaptops, offset[0], offset[1]) };
   });
 }
 
