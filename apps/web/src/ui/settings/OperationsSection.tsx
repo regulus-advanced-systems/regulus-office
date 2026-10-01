@@ -62,8 +62,8 @@ export function OperationsSection({ api = defaultApi }: { api?: OperationsApi })
   };
 
   return (
-    <section className="rg-field" aria-label="Operations">
-      <div className="rg-field__label">Operations</div>
+    <section className="rg-settings__group" aria-label="Operations">
+      <h3 className="rg-settings__heading">Archived operations</h3>
       <div className="rg-field__hint">
         Archived operations leave the compound; their data and clones are kept.
       </div>
@@ -76,7 +76,7 @@ export function OperationsSection({ api = defaultApi }: { api?: OperationsApi })
           {archived.map((f) => (
             <li key={f.operationId} className="rg-archived-operation">
               <div className="rg-danger-zone__row">
-                <span style={{ flex: "1 1 auto" }}>
+                <span className="rg-settings__grow">
                   <strong>{f.name}</strong>{" "}
                   <span className="rg-muted">archived {archivedOn(f.archivedAt)}</span>
                 </span>

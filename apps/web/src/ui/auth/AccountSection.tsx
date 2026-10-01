@@ -17,13 +17,13 @@ export function AccountSection() {
   const signOut = useSignOut();
   if (!user) return null;
   return (
-    <div className="rg-field">
-      <div className="rg-field__label">Account</div>
+    <section className="rg-settings__group" aria-label="Account">
+      <h3 className="rg-settings__heading">Account</h3>
       <div>
         Signed in as <strong>{user.displayName}</strong>{" "}
         <span className="rg-muted">({roleName(user.role)})</span>
       </div>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+      <div className="rg-settings__row">
         {canManageOffice(user.role) && (
           <Button
             variant="secondary"
@@ -49,6 +49,6 @@ export function AccountSection() {
           Sign out
         </Button>
       </div>
-    </div>
+    </section>
   );
 }

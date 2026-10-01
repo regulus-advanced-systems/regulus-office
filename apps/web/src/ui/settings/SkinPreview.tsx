@@ -1,5 +1,5 @@
 /**
- * A small turntable of one henchman for the skin rules section (#184): the
+ * The turntable of one henchman in the skin rule editor (#184, #225): the
  * skin with a provider's trim, idling under the office's light. Loaded lazily
  * so Settings does not pull three.js in until an admin opens the section.
  */
@@ -28,18 +28,18 @@ function Turntable({ skin, trim }: SkinPreviewProps) {
 
 export default function SkinPreview({ skin, trim }: SkinPreviewProps) {
   return (
-    <Canvas
-      orthographic
-      flat
-      dpr={1}
-      camera={{ position: [0, 1.6, 6], zoom: 105, near: 0.1, far: 50 }}
-      onCreated={({ camera }) => camera.lookAt(0, 0.8, 0)}
-      style={{ width: 180, height: 220, borderRadius: 8, background: "#2b2f36" }}
-      aria-label={`Preview of the ${skin} skin`}
-    >
-      <hemisphereLight args={[HEMI_SKY, HEMI_GROUND, 1.15]} />
-      <directionalLight position={[-3, 5, 4]} intensity={KEY_INTENSITY} />
-      <Turntable skin={skin} trim={trim} />
-    </Canvas>
+    <div className="rg-skin-editor__stage" role="img" aria-label={`Preview of the ${skin} skin`}>
+      <Canvas
+        orthographic
+        flat
+        dpr={1}
+        camera={{ position: [0, 1.6, 6], zoom: 125, near: 0.1, far: 50 }}
+        onCreated={({ camera }) => camera.lookAt(0, 0.8, 0)}
+      >
+        <hemisphereLight args={[HEMI_SKY, HEMI_GROUND, 1.15]} />
+        <directionalLight position={[-3, 5, 4]} intensity={KEY_INTENSITY} />
+        <Turntable skin={skin} trim={trim} />
+      </Canvas>
+    </div>
   );
 }

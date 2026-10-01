@@ -20,7 +20,6 @@ import {
 } from "@regulus/protocol";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { canManageOffice, useSessionStore } from "../../state/session.ts";
-import { useUiStore } from "../../state/ui.ts";
 import { FormAlert } from "../auth/AuthCard.tsx";
 import { Button } from "../components/Button.tsx";
 import { describeMissing, ExistingAppForm } from "./ExistingAppForm.tsx";
@@ -30,6 +29,7 @@ import {
   describeManifestResult,
   type GitHubApi,
 } from "./githubApi.ts";
+import { openSettingsAt } from "./settingsTabs.ts";
 
 const defaultApi = createGitHubApi();
 
@@ -69,14 +69,13 @@ function clearManifestResult(): void {
 
 /**
  * Back from github.com (`/office?github=…`): open Settings so the owner sees
- * how the manifest flow ended. Mounted with the HUD's dialogs.
+ * how the manifest flow ended, on the Office tab. Mounted with the HUD's dialogs.
  */
 export function useGitHubResultOverlay(): void {
   const allowed = useSessionStore((s) => canManageOffice(s.user?.role));
-  const openOverlay = useUiStore((s) => s.openOverlay);
   useEffect(() => {
-    if (allowed && manifestResultFromUrl()) openOverlay("settings");
-  }, [allowed, openOverlay]);
+    if (allowed && manifestResultFromUrl()) openSettingsAt("office");
+  }, [allowed]);
 }
 
 export function describeConnection(status: GitHubConnectionStatus): string {
@@ -184,8 +183,8 @@ export function GitHubSection({
   const notInstalled = app !== null && app.installations.length === 0 && !app.error;
 
   return (
-    <section className="rg-field" aria-label="GitHub">
-      <div className="rg-field__label">GitHub</div>
+    <section className="rg-settings__group" aria-label="GitHub">
+      <h3 className="rg-settings__heading">GitHub</h3>
       <div role="status">{status ? describeConnection(status) : "Checking…"}</div>
       {app?.error && (
         <FormAlert>{`GitHub could not list the app's installations: ${app.error}`}</FormAlert>
@@ -222,14 +221,13 @@ export function GitHubSection({
           <label className="rg-field__label" htmlFor={ids.org}>
             Organization (leave empty for your personal account)
           </label>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <div className="rg-settings__row">
             <input
               id={ids.org}
               ref={orgRef}
               className="rg-input"
               placeholder="your-org"
               autoComplete="off"
-              style={{ flex: "1 1 160px" }}
             />
             <Button variant="primary" size="sm" disabled={busy} onClick={() => void createApp()}>
               Create GitHub App…
@@ -244,7 +242,7 @@ export function GitHubSection({
           <label className="rg-field__label" htmlFor={ids.token}>
             Or an organization access token
           </label>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <div className="rg-settings__row">
             <input
               id={ids.token}
               ref={tokenRef}
@@ -252,7 +250,6 @@ export function GitHubSection({
               type="password"
               autoComplete="off"
               placeholder="github_pat_…"
-              style={{ flex: "1 1 160px" }}
             />
             <Button
               variant="secondary"

@@ -1,116 +1,126 @@
 /**
- * Settings skeleton (SPEC §11): the signed-in account (invites, sign-out),
- * reduced-motion toggle persisted in localStorage, a volume placeholder the
- * jukebox work will wire up, and the clock format. Rendered inside a Modal
- * by the HUD.
+ * Settings (SPEC §11, #225): a wide dialog with tabs on a rail at the left
+ * (a wrapping row of tabs on narrow screens). Rendered inside a Modal by
+ * the HUD.
+ *
+ * - You: the account (invites, sign-out) and your genius.
+ * - Office (owners and admins): GitHub, archived operations, AI providers.
+ * - Henchmen (owners and admins): henchman skin rules.
+ * - Notifications: desktop notifications and team channels.
+ * - Display and sound: graphics, first person, motion, volume, clock.
+ *
+ * The open tab is remembered for the session (settingsTabs.ts).
  */
-import { useId } from "react";
-import { selectReducedMotion, useUiStore } from "../../state/ui.ts";
+import { type ReactNode, useSyncExternalStore } from "react";
+import { useSessionStore } from "../../state/session.ts";
 import { AccountSection } from "../auth/AccountSection.tsx";
 import { GeniusSettingsSection } from "../avatar-picker/GeniusSettingsSection.tsx";
 import { Button } from "../components/Button.tsx";
-import { Switch } from "../components/Switch.tsx";
+import { type TabItem, Tabs } from "../components/Tabs.tsx";
 import { openProvidersPanel } from "../providers/providersStore.ts";
-import { FirstPersonSettings } from "./FirstPersonSettings.tsx";
+import { DisplaySettings } from "./DisplaySettings.tsx";
 import { GitHubSection } from "./GitHubSection.tsx";
-import { GraphicsSettings } from "./GraphicsSettings.tsx";
 import { NotificationsSection } from "./NotificationsSection.tsx";
 import { OperationsSection } from "./OperationsSection.tsx";
 import { SkinRulesSection } from "./SkinRulesSection.tsx";
-import { DEFAULT_SETTINGS } from "./settingsStorage.ts";
+import {
+  effectiveSettingsTab,
+  SETTINGS_TAB_LABELS,
+  type SettingsTabId,
+  useSettingsTabStore,
+  visibleSettingsTabs,
+} from "./settingsTabs.ts";
+import "./settings.css";
 
-export function SettingsForm() {
-  const settings = useUiStore((s) => s.settings);
-  const osReducedMotion = useUiStore((s) => s.osReducedMotion);
-  const reducedMotion = useUiStore(selectReducedMotion);
-  const update = useUiStore((s) => s.updateSettings);
-  const volumeId = useId();
+/** Where the rail stands at the left; below it, the tabs wrap above the panel. */
+const RAIL_QUERY = "(min-width: 760px)";
 
+function subscribeRail(onChange: () => void): () => void {
+  try {
+    const mq = window.matchMedia(RAIL_QUERY);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  } catch {
+    return () => {};
+  }
+}
+
+function railNow(): boolean {
+  try {
+    return window.matchMedia(RAIL_QUERY).matches;
+  } catch {
+    return true;
+  }
+}
+
+function YouPanel() {
   return (
-    <div>
+    <div className="rg-settings__columns">
       <AccountSection />
-
       <GeniusSettingsSection />
+    </div>
+  );
+}
 
+function ProvidersSection() {
+  return (
+    <section className="rg-settings__group" aria-label="AI providers">
+      <h3 className="rg-settings__heading">AI providers</h3>
+      <div className="rg-field__hint">
+        Sign in to Claude Code or Codex in your own runner, or add API and plan keys.
+      </div>
+      <div>
+        <Button variant="secondary" size="sm" onClick={() => openProvidersPanel()}>
+          Connect providers
+        </Button>
+      </div>
+    </section>
+  );
+}
+
+function OfficePanel() {
+  return (
+    <div className="rg-settings__columns">
       <GitHubSection />
-
-      <OperationsSection />
-
-      <SkinRulesSection />
-
-      <div className="rg-field">
-        <div className="rg-field__label">AI providers</div>
-        <div>
-          <Button variant="secondary" size="sm" onClick={() => openProvidersPanel()}>
-            Connect providers
-          </Button>
-        </div>
-        <div className="rg-field__hint">
-          Sign in to Claude Code or Codex in your own runner, or add API and plan keys.
-        </div>
-      </div>
-
-      <NotificationsSection />
-
-      <div className="rg-field">
-        <Switch
-          checked={reducedMotion}
-          onChange={(next) => update({ reducedMotion: next })}
-          label="Reduce motion"
-          hint={
-            settings.reducedMotion === null
-              ? `Following your system setting (${osReducedMotion ? "on" : "off"}). Disables work bubbles, confetti and dialog animations.`
-              : "Disables work bubbles, confetti and dialog animations."
-          }
-        />
-        {settings.reducedMotion !== null && (
-          <div>
-            <Button variant="ghost" size="sm" onClick={() => update({ reducedMotion: null })}>
-              Follow system setting
-            </Button>
-          </div>
-        )}
-      </div>
-
-      <div className="rg-field">
-        <label className="rg-field__label" htmlFor={volumeId}>
-          Volume <span className="rg-muted">({Math.round(settings.volume * 100)}%)</span>
-        </label>
-        <input
-          id={volumeId}
-          className="rg-range"
-          type="range"
-          min={0}
-          max={100}
-          step={5}
-          value={Math.round(settings.volume * 100)}
-          onChange={(e) => update({ volume: Number(e.currentTarget.value) / 100 })}
-        />
-        <div className="rg-field__hint">
-          Placeholder: the jukebox and ambience (M3) will read this value.
-        </div>
-      </div>
-
-      <div className="rg-field">
-        <Switch
-          checked={settings.hour12}
-          onChange={(next) => update({ hour12: next })}
-          label="12-hour clock"
-          hint="Top bar clock format."
-        />
-      </div>
-
-      <GraphicsSettings />
-
-      <FirstPersonSettings />
-
-      <div className="rg-field">
-        <div>
-          <Button variant="secondary" size="sm" onClick={() => update({ ...DEFAULT_SETTINGS })}>
-            Reset to defaults
-          </Button>
-        </div>
+      <div className="rg-settings__stack">
+        <ProvidersSection />
+        <OperationsSection />
       </div>
     </div>
+  );
+}
+
+const RENDER: Readonly<Record<SettingsTabId, () => ReactNode>> = {
+  you: () => <YouPanel />,
+  office: () => <OfficePanel />,
+  henchmen: () => <SkinRulesSection />,
+  notifications: () => (
+    <div className="rg-settings__columns">
+      <NotificationsSection />
+    </div>
+  ),
+  display: () => <DisplaySettings />,
+};
+
+export function SettingsForm() {
+  const role = useSessionStore((s) => s.user?.role);
+  const chosen = useSettingsTabStore((s) => s.tab);
+  const setTab = useSettingsTabStore((s) => s.setTab);
+  const rail = useSyncExternalStore(subscribeRail, railNow, () => true);
+  const tabs: TabItem<SettingsTabId>[] = visibleSettingsTabs(role).map((id) => ({
+    id,
+    label: SETTINGS_TAB_LABELS[id],
+    render: RENDER[id],
+  }));
+
+  return (
+    <Tabs
+      label="Settings sections"
+      className="rg-settings"
+      tabs={tabs}
+      active={effectiveSettingsTab(chosen, role)}
+      onSelect={setTab}
+      orientation={rail ? "vertical" : "horizontal"}
+    />
   );
 }

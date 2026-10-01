@@ -1,0 +1,164 @@
+/* Settings (#225): a wide lair console with a rail of tab keys on the left
+   (a wrapping row on narrow screens), section plates in two columns where
+   there is room; the henchman skin rules have their own skinRules.css.
+   Colours are the scheme tokens (theme/lairPalette.ts), so night
+   and day both follow. */
+
+/* ---------- Dialog frame ---------- */
+.rg-modal--settings {
+  /* A steady height, so switching tabs does not make the frame jump. */
+  height: 780px;
+}
+
+/* ---------- Tabs: rail of console keys ---------- */
+.rg-settings {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+  align-content: start;
+}
+.rg-settings[data-orientation="horizontal"] {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+}
+.rg-tabs__list {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px;
+  background: var(--rg-color-inset);
+  border: 1px solid var(--rg-color-panel-border);
+  border-radius: var(--rg-radius-panel);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+.rg-settings[data-orientation="horizontal"] .rg-tabs__list {
+  position: static;
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+.rg-tabs__tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--rg-color-ink);
+  font-family: var(--rg-font-stencil);
+  font-size: 13px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  text-align: left;
+  cursor: pointer;
+}
+/* A lamp per key: dark until its tab is open. */
+.rg-tabs__tab::before {
+  content: "";
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--rg-lamp-off);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.4);
+}
+.rg-tabs__tab:hover {
+  background: var(--rg-color-hover);
+}
+.rg-tabs__tab[aria-selected="true"] {
+  background: var(--rg-color-selected);
+  border-color: var(--rg-color-gold);
+  color: var(--rg-color-heading);
+}
+.rg-tabs__tab[aria-selected="true"]::before {
+  background: var(--rg-lamp-idle);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.4),
+    0 0 7px 1px var(--rg-lamp-idle);
+}
+.rg-settings[data-orientation="horizontal"] .rg-tabs__tab {
+  padding: 6px 9px;
+  font-size: 13px;
+}
+.rg-tabs__panel {
+  min-width: 0;
+  border-radius: 4px;
+}
+
+/* ---------- Panel layout ---------- */
+.rg-settings__columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 290px), 1fr));
+  gap: 14px;
+  align-items: start;
+}
+.rg-settings__stack {
+  display: grid;
+  gap: 14px;
+  align-content: start;
+  min-width: 0;
+}
+.rg-settings__group {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  min-width: 0;
+  margin: 0;
+  padding: 12px 14px 14px;
+  background: var(--rg-color-raised);
+  border: 1px solid var(--rg-color-panel-border);
+  border-radius: var(--rg-radius-panel);
+}
+.rg-settings__group > .rg-field:first-of-type {
+  margin-top: 0;
+}
+.rg-settings__group > .rg-field:last-child {
+  margin-bottom: 0;
+}
+.rg-settings__group p {
+  margin: 0;
+}
+.rg-settings__heading {
+  margin: 0 0 2px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--rg-color-panel-border);
+  font-family: var(--rg-font-stencil);
+  font-size: 15px;
+  font-weight: 400;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--rg-color-heading);
+}
+.rg-settings__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.rg-settings__row > .rg-input {
+  flex: 1 1 160px;
+  min-width: 0;
+  width: auto;
+}
+.rg-settings__row > input[type="time"] {
+  flex: 0 0 auto;
+  width: 120px;
+}
+.rg-settings__grow {
+  flex: 1 1 auto;
+}
+.rg-settings__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+}
+.rg-notify-channel {
+  border-top: 1px solid var(--rg-color-panel-border);
+  padding-top: 6px;
+}

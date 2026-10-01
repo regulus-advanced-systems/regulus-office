@@ -269,9 +269,10 @@ test("the owner, an invited member and an invited admin sign in", async () => {
 test("1. the owner connects GitHub, picks the repo in Add operation and walks into its room", async () => {
   await ownerPage.goto(OFFICE_PROBE_PATH);
   await waitForScene(ownerPage);
-  // Settings → GitHub: connect the office with an org token (#141; the App flow needs github.com).
+  // Settings → Office → GitHub: connect the office with an org token (#141; the App flow needs github.com).
   await ownerPage.getByRole("button", { name: "Settings" }).click();
   const settingsDialog = ownerPage.getByRole("dialog", { name: "Settings" });
+  await settingsDialog.getByRole("tab", { name: "Office" }).click();
   const github = settingsDialog.getByRole("region", { name: "GitHub" });
   await expect(github.getByText("Not connected")).toBeVisible();
   await github.getByLabel("Or an organization access token").fill(REPO_TOKEN);
