@@ -10,8 +10,8 @@
  * camera is at the overview; deep in the compound none of it is drawn. The
  * software-WebGL tier also draws a smaller sea with a plain vertex-coloured
  * material (no shader work per pixel), the sand, props and boat unlit with
- * their light baked in, and only when the player is within the tier's draw
- * distance. The portal and the door are part of the lobby's
+ * their light baked in, and only while the player is outside or within
+ * {@link LOW_BEACH_DISTANCE} of the doorway. The portal and the door are part of the lobby's
  * wall and always mounted (three's frustum culling skips them off screen).
  */
 import { useFrame } from "@react-three/fiber";
@@ -45,15 +45,21 @@ export function distanceTo(b: Bounds, x: number, z: number): number {
   return Math.hypot(Math.max(b.minX - x, 0, x - b.maxX), Math.max(b.minZ - z, 0, z - b.maxZ));
 }
 
+/** The software tier draws the beach only this close to the doorway (or outside), metres. */
+export const LOW_BEACH_DISTANCE = 14;
+
 /** Whether to draw the outside: on screen, and near enough (or the overview). */
 export function outsideWanted(opts: {
   inFrustum: boolean;
   distance: number;
+  /** Ground distance from the player to the middle of the doorway. */
+  doorDistance: number;
   far: boolean;
   low: boolean;
 }): boolean {
   if (!opts.inFrustum) return false;
-  if (opts.low) return opts.distance <= LOW_DRAW_DISTANCE;
+  if (opts.low)
+    return opts.distance <= LOW_DRAW_DISTANCE && opts.doorDistance <= LOW_BEACH_DISTANCE;
   return opts.far || opts.distance <= OUTSIDE_NEAR;
 }
 
@@ -104,6 +110,8 @@ export function Outside({ layout }: { layout: OutsideLayout }) {
       const wanted = outsideWanted({
         inFrustum: boundsVisible(frustumOf(state.camera), layout.bounds),
         distance: distanceTo(layout.bounds, p.x, p.z),
+        doorDistance:
+          p.z > layout.edgeZ ? 0 : Math.hypot(p.x - layout.door.centre, p.z - layout.edgeZ),
         far: useVisibleStore.getState().far,
         low,
       });

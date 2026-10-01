@@ -112,14 +112,30 @@ describe("the outside layout (#188)", () => {
 
 describe("culling the outside", () => {
   test("drawn only on screen and near; the overview draws it; the low tier only within its draw distance", () => {
-    expect(outsideWanted({ inFrustum: false, distance: 0, far: true, low: false })).toBe(false);
-    expect(outsideWanted({ inFrustum: true, distance: 10, far: false, low: false })).toBe(true);
     expect(
-      outsideWanted({ inFrustum: true, distance: OUTSIDE_NEAR + 1, far: false, low: false }),
+      outsideWanted({ inFrustum: false, distance: 0, doorDistance: 0, far: true, low: false }),
     ).toBe(false);
-    expect(outsideWanted({ inFrustum: true, distance: 200, far: true, low: false })).toBe(true);
-    expect(outsideWanted({ inFrustum: true, distance: 40, far: true, low: true })).toBe(false);
-    expect(outsideWanted({ inFrustum: true, distance: 20, far: false, low: true })).toBe(true);
+    expect(
+      outsideWanted({ inFrustum: true, distance: 10, doorDistance: 0, far: false, low: false }),
+    ).toBe(true);
+    expect(
+      outsideWanted({
+        inFrustum: true,
+        distance: OUTSIDE_NEAR + 1,
+        doorDistance: 0,
+        far: false,
+        low: false,
+      }),
+    ).toBe(false);
+    expect(
+      outsideWanted({ inFrustum: true, distance: 200, doorDistance: 0, far: true, low: false }),
+    ).toBe(true);
+    expect(
+      outsideWanted({ inFrustum: true, distance: 40, doorDistance: 0, far: true, low: true }),
+    ).toBe(false);
+    expect(
+      outsideWanted({ inFrustum: true, distance: 20, doorDistance: 0, far: false, low: true }),
+    ).toBe(true);
   });
 
   test("deep in the compound the player is far from the outside", () => {
