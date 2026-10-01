@@ -8,7 +8,7 @@
  */
 
 import type { DoorSide, SpecialRoomKind } from "@regulus/protocol";
-import { DIRECTION, HEADING, type Rect } from "@regulus/room-layout";
+import { breakRoomTables, DIRECTION, HEADING, type Rect } from "@regulus/room-layout";
 import type { Vec3 } from "../lair/geometry/builder.ts";
 import { WALL_RELIEF } from "../lair/geometry/walls.ts";
 import type { PieceId } from "../lair/kit.ts";
@@ -165,11 +165,7 @@ function breakRoom(w: number, d: number): SpecialDressing {
   const size = { w, d };
   const extras: PiecePlacement[] = [];
   const tables: FurnitureItem[] = [];
-  for (const [tx, tz] of [
-    [w / 2 - 3, d / 2 - 2],
-    [w / 2 + 1.5, d / 2 - 2],
-    [w / 2 - 1, d / 2 + 2.2],
-  ] as const) {
+  for (const [tx, tz] of breakRoomTables(w, d)) {
     tables.push({ model: "bistro_table", rect: R(tx, tz, 1, 1), facing: "south" });
     extras.push(chair("stool_chair", tx - 0.45, tz + 0.5, "east"));
     extras.push(chair("stool_chair", tx + 1.45, tz + 0.5, "west"));

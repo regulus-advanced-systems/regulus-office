@@ -53,6 +53,9 @@ export const CLIP_CANDIDATES: Record<AvatarAnimation, readonly string[]> = {
   facepalm: ["RobotArmature|Robot_Facepalm", ROBOT_CLIPS.no],
   wave: [ROBOT_CLIPS.wave],
   point: ["RobotArmature|Robot_Point", ROBOT_CLIPS.thumbsUp],
+  thumbs_up: [ROBOT_CLIPS.thumbsUp],
+  clap: ["RobotArmature|Robot_Clap", ROBOT_CLIPS.yes],
+  dance: [ROBOT_CLIPS.dance],
 };
 
 /** Last resort when no candidate is available. */

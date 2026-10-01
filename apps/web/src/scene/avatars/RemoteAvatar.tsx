@@ -4,25 +4,26 @@
  * pushed into the buffer straight from the building store subscription and
  * applied in useFrame, so a 20 Hz patch stream causes no React renders; only
  * the name, look and seat/doing/animation fields are subscribed. A seated
- * human sits on its seat's sit anchor like a henchman does (#163). Whether it
- * walks or runs (#223) is read from its interpolated speed (gait.ts), so
- * running needs nothing on the wire.
+ * human sits on its seat's sit anchor like a henchman does (#163; seats of
+ * any room, #49). Whether it walks or runs (#223) is read from its
+ * interpolated speed (gait.ts), so running needs nothing on the wire. Its
+ * speech bubble and, with reduced motion, emote badge float above the name.
  */
 import { useFrame } from "@react-three/fiber";
-import type { AvatarAnimation } from "@regulus/protocol";
+import { type AvatarAnimation, isEmote } from "@regulus/protocol";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Group } from "three";
 import { useShallow } from "zustand/react/shallow";
 import { type BuildingStore, useBuildingStore } from "../../state/building.ts";
 import { useCompoundStore } from "../../state/compound.ts";
+import { selectReducedMotion, useUiStore } from "../../state/ui.ts";
 import { presenceAnimation } from "../avatar/index.ts";
-import { roomArt } from "../compound/interiors.ts";
-import { lairAnchors } from "../compound/lairAnchors.ts";
-import { roomAt } from "../compound/world.ts";
 import { GeniusAvatar } from "../geniuses/GeniusAvatar.tsx";
-import { henchmanPlacement } from "../henchmen/seatPlacement.ts";
 import { createGaitTracker, type Gait } from "../movement/gait.ts";
 import { createPoseBuffer } from "../movement/remoteInterpolation.ts";
+import { Overhead } from "../social/Overhead.tsx";
+import { seatedPlacement } from "../social/seatPose.ts";
+import { seatByKey } from "../social/seats.ts";
 
 export interface RemoteAvatarProps {
   sessionId: string;
@@ -40,6 +41,7 @@ export function RemoteAvatar({ sessionId }: RemoteAvatarProps) {
       const h = s.state?.humans[sessionId];
       return h
         ? {
+            userId: h.userId,
             name: h.displayName,
             archetype: h.avatar.archetype,
             outfit: h.avatar.outfit,
@@ -57,21 +59,12 @@ export function RemoteAvatar({ sessionId }: RemoteAvatarProps) {
 
   const world = useCompoundStore((s) => s.world);
   const seatId = info?.seatId ?? "";
-  // A seat belongs to the room the human stands in (#186): its generated interior, in compound metres.
+  const reducedMotion = useUiStore(selectReducedMotion);
+  // A seat key names its room (#49): any chair or couch of a room this viewer sees into.
   const seated = useMemo(() => {
-    if (!seatId || !world) return null;
-    const at = useBuildingStore.getState().state?.humans[sessionId]?.position;
-    const room = at ? roomAt(world, at.x, at.z) : null;
-    const layout = room ? roomArt(room).layout : null;
-    const seat = layout?.seats.find((s) => s.id === seatId);
-    if (!room || !layout || !seat) return null;
-    const place = henchmanPlacement(seat, true, lairAnchors(layout).get(seat.id));
-    const [x, y, z] = place.position;
-    return {
-      ...place,
-      position: [x + room.origin.x, y, z + room.origin.z] as typeof place.position,
-    };
-  }, [world, seatId, sessionId]);
+    const seat = seatId && world ? seatByKey(world, seatId) : null;
+    return seat ? seatedPlacement(seat) : null;
+  }, [world, seatId]);
 
   useEffect(() => {
     const push = (state: BuildingStore) => {
@@ -106,14 +99,18 @@ export function RemoteAvatar({ sessionId }: RemoteAvatarProps) {
 
   if (!info) return null;
   const animation: AvatarAnimation = walking ? "walk" : presenceAnimation(info);
+  const emote = isEmote(animation) ? animation : null;
+  const sitting = seated !== null && !walking;
   return (
-    <group ref={group} name={`human-${sessionId}`}>
+    <group ref={group} name={`human-${sessionId}`} userData={{ seatId: sitting ? seatId : "" }}>
       <GeniusAvatar
         look={info}
         animation={animation}
-        seated={seated !== null && !walking}
+        seated={sitting}
         gait={gait}
         name={info.name}
+        still={reducedMotion && emote !== null}
+        overhead={<Overhead userId={info.userId} emote={emote} />}
       />
     </group>
   );

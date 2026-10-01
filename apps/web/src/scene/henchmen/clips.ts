@@ -329,6 +329,10 @@ const STANDING: Readonly<Record<AvatarAnimation, HenchmanClipName>> = {
   facepalm: HENCHMAN_CLIPS.facepalm,
   wave: HENCHMAN_CLIPS.wave,
   point: HENCHMAN_CLIPS.point,
+  // Human emotes (#49); henchmen never get them, but every animation needs a clip.
+  thumbs_up: HENCHMAN_CLIPS.point,
+  clap: HENCHMAN_CLIPS.celebrate,
+  dance: HENCHMAN_CLIPS.celebrate,
 };
 
 /** Seated clip per animation: the chair versions of read and think, else the still pose. */

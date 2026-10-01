@@ -2,6 +2,9 @@
  * M0 smoke test (docs/SPEC.md §10 M0 exit criteria): the owner registers and
  * picks a genius by keyboard in the first-login picker (#185), mints an invite in the UI, a second browser joins through the link, both
  * reach /office and see each other's genius (and a genius changed in Settings at once), one walks and the other sees it move,
+ * chat crosses between them and `/` search finds it (#41), a chat line floats as a bubble, an emote
+ * from the wheel, sitting on the sofa and "Who's where" reach the other browser (#49),
+ * the first-person view toggles on V and back,
  * chat crosses between them, both draw on the lobby whiteboard and the wall shows it (#45),
  * `/` search finds the chat (#41), the first-person view toggles on V and back,
  * the owner turns to follow the mouse and walks face-first to a click,
@@ -71,6 +74,13 @@ import {
   screenPointOf,
   waitForScene,
 } from "./probes.ts";
+import {
+  backToLobbyMiddle,
+  checkChatBubbles,
+  checkEmoteWheel,
+  checkSitAndStand,
+  checkWhereabouts,
+} from "./socialChecks.ts";
 import { checkWhiteboard } from "./whiteboardChecks.ts";
 
 const run = Date.now().toString(36);
@@ -295,6 +305,25 @@ test("/ opens search; chat is found, highlighted, for everyone who saw it (#41)"
     await page.keyboard.press("Escape");
     await expect(dialog).toHaveCount(0);
   }
+});
+
+test("a chat line floats as a bubble over the speaker, on the other browser too (#49)", async () => {
+  await checkChatBubbles(ownerPage, memberPage, `bubble from the owner ${run}`);
+});
+
+test("hold G, arrow to an emote, let go: the other browser sees it (#49)", async () => {
+  await checkEmoteWheel(ownerPage, memberPage);
+});
+
+test("E sits on the lobby sofa and stands up again; the other browser sees both (#49)", async () => {
+  await checkSitAndStand(ownerPage, memberPage);
+});
+
+test("Who's where lists the owner in the lobby; clicking the name walks there (#49)", async () => {
+  await checkWhereabouts(ownerPage, memberPage, owner.name);
+  // Clear of the sofa again: later steps press E and click the floor.
+  await backToLobbyMiddle(ownerPage);
+  await backToLobbyMiddle(memberPage);
 });
 
 test("the status box unfolds the viewer's own usage (#40)", async () => {

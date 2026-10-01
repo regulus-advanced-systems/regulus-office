@@ -16,6 +16,7 @@ describe("hotkey registry", () => {
     expect(r.resolve({ key: "V" })?.id).toBe("toggleView");
     expect(r.resolve({ key: "e" })?.id).toBe("interact");
     expect(r.resolve({ key: "T" })?.id).toBe("focusChat");
+    expect(r.resolve({ key: "G" })?.id).toBe("emoteWheel");
     expect(r.resolve({ key: "Enter" })?.id).toBe("focusChatEnter");
     expect(r.resolve({ key: "/" })?.id).toBe("search");
     expect(r.resolve({ key: "?" })?.id).toBe("help");
@@ -25,6 +26,7 @@ describe("hotkey registry", () => {
       "turnRight",
       "toggleView",
       "interact",
+      "emoteWheel",
       "focusChat",
       "focusChatEnter",
       "search",

@@ -151,11 +151,17 @@ export const AVATAR_ANIMATIONS = [
   "facepalm",
   "wave",
   "point",
+  "thumbs_up",
+  "clap",
+  "dance",
 ] as const;
 export type AvatarAnimation = (typeof AVATAR_ANIMATIONS)[number];
 
-/** Emotes a human can trigger; each maps to a one-shot avatar animation. */
-export const EMOTES = ["wave", "point", "celebrate", "facepalm", "think"] as const;
+/**
+ * Emotes a human can trigger from the emote wheel (hold G, #49); each maps to
+ * a one-shot avatar animation of the same name.
+ */
+export const EMOTES = ["wave", "thumbs_up", "clap", "dance", "point", "facepalm"] as const;
 export type Emote = (typeof EMOTES)[number];
 
 /** Screen share destinations (SPEC §9.4: the lounge TV). */

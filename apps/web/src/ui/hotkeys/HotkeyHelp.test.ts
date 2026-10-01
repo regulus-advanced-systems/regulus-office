@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { groupBindings, helpBindings, keyLabel } from "./HotkeyHelp.tsx";
-import { createHotkeyRegistry, DEFAULT_HOTKEYS, MOVEMENT_HELP } from "./registry.ts";
+import { createHotkeyRegistry, DEFAULT_HOTKEYS, MOVEMENT_HELP, SOCIAL_HELP } from "./registry.ts";
 
 describe("hotkey help", () => {
   test("keyLabel upper-cases letters and leaves named keys", () => {
@@ -14,6 +14,7 @@ describe("hotkey help", () => {
       "Navigation",
       "Camera",
       "World",
+      "Social",
       "Chat",
       "Search",
       "Help",
@@ -29,8 +30,14 @@ describe("movement help (#223)", () => {
     expect(groupBindings(list)[0]?.[0]).toBe("Movement");
   });
 
+  test("the emote wheel (G) and its digits are listed under Social (#49)", () => {
+    const social = groupBindings(helpBindings(DEFAULT_HOTKEYS)).find(([g]) => g === "Social");
+    expect(social?.[1].map((b) => keyLabel(b.key))).toEqual(["G", "1-6", "Click a name"]);
+  });
+
   test("the movement entries are not dispatched hotkeys", () => {
     const r = createHotkeyRegistry(DEFAULT_HOTKEYS);
-    for (const b of MOVEMENT_HELP) expect(r.resolve({ key: b.key })).toBeNull();
+    for (const b of [...MOVEMENT_HELP, ...SOCIAL_HELP])
+      expect(r.resolve({ key: b.key })).toBeNull();
   });
 });

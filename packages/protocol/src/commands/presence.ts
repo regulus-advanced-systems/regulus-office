@@ -1,7 +1,11 @@
-/** Human presence commands: move, sit, emote, chat, operation.go (SPEC §6). */
+/**
+ * Human presence commands: move, sit, emote, chat, operation.go (SPEC §6),
+ * plus `doing` (#49): the free-text status the whereabouts panel shows.
+ */
 import { z } from "zod";
 import { ChatText, Id } from "../common.ts";
 import { EMOTES } from "../enums.ts";
+import { DOING_MAX } from "../social.ts";
 
 export const MoveCommand = z.object({
   type: z.literal("move"),
@@ -10,7 +14,10 @@ export const MoveCommand = z.object({
   heading: z.number().finite(),
 });
 
-/** Sit on a seat; `seatId: null` stands up. */
+/**
+ * Sit on a seat; `seatId: null` stands up. The id is a seat key
+ * (`<roomId>/<seatId>`, social.ts): a chair or couch seat, never a desk.
+ */
 export const SitCommand = z.object({
   type: z.literal("sit"),
   seatId: Id.nullable(),
@@ -26,6 +33,12 @@ export const ChatCommand = z.object({
   text: ChatText,
 });
 
+/** What the human is doing ("at the boards"), shown in the whereabouts panel; "" clears it. */
+export const DoingCommand = z.object({
+  type: z.literal("doing"),
+  doing: z.string().trim().max(DOING_MAX),
+});
+
 /** Change operation; `ride` plays the elevator animation, `teleport` is the quick menu. */
 export const OperationGoCommand = z.object({
   type: z.literal("operation.go"),
@@ -39,4 +52,5 @@ export const presenceCommands = [
   EmoteCommand,
   ChatCommand,
   OperationGoCommand,
+  DoingCommand,
 ] as const;
