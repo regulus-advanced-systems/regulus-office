@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { findPath, type NavGrid } from "@regulus/floor-layout";
+import { findPath, type NavGrid } from "@regulus/room-layout";
 import { roomArt } from "./interiors.ts";
 import { closedDoors, compoundNavGrid, lobbySpawn, navKey, wallBands } from "./navigation.ts";
 import { rowPlacement, testWorld } from "./testing.ts";
@@ -93,7 +93,7 @@ describe("the compound nav grid (#186)", () => {
     expect(navKey(opened)).not.toBe(navKey(world));
     const counted: CompoundWorld = {
       ...world,
-      rooms: world.rooms.map((r) => (r.id === "apollo" ? { ...r, robotsWorking: 3 } : r)),
+      rooms: world.rooms.map((r) => (r.id === "apollo" ? { ...r, henchmenWorking: 3 } : r)),
     };
     expect(navKey(counted)).toBe(navKey(world));
   });

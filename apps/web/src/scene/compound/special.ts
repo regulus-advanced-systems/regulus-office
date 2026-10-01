@@ -6,8 +6,9 @@
  * pieces in the room's own frame (metres from its north-west corner),
  * measured from the walls so a lobby of another size still works. Pure data.
  */
-import { DIRECTION, HEADING, type Rect } from "@regulus/floor-layout";
+
 import type { DoorSide, SpecialRoomKind } from "@regulus/protocol";
+import { DIRECTION, HEADING, type Rect } from "@regulus/room-layout";
 import type { Vec3 } from "../lair/geometry/builder.ts";
 import { WALL_RELIEF } from "../lair/geometry/walls.ts";
 import type { PieceId } from "../lair/kit.ts";

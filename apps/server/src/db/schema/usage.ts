@@ -33,7 +33,7 @@ export const usageSamples = sqliteTable(
     source: enumText("source", USAGE_SOURCES).notNull(),
     /** Provider model id when known; the price estimate was computed from it. */
     model: text("model"),
-    /** Provider session (Claude session id), to tie transcript usage to a robot. */
+    /** Provider session (Claude session id), to tie transcript usage to a henchman. */
     sessionId: text("session_id"),
     /** `<provider>:<source>:<scope>:<id>`; re-reading the same request is a no-op (#40). */
     dedupeKey: text("dedupe_key"),

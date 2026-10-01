@@ -73,7 +73,7 @@ let owner: { id: string; cookie: string };
 beforeAll(async () => {
   office = await startTerminalOffice({ runner: fakeRunner });
   owner = await office.signUp("Owner");
-  office.addFloor("f1");
+  office.addOperation("f1");
   office.addAgent("s1", "f1", owner.id);
 });
 

@@ -1,7 +1,7 @@
 /**
  * Procedural laptop (the Kenney furniture set has none): a thin base and a
  * lid tilted back, with the screen as an unlit plane. The screen shows the
- * robot's texture, a dark panel for a free desk, or (focused desk only) a
+ * henchman's texture, a dark panel for a free desk, or (focused desk only) a
  * live xterm passed in as `live`.
  */
 import type { ThreeEvent } from "@react-three/fiber";
@@ -59,7 +59,7 @@ function sharedParts(): Shared {
 
 export interface LaptopProps {
   placement: LaptopPlacement;
-  /** Robot screen; null for a free desk (dark screen). */
+  /** Henchman screen; null for a free desk (dark screen). */
   texture: CanvasTexture | null;
   /** Live DOM panel mounted on the screen (focused desk). */
   live?: ReactNode;

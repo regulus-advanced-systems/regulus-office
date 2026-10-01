@@ -1,6 +1,6 @@
 /**
  * Git plumbing for office-run commands on humans' clones, agent worktrees and
- * floor mirrors.
+ * operation mirrors.
  *
  * A human's clone (#114) is shared with that human's agent worktrees, and
  * their runner can write to its `.git`. So before the office runs git there
@@ -8,7 +8,7 @@
  * it (1) never runs repo hooks or fsmonitor, (2) refuses a config that could
  * execute commands or redirect the remote (`url.*.insteadOf`, `filter.*`,
  * `include*`, `credential.*`, ...), (3) checks that `origin` is still the
- * floor repo, and (4) sends the token only to that remote URL.
+ * operation repo, and (4) sends the token only to that remote URL.
  * Checkouts may be owned by a runner account, so each command carries
  * `-c safe.directory=<path>` instead of touching any global config.
  */
@@ -34,7 +34,7 @@ const UNSAFE_KEYS: readonly RegExp[] = [
   /^core\.(hookspath|fsmonitor|sshcommand|gitproxy|askpass|alternaterefscommand|worktree)$/,
   /^remote\.[^.]+\.(uploadpack|receivepack|proxy|vcs|pushurl)$/,
 ];
-/** The only `remote.origin.*` keys accepted; `url` must also equal the floor repo's remote. */
+/** The only `remote.origin.*` keys accepted; `url` must also equal the operation repo's remote. */
 const ORIGIN_KEYS = /^remote\.origin\.(url|fetch|tagopt|prune)$/;
 
 export interface GitContext {

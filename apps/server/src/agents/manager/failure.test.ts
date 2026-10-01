@@ -5,7 +5,7 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { rm } from "node:fs/promises";
 import { FakeAdapter } from "@regulus/agent-adapters";
-import { RobotState } from "@regulus/protocol";
+import { HenchmanState } from "@regulus/protocol";
 import { eq } from "drizzle-orm";
 import { CliMissingError } from "../../credentials/cli-probe.ts";
 import { agentEvents } from "../../db/schema/index.ts";
@@ -19,7 +19,7 @@ import { AgentManagerError } from "./errors.ts";
 import { MAX_STATUS_REASON, safeReason, startFailure, startFailureReason } from "./failure.ts";
 import { FAKE_AGENT, makeManager, officeFixture, spawnInput } from "./test-helpers.ts";
 
-const AREA = "/srv/office/worktrees/floor-1/u-other/agent-1";
+const AREA = "/srv/office/worktrees/operation-1/u-other/agent-1";
 
 describe("safeReason", () => {
   test("drops paths, env values, tokens, URL credentials and line breaks", () => {
@@ -109,7 +109,7 @@ describe.skipIf(!hasTmux())("a failed start (manager)", () => {
     await rm(office.workdir, { recursive: true, force: true });
   });
 
-  test("logs the cause and publishes a short, safe reason on the robot and its event", async () => {
+  test("logs the cause and publishes a short, safe reason on the henchman and its event", async () => {
     runner.mountProject = async (user) => {
       throw new RunnerBusyError(user.userId, [], [AREA], ["claude auth status"]);
     };
@@ -119,25 +119,25 @@ describe.skipIf(!hasTmux())("a failed start (manager)", () => {
       destination: { write: (line: string) => lines.push(JSON.parse(line)) },
     });
     const adapter = new FakeAdapter({ command: ["sh", FAKE_AGENT] });
-    const { manager, robots } = makeManager(office.db, runner, [adapter], { logger });
+    const { manager, henchmen } = makeManager(office.db, runner, [adapter], { logger });
 
-    const spawn = manager.spawn(office.member, spawnInput(office.floorId, office.repoId));
+    const spawn = manager.spawn(office.member, spawnInput(office.operationId, office.repoId));
     await expect(spawn).rejects.toBeInstanceOf(AgentManagerError);
-    const [robot] = [...robots.robots.values()];
+    const [henchman] = [...henchmen.henchmen.values()];
     const reason =
       "runner_busy: the runner needs a new mount but still runs 1 piped process (claude auth status)";
-    expect(robot).toMatchObject({ status: "error", action: "failing", statusReason: reason });
-    expect(RobotState.safeParse(robot).success).toBe(true);
-    expect(robots.history.map((r) => r.status)).toEqual(["starting", "error"]);
+    expect(henchman).toMatchObject({ status: "error", action: "failing", statusReason: reason });
+    expect(HenchmanState.safeParse(henchman).success).toBe(true);
+    expect(henchmen.history.map((r) => r.status)).toEqual(["starting", "error"]);
 
     const logged = lines.find((l) => l.msg === "agent launch failed");
-    expect(logged).toMatchObject({ agentId: robot?.agentId, code: "runner_busy" });
+    expect(logged).toMatchObject({ agentId: henchman?.agentId, code: "runner_busy" });
     expect(String(logged?.err)).toContain("RunnerBusyError: runner for");
 
     const events = office.db
       .select()
       .from(agentEvents)
-      .where(eq(agentEvents.agentId, robot?.agentId ?? ""))
+      .where(eq(agentEvents.agentId, henchman?.agentId ?? ""))
       .all();
     expect(events.map((e) => JSON.stringify(e.payloadJson))).toContainEqual(
       expect.stringContaining(reason),

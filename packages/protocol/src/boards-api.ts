@@ -1,21 +1,21 @@
 /**
  * REST shapes for the issue and PR boards (SPEC §9.4, D7; #36). The boards
- * themselves travel in the FloorRoom state (`FloorState.issues` / `pulls`,
+ * themselves travel in the OperationRoom state (`OperationState.issues` / `pulls`,
  * #35); these routes give one card's detail (markdown body from the cache,
  * comments read live) and the write actions: assign, comment, merge
  * (squash / merge / rebase) and close.
  *
- * Writes are for humans with floor `manage` (office owners and admins have
- * it on every floor). The server authorises and audits each one and calls
- * GitHub with the floor repo's office credential (the App installation
+ * Writes are for humans with operation `manage` (office owners and admins have
+ * it on every operation). The server authorises and audits each one and calls
+ * GitHub with the operation repo's office credential (the App installation
  * token, else the org PAT), never a human's own token.
  *
- *   GET  /api/boards/:floorId/:kind/:repoId/:number           card detail
- *   POST /api/boards/:floorId/:kind/:repoId/:number/comment   { body }
- *   POST /api/boards/:floorId/:kind/:repoId/:number/assign    { add, remove }
- *   POST /api/boards/:floorId/:kind/:repoId/:number/merge     { method }  (PRs)
- *   POST /api/boards/:floorId/:kind/:repoId/:number/close     {}
- *   GET  /api/boards/:floorId/:repoId/assignees               { logins }
+ *   GET  /api/boards/:operationId/:kind/:repoId/:number           card detail
+ *   POST /api/boards/:operationId/:kind/:repoId/:number/comment   { body }
+ *   POST /api/boards/:operationId/:kind/:repoId/:number/assign    { add, remove }
+ *   POST /api/boards/:operationId/:kind/:repoId/:number/merge     { method }  (PRs)
+ *   POST /api/boards/:operationId/:kind/:repoId/:number/close     {}
+ *   GET  /api/boards/:operationId/:repoId/assignees               { logins }
  */
 import { z } from "zod";
 import { GhNumber, Id, TimestampMs } from "./common.ts";
@@ -23,7 +23,7 @@ import {
   CARD_KINDS,
   type CardKind,
   CHECKS_STATES,
-  FLOOR_ACCESSES,
+  OPERATION_ACCESSES,
   REVIEW_STATES,
 } from "./enums.ts";
 import { GitHubLogin } from "./github-api.ts";
@@ -40,29 +40,29 @@ export type BoardAction = (typeof BOARD_ACTIONS)[number];
 export const VIA_OFFICE = "via Regulus Office";
 
 export function boardCardPath(
-  floorId: string,
+  operationId: string,
   kind: CardKind,
   repoId: string,
   number: number,
   action?: BoardAction,
 ): string {
   const e = encodeURIComponent;
-  const base = `${BOARDS_API_PATH}/${e(floorId)}/${kind}/${e(repoId)}/${number}`;
+  const base = `${BOARDS_API_PATH}/${e(operationId)}/${kind}/${e(repoId)}/${number}`;
   return action ? `${base}/${action}` : base;
 }
 
-export function boardAssigneesPath(floorId: string, repoId: string): string {
-  return `${BOARDS_API_PATH}/${encodeURIComponent(floorId)}/${encodeURIComponent(repoId)}/assignees`;
+export function boardAssigneesPath(operationId: string, repoId: string): string {
+  return `${BOARDS_API_PATH}/${encodeURIComponent(operationId)}/${encodeURIComponent(repoId)}/assignees`;
 }
 
-type Access = (typeof FLOOR_ACCESSES)[number];
+type Access = (typeof OPERATION_ACCESSES)[number];
 
-/** Assign, comment, merge and close: floor `manage` (office owners/admins get it everywhere). */
+/** Assign, comment, merge and close: operation `manage` (office owners/admins get it everywhere). */
 export function mayWriteBoard(access: Access | null | undefined): boolean {
   return access === "manage";
 }
 
-/** Plucking a card to carry it to a desk: whoever may spawn robots there. */
+/** Plucking a card to carry it to a desk: whoever may spawn henchmen there. */
 export function mayCarryCard(access: Access | null | undefined): boolean {
   return access === "manage" || access === "spawn";
 }
@@ -100,7 +100,7 @@ export const BoardCardDetail = z.object({
   comments: z.array(BoardComment),
   /** Why comments could not be read (no office credential, GitHub down); null when they were. */
   commentsError: z.string().max(300).nullable(),
-  /** The viewer may assign, comment, merge and close (floor `manage`). */
+  /** The viewer may assign, comment, merge and close (operation `manage`). */
   canWrite: z.boolean(),
   /** An office credential covers this repo, so writes can reach GitHub. */
   credential: z.boolean(),

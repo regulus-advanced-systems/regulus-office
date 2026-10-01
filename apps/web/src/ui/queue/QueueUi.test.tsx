@@ -1,9 +1,14 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import type { CommandRejected, FloorAccess, FloorState, QueueTask } from "@regulus/protocol";
+import type {
+  CommandRejected,
+  OperationAccess,
+  OperationState,
+  QueueTask,
+} from "@regulus/protocol";
 import { QUEUE_RESULT_MESSAGE } from "@regulus/protocol";
 import { act } from "react";
-import { useFloorStore } from "../../state/floor.ts";
-import { useFloorsStore } from "../../state/floors.ts";
+import { useOperationStore } from "../../state/operation.ts";
+import { useOperationsStore } from "../../state/operations.ts";
 import { useSessionStore } from "../../state/session.ts";
 import { click, type Mounted, mount, useDom } from "../a11y/dom.ts";
 import { button, settle, submit, text } from "../auth/testDom.tsx";
@@ -39,14 +44,14 @@ const task = (over: Partial<QueueTask>): QueueTask => ({
   ...over,
 });
 
-const floorState = (queue: QueueTask[]): FloorState => ({
-  floorId: "f1",
+const operationState = (queue: QueueTask[]): OperationState => ({
+  operationId: "f1",
   name: "Apollo",
   slug: "apollo",
   paletteId: "oak-sky",
   layoutTemplateId: "office-l2",
   repos: [{ repoId: "r1", owner: "octo", name: "hello", defaultBranch: "main", isPrimary: true }],
-  robots: {},
+  henchmen: {},
   desks: {},
   decor: {},
   queue,
@@ -60,16 +65,16 @@ const floorState = (queue: QueueTask[]): FloorState => ({
   decorStyle: "ops_room",
 });
 
-const as = (id: string, access: FloorAccess) => {
+const as = (id: string, access: OperationAccess) => {
   useSessionStore.setState({
     status: "authenticated",
     user: { id, displayName: id, role: "member" },
     error: null,
   });
-  useFloorsStore.setState({
-    floors: [
+  useOperationsStore.setState({
+    operations: [
       {
-        floorId: "f1",
+        operationId: "f1",
         name: "Apollo",
         slug: "apollo",
         index: 1,
@@ -90,9 +95,9 @@ const api: CredentialProfilesApi = {
 
 let mounted: Mounted | null = null;
 beforeEach(() => {
-  useFloorStore.setState({
-    floorId: "f1",
-    state: floorState([
+  useOperationStore.setState({
+    operationId: "f1",
+    state: operationState([
       task({ id: "a", title: "Mine first", position: 0 }),
       task({ id: "b", title: "Theirs", position: 1, createdBy: "u-otto", ownerName: "Otto" }),
       task({
@@ -100,7 +105,7 @@ beforeEach(() => {
         title: "Broke",
         position: 2,
         state: "failed",
-        reason: "the robot hit an error",
+        reason: "the henchman hit an error",
       }),
     ]),
   });
@@ -118,7 +123,7 @@ describe("queue panel (#37)", () => {
     const send: QueueSend = (type, payload) => sent.push([type, payload]);
     mounted = await mount(<QueuePanel send={send} />);
     await settle();
-    expect(text()).toContain("the robot hit an error");
+    expect(text()).toContain("the henchman hit an error");
     expect(button("Move “Theirs” up")).toBeUndefined();
     expect(document.querySelectorAll('[data-task="b"] button')).toHaveLength(0);
     const down = document.querySelector('[aria-label="Move “Mine first” down"]');
@@ -174,7 +179,7 @@ describe("queue a task dialog (#37)", () => {
         rejected = l;
         return () => {};
       },
-      onFloorMessage: (type, l) => {
+      onOperationMessage: (type, l) => {
         if (type === QUEUE_RESULT_MESSAGE) result = l;
         return () => {};
       },
@@ -219,7 +224,7 @@ describe("queue a task dialog (#37)", () => {
     await submit("Queue a task");
     expect(c.sent).toEqual([
       expect.objectContaining({
-        floorId: "f1",
+        operationId: "f1",
         repoId: "r1",
         kind: "pr",
         refNumber: 9,

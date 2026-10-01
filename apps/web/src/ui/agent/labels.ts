@@ -1,4 +1,4 @@
-/** Human-readable robot labels for the agent panel and dialogs. */
+/** Human-readable henchman labels for the agent panel and dialogs. */
 import type { AgentStatus, PermissionDecision, ProviderId } from "@regulus/protocol";
 
 export const STATUS_LABELS: Record<AgentStatus, string> = {

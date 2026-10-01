@@ -5,19 +5,19 @@
  */
 import { z } from "zod";
 import { agentCommands } from "./agent.ts";
-import { floorCommands } from "./floor.ts";
 import { lobbyCommands } from "./lobby.ts";
+import { operationCommands } from "./operation.ts";
 import { presenceCommands } from "./presence.ts";
 
 export * from "./agent.ts";
-export * from "./floor.ts";
 export * from "./lobby.ts";
+export * from "./operation.ts";
 export * from "./presence.ts";
 
 export const ClientCommand = z.discriminatedUnion("type", [
   ...presenceCommands,
   ...agentCommands,
-  ...floorCommands,
+  ...operationCommands,
   ...lobbyCommands,
 ]);
 export type ClientCommand = z.infer<typeof ClientCommand>;

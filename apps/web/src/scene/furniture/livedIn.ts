@@ -3,7 +3,7 @@
  * bookshelf, plants in a planter, props on furniture, wall decor pieces.
  * The components in `LivedIn.tsx` / `WallDecor.tsx` only draw the results.
  */
-import type { Decor, FloorTemplate, ObstacleKind, Rect } from "@regulus/floor-layout";
+import type { Decor, ObstacleKind, Rect, RoomTemplate } from "@regulus/room-layout";
 import { FURNITURE_MODELS, PLACEHOLDER_HEIGHTS } from "./catalog.ts";
 
 /** Warm, muted spine colours for procedural books. */
@@ -74,7 +74,7 @@ export interface PropPlacement {
 }
 
 /** Every prop placed on top of the obstacle it names. */
-export function propPlacements(template: FloorTemplate): PropPlacement[] {
+export function propPlacements(template: RoomTemplate): PropPlacement[] {
   const out: PropPlacement[] = [];
   for (const decor of template.decor) {
     const base = template.obstacles.find((o) => o.id === decor.on);

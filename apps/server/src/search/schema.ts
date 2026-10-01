@@ -6,8 +6,8 @@
  * module for tsvector/pg_trgm without touching the relational schema.
  *
  * - `search_docs`: one row per indexed text (a chat line, or one chunk of a
- *   robot's scrollback), with what the ACL needs (`kind`, `source_id` =
- *   message or agent id, `floor_id`).
+ *   henchman's scrollback), with what the ACL needs (`kind`, `source_id` =
+ *   message or agent id, `operation_id`).
  * - `search_fts`: FTS5 over `search_docs.body` (external content), kept in
  *   step by triggers.
  * - `search_sources`: which scrollback snapshot state each agent's rows
@@ -18,8 +18,11 @@
  */
 import type { Database } from "bun:sqlite";
 
-/** Bump to drop and rebuild the index on the next boot. */
-export const SEARCH_SCHEMA_VERSION = "1";
+/**
+ * Bump to drop and rebuild the index on the next boot. 2: `floor_id` became
+ * `operation_id` (#226); an index built before that is rebuilt.
+ */
+export const SEARCH_SCHEMA_VERSION = "2";
 
 const TABLES = ["search_sources", "search_meta", "search_fts", "search_docs"] as const;
 
@@ -29,7 +32,7 @@ const CREATE = [
     id INTEGER PRIMARY KEY,
     kind TEXT NOT NULL CHECK (kind IN ('chat', 'scrollback')),
     source_id TEXT NOT NULL,
-    floor_id TEXT NOT NULL,
+    operation_id TEXT NOT NULL,
     ts INTEGER NOT NULL,
     seq INTEGER NOT NULL DEFAULT 0,
     hash TEXT NOT NULL DEFAULT '',

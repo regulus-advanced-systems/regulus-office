@@ -1,6 +1,6 @@
 /**
  * Dry run (#155): would this workflow run for that past event, with which
- * prompt, and what would it post? Pure: no GitHub call, no robot, nothing
+ * prompt, and what would it post? Pure: no GitHub call, no henchman, nothing
  * written. Facts only a real run fetches (the PR's changed files, the diff,
  * the commenter's permission) are named as such.
  */
@@ -18,7 +18,7 @@ const PROMPT_PREVIEW_MAX = 40_000;
 export function safetyNotes(spec: WorkflowSpec, ctx: WorkflowContext | null): string[] {
   const fork = ctx?.pr?.fork ?? false;
   const notes = [
-    `runs on the office's ${spec.robot.provider} API key only (usage → office); never a subscription`,
+    `runs on the office's ${spec.henchman.provider} API key only (usage → office); never a subscription`,
     "posts as the office's GitHub App with an installation token for this repo only",
     "the henchman reads a throwaway checkout in its own sandbox and cannot push",
   ];
@@ -27,7 +27,7 @@ export function safetyNotes(spec: WorkflowSpec, ctx: WorkflowContext | null): st
       "fork PR: comment review at most; no approve, request changes, labels or code execution",
     );
   }
-  if (spec.robot.executePrCode) {
+  if (spec.henchman.executePrCode) {
     notes.push(
       fork || !ctx?.pr
         ? "running PR code is on but does not apply here (same-repo PRs only)"
@@ -44,12 +44,12 @@ export function safetyNotes(spec: WorkflowSpec, ctx: WorkflowContext | null): st
 
 export function dryRun(
   spec: WorkflowSpec,
-  floorId: string,
+  operationId: string,
   ctx: WorkflowContext,
 ): WorkflowDryRunResult {
   const reasons: string[] = [];
   let matched = true;
-  if (!ctx.floorIds.includes(floorId)) {
+  if (!ctx.operationIds.includes(operationId)) {
     matched = false;
     reasons.push("the event is for a repo that is not in this operation");
   }
@@ -74,7 +74,7 @@ export function dryRun(
       diff: "(the diff is fetched when the run starts)",
       repo: ctx.repo?.fullName ?? "",
     },
-    { canRunCommands: spec.robot.executePrCode && !!ctx.pr && !ctx.pr.fork, nonce: "preview" },
+    { canRunCommands: spec.henchman.executePrCode && !!ctx.pr && !ctx.pr.fork, nonce: "preview" },
   ).text;
   return {
     matched,

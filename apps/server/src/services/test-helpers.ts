@@ -1,7 +1,7 @@
 /**
  * Fixtures for the services tests: a fake runner that reports chosen
  * listeners, and an office with real auth, the services route and the
- * scanner behind one `WsRouter`, plus floor/robot rows.
+ * scanner behind one `WsRouter`, plus operation/henchman rows.
  */
 import type { UserRole } from "@regulus/protocol";
 import { eq } from "drizzle-orm";
@@ -9,14 +9,20 @@ import { createAuth } from "../auth/auth.ts";
 import { cookieHeaderFrom, mountAuthRoutes } from "../auth/routes.ts";
 import { PASSWORD, TEST_SECRET } from "../auth/test-helpers.ts";
 import { MEMORY_DB_PATH, openDatabase, runMigrations } from "../db/index.ts";
-import { agents, floorMembers, floorRepos, floors, userProfiles } from "../db/schema/index.ts";
+import {
+  agents,
+  operationMembers,
+  operationRepos,
+  operations,
+  userProfiles,
+} from "../db/schema/index.ts";
 import { createOfficeServer } from "../http/server.ts";
 import { WsRouter } from "../http/ws-router.ts";
 import { createLogger } from "../logging.ts";
 import type { AgentRef, PortInfo, ProcessInfo, Runner, SandboxInfo } from "../runners/types.ts";
 import { createServices } from "./index.ts";
 
-/** A runner double: listeners, processes, terminal text and sandboxes per robot. */
+/** A runner double: listeners, processes, terminal text and sandboxes per henchman. */
 export class FakeRunner {
   readonly backend: "linux-user" | "docker";
   ports = new Map<string, PortInfo[]>();
@@ -85,7 +91,7 @@ export async function startServicesOffice(options: ServicesOfficeOptions) {
   const published = new Map<string, unknown[]>();
   const services = createServices({
     db,
-    floors: { publishServices: (floorId, list) => published.set(floorId, [...list]) },
+    operations: { publishServices: (operationId, list) => published.set(operationId, [...list]) },
     sessions,
     // Production policy: only the office's own origin.
     originPolicy: { publicUrl: origin },
@@ -114,14 +120,14 @@ export async function startServicesOffice(options: ServicesOfficeOptions) {
     return { id: body.user.id, cookie: cookieHeaderFrom(res.headers) };
   };
 
-  const addFloor = (id: string, members: Record<string, "manage" | "spawn" | "view"> = {}) => {
-    db.insert(floors)
+  const addOperation = (id: string, members: Record<string, "manage" | "spawn" | "view"> = {}) => {
+    db.insert(operations)
       .values({ id, name: id, slug: id, index: seq + 1, paletteId: "p", layoutTemplateId: "t" })
       .run();
-    db.insert(floorRepos)
+    db.insert(operationRepos)
       .values({
         id: `${id}-repo`,
-        floorId: id,
+        operationId: id,
         owner: "o",
         name: id,
         url: "https://example.invalid",
@@ -129,16 +135,16 @@ export async function startServicesOffice(options: ServicesOfficeOptions) {
       })
       .run();
     for (const [userId, access] of Object.entries(members)) {
-      db.insert(floorMembers).values({ floorId: id, userId, access }).run();
+      db.insert(operationMembers).values({ operationId: id, userId, access }).run();
     }
   };
 
-  const addAgent = (id: string, floorId: string, ownerUserId: string, status = "working") => {
+  const addAgent = (id: string, operationId: string, ownerUserId: string, status = "working") => {
     db.insert(agents)
       .values({
         id,
-        floorId,
-        repoId: `${floorId}-repo`,
+        operationId,
+        repoId: `${operationId}-repo`,
         deskSeatId: `s-${id}`,
         ownerUserId,
         provider: "custom",
@@ -160,7 +166,7 @@ export async function startServicesOffice(options: ServicesOfficeOptions) {
     scanner,
     published,
     signUp,
-    addFloor,
+    addOperation,
     addAgent,
     async stop() {
       await scanner.stop();

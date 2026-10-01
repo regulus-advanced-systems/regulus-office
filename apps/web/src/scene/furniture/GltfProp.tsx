@@ -3,7 +3,7 @@
  * to the palette, then scaled so its footprint covers `rect` (placement.ts).
  */
 import { useGLTF } from "@react-three/drei";
-import type { Palette, Rect } from "@regulus/floor-layout";
+import type { Palette, Rect } from "@regulus/room-layout";
 import { useMemo } from "react";
 import { Box3 } from "three";
 import { restyleColor, toonifyObject } from "../materials/toon.ts";

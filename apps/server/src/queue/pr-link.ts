@@ -1,9 +1,9 @@
 /**
- * Linking a task to the pull request its robot opens (#37). A PR belongs to
- * a task when its head branch is the robot's worktree branch in the same
- * floor repo. It shows up three ways:
+ * Linking a task to the pull request its henchman opens (#37). A PR belongs to
+ * a task when its head branch is the henchman's worktree branch in the same
+ * operation repo. It shows up three ways:
  *
- * - the robot's owner opens it through the office (`agent.pr`), which the
+ * - the henchman's owner opens it through the office (`agent.pr`), which the
  *   AgentManager reports to its observer;
  * - a `pull_request` event on the GitHub event bus (#35: webhook or poll);
  * - the board cache (`github_pulls`), for a PR that appeared while the
@@ -14,7 +14,7 @@ import type { Db } from "../db/index.ts";
 import { agents, githubPulls } from "../db/schema/index.ts";
 import type { GitHubEvent } from "../github/events.ts";
 
-/** Robots working on `headRef` in one of these floor repos. */
+/** Henchmen working on `headRef` in one of these operation repos. */
 export function agentsOnBranch(db: Db, repoIds: readonly string[], headRef: string): string[] {
   if (repoIds.length === 0 || !headRef) return [];
   return db
@@ -25,7 +25,7 @@ export function agentsOnBranch(db: Db, repoIds: readonly string[], headRef: stri
     .map((r) => r.id);
 }
 
-/** The newest cached PR from a robot's branch, or null. */
+/** The newest cached PR from a henchman's branch, or null. */
 export function cachedPrFor(db: Db, agentId: string): number | null {
   const agent = db
     .select({ repoId: agents.repoId, branch: agents.worktreeBranch })

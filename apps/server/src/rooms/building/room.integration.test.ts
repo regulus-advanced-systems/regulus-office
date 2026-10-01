@@ -2,7 +2,7 @@
  * End-to-end: boots the office server on port 0 with the Colyseus transport,
  * joins with real `@colyseus/sdk` clients through the dev auth header and
  * checks presence, move relay + rate limit, chat persistence/replay,
- * floors, emotes and the origin check.
+ * operations, emotes and the origin check.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -16,7 +16,7 @@ import {
   type CommandRejected,
   DEFAULT_GENIUS_LOOK,
   type GeniusLookValue,
-  LOBBY_FLOOR_ID,
+  LOBBY_OPERATION_ID,
   ROOM_NAMES,
 } from "@regulus/protocol";
 import { closeDatabase, type Db, openDatabase, runMigrations, schema } from "../../db/index.ts";
@@ -35,7 +35,7 @@ let dataDir: string;
 let db: Db;
 let rooms: Rooms;
 let server: OfficeServer;
-let floorId: string;
+let operationId: string;
 const opened: BuildingRoom[] = [];
 
 const user = (userId: string, displayName: string, role = "member") =>
@@ -77,8 +77,8 @@ beforeAll(async () => {
   dataDir = await mkdtemp(join(tmpdir(), "office-rooms-"));
   db = openDatabase({ path: join(dataDir, "office.db") });
   runMigrations(db);
-  const [floor] = await db
-    .insert(schema.floors)
+  const [operation] = await db
+    .insert(schema.operations)
     .values({
       name: "Regulus",
       slug: "regulus",
@@ -87,8 +87,8 @@ beforeAll(async () => {
       layoutTemplateId: "l2",
     })
     .returning();
-  if (!floor) throw new Error("seed failed");
-  floorId = floor.id;
+  if (!operation) throw new Error("seed failed");
+  operationId = operation.id;
   // Seed more history than the replay window to prove the window is enforced.
   const store = new DrizzleChatStore(db);
   for (let n = 1; n <= CHAT_REPLAY + 10; n++) {
@@ -96,7 +96,7 @@ beforeAll(async () => {
       id: `seed-${String(n).padStart(3, "0")}`,
       userId: "seed",
       displayName: "Seed",
-      floorId: LOBBY_FLOOR_ID,
+      operationId: LOBBY_OPERATION_ID,
       text: `seed ${n}`,
       ts: 1_700_000_000_000 + n,
     };
@@ -143,10 +143,10 @@ describe("BuildingRoom over the wire", () => {
       userId: "u-ada",
       displayName: "Ada",
       role: "owner",
-      floorId: LOBBY_FLOOR_ID,
+      operationId: LOBBY_OPERATION_ID,
       animation: "idle",
     });
-    expect(bob.state.floors.get(LOBBY_FLOOR_ID)?.humansPresent).toBe(2);
+    expect(bob.state.operations.get(LOBBY_OPERATION_ID)?.humansPresent).toBe(2);
 
     ada.send("move", { x: 3.5, z: -1.25, heading: 0.5 });
     await waitFor(
@@ -192,7 +192,7 @@ describe("BuildingRoom over the wire", () => {
     expect(bob.state.chat.at(-1)).toMatchObject({
       userId: "u-ada3",
       displayName: "Ada",
-      floorId: LOBBY_FLOOR_ID,
+      operationId: LOBBY_OPERATION_ID,
     });
     expect(bob.state.chat.length).toBe(CHAT_REPLAY);
 
@@ -210,27 +210,30 @@ describe("BuildingRoom over the wire", () => {
     expect((await empty).type).toBe("chat");
   });
 
-  test("floors list the lobby and database floors; floor.go moves presence", async () => {
-    // Admins may enter every floor; members need floor_members access (#30).
+  test("operations list the lobby and database operations; operation.go moves presence", async () => {
+    // Admins may enter every operation; members need operation_members access (#30).
     const ada = await joinAs(user("u-ada4", "Ada", "admin"));
-    await waitFor(() => ada.state.floors.size === 2, "floors synced");
-    expect(ada.state.floors.get(floorId)).toMatchObject({
+    await waitFor(() => ada.state.operations.size === 2, "operations synced");
+    expect(ada.state.operations.get(operationId)).toMatchObject({
       name: "Regulus",
       slug: "regulus",
       index: 1,
-      robotsWorking: 0,
-      robotsTotal: 0,
+      henchmenWorking: 0,
+      henchmenTotal: 0,
       humansPresent: 0,
       deskCount: 1,
       decorStyle: "ops_room",
     });
 
-    ada.send("floor.go", { floorId, mode: "teleport" });
-    await waitFor(() => ada.state.humans.get(ada.sessionId)?.floorId === floorId, "moved floors");
-    expect(ada.state.floors.get(floorId)?.humansPresent).toBe(1);
+    ada.send("operation.go", { operationId, mode: "teleport" });
+    await waitFor(
+      () => ada.state.humans.get(ada.sessionId)?.operationId === operationId,
+      "moved operations",
+    );
+    expect(ada.state.operations.get(operationId)?.humansPresent).toBe(1);
 
     const rejected = nextRejection(ada);
-    ada.send("floor.go", { floorId: "nope" });
+    ada.send("operation.go", { operationId: "nope" });
     expect((await rejected).reason).toBe("unknown operation nope");
   });
 
@@ -313,9 +316,9 @@ describe("BuildingRoom over the wire", () => {
     const ada = await joinAs(user("u-ada7", "Ada"));
     const bob = await joinAs(user("u-bob7", "Bob"));
     await waitFor(() => bob.state.humans.has(ada.sessionId), "Ada visible");
-    const before = bob.state.floors.get(LOBBY_FLOOR_ID)?.humansPresent ?? 0;
+    const before = bob.state.operations.get(LOBBY_OPERATION_ID)?.humansPresent ?? 0;
     await ada.leave();
     await waitFor(() => !bob.state.humans.has(ada.sessionId), "Ada gone");
-    expect(bob.state.floors.get(LOBBY_FLOOR_ID)?.humansPresent).toBe(before - 1);
+    expect(bob.state.operations.get(LOBBY_OPERATION_ID)?.humansPresent).toBe(before - 1);
   });
 });

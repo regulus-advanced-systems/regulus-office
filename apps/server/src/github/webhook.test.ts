@@ -1,6 +1,6 @@
 /**
  * The webhook endpoint end to end against the fake GitHub fixture (#35):
- * refusal before parsing, dedupe, each event type → cache → FloorRoom board
+ * refusal before parsing, dedupe, each event type → cache → OperationRoom board
  * summary → event bus, loop protection and replay flags.
  */
 import { afterEach, describe, expect, test } from "bun:test";
@@ -37,7 +37,7 @@ function deliver(
   return f.sync.webhookHandler({ request, url: new URL(HOOK_URL), params: {} });
 }
 
-const board = (floorId: string) => f.published.get(floorId) ?? { issues: [], pulls: [] };
+const board = (operationId: string) => f.published.get(operationId) ?? { issues: [], pulls: [] };
 const recent = (ms = 0) => new Date(Date.now() - 60_000 + ms).toISOString();
 
 describe("refusals (before any JSON is parsed)", () => {
@@ -81,7 +81,7 @@ describe("refusals (before any JSON is parsed)", () => {
 });
 
 describe("issues", () => {
-  test("opened → cache → both floors' boards → bus; a duplicate delivery is dropped", async () => {
+  test("opened → cache → both operations' boards → bus; a duplicate delivery is dropped", async () => {
     f = syncFixture();
     const id = randomUUID();
     const payload = {
@@ -92,7 +92,7 @@ describe("issues", () => {
       installation: { id: 3 },
     };
     expect((await deliver("issues", payload, { id })).status).toBe(202);
-    const card = board(f.alpha.floorId).issues[0];
+    const card = board(f.alpha.operationId).issues[0];
     expect(card).toMatchObject({
       repoId: f.alpha.repoIds[0],
       number: 7,
@@ -103,7 +103,7 @@ describe("issues", () => {
       author: "olga",
       url: "https://github.com/octo/hello/issues/7",
     });
-    expect(board(f.beta.floorId).issues[0]?.repoId).toBe(f.beta.repoIds[0]);
+    expect(board(f.beta.operationId).issues[0]?.repoId).toBe(f.beta.repoIds[0]);
     expect(f.events).toHaveLength(1);
     expect(f.events[0]).toMatchObject({
       name: "issues",
@@ -111,7 +111,7 @@ describe("issues", () => {
       deliveryId: id,
       source: "webhook",
       repo: { owner: "octo", name: "hello", fullName: "octo/hello" },
-      floorIds: [f.alpha.floorId, f.beta.floorId],
+      operationIds: [f.alpha.operationId, f.beta.operationId],
       installationId: 3,
       sender: { login: "olga", type: "User" },
       fromOfficeApp: false,
@@ -137,7 +137,7 @@ describe("issues", () => {
       issue: fakeIssue(7, { title: "Old", updated_at: old }),
       repository,
     });
-    expect(board(f.alpha.floorId).issues[0]?.title).toBe("New");
+    expect(board(f.alpha.operationId).issues[0]?.title).toBe("New");
     expect(f.events.map((e) => e.stale)).toEqual([false, true]);
   });
 
@@ -148,16 +148,16 @@ describe("issues", () => {
       issue: fakeIssue(8, { state: "closed", updated_at: recent() }),
       repository,
     });
-    expect(board(f.alpha.floorId).issues[0]?.state).toBe("closed");
+    expect(board(f.alpha.operationId).issues[0]?.state).toBe("closed");
     await deliver("issues", {
       action: "deleted",
       issue: fakeIssue(8, { updated_at: recent(1) }),
       repository,
     });
-    expect(board(f.alpha.floorId).issues).toHaveLength(0);
+    expect(board(f.alpha.operationId).issues).toHaveLength(0);
   });
 
-  test("a repo no floor follows updates nothing but still reaches the bus", async () => {
+  test("a repo no operation follows updates nothing but still reaches the bus", async () => {
     f = syncFixture();
     const other = { name: "x", full_name: "someone/x", owner: { login: "someone" } };
     expect(
@@ -178,7 +178,7 @@ describe("pull requests, reviews and checks", () => {
       pull_request: pr({ requested_reviewers: [{ login: "ada" }] }),
       repository,
     });
-    let card = board(f.alpha.floorId).pulls[0];
+    let card = board(f.alpha.operationId).pulls[0];
     expect(card).toMatchObject({
       number: 5,
       headBranch: "office/fix-5",
@@ -202,7 +202,7 @@ describe("pull requests, reviews and checks", () => {
       check_suite: suite(1, { status: "queued", latest_check_runs_count: 0 }),
       repository,
     });
-    expect(board(f.alpha.floorId).pulls[0]?.checksState).toBe("none");
+    expect(board(f.alpha.operationId).pulls[0]?.checksState).toBe("none");
     await deliver("check_run", {
       action: "created",
       check_run: {
@@ -212,7 +212,7 @@ describe("pull requests, reviews and checks", () => {
       },
       repository,
     });
-    expect(board(f.alpha.floorId).pulls[0]?.checksState).toBe("pending");
+    expect(board(f.alpha.operationId).pulls[0]?.checksState).toBe("pending");
     await deliver("check_suite", {
       action: "completed",
       check_suite: suite(1, { status: "completed", conclusion: "success" }),
@@ -223,13 +223,13 @@ describe("pull requests, reviews and checks", () => {
       check_suite: suite(2, { status: "completed", conclusion: "failure" }),
       repository,
     });
-    expect(board(f.alpha.floorId).pulls[0]?.checksState).toBe("failure");
+    expect(board(f.alpha.operationId).pulls[0]?.checksState).toBe("failure");
     await deliver("check_suite", {
       action: "rerequested",
       check_suite: suite(2, { status: "in_progress" }),
       repository,
     });
-    expect(board(f.alpha.floorId).pulls[0]?.checksState).toBe("pending");
+    expect(board(f.alpha.operationId).pulls[0]?.checksState).toBe("pending");
 
     const review = (state: string, login = "ada") => ({
       action: "submitted",
@@ -238,16 +238,16 @@ describe("pull requests, reviews and checks", () => {
       repository,
     });
     await deliver("pull_request_review", review("commented"));
-    expect(board(f.alpha.floorId).pulls[0]?.reviewState).toBe("review_required");
+    expect(board(f.alpha.operationId).pulls[0]?.reviewState).toBe("review_required");
     await deliver("pull_request_review", review("approved"));
-    expect(board(f.alpha.floorId).pulls[0]?.reviewState).toBe("approved");
+    expect(board(f.alpha.operationId).pulls[0]?.reviewState).toBe("approved");
     await deliver("pull_request_review", review("changes_requested", "bob"));
-    expect(board(f.alpha.floorId).pulls[0]?.reviewState).toBe("changes_requested");
+    expect(board(f.alpha.operationId).pulls[0]?.reviewState).toBe("changes_requested");
     await deliver("pull_request_review", {
       ...review("changes_requested", "bob"),
       action: "dismissed",
     });
-    expect(board(f.alpha.floorId).pulls[0]?.reviewState).toBe("approved");
+    expect(board(f.alpha.operationId).pulls[0]?.reviewState).toBe("approved");
 
     // New commits: the old head's checks no longer apply.
     await deliver("pull_request", {
@@ -258,7 +258,7 @@ describe("pull requests, reviews and checks", () => {
       }),
       repository,
     });
-    expect(board(f.alpha.floorId).pulls[0]?.checksState).toBe("none");
+    expect(board(f.alpha.operationId).pulls[0]?.checksState).toBe("none");
     await deliver("pull_request", {
       action: "closed",
       pull_request: pr({
@@ -270,7 +270,7 @@ describe("pull requests, reviews and checks", () => {
       }),
       repository,
     });
-    card = board(f.alpha.floorId).pulls[0];
+    card = board(f.alpha.operationId).pulls[0];
     expect(card).toMatchObject({ state: "closed", merged: true, reviewState: "approved" });
     expect(f.events.map((e) => `${e.name}.${e.action}`)).toContain("pull_request.closed");
   });

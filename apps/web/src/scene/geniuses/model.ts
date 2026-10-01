@@ -44,7 +44,7 @@ export function geniusGeometry(
 }
 
 export interface GeniusInstance {
-  /** Turned by MODEL_YAW so callers set `rotation.y = heading` (face-first, like robots). */
+  /** Turned by MODEL_YAW so callers set `rotation.y = heading` (face-first, like henchmen). */
   root: Group;
   mesh: SkinnedMesh;
   bones: Bone[];

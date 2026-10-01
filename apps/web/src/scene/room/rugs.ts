@@ -6,7 +6,7 @@
  * flush floor-material zones (wood under a kitchen, a lighter tone under a
  * lounge): one plane just above the floor, under the rugs.
  */
-import type { Palette, Rug, RugTone } from "@regulus/floor-layout";
+import type { Palette, Rug, RugTone } from "@regulus/room-layout";
 
 /** Heights above the floor: patch, rug border, rug field; all under the blob shadows. */
 export const PATCH_Y = 0.001;

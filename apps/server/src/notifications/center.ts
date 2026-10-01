@@ -3,24 +3,24 @@
  * (status changes, PRs opened) and the GitHub event bus (PRs merged, #35), it:
  *
  * - keeps each human's tab badge current: `notify.attention` lists their own
- *   robots waiting for them, pushed to that human's clients only;
- * - lets status events settle (5 s by default) so a robot that asks and
+ *   henchmen waiting for them, pushed to that human's clients only;
+ * - lets status events settle (5 s by default) so a henchman that asks and
  *   carries on, or flaps between states, notifies nobody;
- * - dedupes (one event per robot per cooldown) and caps team messages per
- *   robot, on top of the per-channel rate limit in delivery.ts;
- * - sends `notify.event` to the robot's owner when their preferences allow,
- *   and a robot's errors to owners/admins who opted in;
+ * - dedupes (one event per henchman per cooldown) and caps team messages per
+ *   henchman, on top of the per-channel rate limit in delivery.ts;
+ * - sends `notify.event` to the henchman's owner when their preferences allow,
+ *   and a henchman's errors to owners/admins who opted in;
  * - routes events to the enabled webhook channels that take that event on
- *   that floor.
+ *   that operation.
  */
 import {
+  henchmanDisplayName,
   NOTIFY_ATTENTION_MESSAGE,
   NOTIFY_EVENT_MESSAGE,
   type NotificationEvent,
   type NotificationTestResult,
   type NotifyAttention,
   type NotifyEvent,
-  robotDisplayName,
 } from "@regulus/protocol";
 import type { Logger } from "../logging.ts";
 import type { ChannelStore } from "./channels.ts";
@@ -30,8 +30,8 @@ import {
   ATTENTION_STATUSES,
   eventForStatus,
   eventStillHolds,
-  type RobotNotice,
-  type RobotSnapshot,
+  type HenchmanNotice,
+  type HenchmanSnapshot,
 } from "./events.ts";
 import { testNotice, webhookBody } from "./format.ts";
 
@@ -51,9 +51,9 @@ export interface NotificationCenterOptions {
   now?: () => number;
   schedule?: Schedule;
   settleMs?: number;
-  /** One event of a kind per robot per this long. */
+  /** One event of a kind per henchman per this long. */
   cooldownMs?: number;
-  /** Team messages per robot per `teamWindowMs`. */
+  /** Team messages per henchman per `teamWindowMs`. */
   teamBurst?: number;
   teamWindowMs?: number;
 }
@@ -64,10 +64,10 @@ const defaultSchedule: Schedule = (fn, ms) => {
   return () => clearTimeout(timer);
 };
 
-function snapshotOf(view: RobotSnapshot): RobotSnapshot {
+function snapshotOf(view: HenchmanSnapshot): HenchmanSnapshot {
   const {
     agentId,
-    floorId,
+    operationId,
     repoId,
     ownerUserId,
     ownerName,
@@ -78,7 +78,7 @@ function snapshotOf(view: RobotSnapshot): RobotSnapshot {
   } = view;
   return {
     agentId,
-    floorId,
+    operationId,
     repoId,
     ownerUserId,
     ownerName,
@@ -92,7 +92,7 @@ function snapshotOf(view: RobotSnapshot): RobotSnapshot {
 export class NotificationCenter {
   personal: PersonalSink | undefined;
   readonly #o: Required<Omit<NotificationCenterOptions, "personal">>;
-  readonly #status = new Map<string, RobotSnapshot["status"]>();
+  readonly #status = new Map<string, HenchmanSnapshot["status"]>();
   readonly #settling = new Map<string, () => void>();
   readonly #lastSent = new Map<string, number>();
   readonly #team = new Map<string, number[]>();
@@ -113,37 +113,37 @@ export class NotificationCenter {
 
   // ---- Sources ---------------------------------------------------------------
 
-  /** AgentManager: a robot's status changed. */
-  statusChanged(view: RobotSnapshot, previous: RobotSnapshot["status"]): void {
-    const robot = snapshotOf(view);
-    this.#status.set(robot.agentId, robot.status);
-    if (ATTENTION_STATUSES.includes(robot.status) || ATTENTION_STATUSES.includes(previous)) {
-      this.pushAttention(robot.ownerUserId);
+  /** AgentManager: a henchman's status changed. */
+  statusChanged(view: HenchmanSnapshot, previous: HenchmanSnapshot["status"]): void {
+    const henchman = snapshotOf(view);
+    this.#status.set(henchman.agentId, henchman.status);
+    if (ATTENTION_STATUSES.includes(henchman.status) || ATTENTION_STATUSES.includes(previous)) {
+      this.pushAttention(henchman.ownerUserId);
     }
-    this.#settling.get(robot.agentId)?.();
-    this.#settling.delete(robot.agentId);
-    const event = eventForStatus(robot.status);
+    this.#settling.get(henchman.agentId)?.();
+    this.#settling.delete(henchman.agentId);
+    const event = eventForStatus(henchman.status);
     if (!event) return;
     const cancel = this.#o.schedule(() => {
-      this.#settling.delete(robot.agentId);
-      if (eventStillHolds(event, this.#status.get(robot.agentId))) this.#emit(robot, event);
+      this.#settling.delete(henchman.agentId);
+      if (eventStillHolds(event, this.#status.get(henchman.agentId))) this.#emit(henchman, event);
     }, this.#o.settleMs);
-    this.#settling.set(robot.agentId, cancel);
+    this.#settling.set(henchman.agentId, cancel);
   }
 
-  /** AgentManager: the robot's owner opened a PR through the office. */
-  pullRequestOpened(view: RobotSnapshot, pr: { number: number; url: string; created: boolean }) {
+  /** AgentManager: the henchman's owner opened a PR through the office. */
+  pullRequestOpened(view: HenchmanSnapshot, pr: { number: number; url: string; created: boolean }) {
     if (!pr.created) return;
     this.#emit({ ...snapshotOf(view), prNumber: pr.number }, "pr_opened", pr.url);
   }
 
-  /** GitHub event bus (webhooks or polling, #35; pr-merged.ts): a robot's PR was merged. */
-  pullRequestMerged(robot: RobotSnapshot, prUrl?: string): void {
-    this.#emit(snapshotOf(robot), "pr_merged", prUrl);
+  /** GitHub event bus (webhooks or polling, #35; pr-merged.ts): a henchman's PR was merged. */
+  pullRequestMerged(henchman: HenchmanSnapshot, prUrl?: string): void {
+    this.#emit(snapshotOf(henchman), "pr_merged", prUrl);
   }
 
-  /** The robot left (sent home): forget it. */
-  robotRemoved(agentId: string): void {
+  /** The henchman left (sent home): forget it. */
+  henchmanRemoved(agentId: string): void {
     this.#settling.get(agentId)?.();
     this.#settling.delete(agentId);
     this.#status.delete(agentId);
@@ -161,13 +161,13 @@ export class NotificationCenter {
 
   // ---- Delivery ------------------------------------------------------------
 
-  #emit(robot: RobotSnapshot, event: NotificationEvent, prUrl?: string): void {
+  #emit(henchman: HenchmanSnapshot, event: NotificationEvent, prUrl?: string): void {
     const now = this.#o.now();
-    const key = `${robot.agentId}:${event}:${event.startsWith("pr_") ? robot.prNumber : ""}`;
+    const key = `${henchman.agentId}:${event}:${event.startsWith("pr_") ? henchman.prNumber : ""}`;
     const last = this.#lastSent.get(key);
     if (last !== undefined && now - last < this.#o.cooldownMs) return;
     this.#lastSent.set(key, now);
-    const notice = this.#notice(robot, event, prUrl);
+    const notice = this.#notice(henchman, event, prUrl);
     try {
       this.#personal(notice);
     } catch (err) {
@@ -176,27 +176,29 @@ export class NotificationCenter {
     this.#teamDeliver(notice);
   }
 
-  #notice(robot: RobotSnapshot, event: NotificationEvent, prUrl?: string): RobotNotice {
+  #notice(henchman: HenchmanSnapshot, event: NotificationEvent, prUrl?: string): HenchmanNotice {
     const { directory } = this.#o;
     this.#seq += 1;
     return {
       id: `${this.#o.now()}-${this.#seq}`,
       event,
-      agentId: robot.agentId,
-      floorId: robot.floorId,
-      floorName: directory.floorName(robot.floorId),
-      ownerUserId: robot.ownerUserId,
-      ownerName: robot.ownerName,
-      robotName: robotDisplayName(robot.ownerName, robot.provider),
-      provider: robot.provider,
-      taskTitle: robot.taskTitle.slice(0, 200),
-      prNumber: robot.prNumber,
-      prUrl: prUrl?.startsWith("https://") ? prUrl : directory.prUrl(robot.repoId, robot.prNumber),
+      agentId: henchman.agentId,
+      operationId: henchman.operationId,
+      operationName: directory.operationName(henchman.operationId),
+      ownerUserId: henchman.ownerUserId,
+      ownerName: henchman.ownerName,
+      henchmanName: henchmanDisplayName(henchman.ownerName, henchman.provider),
+      provider: henchman.provider,
+      taskTitle: henchman.taskTitle.slice(0, 200),
+      prNumber: henchman.prNumber,
+      prUrl: prUrl?.startsWith("https://")
+        ? prUrl
+        : directory.prUrl(henchman.repoId, henchman.prNumber),
       ts: this.#o.now(),
     };
   }
 
-  #personal(n: RobotNotice): void {
+  #personal(n: HenchmanNotice): void {
     const sink = this.personal;
     if (!sink) return;
     const { directory } = this.#o;
@@ -204,9 +206,9 @@ export class NotificationCenter {
       id: n.id,
       event: n.event,
       agentId: n.agentId,
-      floorId: n.floorId,
-      floorName: n.floorName.slice(0, 100),
-      robotName: n.robotName.slice(0, 120),
+      operationId: n.operationId,
+      operationName: n.operationName.slice(0, 100),
+      henchmanName: n.henchmanName.slice(0, 120),
       ownerName: n.ownerName.slice(0, 64),
       provider: n.provider,
       taskTitle: n.taskTitle,
@@ -225,11 +227,11 @@ export class NotificationCenter {
     }
   }
 
-  #teamDeliver(n: RobotNotice): void {
+  #teamDeliver(n: HenchmanNotice): void {
     const channels = this.#o.channels
       .routable()
       .filter((c) => c.events.includes(n.event))
-      .filter((c) => c.floorIds === null || c.floorIds.includes(n.floorId));
+      .filter((c) => c.operationIds === null || c.operationIds.includes(n.operationId));
     if (channels.length === 0) return;
     const now = this.#o.now();
     const recent = (this.#team.get(n.agentId) ?? []).filter((t) => now - t < this.#o.teamWindowMs);

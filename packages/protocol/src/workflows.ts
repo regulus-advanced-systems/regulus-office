@@ -1,22 +1,22 @@
 /**
- * GitHub workflows (#155): "when X happens on GitHub, run a robot and post
- * what it finds as the office's GitHub App". A workflow belongs to one floor
- * and has a trigger, filters, a robot (provider, model, prompt template),
+ * GitHub workflows (#155): "when X happens on GitHub, run a henchman and post
+ * what it finds as the office's GitHub App". A workflow belongs to one operation
+ * and has a trigger, filters, a henchman (provider, model, prompt template),
  * actions and limits. This file holds the definition; workflows-api.ts the
  * REST shapes (runs, events, dry runs).
  *
  * Owner decisions (#155, 2026-09-30):
- * - Workflow robots run only on the office's own pay-per-use API keys
+ * - Workflow henchmen run only on the office's own pay-per-use API keys
  *   (`office:<provider>` credential profiles, D2); usage is attributed to
  *   `office`. Personal subscriptions are never used.
  * - Every action exists, and every action is off until someone turns it on
  *   for that workflow. Approve stays off unless an office owner/admin turns
- *   it on (a floor manager cannot), and `fix` is not available yet.
+ *   it on (an operation manager cannot), and `fix` is not available yet.
  */
 import { z } from "zod";
 import { Id } from "./common.ts";
 
-/** Providers a workflow robot can run on: the ones with a headless, read-only mode. */
+/** Providers a workflow henchman can run on: the ones with a headless, read-only mode. */
 export const WORKFLOW_PROVIDERS = ["claude-code", "codex"] as const;
 export type WorkflowProvider = (typeof WORKFLOW_PROVIDERS)[number];
 
@@ -97,7 +97,7 @@ const IncludeExclude = z
   .default({ include: [], exclude: [] });
 
 export const WorkflowFilters = z.object({
-  /** Floor repo ids; empty = every repo of the floor. */
+  /** Operation repo ids; empty = every repo of the operation. */
   repoIds: z.array(Id).max(20).default([]),
   /** PR base branch (or pushed branch) patterns; empty = any. */
   baseBranches: Patterns,
@@ -117,7 +117,7 @@ export const WorkflowActions = z.object({
   review: z
     .object({
       enabled: z.boolean().default(false),
-      /** May the robot's review be "Request changes" (else it is always a comment review). */
+      /** May the henchman's review be "Request changes" (else it is always a comment review). */
       allowRequestChanges: z.boolean().default(false),
       inlineComments: z.boolean().default(true),
       maxInlineComments: z.number().int().min(0).max(50).default(20),
@@ -128,21 +128,21 @@ export const WorkflowActions = z.object({
       inlineComments: true,
       maxInlineComments: 20,
     }),
-  /** Post the robot's summary as a comment (PR/issue, or the commit for pushes). */
+  /** Post the henchman's summary as a comment (PR/issue, or the commit for pushes). */
   comment: z.object({ enabled: z.boolean().default(false) }).default({ enabled: false }),
-  /** Add labels the robot suggests, only from `allowed`. */
+  /** Add labels the henchman suggests, only from `allowed`. */
   label: z
     .object({ enabled: z.boolean().default(false), allowed: z.array(WorkflowPattern).max(30) })
     .default({ enabled: false, allowed: [] }),
   /**
    * Let a review approve. Off by default; only an office owner/admin may turn
-   * it on, and without it an approving robot posts a comment review, so the
+   * it on, and without it an approving henchman posts a comment review, so the
    * App never counts toward branch protection unless an admin allowed it.
    */
   approve: z.object({ enabled: z.boolean().default(false) }).default({ enabled: false }),
-  /** A neutral check run on the head commit with the robot's summary (never blocks merging). */
+  /** A neutral check run on the head commit with the henchman's summary (never blocks merging). */
   checkRun: z.object({ enabled: z.boolean().default(false) }).default({ enabled: false }),
-  /** A coding robot that pushes to the PR branch. Not available yet (follow-up to #155). */
+  /** A coding henchman that pushes to the PR branch. Not available yet (follow-up to #155). */
   fix: z.object({ enabled: z.boolean().default(false) }).default({ enabled: false }),
 });
 export type WorkflowActions = z.infer<typeof WorkflowActions>;
@@ -175,7 +175,7 @@ export const DEFAULT_WORKFLOW_PROMPT = [
   "Point out bugs, security problems and missing tests. Be brief; skip style nits.",
 ].join("\n");
 
-export const WorkflowRobot = z.object({
+export const WorkflowHenchman = z.object({
   provider: z.enum(WORKFLOW_PROVIDERS),
   model: z
     .string()
@@ -189,14 +189,14 @@ export const WorkflowRobot = z.object({
     .optional(),
   promptTemplate: z.string().trim().min(1).max(WORKFLOW_PROMPT_MAX),
   /**
-   * Let the robot run commands in the checkout (Claude: the Bash tool; Codex:
+   * Let the henchman run commands in the checkout (Claude: the Bash tool; Codex:
    * its shell in the read-only sandbox). Only ever applied to same-repo PRs,
    * never to forks. Off by default.
    */
   executePrCode: z.boolean().default(false),
   timeoutMinutes: z.number().int().min(1).max(60).default(15),
 });
-export type WorkflowRobot = z.infer<typeof WorkflowRobot>;
+export type WorkflowHenchman = z.infer<typeof WorkflowHenchman>;
 
 export const WorkflowLimits = z.object({
   /** Runs of this workflow at the same time; more wait in the queue. */
@@ -218,14 +218,14 @@ export const WorkflowInput = z.object({
   enabled: z.boolean().default(false),
   trigger: WorkflowTrigger,
   filters: WorkflowFilters.default(WorkflowFilters.parse({})),
-  robot: WorkflowRobot,
+  henchman: WorkflowHenchman,
   actions: WorkflowActions.default(WorkflowActions.parse({})),
   limits: WorkflowLimits.default(WorkflowLimits.parse({})),
 });
 export type WorkflowInput = z.input<typeof WorkflowInput>;
 export type WorkflowSpec = z.output<typeof WorkflowInput>;
 
-export const CreateWorkflowRequest = WorkflowInput.extend({ floorId: Id });
+export const CreateWorkflowRequest = WorkflowInput.extend({ operationId: Id });
 export type CreateWorkflowRequest = z.input<typeof CreateWorkflowRequest>;
 
 /** Every action off, the default prompt, Claude: what "New workflow" starts from. */
@@ -233,7 +233,7 @@ export function defaultWorkflowSpec(): WorkflowSpec {
   return WorkflowInput.parse({
     name: "Review new pull requests",
     trigger: { kind: "pull_request", actions: ["opened", "ready_for_review"] },
-    robot: { provider: "claude-code", promptTemplate: DEFAULT_WORKFLOW_PROMPT },
+    henchman: { provider: "claude-code", promptTemplate: DEFAULT_WORKFLOW_PROMPT },
   });
 }
 

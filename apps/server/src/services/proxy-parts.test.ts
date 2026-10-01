@@ -22,7 +22,7 @@ import {
 import { parseServicePath, readCookie } from "./route.ts";
 
 describe("app ACL (D12 spirit)", () => {
-  const app = { ownerUserId: "u1", floorId: "f1" };
+  const app = { ownerUserId: "u1", operationId: "f1" };
   const sees = () => true;
   const blind = () => false;
   test.each([
@@ -35,7 +35,7 @@ describe("app ACL (D12 spirit)", () => {
     expect(decideAppAccess(user, app, sees, isolated)).toEqual({ ok: true, access });
   });
 
-  test("others on the office origin, and anyone without floor access, are refused", () => {
+  test("others on the office origin, and anyone without operation access, are refused", () => {
     expect(decideAppAccess({ id: "u2", role: "member" }, app, sees, false)).toEqual({
       ok: false,
       status: 403,
@@ -84,7 +84,7 @@ describe("app domain", () => {
     expect(parseAppHost(d, "x.evil-apps.office.example")).toBeNull();
   });
 
-  test("tickets: single use, bound to robot and port, expire", () => {
+  test("tickets: single use, bound to henchman and port, expire", () => {
     let now = 1_000;
     const tokens = new AppTokens({ now: () => now });
     const t = tokens.ticket({ userId: "u1", agentId: "a1", port: 3000 });
@@ -192,7 +192,7 @@ describe("forwarding", () => {
 
   test("paths and cookies", () => {
     expect(parseServicePath("/p/f1/a/a1/port/5173/x/y")).toEqual({
-      floorId: "f1",
+      operationId: "f1",
       agentId: "a1",
       port: 5173,
       rest: "/x/y",

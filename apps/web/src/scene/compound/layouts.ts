@@ -3,7 +3,7 @@
  * and settings, cached per setting. Pure (no three.js), so the HUD's quick
  * travel and search jumps can use it without pulling in the scene.
  */
-import { generateRoom, maxDeskCount, type RoomLayout } from "@regulus/floor-layout";
+import { generateRoom, maxDeskCount, type RoomLayout } from "@regulus/room-layout";
 import type { WorldRoom } from "./world.ts";
 
 const layouts = new Map<string, RoomLayout | null>();

@@ -38,7 +38,7 @@ function harness(opts: { focus?: boolean; desktopOk?: boolean } = {}) {
     },
     hasFocus: () => opts.focus ?? false,
     toast: (t) => toasts.push(t),
-    goToRobot: (ev) => visited.push(ev.agentId),
+    goToHenchman: (ev) => visited.push(ev.agentId),
     now: () => new Date(2026, 8, 30, 12, 0),
   });
   const emit = (type: string, payload: unknown) => listeners.get(type)?.(payload);
@@ -49,9 +49,9 @@ const event = (extra: Partial<NotifyEvent> = {}): NotifyEvent => ({
   id: "1",
   event: "needs_input",
   agentId: "a1",
-  floorId: "f1",
-  floorName: "Web app",
-  robotName: "Mia's Codex robot",
+  operationId: "f1",
+  operationName: "Web app",
+  henchmanName: "Mia's Codex henchman",
   ownerName: "Mia",
   provider: "codex",
   taskTitle: "Fix it",
@@ -104,7 +104,7 @@ describe("notification sync", () => {
     expect(fg.shown).toHaveLength(0);
     expect(fg.toasts[0]).toMatchObject({
       kind: "warning",
-      title: "Mia's Codex robot hit an error",
+      title: "Mia's Codex henchman hit an error",
     });
     fg.stop();
   });

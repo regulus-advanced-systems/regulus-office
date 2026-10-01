@@ -40,7 +40,7 @@
 .rg-term__mode--control {
   --rg-lamp: var(--rg-lamp-waiting);
 }
-/* Everyone but the robot's owner watches (#138). */
+/* Everyone but the henchman's owner watches (#138). */
 .rg-term__watch-only {
   color: var(--rg-color-ink-muted);
   font-size: 12px;
@@ -174,7 +174,7 @@
   color: var(--rg-color-ink-muted, #5a5a66);
 }
 
-/* Sign-in link bar above a robot's terminal (#158); the bar itself is the providers panel's. */
+/* Sign-in link bar above a henchman's terminal (#158); the bar itself is the providers panel's. */
 .rg-term__sign-in {
   display: flex;
   align-items: center;

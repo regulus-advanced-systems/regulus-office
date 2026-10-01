@@ -2,7 +2,7 @@
  * Read-only views of one changed file (#38): its diff against the base, and
  * the bytes of an image for the preview. Both only serve files git listed in
  * the current look at the worktree, and read working-tree bytes only after
- * `realpath` in the robot's runner shows the path contains no symlink.
+ * `realpath` in the henchman's runner shows the path contains no symlink.
  */
 import {
   CHANGES_BLOB_MAX_BYTES,
@@ -12,9 +12,9 @@ import {
   isPreviewImagePath,
   sniffImageType,
 } from "@regulus/protocol";
+import { type HenchmanShell, text } from "./henchman-shell.ts";
 import { parseUnifiedDiff } from "./parse.ts";
 import { ChangesHttpError, resolvesInside } from "./paths.ts";
-import { type RobotShell, text } from "./robot-shell.ts";
 import { gitFailure, type WorktreeLook } from "./snapshot.ts";
 
 /** Diffs above this many bytes are not shown line by line. */
@@ -32,7 +32,7 @@ export function entryOf(look: WorktreeLook, path: string): Entry {
 }
 
 /** Refuse unless `path` resolves to itself inside the worktree (no symlinked component). */
-export async function assertNoSymlink(shell: RobotShell, path: string): Promise<void> {
+export async function assertNoSymlink(shell: HenchmanShell, path: string): Promise<void> {
   const res = await shell.run(["realpath", "-e", "-z", "--", ".", path], { maxBytes: 64 * 1024 });
   if (res.code !== 0 || !resolvesInside(text(res.stdout), path)) {
     throw new ChangesHttpError(
@@ -49,7 +49,7 @@ function imageSides(look: WorktreeLook, e: Entry): FileDiff["image"] {
   return { base: inBase, work: e.kind !== "deleted" && !e.symlink };
 }
 
-export async function fileDiff(shell: RobotShell, look: WorktreeLook, path: string) {
+export async function fileDiff(shell: HenchmanShell, look: WorktreeLook, path: string) {
   const e = entryOf(look, path);
   const out: FileDiff = {
     path: e.path,
@@ -62,7 +62,7 @@ export async function fileDiff(shell: RobotShell, look: WorktreeLook, path: stri
     image: imageSides(look, e),
   };
   if (e.binary) return out;
-  let res: Awaited<ReturnType<RobotShell["git"]>>;
+  let res: Awaited<ReturnType<HenchmanShell["git"]>>;
   const flags = ["--no-ext-diff", "--no-textconv", "--no-color", "--no-renames", "-U3"];
   if (e.kind === "untracked") {
     if (e.symlink || !e.regular) return out;
@@ -98,7 +98,7 @@ export interface ImageBlob {
 
 /** One side of an image for the preview: bytes checked to be a raster image. */
 export async function imageBlob(
-  shell: RobotShell,
+  shell: HenchmanShell,
   look: WorktreeLook,
   path: string,
   side: ImageSide,
@@ -109,7 +109,7 @@ export async function imageBlob(
   if (e.symlink) throw new ChangesHttpError(415, "not_image", "symlinks are not previewed");
   if (!sides[side]) throw new ChangesHttpError(404, "not_changed", `no ${side} version`);
   const cap = { maxBytes: CHANGES_BLOB_MAX_BYTES };
-  let res: Awaited<ReturnType<RobotShell["git"]>>;
+  let res: Awaited<ReturnType<HenchmanShell["git"]>>;
   if (side === "base") {
     res = await shell.git(["cat-file", "blob", `${look.baseSha}:${e.path}`], cap);
   } else if (e.uncommitted) {

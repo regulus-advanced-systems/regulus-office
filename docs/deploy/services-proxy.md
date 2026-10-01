@@ -16,7 +16,7 @@ henchman's sandbox every few seconds and proxies them with authentication. Desig
   (`PORT`, `OFFICE_SANDBOX_PORTS`); any port works, though.
 
 ## Path mode (default)
-Apps open at `/p/<floorId>/a/<agentId>/port/<n>/` on the office's own origin.
+Apps open at `/p/<operationId>/a/<agentId>/port/<n>/` on the office's own origin.
 
 - **Only the henchman's owner can open it.** On the office origin the app's
   scripts run with the viewer's office session; letting other people run a
@@ -25,7 +25,7 @@ Apps open at `/p/<floorId>/a/<agentId>/port/<n>/` on the office's own origin.
 - **The prefix is passed through unchanged**, so the app must know it is served
   under it, or its absolute links (`/assets/…`, `/@vite/client`) go to the
   office instead:
-  - Vite: `vite --host --base /p/<floorId>/a/<agentId>/port/$PORT/`
+  - Vite: `vite --host --base /p/<operationId>/a/<agentId>/port/$PORT/`
     (HMR then connects through the proxy as well);
   - Next.js: `basePath`; CRA: `PUBLIC_URL`; others: their base/prefix option.
   - The path is in the panel's Open link, and in `X-Forwarded-Prefix`.

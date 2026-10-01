@@ -1,5 +1,5 @@
 /**
- * The dark terminal box shared by the robot's terminal modal and the login
+ * The dark terminal box shared by the henchman's terminal modal and the login
  * terminal: the xterm element, the connecting / ended overlays, the "Copied"
  * flash, the right-click menu (Copy, Paste) and a one-line help (#156), and
  * the "Copy selection" / "Copy screen" buttons that always work from a click,

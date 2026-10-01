@@ -15,23 +15,23 @@
  * never appears on a command line (sudo, helper, tmux, systemd-run) or in logs.
  * `plan.files` travel the same way (stdin of `write-file`).
  *
- * Sandboxes (D18, #169): with `sandboxes` set, `sandbox()` gives a robot its
+ * Sandboxes (D18, #169): with `sandboxes` set, `sandbox()` gives a henchman its
  * own network namespace on the sandbox bridge (the office reaches its ports at
  * its address), a pid namespace, and limits on its scopes (the helper's
- * `sandbox-up`); `exec`/`spawnPiped` of that robot then run there, and `kill`
+ * `sandbox-up`); `exec`/`spawnPiped` of that henchman then run there, and `kill`
  * removes it.
  */
 import type { PipedProcess, SpawnPlan } from "@regulus/agent-adapters";
 import { tmuxSessionName } from "@regulus/agent-adapters";
 import type { TerminalMode } from "@regulus/protocol";
 import { pasteMode } from "../keys.ts";
-import { FLOOR_SLUG } from "../layout.ts";
+import { OPERATION_SLUG } from "../layout.ts";
 import { pickSlot, portRange, type SandboxSettings, sandboxEnv } from "../sandbox.ts";
 import type {
   AgentRef,
   AttachArgv,
-  FloorRepoRef,
   MountedProject,
+  OperationRepoRef,
   PortInfo,
   ProcessInfo,
   Runner,
@@ -49,8 +49,10 @@ export interface LinuxUserRunnerOptions extends HelperOptions {
   /** Where systemd puts the agent scopes (the helper uses `Slice=system.slice`). */
   cgroupDir?: string;
   procRoot?: string;
-  /** Per-agent sandboxes (#169); without it robots run on their human's tmux server. */
+  /** Per-agent sandboxes (#169); without it henchmen run on their human's tmux server. */
   sandboxes?: SandboxSettings;
+  /** Warns when the installed helper only knows a deprecated verb (see `removeOperationDirs`). */
+  logger?: { warn(obj: Record<string, unknown>, msg: string): void };
 }
 
 interface KnownSandbox extends SandboxInfo {
@@ -84,6 +86,7 @@ export class LinuxUserRunner implements Runner {
   readonly #cgroupDir: string;
   readonly #procRoot: string;
   readonly #settings: SandboxSettings | undefined;
+  readonly #logger: LinuxUserRunnerOptions["logger"];
   /** Sandboxes by agent id; read from the helper once, then kept in step. */
   readonly #sandboxes = new Map<string, KnownSandbox>();
   #loaded: Promise<void> | undefined;
@@ -93,10 +96,11 @@ export class LinuxUserRunner implements Runner {
     this.#cgroupDir = opts.cgroupDir ?? "/sys/fs/cgroup/system.slice";
     this.#procRoot = opts.procRoot ?? "/proc";
     this.#settings = opts.sandboxes;
+    this.#logger = opts.logger;
   }
 
   /**
-   * The robot's sandbox (#169): network namespace, limits, ports. Idempotent;
+   * The henchman's sandbox (#169): network namespace, limits, ports. Idempotent;
    * null when sandboxes are off. The slot (address and ports) is kept while the
    * sandbox exists and preferred again after it was removed (sandbox.ts).
    */
@@ -176,7 +180,7 @@ export class LinuxUserRunner implements Runner {
     return this.#loaded;
   }
 
-  /** `PORT` and the port range for a sandboxed robot's processes (not secret). */
+  /** `PORT` and the port range for a sandboxed henchman's processes (not secret). */
   async #sandboxEnv(user: RunnerUser, agentId: string): Promise<Record<string, string>> {
     if (!this.#settings) return {};
     await this.#load();
@@ -201,14 +205,14 @@ export class LinuxUserRunner implements Runner {
     await this.helper.call("deprovision", [runnerId(user.userId)]);
   }
 
-  async mountProject(user: RunnerUser, repo: FloorRepoRef): Promise<MountedProject> {
+  async mountProject(user: RunnerUser, repo: OperationRepoRef): Promise<MountedProject> {
     await this.helper.call("mount-project", [runnerId(user.userId), checkRunnerPath(repo.workdir)]);
     return { workdir: repo.workdir };
   }
 
   /**
    * Not part of `Runner`: hand a directory shared with runners before #114
-   * (the projects root, or a per-agent worktree directly in a floor dir) back
+   * (the projects root, or a per-agent worktree directly in an operation dir) back
    * to the office alone: owner, no runner ACLs, no "other" access.
    */
   async reclaim(dir: string): Promise<void> {
@@ -216,17 +220,36 @@ export class LinuxUserRunner implements Runner {
   }
 
   /**
-   * Not part of `Runner`: a deleted floor's dirs (#150), `<projects>/<slug>`
+   * Not part of `Runner`: a deleted operation's dirs (#150), `<projects>/<slug>`
    * and `<worktrees>/<slug>` with every human's area in it. Root, because the
    * areas hold files of runner accounts; the helper checks the slug first.
    */
-  async removeFloorDirs(slug: string): Promise<string[]> {
-    if (!FLOOR_SLUG.test(slug)) throw new Error("invalid floor slug");
-    const res = await this.helper.call("remove-floor", [slug]);
+  async removeOperationDirs(slug: string): Promise<string[]> {
+    if (!OPERATION_SLUG.test(slug)) throw new Error("invalid operation slug");
+    const res = await this.#removeOperation(slug);
     return res.stdout
       .split("\n")
       .filter((l) => l.startsWith("removed="))
       .map((l) => l.slice("removed=".length));
+  }
+
+  /**
+   * `remove-operation`, or `remove-floor` (its name before #226) when the
+   * installed helper or sudoers rules predate the rename: the verb is safe to
+   * repeat, and the first error is the one reported when both fail.
+   */
+  async #removeOperation(slug: string) {
+    try {
+      return await this.helper.call("remove-operation", [slug]);
+    } catch (err) {
+      const legacy = await this.helper.call("remove-floor", [slug]).catch(() => null);
+      if (!legacy) throw err;
+      this.#logger?.warn(
+        { verb: "remove-floor" },
+        "office-runner-helper only accepted the deprecated remove-floor verb; reinstall the helper and its sudoers rules (docs/deploy/linux-user-runner.md)",
+      );
+      return legacy;
+    }
   }
 
   async exec(user: RunnerUser, plan: SpawnPlan): Promise<TmuxSessionRef> {
@@ -298,7 +321,7 @@ export class LinuxUserRunner implements Runner {
     return listeningPorts(this.#procRoot, parseSocketInodes(res.stdout));
   }
 
-  /** Also removes the robot's sandbox (network namespace, record). */
+  /** Also removes the henchman's sandbox (network namespace, record). */
   async kill(agent: AgentRef): Promise<void> {
     await this.helper.call("kill", [runnerId(agent.userId), checkAgentId(agent.agentId)]);
     const known = this.#sandboxes.get(agent.agentId);

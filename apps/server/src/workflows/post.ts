@@ -4,11 +4,11 @@
  *
  * - review: `COMMENT`, or `REQUEST_CHANGES` when the workflow allows it;
  *   `APPROVE` only when an office owner/admin turned approve on, else an
- *   approving robot posts a comment review. So the App never counts toward
+ *   approving henchman posts a comment review. So the App never counts toward
  *   branch protection unless an admin allowed it.
  * - fork PRs: a comment review, a comment and a neutral check run at most.
  *   No approve, no request changes, no labels (the PR author wrote the text
- *   the robot read), and no fix or code execution (see executor.ts).
+ *   the henchman read), and no fix or code execution (see executor.ts).
  * - everything carries "via Regulus Office" and a hidden marker, so the
  *   office's own comments never trigger a workflow again.
  *
@@ -20,8 +20,8 @@ import { AUDIT_ACTIONS, writeAudit } from "../auth/audit.ts";
 import type { Db } from "../db/index.ts";
 import { OFFICE_MARKER, type PullFacts } from "./context.ts";
 import type { AppRepoClient } from "./github-app.ts";
+import { type HenchmanReview, type PostableReview, postableReview } from "./henchman-output.ts";
 import { matchesAny } from "./match.ts";
-import { type PostableReview, postableReview, type RobotReview } from "./robot-output.ts";
 
 const CHECK_SUMMARY_MAX = 60_000;
 
@@ -34,7 +34,7 @@ export type ReviewEvent = "COMMENT" | "REQUEST_CHANGES" | "APPROVE";
 
 /** The review event GitHub gets for a verdict under the workflow's rules. */
 export function reviewEvent(
-  verdict: RobotReview["verdict"],
+  verdict: HenchmanReview["verdict"],
   actions: WorkflowSpec["actions"],
   fork: boolean,
 ): ReviewEvent {
@@ -89,7 +89,7 @@ export interface PostResult {
 export async function postResult(
   deps: PostDeps,
   target: PostTarget,
-  review: RobotReview,
+  review: HenchmanReview,
   diff: string | null,
 ): Promise<PostResult> {
   const { client, spec } = deps;

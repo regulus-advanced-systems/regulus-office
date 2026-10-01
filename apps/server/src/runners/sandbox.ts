@@ -1,18 +1,18 @@
 /**
  * Per-agent sandboxes (SPEC §8, D18, #169), shared by both backends: every
- * coding robot runs in its own sandbox inside its human's runner identity,
+ * coding henchman runs in its own sandbox inside its human's runner identity,
  * with its own processes, network namespace, memory/CPU/pids limits and a
- * stable port range. `docker` makes one container per robot
+ * stable port range. `docker` makes one container per henchman
  * (docker/sandboxes.ts); `linux-user` one systemd scope plus network and pid
- * namespaces per robot (the helper's `sandbox-up`).
+ * namespaces per henchman (the helper's `sandbox-up`).
  *
  * Ports: each sandbox gets a slot, and slot `s` owns the ports
  * `base + s*span … base + s*span + span-1`. `PORT` is the first of them, so a
- * dev server that honours `PORT` gets a port no other robot of the office has.
+ * dev server that honours `PORT` gets a port no other henchman of the office has.
  * The sandbox has its own network namespace as well, so two dev servers that
  * both insist on 3000 do not collide either. The slot is picked from a hash
- * of the agent id (then the next free one), so a robot keeps its ports across
- * restarts and resumes unless another robot took them meanwhile.
+ * of the agent id (then the next free one), so a henchman keeps its ports across
+ * restarts and resumes unless another henchman took them meanwhile.
  */
 import { createHash } from "node:crypto";
 
@@ -34,8 +34,8 @@ export interface SandboxSettings {
 /**
  * Defaults for the central office VM (D11: 8 vCPU, 16 GB): an agent CLI needs
  * 0.3–0.8 GB and a dev server 0.2–0.6 GB, so 2 GiB leaves room for a build or
- * a test run; 2 CPUs keep one runaway robot from taking more than a quarter of
- * the machine. Limits are caps, not reservations: idle robots cost nothing.
+ * a test run; 2 CPUs keep one runaway henchman from taking more than a quarter of
+ * the machine. Limits are caps, not reservations: idle henchmen cost nothing.
  */
 export const DEFAULT_SANDBOX_SETTINGS: Readonly<SandboxSettings> = {
   memoryBytes: 2 * 1024 ** 3,

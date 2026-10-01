@@ -3,7 +3,7 @@
  * `application/octet-stream`; the client checks the magic number again and
  * wraps them in a Blob of that raster type, shown through a `blob:` URL
  * that is revoked when the preview goes away. SVG is never previewed (it
- * is diffed as text), so nothing a robot writes can run as a document.
+ * is diffed as text), so nothing a henchman writes can run as a document.
  */
 import type { ImageSide } from "@regulus/protocol";
 import { useEffect, useState } from "react";

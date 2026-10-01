@@ -2,7 +2,7 @@
  * The changes window against a real agent worktree (#31/#114 layout), with
  * every command run through the local runner's `spawnPiped` (the test
  * double of a human's runner): status, diffs, image reads, commit and
- * discard, concurrent-edit conflicts, the robot's index lock and symlinks.
+ * discard, concurrent-edit conflicts, the henchman's index lock and symlinks.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdtemp, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
@@ -12,7 +12,7 @@ import type { SpawnPlan } from "@regulus/agent-adapters";
 import type { ChangedFile, ChangesSnapshot } from "@regulus/protocol";
 import { hasTmux, LocalTmuxRunner } from "../runners/testing/local-tmux-runner.ts";
 import type { RunnerUser } from "../runners/types.ts";
-import { git, setupFloor } from "../worktrees/test-helpers.ts";
+import { git, setupOperation } from "../worktrees/test-helpers.ts";
 import { ChangesHttpError } from "./paths.ts";
 import { type AgentRow, ChangesService } from "./service.ts";
 
@@ -25,7 +25,7 @@ const PNG2 = new Uint8Array([...PNG, 0, 0, 0, 0]);
 let root: string;
 let runner: LocalTmuxRunner;
 let calls: { user: RunnerUser; plan: SpawnPlan }[] = [];
-let f: Awaited<ReturnType<typeof setupFloor>>;
+let f: Awaited<ReturnType<typeof setupOperation>>;
 let service: ChangesService;
 let row: AgentRow;
 let workdir: string;
@@ -75,8 +75,8 @@ const file = (files: ChangedFile[], path: string) => files.find((x) => x.path ==
 beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), "rg38-changes-"));
   runner = await LocalTmuxRunner.create();
-  f = await setupFloor(root);
-  // Upstream has an image before the robot starts.
+  f = await setupOperation(root);
+  // Upstream has an image before the henchman starts.
   const up = await mkdtemp(join(root, "up-"));
   await git(["clone", "--quiet", "--branch", "trunk", f.bare, up]);
   await Bun.write(join(up, "logo.png"), PNG);
@@ -88,7 +88,7 @@ beforeAll(async () => {
   const agentId = f.addAgent("agent-c1");
   const ws = await f.worktrees.workspaces.prepare({
     agentId,
-    floorId: f.floorId,
+    operationId: f.operationId,
     repoId: f.repo.repoId,
     slug: "changes",
     ownerUserId: f.owner.id,
@@ -166,7 +166,7 @@ describe("changes window on a real worktree", () => {
     expect(file(files, "leak.png")).toMatchObject({ kind: "untracked", symlink: true });
     expect(file(files, "staged.txt")).toMatchObject({ kind: "added", uncommitted: true });
 
-    // Every command ran as the robot's owner, for the robot, in its worktree, as argv.
+    // Every command ran as the henchman's owner, for the henchman, in its worktree, as argv.
     expect(calls.length).toBeGreaterThan(0);
     for (const c of calls) {
       expect(c.user.userId).toBe(f.owner.id);
@@ -212,7 +212,7 @@ describe("changes window on a real worktree", () => {
   });
 
   test("a file swapped for a symlink after git listed it is refused before any bytes are read", async () => {
-    // The robot racing the viewer: the cached look still says "regular file"; realpath catches it.
+    // The henchman racing the viewer: the cached look still says "regular file"; realpath catches it.
     const cached = new ChangesService({
       db: f.db,
       runner: recording(),
@@ -232,13 +232,13 @@ describe("changes window on a real worktree", () => {
   test("discard: refused when the file changed since viewed, then reverts it", async () => {
     let files = await snapshot();
     const readme = file(files, "README.md");
-    await Bun.write(join(workdir, "README.md"), "# hello\nrobot edited again\n");
+    await Bun.write(join(workdir, "README.md"), "# hello\nhenchman edited again\n");
     const stale = await errorOf(
       service.discard(row, { path: "README.md", sig: readme?.sig ?? null }),
     );
     expect(stale.code).toBe("changed_since_viewed");
     expect(stale.files).toEqual(["README.md"]);
-    expect(await readFile(join(workdir, "README.md"), "utf8")).toContain("robot edited again");
+    expect(await readFile(join(workdir, "README.md"), "utf8")).toContain("henchman edited again");
 
     files = await snapshot();
     const fresh = file(files, "README.md");
@@ -263,15 +263,15 @@ describe("changes window on a real worktree", () => {
     );
   });
 
-  test("commit: only the chosen files, refused on stale sigs, the robot's staging kept", async () => {
+  test("commit: only the chosen files, refused on stale sigs, the henchman's staging kept", async () => {
     await Bun.write(join(workdir, "a.txt"), "a\n");
     await Bun.write(join(workdir, "b.txt"), "b\n");
-    await Bun.write(join(workdir, "robot-staged.txt"), "robot\n");
-    await wt("add", "robot-staged.txt");
+    await Bun.write(join(workdir, "henchman-staged.txt"), "henchman\n");
+    await wt("add", "henchman-staged.txt");
     let files = await snapshot();
     const sigOf = (p: string) => file(files, p)?.sig ?? null;
 
-    await Bun.write(join(workdir, "b.txt"), "b changed by the robot\n");
+    await Bun.write(join(workdir, "b.txt"), "b changed by the henchman\n");
     const stale = await errorOf(
       service.commit(
         row,
@@ -309,25 +309,25 @@ describe("changes window on a real worktree", () => {
       "b.txt",
       "logo.png",
     ]);
-    // The robot's own staged file is still staged, not committed.
-    expect(await wt("diff", "--cached", "--name-only")).toBe("robot-staged.txt");
+    // The henchman's own staged file is still staged, not committed.
+    expect(await wt("diff", "--cached", "--name-only")).toBe("henchman-staged.txt");
     const after = await snapshot();
     expect(file(after, "a.txt")).toMatchObject({ uncommitted: false, kind: "added" });
-    expect(file(after, "robot-staged.txt")).toMatchObject({ uncommitted: true });
+    expect(file(after, "henchman-staged.txt")).toMatchObject({ uncommitted: true });
   });
 
-  test("the robot's index lock: polling still works, writes report git_busy and leave the lock", async () => {
+  test("the henchman's index lock: polling still works, writes report git_busy and leave the lock", async () => {
     const gitDir = await wt("rev-parse", "--git-dir");
     const lock = join(gitDir.startsWith("/") ? gitDir : join(workdir, gitDir), "index.lock");
     await writeFile(lock, "");
     try {
       const files = await snapshot();
-      const staged = file(files, "robot-staged.txt");
+      const staged = file(files, "henchman-staged.txt");
       expect(staged).toBeDefined();
       const busy = await errorOf(
         service.commit(
           row,
-          { message: "x", files: [{ path: "robot-staged.txt", sig: staged?.sig ?? null }] },
+          { message: "x", files: [{ path: "henchman-staged.txt", sig: staged?.sig ?? null }] },
           identity,
         ),
       );

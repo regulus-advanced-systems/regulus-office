@@ -14,17 +14,17 @@ import {
   uniqueIndex,
 } from "drizzle-orm/sqlite-core";
 import { enumText, id, inEnum, jsonText, timestamps } from "./_columns.ts";
-import { floors } from "./floors.ts";
+import { operations } from "./operations.ts";
 import { users } from "./users.ts";
 
-/** Pictures, posters and plants placed on wall anchors. `floorId` null = lobby. */
+/** Pictures, posters and plants placed on wall anchors. `operationId` null = lobby. */
 export const decor = sqliteTable(
   "decor",
   {
     id: id(),
-    floorId: text("floor_id").references(() => floors.id, { onDelete: "cascade" }),
+    operationId: text("operation_id").references(() => operations.id, { onDelete: "cascade" }),
     kind: enumText("kind", DECOR_KINDS).notNull(),
-    /** Wall anchor id from the floor layout template. */
+    /** Wall anchor id from the operation layout template. */
     wallId: text("wall_id").notNull(),
     x: real("x").notNull(),
     y: real("y").notNull(),
@@ -36,17 +36,17 @@ export const decor = sqliteTable(
     ...timestamps(),
   },
   (t) => [
-    index("decor_floor_id_idx").on(t.floorId),
+    index("decor_operation_id_idx").on(t.operationId),
     check("decor_kind_check", inEnum("kind", DECOR_KINDS)),
   ],
 );
 
-/** One Excalidraw/Yjs board per floor plus the building-wide one (`floorId` null). */
+/** One Excalidraw/Yjs board per operation plus the building-wide one (`operationId` null). */
 export const whiteboards = sqliteTable(
   "whiteboards",
   {
     id: id(),
-    floorId: text("floor_id").references(() => floors.id, { onDelete: "cascade" }),
+    operationId: text("operation_id").references(() => operations.id, { onDelete: "cascade" }),
     /** Encoded Yjs document state (`Y.encodeStateAsUpdate`). */
     ydocBlob: blob("ydoc_blob", { mode: "buffer" }),
     /** Path of the latest PNG snapshot on disk, rendered for the wall texture. */
@@ -54,7 +54,7 @@ export const whiteboards = sqliteTable(
     version: integer("version").notNull().default(0),
     ...timestamps(),
   },
-  (t) => [uniqueIndex("whiteboards_floor_id_unique").on(t.floorId)],
+  (t) => [uniqueIndex("whiteboards_operation_id_unique").on(t.operationId)],
 );
 
 export const jukeboxTracks = sqliteTable(

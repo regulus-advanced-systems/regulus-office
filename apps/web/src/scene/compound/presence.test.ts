@@ -19,7 +19,7 @@ const centre = (id: string) => {
 };
 const all = new Set(world.rooms.map((r) => r.id));
 
-describe("which FloorRooms to be in (#186, SPEC §9.1)", () => {
+describe("which OperationRooms to be in (#186, SPEC §9.1)", () => {
   test("the room the player stands in, plus the three nearest visible rooms", () => {
     const pick = pickRooms(world, centre("a"), all, createPresenceMemory(), 0);
     expect(pick.current).toBe("a");

@@ -2,9 +2,9 @@
  * Which host directory a runner container needs for a workdir, and how to
  * express it as an Engine API mount.
  *
- * Mount unit: the human's own area on a floor, `<root>/<floor>/<rid>` (see
- * ../layout.ts), never a whole floor dir. It holds that human's clones and
- * worktrees, so later repos and worktrees on the same floor need no new mount
+ * Mount unit: the human's own area on an operation, `<root>/<operation>/<rid>` (see
+ * ../layout.ts), never a whole operation dir. It holds that human's clones and
+ * worktrees, so later repos and worktrees on the same operation need no new mount
  * (and no container recreate), and nothing of another human or the office's
  * mirrors is ever visible in the runner (#114). Paths are the same inside the
  * runner as in the office, so `SpawnPlan.cwd` needs no mapping.
@@ -62,7 +62,7 @@ export function humanMountTarget(
     if (area) return area;
   }
   throw new MountRefusedError(
-    `refusing to mount ${dir}: runners only get their own <root>/<floor>/<runner id> dir`,
+    `refusing to mount ${dir}: runners only get their own <root>/<operation>/<runner id> dir`,
   );
 }
 
@@ -73,7 +73,7 @@ export function isOwnArea(mount: MountSpec, roots: readonly string[], userId: st
 }
 
 /**
- * A mounted area whose floor was deleted (#150): its root is there but the
+ * A mounted area whose operation was deleted (#150): its root is there but the
  * area is not. When the office cannot see the root at all (paths of another
  * host), the mount is kept.
  */
@@ -139,4 +139,4 @@ function busyParts(sessions: readonly string[], piped: readonly string[]): strin
 }
 
 /** Default mount root: the worktrees dir, which holds every human's area (../layout.ts). */
-export const DEFAULT_FLOOR_ROOTS = ["/srv/office/worktrees"] as const;
+export const DEFAULT_OPERATION_ROOTS = ["/srv/office/worktrees"] as const;

@@ -1,6 +1,6 @@
 /**
  * Search (#41), mounted once in the HUD: `/` opens the dialog, and a jump
- * to a robot's desk started from a result is driven from here.
+ * to a henchman's desk started from a result is driven from here.
  */
 import { useCallback } from "react";
 import { useUiStore } from "../../state/ui.ts";

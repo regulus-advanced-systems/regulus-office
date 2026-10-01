@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { HEADING, lobbyTemplate, WALL_THICKNESS, wallById } from "@regulus/floor-layout";
+import { HEADING, lobbyTemplate, WALL_THICKNESS, wallById } from "@regulus/room-layout";
 import { WALL_SURFACE_GAP } from "../room/roomPieces.ts";
 import {
   anchorPlacement,

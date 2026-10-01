@@ -2,7 +2,7 @@
  * Usage screens (#40, SPEC §9.4) drawn with Canvas 2D into a texture:
  *
  * - `wall`: the lobby's big usage-tracker wall: the viewer's own plan windows
- *   as bars, their spend today, the office totals and today's top robots.
+ *   as bars, their spend today, the office totals and today's top henchmen.
  * - `compact`: the small screen in each room: own windows and own spend, one
  *   office line.
  *
@@ -158,7 +158,7 @@ export function paintUsageScreen(
     color: USAGE_COLORS.muted,
   });
 
-  // Right: top robots by tokens (robot name + owner only).
+  // Right: top henchmen by tokens (henchman name + owner only).
   x = pad + 2 * (colW + pad) + inner;
   text(ctx, "TOP HENCHMEN", x, top + 14, { px: 18, color: USAGE_COLORS.muted, bold: true });
   if (model.top.length === 0) {

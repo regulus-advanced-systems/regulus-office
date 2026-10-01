@@ -11,7 +11,7 @@
  *   PUT    /api/github/app            connect an existing GitHub App (#224)
  *   GET    /api/github/app/callback   GitHub → office: code + state
  *   GET    /api/github/app/installed  GitHub → office after installing the app
- *   GET    /api/github/repos          repos the connection can see (Add floor)
+ *   GET    /api/github/repos          repos the connection can see (Add operation)
  */
 import {
   ConnectExistingAppRequest,
@@ -33,10 +33,10 @@ import type { OfficeAuth } from "../auth/auth.ts";
 import { AuthHttpError, forbidden, unauthorized } from "../auth/errors.ts";
 import { checkOrigin } from "../auth/origin.ts";
 import type { Db } from "../db/index.ts";
-import { type FloorActor, isOfficeManager } from "../floors/access.ts";
-import { readBody } from "../floors/routes.ts";
 import { json, type RouteContext, type Router } from "../http/router.ts";
 import type { Logger } from "../logging.ts";
+import { isOfficeManager, type OperationActor } from "../operations/access.ts";
+import { readBody } from "../operations/routes.ts";
 import type { GitHubConnection } from "./connection.ts";
 import { appRequirements, ExistingAppError, verifyExistingApp } from "./existing-app.ts";
 import { buildManifest, convertManifest, type ManifestStates, manifestAction } from "./manifest.ts";
@@ -61,7 +61,7 @@ export function mountGitHubRoutes(router: Router, deps: GitHubRoutesDeps): void 
   };
   const publicBase = auth.publicUrl.replace(/\/+$/, "");
 
-  const manager = async (request: Request): Promise<FloorActor> => {
+  const manager = async (request: Request): Promise<OperationActor> => {
     const user = await auth.getSessionFromRequest(request);
     if (!user) throw unauthorized();
     if (!isOfficeManager(user.role)) throw forbidden("owner_or_admin_required");
@@ -72,7 +72,7 @@ export function mountGitHubRoutes(router: Router, deps: GitHubRoutesDeps): void 
     if (!check.ok) throw forbidden("origin_mismatch");
   };
   const handle =
-    (fn: (ctx: RouteContext, actor: FloorActor) => Promise<Response>, write = false) =>
+    (fn: (ctx: RouteContext, actor: OperationActor) => Promise<Response>, write = false) =>
     async (ctx: RouteContext) => {
       try {
         if (write) sameOrigin(ctx.request);
@@ -86,7 +86,7 @@ export function mountGitHubRoutes(router: Router, deps: GitHubRoutesDeps): void 
     if (connection.managedByEnv) throw new AuthHttpError(409, "managed_by_env");
     if (!connection.store.canStore) throw new AuthHttpError(400, "master_key_required");
   };
-  const audit = (actor: FloorActor, action: "connect" | "disconnect", meta: object) =>
+  const audit = (actor: OperationActor, action: "connect" | "disconnect", meta: object) =>
     writeAudit(db, {
       userId: actor.id,
       action: action === "connect" ? AUDIT_ACTIONS.githubConnect : AUDIT_ACTIONS.githubDisconnect,

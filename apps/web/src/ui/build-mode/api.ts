@@ -1,12 +1,12 @@
 /**
  * Browser client for the compound writes build mode uses (#181, #187):
- * check a ghost, place a new room (creates the floor), move a room. Tokens
+ * check a ghost, place a new room (creates the operation), move a room. Tokens
  * of typed repos travel in the place request's body only and are not kept.
  */
 import {
   COMPOUND_CHECK_API_PATH,
   COMPOUND_ROOMS_API_PATH,
-  FloorRobotInfo,
+  OperationHenchmanInfo,
   PLACEMENT_ERRORS,
   type PlacementCheckResponse,
   PlacementCheckResponse as PlacementCheckSchema,
@@ -20,8 +20,8 @@ import type { ApiFailure } from "../auth/api.ts";
 export type CompoundFailure = ApiFailure & {
   /** A refused placement: why, and which rooms it collides with. */
   placement?: { reason: PlacementError; conflicts: string[] };
-  /** A refused move: the robots still running in the room. */
-  robots?: FloorRobotInfo[];
+  /** A refused move: the henchmen still running in the room. */
+  henchmen?: OperationHenchmanInfo[];
 };
 export type CompoundResult<T> = { ok: true; data: T } | CompoundFailure;
 
@@ -46,9 +46,9 @@ function failure(status: number, body: unknown): CompoundFailure {
       : [];
     out.placement = { reason: reason as PlacementError, conflicts };
   }
-  if (Array.isArray(b.robots))
-    out.robots = b.robots.flatMap((r) => {
-      const p = FloorRobotInfo.safeParse(r);
+  if (Array.isArray(b.henchmen))
+    out.henchmen = b.henchmen.flatMap((r) => {
+      const p = OperationHenchmanInfo.safeParse(r);
       return p.success ? [p.data] : [];
     });
   if (typeof b.repo === "number") out.reason = `repo ${b.repo + 1}`;
@@ -89,20 +89,20 @@ export function createCompoundApi(options: { fetch?: typeof fetch; baseUrl?: str
     return { ok: true, data: parsed.data };
   }
   return {
-    /** Would `placement` be valid (ignoring room `floorId` when moving it)? */
-    check: (placement: RoomPlacement, floorId?: string) =>
+    /** Would `placement` be valid (ignoring room `operationId` when moving it)? */
+    check: (placement: RoomPlacement, operationId?: string) =>
       call<PlacementCheckResponse>(
         "POST",
         COMPOUND_CHECK_API_PATH,
         PlacementCheckSchema,
-        floorId ? { placement, floorId } : { placement },
+        operationId ? { placement, operationId } : { placement },
       ),
-    /** Create the floor with its room at `placement` (201: the floor and its room). */
+    /** Create the operation with its room at `placement` (201: the operation and its room). */
     place: (request: PlaceRoomRequest) =>
       call<PlaceRoomResponse>("POST", COMPOUND_ROOMS_API_PATH, PlaceRoomResponse, request),
-    /** Move or resize a room; refused while robots run in it. */
-    move: (floorId: string, placement: RoomPlacement) =>
-      call<unknown>("PATCH", `${COMPOUND_ROOMS_API_PATH}/${encodeURIComponent(floorId)}`, ANY, {
+    /** Move or resize a room; refused while henchmen run in it. */
+    move: (operationId: string, placement: RoomPlacement) =>
+      call<unknown>("PATCH", `${COMPOUND_ROOMS_API_PATH}/${encodeURIComponent(operationId)}`, ANY, {
         placement,
       }),
   };

@@ -11,15 +11,15 @@ import { join } from "node:path";
 import {
   BuildingStateSchema,
   CompoundState,
-  FloorSummary,
-  LOBBY_FLOOR_ID,
+  LOBBY_OPERATION_ID,
+  OperationSummary,
 } from "@regulus/protocol";
 import { eq } from "drizzle-orm";
-import { floorRepos, floors as floorsTable } from "../db/schema/index.ts";
-import { createFloors } from "../floors/index.ts";
-import { makeBareRepo, testDb } from "../floors/test-helpers.ts";
+import { operationRepos, operations as operationsTable } from "../db/schema/index.ts";
 import { createLogger } from "../logging.ts";
-import { DrizzleFloorSource } from "../rooms/building/floors.ts";
+import { createOperations } from "../operations/index.ts";
+import { makeBareRepo, testDb } from "../operations/test-helpers.ts";
+import { DrizzleOperationSource } from "../rooms/building/operations.ts";
 import { createBuildingRoom } from "../rooms/building/room.ts";
 import { MemoryChatStore } from "../rooms/chat/store.ts";
 import type { RoomHandle } from "../rooms/transport.ts";
@@ -54,19 +54,19 @@ async function office(buildMs: number, remote = true, now?: () => number) {
   });
   services.push(compound);
   compound.boot();
-  const floors = createFloors({
+  const operations = createOperations({
     db,
     logger,
     config: { projectsDir: join(root, "projects"), githubRemoteBase: remoteBase },
     keyring: undefined,
     placer: compound,
-    onChange: (id) => compound.floorChanged(id),
+    onChange: (id) => compound.operationChanged(id),
   });
-  return { db, owner, compound, floors, ready, snapshots };
+  return { db, owner, compound, operations, ready, snapshots };
 }
 
 const buildState = (o: Awaited<ReturnType<typeof office>>, id: string) =>
-  o.db.select().from(floorsTable).where(eq(floorsTable.id, id)).get()?.buildState;
+  o.db.select().from(operationsTable).where(eq(operationsTable.id, id)).get()?.buildState;
 
 async function until(check: () => boolean, ms = 3000): Promise<void> {
   const deadline = Date.now() + ms;
@@ -81,34 +81,38 @@ describe("room build phase", () => {
     const o = await office(150);
     const actor = { id: o.owner.id, role: "owner" as const };
     const t0 = Date.now();
-    const { floor, cloned } = o.floors.service.create(actor, {
+    const { operation, cloned } = o.operations.service.create(actor, {
       name: "Apollo",
       tier: "small",
       repos: [{ repo: "octo/hello" }],
     });
-    expect(buildState(o, floor.floorId)).toBe("building");
-    const fields = o.compound.snapshot().rooms.get(floor.floorId);
+    expect(buildState(o, operation.operationId)).toBe("building");
+    const fields = o.compound.snapshot().rooms.get(operation.operationId);
     expect(fields?.buildState).toBe("building");
     expect(fields?.buildEndsAt).toBeGreaterThanOrEqual(t0 + 150);
     await cloned;
-    await until(() => buildState(o, floor.floorId) === "ready");
+    await until(() => buildState(o, operation.operationId) === "ready");
     expect(Date.now() - t0).toBeGreaterThanOrEqual(140);
-    expect(o.ready).toContain(floor.floorId);
-    expect(o.compound.snapshot().rooms.get(floor.floorId)?.buildEndsAt).toBe(0);
+    expect(o.ready).toContain(operation.operationId);
+    expect(o.compound.snapshot().rooms.get(operation.operationId)?.buildEndsAt).toBe(0);
     expect(o.compound.pendingBuilds).toBe(0);
   });
 
-  test("a failed clone still ends the build, with the floor's clone error", async () => {
+  test("a failed clone still ends the build, with the operation's clone error", async () => {
     const o = await office(60, false);
     const actor = { id: o.owner.id, role: "owner" as const };
-    const { floor, cloned } = o.floors.service.create(actor, {
+    const { operation, cloned } = o.operations.service.create(actor, {
       name: "Broken",
       tier: "small",
       repos: [{ repo: "octo/nowhere" }],
     });
     await cloned;
-    await until(() => buildState(o, floor.floorId) === "ready");
-    const repo = o.db.select().from(floorRepos).where(eq(floorRepos.floorId, floor.floorId)).get();
+    await until(() => buildState(o, operation.operationId) === "ready");
+    const repo = o.db
+      .select()
+      .from(operationRepos)
+      .where(eq(operationRepos.operationId, operation.operationId))
+      .get();
     expect(repo?.cloneStatus).toBe("error");
   });
 
@@ -120,14 +124,14 @@ describe("room build phase", () => {
     const buildMs = 60_000;
     const o = await office(buildMs, true, now);
     const actor = { id: o.owner.id, role: "owner" as const };
-    const { floor, cloned } = o.floors.service.create(actor, {
+    const { operation, cloned } = o.operations.service.create(actor, {
       name: "Apollo",
       tier: "small",
       repos: [{ repo: "octo/hello" }],
     });
     await cloned;
     o.compound.close();
-    expect(buildState(o, floor.floorId)).toBe("building");
+    expect(buildState(o, operation.operationId)).toBe("building");
     // Restart with all but 20 ms of the build phase gone: the timer resumes
     // for what is left, not a fresh build phase.
     clock += buildMs - 20;
@@ -140,16 +144,16 @@ describe("room build phase", () => {
     services.push(again);
     again.boot();
     expect(again.pendingBuilds).toBe(1);
-    expect(buildState(o, floor.floorId)).toBe("building");
-    await until(() => buildState(o, floor.floorId) === "ready");
+    expect(buildState(o, operation.operationId)).toBe("building");
+    await until(() => buildState(o, operation.operationId) === "ready");
     expect(again.pendingBuilds).toBe(0);
 
     const instant = await office(0);
-    const made = instant.floors.service.create(
+    const made = instant.operations.service.create(
       { id: instant.owner.id, role: "owner" },
       { name: "Now", tier: "small", repos: [{ repo: "octo/hello" }] },
     );
-    expect(buildState(instant, made.floor.floorId)).toBe("ready");
+    expect(buildState(instant, made.operation.operationId)).toBe("ready");
     await made.cloned;
   });
 });
@@ -158,7 +162,7 @@ describe("BuildingRoom publish", () => {
   test("the layout and room fields land in the room state in the protocol's shape", async () => {
     const o = await office(60_000);
     const actor = { id: o.owner.id, role: "owner" as const };
-    const made = o.floors.service.create(actor, {
+    const made = o.operations.service.create(actor, {
       name: "Apollo",
       tier: "small",
       repos: [{ repo: "octo/hello" }],
@@ -166,7 +170,7 @@ describe("BuildingRoom publish", () => {
     await made.cloned;
     const room = createBuildingRoom({
       chat: new MemoryChatStore(),
-      floors: new DrizzleFloorSource(o.db),
+      operations: new DrizzleOperationSource(o.db),
       logger,
     });
     const state = new BuildingStateSchema();
@@ -182,11 +186,11 @@ describe("BuildingRoom publish", () => {
     await room.onCreate?.(handle, undefined as never);
     // Only the parts this task publishes (the PM's defaults are not a valid PmState yet).
     const read = () => {
-      const raw = state.toJSON() as { compound: unknown; floors: Record<string, unknown> };
+      const raw = state.toJSON() as { compound: unknown; operations: Record<string, unknown> };
       return {
         compound: CompoundState.parse(raw.compound),
-        floors: Object.fromEntries(
-          Object.entries(raw.floors).map(([k, v]) => [k, FloorSummary.parse(v)]),
+        operations: Object.fromEntries(
+          Object.entries(raw.operations).map(([k, v]) => [k, OperationSummary.parse(v)]),
         ),
       };
     };
@@ -194,14 +198,18 @@ describe("BuildingRoom publish", () => {
     expect(json.compound.width).toBe(64);
     expect(json.compound.corridors.length).toBeGreaterThan(0);
     expect(json.compound.specialRooms).toHaveLength(3);
-    const apollo = json.floors[made.floor.floorId];
+    const apollo = json.operations[made.operation.operationId];
     expect(apollo?.buildState).toBe("building");
     expect(apollo?.gridX).toBeGreaterThanOrEqual(0);
-    expect(json.floors[LOBBY_FLOOR_ID]).toMatchObject({ gridX: 26, gridY: 56, doorSide: "north" });
+    expect(json.operations[LOBBY_OPERATION_ID]).toMatchObject({
+      gridX: 26,
+      gridY: 56,
+      doorSide: "north",
+    });
 
     // A move republishes; the version changes and the entry follows.
     const before = json.compound.version;
-    o.compound.move(actor, made.floor.floorId, {
+    o.compound.move(actor, made.operation.operationId, {
       gridX: 4,
       gridY: 4,
       width: 8,
@@ -211,8 +219,11 @@ describe("BuildingRoom publish", () => {
     room.setCompound(o.compound.snapshot());
     const after = read();
     expect(after.compound.version).not.toBe(before);
-    expect(after.floors[made.floor.floorId]).toMatchObject({ gridX: 4, doorSide: "east" });
-    await room.refreshFloors();
-    expect(read().floors[made.floor.floorId]?.gridX).toBe(4);
+    expect(after.operations[made.operation.operationId]).toMatchObject({
+      gridX: 4,
+      doorSide: "east",
+    });
+    await room.refreshOperations();
+    expect(read().operations[made.operation.operationId]?.gridX).toBe(4);
   });
 });

@@ -1,7 +1,7 @@
 /**
  * The services proxy in path mode (#39) against a real dev-server double:
- * HTTP and WebSocket through `/p/<floor>/a/<agent>/port/<n>/`, what is
- * stripped and rewritten on the way, and every refusal (session, floor
+ * HTTP and WebSocket through `/p/<operation>/a/<agent>/port/<n>/`, what is
+ * stripped and rewritten on the way, and every refusal (session, operation
  * access, owner-only, undiscovered ports, localhost-only, the office's own
  * port, cross-origin requests).
  */
@@ -38,8 +38,8 @@ describe("services proxy, path mode", () => {
     teammate = await office.signUp("Teammate");
     outsider = await office.signUp("Outsider");
     admin = await office.signUp("Admin", "admin");
-    office.addFloor("f1", { [owner.id]: "spawn", [teammate.id]: "spawn" });
-    office.addFloor("f2", { [outsider.id]: "spawn" });
+    office.addOperation("f1", { [owner.id]: "spawn", [teammate.id]: "spawn" });
+    office.addOperation("f2", { [outsider.id]: "spawn" });
     office.addAgent("a1", "f1", owner.id);
     office.addAgent("a2", "f1", owner.id);
     office.addAgent("a3", "f1", owner.id);
@@ -64,7 +64,7 @@ describe("services proxy, path mode", () => {
     upstream?.server.stop(true);
   });
 
-  test("the scan publishes the floor's apps with proxy paths", () => {
+  test("the scan publishes the operation's apps with proxy paths", () => {
     const list = office.published.get("f1") as {
       agentId: string;
       url: string;
@@ -118,7 +118,7 @@ describe("services proxy, path mode", () => {
     expect(res.headers.get("location")).toBe(prefix);
   });
 
-  test("a `//host` path stays a path on the robot's server (no SSRF)", async () => {
+  test("a `//host` path stays a path on the henchman's server (no SSRF)", async () => {
     const res = await get(`${prefix}/evil.example/x`, owner.cookie);
     expect(res.status).toBe(200);
     expect(upstream.seen.at(-1)?.path).toBe(`${prefix}/evil.example/x`);
@@ -148,13 +148,13 @@ describe("services proxy, path mode", () => {
   test("refusals", async () => {
     // No session.
     expect((await get(prefix)).status).toBe(401);
-    // A floor member who is not the owner: path mode is owner-only (same origin as the office).
+    // An operation member who is not the owner: path mode is owner-only (same origin as the office).
     expect((await get(prefix, teammate.cookie)).status).toBe(403);
-    // Admins do not control other people's robots (D12).
+    // Admins do not control other people's henchmen (D12).
     expect((await get(prefix, admin.cookie)).status).toBe(403);
-    // No access to the floor: the app does not exist for them.
+    // No access to the operation: the app does not exist for them.
     expect((await get(prefix, outsider.cookie)).status).toBe(404);
-    // A port the robot does not listen on, another robot, the wrong floor.
+    // A port the henchman does not listen on, another henchman, the wrong operation.
     expect((await get(servicesProxyPath("f1", "a1", 1), owner.cookie)).status).toBe(404);
     expect((await get(servicesProxyPath("f2", "a1", upstream.port), owner.cookie)).status).toBe(
       404,
@@ -192,7 +192,7 @@ describe("services proxy, path mode", () => {
     expect((await get("/p/f1/a/a%2F1/port/80/", owner.cookie)).status).toBe(404);
   });
 
-  test("a robot that goes down takes its apps with it", async () => {
+  test("a henchman that goes down takes its apps with it", async () => {
     runner.ports.set("a1", []);
     await office.scanner.tick();
     expect((await get(prefix, owner.cookie)).status).toBe(404);

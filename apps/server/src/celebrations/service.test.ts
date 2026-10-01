@@ -1,7 +1,7 @@
 /** Merge gong (#43): which merges ring, where, once; manual bangs; the queue's triple ring. */
 import { describe, expect, test } from "bun:test";
 import { GongRing, PrMerged } from "@regulus/protocol";
-import { floorRepos, githubPulls } from "../db/schema/index.ts";
+import { githubPulls, operationRepos } from "../db/schema/index.ts";
 import { type AnyGitHubEvent, GitHubEventBus } from "../github/events.ts";
 import { createLogger } from "../logging.ts";
 import { seededDb } from "../notifications/testing.ts";
@@ -10,24 +10,24 @@ import { gongMark } from "./merges.ts";
 import { createCelebrations, QUEUE_EMPTY_REPEAT_MS } from "./service.ts";
 
 interface Sent {
-  floorId: string;
+  operationId: string;
   type: string;
   payload: unknown;
 }
 
 function setup(opts: { live?: string[] } = {}) {
   const seed = seededDb();
-  const live = new Set(opts.live ?? ["floor-1", "floor-2"]);
+  const live = new Set(opts.live ?? ["operation-1", "operation-2"]);
   const sent: Sent[] = [];
   let clock = 1_000_000;
   const bus = new GitHubEventBus();
   const make = () =>
     createCelebrations({
       db: seed.db,
-      floors: {
-        broadcast(floorId, type, payload) {
-          if (!live.has(floorId)) return false;
-          sent.push({ floorId, type, payload });
+      operations: {
+        broadcast(operationId, type, payload) {
+          if (!live.has(operationId)) return false;
+          sent.push({ operationId, type, payload });
           return true;
         },
       },
@@ -68,7 +68,7 @@ function closed(
     receivedAt: Date.now(),
     repo: { owner: "octo", name: "web", fullName: "octo/web" },
     repoIds,
-    floorIds: [],
+    operationIds: [],
     installationId: null,
     sender: null,
     fromOfficeApp: false,
@@ -88,15 +88,15 @@ function closed(
 }
 
 describe("merged PRs", () => {
-  test("a merge broadcasts pr.merged to its floor only, with the PR link", () => {
+  test("a merge broadcasts pr.merged to its operation only, with the PR link", () => {
     const s = setup();
     s.bus.emit(closed(["repo-1"], 12, { title: "Ship the gong" }));
     expect(s.sent).toHaveLength(1);
     const [msg] = s.sent;
-    expect(msg?.floorId).toBe("floor-1");
+    expect(msg?.operationId).toBe("operation-1");
     expect(msg?.type).toBe("pr.merged");
     expect(PrMerged.parse(msg?.payload)).toMatchObject({
-      floorId: "floor-1",
+      operationId: "operation-1",
       repoId: "repo-1",
       number: 12,
       title: "Ship the gong",
@@ -123,7 +123,7 @@ describe("merged PRs", () => {
     expect(s.sent).toHaveLength(2);
   });
 
-  test("closed without merging, other actions, stale replays and no floor repo do not ring", () => {
+  test("closed without merging, other actions, stale replays and no operation repo do not ring", () => {
     const s = setup();
     s.bus.emit(closed(["repo-1"], 20, { merged: false }));
     s.bus.emit(closed(["repo-1"], 21, { action: "opened" }));
@@ -136,13 +136,13 @@ describe("merged PRs", () => {
     expect(s.sent).toHaveLength(1);
   });
 
-  test("a repo that backs two floors rings on both, each once", () => {
+  test("a repo that backs two operations rings on both, each once", () => {
     const s = setup();
     s.db
-      .insert(floorRepos)
+      .insert(operationRepos)
       .values({
         id: "repo-3",
-        floorId: "floor-2",
+        operationId: "operation-2",
         owner: "octo",
         name: "web",
         url: "file:///dev/null",
@@ -154,7 +154,7 @@ describe("merged PRs", () => {
       .run();
     s.bus.emit(closed(["repo-1", "repo-3"], 30));
     s.bus.emit(closed(["repo-1", "repo-3"], 30, { source: "poll" }));
-    expect(s.sent.map((m) => m.floorId).sort()).toEqual(["floor-1", "floor-2"]);
+    expect(s.sent.map((m) => m.operationId).sort()).toEqual(["operation-1", "operation-2"]);
   });
 
   test("a board merge rings at once, titled from the board cache", () => {
@@ -169,14 +169,14 @@ describe("merged PRs", () => {
         ghUpdatedAt: new Date(1),
       })
       .run();
-    expect(s.gong.boardMerged({ repoIds: ["repo-2"], number: 5 })).toEqual(["floor-2"]);
+    expect(s.gong.boardMerged({ repoIds: ["repo-2"], number: 5 })).toEqual(["operation-2"]);
     expect(PrMerged.parse(s.sent[0]?.payload).title).toBe("Oil the doors");
     // The webhook that follows is a no-op.
     s.bus.emit(closed(["repo-2"], 5));
     expect(s.sent).toHaveLength(1);
   });
 
-  test("a merge while nobody is on the floor is not replayed later", () => {
+  test("a merge while nobody is on the operation is not replayed later", () => {
     const s = setup({ live: [] });
     s.bus.emit(closed(["repo-1"], 40));
     expect(s.sent).toEqual([]);
@@ -187,11 +187,11 @@ describe("manual bang", () => {
   const mia = { userId: "u-mia", displayName: "Mia" };
   const sam = { userId: "u-sam", displayName: "Sam" };
 
-  test("a bang rings once on that floor, naming who banged it", () => {
+  test("a bang rings once on that operation, naming who banged it", () => {
     const s = setup();
-    expect(s.gong.bang("floor-2", mia)).toEqual({ ok: true });
+    expect(s.gong.bang("operation-2", mia)).toEqual({ ok: true });
     expect(s.sent).toHaveLength(1);
-    expect(s.sent[0]?.floorId).toBe("floor-2");
+    expect(s.sent[0]?.operationId).toBe("operation-2");
     expect(s.sent[0]?.type).toBe("gong.ring");
     expect(GongRing.parse(s.sent[0]?.payload)).toMatchObject({
       cause: "bang",
@@ -200,37 +200,37 @@ describe("manual bang", () => {
     });
   });
 
-  test("the floor waits for the ring to finish; other floors do not", () => {
+  test("the operation waits for the ring to finish; other operations do not", () => {
     const s = setup();
-    expect(s.gong.bang("floor-1", mia).ok).toBe(true);
-    expect(s.gong.bang("floor-1", sam)).toEqual({ ok: false, reason: GONG_STILL_RINGING });
-    expect(s.gong.bang("floor-2", sam).ok).toBe(true);
+    expect(s.gong.bang("operation-1", mia).ok).toBe(true);
+    expect(s.gong.bang("operation-1", sam)).toEqual({ ok: false, reason: GONG_STILL_RINGING });
+    expect(s.gong.bang("operation-2", sam).ok).toBe(true);
     s.tick(4_000);
-    expect(s.gong.bang("floor-1", sam).ok).toBe(true);
+    expect(s.gong.bang("operation-1", sam).ok).toBe(true);
     expect(s.sent).toHaveLength(3);
   });
 
   test("a merge also holds off bangs for the length of its ring", () => {
     const s = setup();
     s.bus.emit(closed(["repo-1"], 50));
-    expect(s.gong.bang("floor-1", mia).ok).toBe(false);
+    expect(s.gong.bang("operation-1", mia).ok).toBe(false);
     s.tick(4_000);
-    expect(s.gong.bang("floor-1", mia).ok).toBe(true);
+    expect(s.gong.bang("operation-1", mia).ok).toBe(true);
   });
 
   test("one human gets three bangs, then one every 20 s", () => {
     const s = setup();
     for (let i = 0; i < 3; i++) {
-      expect(s.gong.bang("floor-1", mia).ok).toBe(true);
+      expect(s.gong.bang("operation-1", mia).ok).toBe(true);
       s.tick(4_000);
     }
-    expect(s.gong.bang("floor-1", mia)).toEqual({ ok: false, reason: GONG_REST });
+    expect(s.gong.bang("operation-1", mia)).toEqual({ ok: false, reason: GONG_REST });
     // Someone else may still bang it.
-    expect(s.gong.bang("floor-1", sam).ok).toBe(true);
+    expect(s.gong.bang("operation-1", sam).ok).toBe(true);
     s.tick(20_000);
-    expect(s.gong.bang("floor-1", mia).ok).toBe(true);
+    expect(s.gong.bang("operation-1", mia).ok).toBe(true);
     s.tick(4_000);
-    expect(s.gong.bang("floor-1", mia).ok).toBe(false);
+    expect(s.gong.bang("operation-1", mia).ok).toBe(false);
     expect(s.sent.filter((m) => m.type === "gong.ring")).toHaveLength(5);
   });
 });
@@ -238,16 +238,16 @@ describe("manual bang", () => {
 describe("queue emptied (#37 hook)", () => {
   test("a triple ring, once per burst of empties", () => {
     const s = setup();
-    expect(s.gong.queueEmptied("floor-1")).toBe(true);
+    expect(s.gong.queueEmptied("operation-1")).toBe(true);
     expect(GongRing.parse(s.sent[0]?.payload)).toMatchObject({
-      floorId: "floor-1",
+      operationId: "operation-1",
       cause: "queue_empty",
       strikes: 3,
     });
-    expect(s.gong.queueEmptied("floor-1")).toBe(false);
-    expect(s.gong.queueEmptied("floor-2")).toBe(true);
+    expect(s.gong.queueEmptied("operation-1")).toBe(false);
+    expect(s.gong.queueEmptied("operation-2")).toBe(true);
     s.tick(QUEUE_EMPTY_REPEAT_MS);
-    expect(s.gong.queueEmptied("floor-1")).toBe(true);
-    expect(s.sent.map((m) => m.floorId)).toEqual(["floor-1", "floor-2", "floor-1"]);
+    expect(s.gong.queueEmptied("operation-1")).toBe(true);
+    expect(s.sent.map((m) => m.operationId)).toEqual(["operation-1", "operation-2", "operation-1"]);
   });
 });

@@ -16,7 +16,7 @@ import { GITHUB_API_VERSION, GitHubApiError } from "./pulls.ts";
 
 const REQUEST_TIMEOUT_MS = 20_000;
 /** Pause proactively when fewer requests than this are left in the window. */
-export const RATE_LIMIT_FLOOR = 50;
+export const RATE_LIMIT_OPERATION = 50;
 /** Wait after a secondary rate limit without `retry-after` (GitHub: "at least one minute"). */
 export const SECONDARY_BACKOFF_MS = 60_000;
 
@@ -105,7 +105,7 @@ export function createPollClient(deps: {
           redactGitHubText(message || "Forbidden", [token]).slice(0, 300),
         );
       }
-      if (Number.isFinite(remaining) && remaining < RATE_LIMIT_FLOOR) {
+      if (Number.isFinite(remaining) && remaining < RATE_LIMIT_OPERATION) {
         const reset = resetAt(res);
         if (reset && reset > now()) pausedUntil = Math.max(pausedUntil, reset);
       }

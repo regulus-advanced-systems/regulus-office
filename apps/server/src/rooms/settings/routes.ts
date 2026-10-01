@@ -1,9 +1,9 @@
 /**
  * REST for room settings (#182). Session-cookie auth; a change also needs a
- * same-origin request (CSRF), like the floor routes.
+ * same-origin request (CSRF), like the operation routes.
  *
- *   GET /api/floors/:floorId/room-settings   desk count, decor style, capacity (view)
- *   PUT /api/floors/:floorId/room-settings   change them (room managers)
+ *   GET /api/operations/:operationId/room-settings   desk count, decor style, capacity (view)
+ *   PUT /api/operations/:operationId/room-settings   change them (room managers)
  *
  * Refusals: 404 no such room (or no access), 403 not a room manager,
  * 400 bad body or `too_many_desks`, 409 `desks_occupied`,
@@ -13,12 +13,12 @@ import { UpdateRoomSettingsRequest } from "@regulus/protocol";
 import type { OfficeAuth } from "../../auth/auth.ts";
 import { AuthHttpError, forbidden, unauthorized } from "../../auth/errors.ts";
 import { checkOrigin } from "../../auth/origin.ts";
-import type { FloorActor } from "../../floors/access.ts";
-import { readBody } from "../../floors/routes.ts";
 import { json, type RouteContext, type Router } from "../../http/router.ts";
+import type { OperationActor } from "../../operations/access.ts";
+import { readBody } from "../../operations/routes.ts";
 import type { RoomSettingsService } from "./service.ts";
 
-export const ROOM_SETTINGS_ROUTE = "/api/floors/:floorId/room-settings";
+export const ROOM_SETTINGS_ROUTE = "/api/operations/:operationId/room-settings";
 
 export function mountRoomSettingsRoutes(
   router: Router,
@@ -30,7 +30,7 @@ export function mountRoomSettingsRoutes(
   const { auth, settings } = deps;
 
   const handle =
-    (write: boolean, fn: (ctx: RouteContext, actor: FloorActor) => unknown) =>
+    (write: boolean, fn: (ctx: RouteContext, actor: OperationActor) => unknown) =>
     async (ctx: RouteContext): Promise<Response> => {
       try {
         if (write) {
@@ -50,14 +50,14 @@ export function mountRoomSettingsRoutes(
 
   router.get(
     ROOM_SETTINGS_ROUTE,
-    handle(false, (ctx, actor) => settings.get(actor, ctx.params.floorId ?? "")),
+    handle(false, (ctx, actor) => settings.get(actor, ctx.params.operationId ?? "")),
   );
   router.add(
     "PUT",
     ROOM_SETTINGS_ROUTE,
     handle(true, async (ctx, actor) => {
       const body = await readBody(ctx.request, UpdateRoomSettingsRequest);
-      return settings.update(actor, ctx.params.floorId ?? "", body);
+      return settings.update(actor, ctx.params.operationId ?? "", body);
     }),
   );
 }

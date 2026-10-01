@@ -6,7 +6,7 @@
  * progress is planned again on the new grid (and given up when its goal is
  * now out of reach, behind the shut door).
  */
-import type { NavGrid, Vec2 } from "@regulus/floor-layout";
+import type { NavGrid, Vec2 } from "@regulus/room-layout";
 import { useEffect } from "react";
 import { usePlayerStore } from "../../../state/player.ts";
 import { nearestWalkable } from "../../movement/navigation.ts";

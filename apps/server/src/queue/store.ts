@@ -3,7 +3,7 @@
  * order, state changes, and each room's concurrency settings. Everything the
  * scheduler knows lives here, so the queue survives office restarts.
  *
- * `position` is a per-room, ever-growing sort key (unique per floor). Only
+ * `position` is a per-room, ever-growing sort key (unique per operation). Only
  * queued tasks are ever re-ordered: they swap their existing keys, so a
  * reorder never collides with a running or finished task's key.
  */
@@ -17,12 +17,12 @@ import {
 } from "@regulus/protocol";
 import { and, asc, desc, eq, inArray, isNull, lt, max, sql } from "drizzle-orm";
 import type { Db } from "../db/index.ts";
-import { desks, floorQueueSettings, tasks, userProfiles } from "../db/schema/index.ts";
+import { desks, operationQueueSettings, tasks, userProfiles } from "../db/schema/index.ts";
 
 export type TaskRow = typeof tasks.$inferSelect;
 
 export interface NewTask {
-  floorId: string;
+  operationId: string;
   repoId: string;
   kind: TaskKind;
   refNumber: number | null;
@@ -58,7 +58,7 @@ export class TaskStore {
       const top = tx
         .select({ max: max(tasks.position) })
         .from(tasks)
-        .where(eq(tasks.floorId, task.floorId))
+        .where(eq(tasks.operationId, task.operationId))
         .get();
       return tx
         .insert(tasks)
@@ -69,55 +69,55 @@ export class TaskStore {
   }
 
   /** Queued tasks of a room in run order. */
-  queued(floorId: string): TaskRow[] {
+  queued(operationId: string): TaskRow[] {
     return this.db
       .select()
       .from(tasks)
-      .where(and(eq(tasks.floorId, floorId), eq(tasks.state, "queued")))
+      .where(and(eq(tasks.operationId, operationId), eq(tasks.state, "queued")))
       .orderBy(asc(tasks.position))
       .all();
   }
 
-  running(floorId?: string): TaskRow[] {
-    const where = floorId
-      ? and(eq(tasks.floorId, floorId), eq(tasks.state, "running"))
+  running(operationId?: string): TaskRow[] {
+    const where = operationId
+      ? and(eq(tasks.operationId, operationId), eq(tasks.state, "running"))
       : eq(tasks.state, "running");
     return this.db.select().from(tasks).where(where).orderBy(asc(tasks.startedAt)).all();
   }
 
   /** What the room shows: queued (run order), running, then recent history. */
-  visible(floorId: string): TaskRow[] {
+  visible(operationId: string): TaskRow[] {
     const history = this.db
       .select()
       .from(tasks)
-      .where(and(eq(tasks.floorId, floorId), inArray(tasks.state, FINISHED)))
+      .where(and(eq(tasks.operationId, operationId), inArray(tasks.state, FINISHED)))
       .orderBy(desc(tasks.finishedAt), desc(tasks.position))
       .limit(QUEUE_HISTORY_LIMIT)
       .all();
-    return [...this.queued(floorId), ...this.running(floorId), ...history];
+    return [...this.queued(operationId), ...this.running(operationId), ...history];
   }
 
   /** Rooms with work waiting. */
-  floorsWithQueued(): string[] {
+  operationsWithQueued(): string[] {
     return this.db
-      .selectDistinct({ floorId: tasks.floorId })
+      .selectDistinct({ operationId: tasks.operationId })
       .from(tasks)
       .where(eq(tasks.state, "queued"))
       .all()
-      .map((r) => r.floorId);
+      .map((r) => r.operationId);
   }
 
   /** Rooms with any task or saved settings (published at boot). */
-  floorsWithQueue(): string[] {
-    const withTasks = this.db.selectDistinct({ floorId: tasks.floorId }).from(tasks).all();
+  operationsWithQueue(): string[] {
+    const withTasks = this.db.selectDistinct({ operationId: tasks.operationId }).from(tasks).all();
     const withSettings = this.db
-      .select({ floorId: floorQueueSettings.floorId })
-      .from(floorQueueSettings)
+      .select({ operationId: operationQueueSettings.operationId })
+      .from(operationQueueSettings)
       .all();
-    return [...new Set([...withTasks, ...withSettings].map((r) => r.floorId))];
+    return [...new Set([...withTasks, ...withSettings].map((r) => r.operationId))];
   }
 
-  /** The running task of a robot, if it runs one. */
+  /** The running task of a henchman, if it runs one. */
   runningFor(agentId: string): TaskRow | undefined {
     return this.db
       .select()
@@ -126,7 +126,7 @@ export class TaskStore {
       .get();
   }
 
-  /** The latest task a robot ran (running or finished), for PR linking. */
+  /** The latest task a henchman ran (running or finished), for PR linking. */
   latestFor(agentId: string): TaskRow | undefined {
     return this.db
       .select()
@@ -140,12 +140,12 @@ export class TaskStore {
    * Move a queued task to `index` among the room's queued tasks. The queued
    * tasks keep their set of keys and take them in the new order.
    */
-  reorder(floorId: string, taskId: string, index: number): boolean {
+  reorder(operationId: string, taskId: string, index: number): boolean {
     return this.db.transaction((tx) => {
       const queued = tx
         .select({ id: tasks.id, position: tasks.position })
         .from(tasks)
-        .where(and(eq(tasks.floorId, floorId), eq(tasks.state, "queued")))
+        .where(and(eq(tasks.operationId, operationId), eq(tasks.state, "queued")))
         .orderBy(asc(tasks.position))
         .all();
       const from = queued.findIndex((t) => t.id === taskId);
@@ -154,7 +154,7 @@ export class TaskStore {
       const order = queued.map((t) => t.id);
       order.splice(from, 1);
       order.splice(Math.min(index, order.length), 0, taskId);
-      // Park them on negative keys first: the unique (floor, position) index.
+      // Park them on negative keys first: the unique (operation, position) index.
       order.forEach((id, i) => {
         tx.update(tasks)
           .set({ position: -1 - i })
@@ -179,7 +179,7 @@ export class TaskStore {
       const top = tx
         .select({ max: max(tasks.position) })
         .from(tasks)
-        .where(eq(tasks.floorId, row.floorId))
+        .where(eq(tasks.operationId, row.operationId))
         .get();
       tx.update(tasks)
         .set({
@@ -208,7 +208,7 @@ export class TaskStore {
     this.db.update(tasks).set({ agentId }).where(eq(tasks.id, taskId)).run();
   }
 
-  /** A start that never got a robot: waiting again, at the same place. */
+  /** A start that never got a henchman: waiting again, at the same place. */
   backToQueue(taskId: string, reason: string): void {
     this.db
       .update(tasks)
@@ -250,31 +250,31 @@ export class TaskStore {
     return changed.length > 0;
   }
 
-  settings(floorId: string): QueueSettings {
+  settings(operationId: string): QueueSettings {
     const row = this.db
       .select()
-      .from(floorQueueSettings)
-      .where(eq(floorQueueSettings.floorId, floorId))
+      .from(operationQueueSettings)
+      .where(eq(operationQueueSettings.operationId, operationId))
       .get();
     return row
       ? { maxRunning: row.maxRunning, maxPerOwner: row.maxPerOwner }
       : { ...DEFAULT_QUEUE_SETTINGS };
   }
 
-  saveSettings(floorId: string, settings: QueueSettings): void {
+  saveSettings(operationId: string, settings: QueueSettings): void {
     this.db
-      .insert(floorQueueSettings)
-      .values({ floorId, ...settings })
-      .onConflictDoUpdate({ target: floorQueueSettings.floorId, set: { ...settings } })
+      .insert(operationQueueSettings)
+      .values({ operationId, ...settings })
+      .onConflictDoUpdate({ target: operationQueueSettings.operationId, set: { ...settings } })
       .run();
   }
 
   /** Free desks of a room right now. */
-  freeDesks(floorId: string): number {
+  freeDesks(operationId: string): number {
     const row = this.db
       .select({ n: sql<number>`count(*)` })
       .from(desks)
-      .where(and(eq(desks.floorId, floorId), isNull(desks.agentId)))
+      .where(and(eq(desks.operationId, operationId), isNull(desks.agentId)))
       .get();
     return Number(row?.n ?? 0);
   }

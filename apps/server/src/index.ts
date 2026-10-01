@@ -25,7 +25,7 @@ import {
 import { ConfigError, loadConfig, redactConfig } from "./config.ts";
 import { mountCredentialPanel } from "./credentials/panel.ts";
 import { closeDatabase, databasePathFor, openDatabase, runMigrations } from "./db/index.ts";
-import { createFloors, mountFloorRoutes } from "./floors/index.ts";
+import { deprecatedEnvMessage } from "./deprecated-env.ts";
 import { createBoardGitHub } from "./github/board-actions.ts";
 import { mountBoardRoutes } from "./github/board-routes.ts";
 import { mountGitHubRoutes } from "./github/routes.ts";
@@ -36,6 +36,7 @@ import { WsRouter } from "./http/ws-router.ts";
 import { createShutdownController, installSignalHandlers } from "./lifecycle.ts";
 import { createLogger } from "./logging.ts";
 import { createNotifications } from "./notifications/setup.ts";
+import { createOperations, mountOperationRoutes } from "./operations/index.ts";
 import { mountProfileRoutes } from "./profile/routes.ts";
 import { allObservers, createTaskQueue } from "./queue/index.ts";
 import {
@@ -55,9 +56,9 @@ import { createUsage } from "./usage/index.ts";
 import { createWorkflows } from "./workflows/setup.ts";
 import {
   createWorktrees,
-  floorDirRemover,
   migrateLegacyLayout,
   mountWorktreeRoutes,
+  operationDirRemover,
 } from "./worktrees/index.ts";
 
 async function readVersion(): Promise<string> {
@@ -104,6 +105,7 @@ async function main(): Promise<void> {
   const logger = createLogger({ level: config.logLevel });
   const version = await readVersion();
   logger.info({ version, config: redactConfig(config) }, "office-server starting");
+  for (const use of config.deprecatedEnv ?? []) logger.warn(deprecatedEnvMessage(use));
   if (!config.masterKey) {
     logger.warn(
       "OFFICE_MASTER_KEY is not set; encrypted credential storage is unavailable (SPEC §8)",
@@ -154,7 +156,7 @@ async function main(): Promise<void> {
   try {
     services = createServices({
       db,
-      floors: rooms.floors,
+      operations: rooms.operations,
       sessions: auth,
       originPolicy: originPolicyFor(config.publicUrl, production),
       officePort: config.port,
@@ -200,15 +202,15 @@ async function main(): Promise<void> {
     personal: rooms.building,
   });
   notifications.mount(server.router, auth);
-  // Henchman skins (#184): admin rules, resolved onto every robot by the FloorRooms.
+  // Henchman skins (#184): admin rules, resolved onto every henchman by the OperationRooms.
   const skins = createSkins({ db });
   skins.mount(server.router, auth);
-  skins.publishTo(rooms.floors);
-  // Usage tracker (#40): robots' usage/limit events, transcript scans, the viewer's summary.
+  skins.publishTo(rooms.operations);
+  // Usage tracker (#40): henchmen's usage/limit events, transcript scans, the viewer's summary.
   const usage = createUsage({ db, logger });
   usage.mount(server.router, auth);
   usage.publishTo(rooms.building);
-  // Search (#41): chat and robots' scrollback snapshots, under the floor/terminal ACL.
+  // Search (#41): chat and henchmen's scrollback snapshots, under the operation/terminal ACL.
   const search = createSearch({ db, logger, dataDir: config.dataDir });
   search.mount(server.router, auth);
   search.start();
@@ -220,7 +222,7 @@ async function main(): Promise<void> {
     console.error(`Invalid GitHub App configuration: ${(err as Error).message}`);
     process.exit(2);
   }
-  // Board sync (#35): created after the floors (it needs their repo access); set below.
+  // Board sync (#35): created after the operations (it needs their repo access); set below.
   let githubSync: GitHubSync | undefined;
   mountGitHubRoutes(server.router, {
     auth,
@@ -238,41 +240,45 @@ async function main(): Promise<void> {
     logger: logger.child({ module: "compound" }),
     config: compoundConfig,
     publish: (snapshot) => rooms.building.setCompound(snapshot),
-    onRoomsChanged: (floorIds) => {
-      for (const floorId of floorIds) {
-        rooms.floorChanged(floorId).catch((err) => logger.error({ err }, "room refresh failed"));
+    onRoomsChanged: (operationIds) => {
+      for (const operationId of operationIds) {
+        rooms
+          .operationChanged(operationId)
+          .catch((err) => logger.error({ err }, "room refresh failed"));
       }
     },
   });
-  // First boot after the upgrade: floors become ready rooms in rows off the main corridor.
+  // First boot after the upgrade: operations become ready rooms in rows off the main corridor.
   compound.boot();
   shutdown.register("compound", () => compound.close());
-  const floors = createFloors({
+  const operations = createOperations({
     db,
     logger,
     config,
     keyring,
     connection: github.connection,
-    // A deleted floor's files: the linux-user helper, else the office itself (#150).
-    dirs: floorDirRemover({
+    // A deleted operation's files: the linux-user helper, else the office itself (#150).
+    dirs: operationDirRemover({
       projectsDir: config.projectsDir,
       worktreesDir: config.worktreesDir,
       runner,
       logger,
     }),
     placer: compound,
-    onChange: (floorId) => {
-      compound.floorChanged(floorId);
-      rooms.floorChanged(floorId).catch((err) => logger.error({ err }, "floor refresh failed"));
-      githubSync?.floorChanged(floorId);
+    onChange: (operationId) => {
+      compound.operationChanged(operationId);
+      rooms
+        .operationChanged(operationId)
+        .catch((err) => logger.error({ err }, "operation refresh failed"));
+      githubSync?.operationChanged(operationId);
     },
   });
-  // Webhooks (signed, no session), polling fallback, board cache → FloorRoom summaries (#35).
+  // Webhooks (signed, no session), polling fallback, board cache → OperationRoom summaries (#35).
   githubSync = createGitHubSync({
     db,
     connection: github.connection,
-    repos: floors.repos,
-    boards: rooms.floors,
+    repos: operations.repos,
+    boards: rooms.operations,
     publicUrl: config.publicUrl,
     apiBase: config.githubApiBase,
     polling: config.githubSync.polling,
@@ -280,15 +286,15 @@ async function main(): Promise<void> {
     logger: logger.child({ module: "github-sync" }),
   });
   mountGitHubSyncRoutes(server.router, { auth, sync: githubSync });
-  // Merge gong (#43): merged PRs, manual bangs and emptied task queues (#37) ring on the floor.
+  // Merge gong (#43): merged PRs, manual bangs and emptied task queues (#37) ring on the operation.
   const celebrations = createCelebrations({
     db,
-    floors: rooms.floors,
+    operations: rooms.operations,
     logger,
     githubWebBase: config.githubWebBase,
   });
   celebrations.followGitHub(githubSync.events);
-  rooms.floors.setGong(celebrations);
+  rooms.operations.setGong(celebrations);
   // Board panel (#36): card detail, and assign/comment/merge/close with the office credential.
   mountBoardRoutes(server.router, {
     auth,
@@ -299,64 +305,73 @@ async function main(): Promise<void> {
     logger: logger.child({ module: "github-boards" }),
     onMerged: (pull) => celebrations.boardMerged(pull),
   });
-  // Merged robot PRs notify their owners (#42), from webhooks or polling.
+  // Merged henchman PRs notify their owners (#42), from webhooks or polling.
   notifications.followGitHub(githubSync.events);
-  // GitHub workflows (#155): events → robots in the workflow runner → posts as the office's App.
+  // GitHub workflows (#155): events → henchmen in the workflow runner → posts as the office's App.
   const workflows = createWorkflows({
     db,
     keyring,
     config,
     logger,
     connection: github.connection,
-    repos: floors.repos,
+    repos: operations.repos,
     runner,
     usage: usage.tracker,
   });
   workflows.follow(githubSync.events);
   workflows.mount(server.router, auth);
-  mountFloorRoutes(server.router, {
+  mountOperationRoutes(server.router, {
     auth,
-    floors: floors.service,
-    lifecycle: floors.lifecycle,
+    operations: operations.service,
+    lifecycle: operations.lifecycle,
   });
   mountCompoundRoutes(server.router, {
     auth,
     compound,
-    floors: floors.service,
-    lifecycle: floors.lifecycle,
+    operations: operations.service,
+    lifecycle: operations.lifecycle,
   });
-  // Room settings (#182): desk count and decor style, republished to the FloorRoom.
+  // Room settings (#182): desk count and decor style, republished to the OperationRoom.
   mountRoomSettingsRoutes(server.router, {
     auth,
     settings: new RoomSettingsService({
       db,
-      onChange: (floorId) => {
-        rooms.floorChanged(floorId).catch((err) => logger.error({ err }, "floor refresh failed"));
+      onChange: (operationId) => {
+        rooms
+          .operationChanged(operationId)
+          .catch((err) => logger.error({ err }, "operation refresh failed"));
       },
     }),
   });
-  logger.info({ projectsDir: config.projectsDir }, "floor repos clone here");
+  logger.info({ projectsDir: config.projectsDir }, "operation repos clone here");
   // Per-agent worktrees + one-click PR (#31). The AgentManager (#26) takes
   // `worktrees.workspaces`, the runner does mountProject; `agent.pr` and
   // `agent.worktree` (#33) reach `worktrees` through the manager.
-  const worktrees = createWorktrees({ db, logger, config, repos: floors.repos, runner });
+  const worktrees = createWorktrees({ db, logger, config, repos: operations.repos, runner });
   mountWorktreeRoutes(server.router, { auth, db, prune: worktrees.prune });
-  // Changes window (#38): git in the owner's runner/sandbox; view for the floor, write for the owner.
+  // Changes window (#38): git in the owner's runner/sandbox; view for the operation, write for the owner.
   mountChangesRoutes(server.router, {
     auth,
     db,
     logger: logger.child({ module: "changes" }),
-    changes: new ChangesService({ db, runner, repos: floors.repos, clones: worktrees.workspaces }),
+    changes: new ChangesService({
+      db,
+      runner,
+      repos: operations.repos,
+      clones: worktrees.workspaces,
+    }),
   });
-  // Room task queues (#37): created before the manager, which reports robot status to it.
+  // Room task queues (#37): created before the manager, which reports henchman status to it.
   // A room whose queue empties rings the merge gong three times (#43).
   const tasks = createTaskQueue({
     db,
-    rooms: watchQueueEmptied(rooms.floors, (floorId) => celebrations.queueEmptied(floorId)),
+    rooms: watchQueueEmptied(rooms.operations, (operationId) =>
+      celebrations.queueEmptied(operationId),
+    ),
     logger,
   });
   tasks.queue.followGitHub(githubSync.events);
-  // Agents (#26): the manager, its FloorRoom/terminal registration, Claude hook routes (#27).
+  // Agents (#26): the manager, its OperationRoom/terminal registration, Claude hook routes (#27).
   const agents = await createAgents({
     db,
     config,
@@ -376,9 +391,9 @@ async function main(): Promise<void> {
     usage: usage.tracker,
   });
   tasks.bind(agents);
-  // "Send all home" before deleting a floor (#150): branches are kept, GitHub is not touched.
-  // An office owner/admin clears everyone's robots, which is not robot control (D12, #138).
-  floors.lifecycle.robots = {
+  // "Send all home" before deleting an operation (#150): branches are kept, GitHub is not touched.
+  // An office owner/admin clears everyone's henchmen, which is not henchman control (D12, #138).
+  operations.lifecycle.henchmen = {
     sendHome: (actor, agentId) => agents.evacuate(actor, agentId),
   };
   // "Connect providers" (#32): key profiles and CLI logins in the human's own runner (SPEC §8).
@@ -414,14 +429,14 @@ async function main(): Promise<void> {
       }),
     )
     .catch((err) => logger.error({ err }, "per-human clone migration failed"))
-    // Queued tasks start only once robots are re-adopted and settled (#37).
+    // Queued tasks start only once henchmen are re-adopted and settled (#37).
     .then(() => tasks.queue.boot())
     .catch((err) => logger.error({ err }, "starting the task queues failed"));
   const claudeAdapter = agents.adapters.find("claude-code");
   if (claudeAdapter) {
     usage.startScanning({ runner, adapter: claudeAdapter, officeUrl: config.runnerOfficeUrl });
   }
-  floors.cloner.resumePending().catch((err) => logger.error({ err }, "resuming clones failed"));
+  operations.cloner.resumePending().catch((err) => logger.error({ err }, "resuming clones failed"));
   githubSync.start();
   workflows.start();
   shutdown.register("github-sync", () => githubSync?.stop());

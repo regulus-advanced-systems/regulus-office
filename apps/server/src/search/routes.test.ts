@@ -1,5 +1,5 @@
 /**
- * Search over HTTP with real sessions: the ACL matrix (chat by floor
+ * Search over HTTP with real sessions: the ACL matrix (chat by operation
  * visibility, scrollback by exactly the terminal watch audience, D12),
  * snippets, the context endpoint, sanitised queries and the rate limit.
  */
@@ -15,15 +15,15 @@ import { eq } from "drizzle-orm";
 import { TokenBucketLimiter } from "../auth/rate-limit.ts";
 import { type Office, startOffice } from "../auth/test-helpers.ts";
 import { userProfiles } from "../db/schema/index.ts";
-import { dbFloorVisibility, decideTerminalAccess } from "../terminals/acl.ts";
+import { dbOperationVisibility, decideTerminalAccess } from "../terminals/acl.ts";
 import { mountSearchRoutes } from "./routes.ts";
 import { Searcher } from "./searcher.ts";
 import {
   addChat,
-  addFloor,
+  addHenchman,
   addMember,
-  addRobot,
-  exitRobot,
+  addOperation,
+  exitHenchman,
   indexerFor,
   silent,
   tempDir,
@@ -46,22 +46,22 @@ beforeAll(async () => {
   const db = office.db;
   users.owner = await user("Olga", "owner");
   users.admin = await user("Ada", "admin");
-  users.robotOwner = await user("Rob", "member");
+  users.henchmanOwner = await user("Rob", "member");
   users.member = await user("Mia", "member");
   users.viewer = await user("Vic", "viewer");
   users.outsider = await user("Otto", "member");
-  addFloor(db, "f1");
-  addFloor(db, "f2");
-  addFloor(db, "f3", true);
-  addMember(db, "f1", users.robotOwner.id, "spawn");
+  addOperation(db, "f1");
+  addOperation(db, "f2");
+  addOperation(db, "f3", true);
+  addMember(db, "f1", users.henchmanOwner.id, "spawn");
   addMember(db, "f1", users.member.id, "spawn");
   addMember(db, "f1", users.viewer.id, "view");
   addMember(db, "f3", users.member.id, "spawn");
-  addRobot(db, "a1", "f1", users.robotOwner.id); // live, f1
-  addRobot(db, "a2", "f2", users.owner.id); // live, f2 (nobody is a member)
-  addRobot(db, "a3", "f1", users.robotOwner.id); // exited
-  addRobot(db, "a4", "f3", users.member.id); // archived floor
-  exitRobot(db, "a3");
+  addHenchman(db, "a1", "f1", users.henchmanOwner.id); // live, f1
+  addHenchman(db, "a2", "f2", users.owner.id); // live, f2 (nobody is a member)
+  addHenchman(db, "a3", "f1", users.henchmanOwner.id); // exited
+  addHenchman(db, "a4", "f3", users.member.id); // archived operation
+  exitHenchman(db, "a3");
   addChat(db, "needle in the lobby");
   addChat(db, "needle said on f1", "f1");
   addChat(db, "needle said on f2", "f2");
@@ -71,11 +71,11 @@ beforeAll(async () => {
   const screen = (tag: string) =>
     [`$ make ${tag}`, "compiling...", `needle found by ${tag}`, "done", "$"].join("\n");
   for (const id of ["a1", "a2", "a3", "a4"]) indexer.indexSnapshot(id, "f?", screen(id), 1);
-  // indexSnapshot takes the floor from the caller; the searcher trusts the agents row instead.
+  // indexSnapshot takes the operation from the caller; the searcher trusts the agents row instead.
   limiter = new TokenBucketLimiter({ capacity: 1000, refillPerSecond: 1000 });
   mountSearchRoutes(office.server.router, {
     auth: office.auth,
-    searcher: new Searcher({ db, canViewFloor: dbFloorVisibility(db) }),
+    searcher: new Searcher({ db, canViewOperation: dbOperationVisibility(db) }),
     logger: silent,
     limiter,
   });
@@ -98,31 +98,31 @@ async function keys(u: User, q = "needle"): Promise<string[]> {
 
 describe("ACL matrix", () => {
   test.each([
-    ["office owner", "owner", ["chat:f1", "chat:f2", "chat:lobby", "robot:a1", "robot:a2"]],
-    ["admin", "admin", ["chat:f1", "chat:f2", "chat:lobby", "robot:a1", "robot:a2"]],
-    ["robot owner", "robotOwner", ["chat:f1", "chat:lobby", "robot:a1"]],
-    ["other member on the floor", "member", ["chat:f1", "chat:lobby", "robot:a1"]],
-    ["viewer on the floor", "viewer", ["chat:f1", "chat:lobby", "robot:a1"]],
-    ["member of no floor", "outsider", ["chat:lobby"]],
+    ["office owner", "owner", ["chat:f1", "chat:f2", "chat:lobby", "henchman:a1", "henchman:a2"]],
+    ["admin", "admin", ["chat:f1", "chat:f2", "chat:lobby", "henchman:a1", "henchman:a2"]],
+    ["henchman owner", "henchmanOwner", ["chat:f1", "chat:lobby", "henchman:a1"]],
+    ["other member on the operation", "member", ["chat:f1", "chat:lobby", "henchman:a1"]],
+    ["viewer on the operation", "viewer", ["chat:f1", "chat:lobby", "henchman:a1"]],
+    ["member of no operation", "outsider", ["chat:lobby"]],
   ])("%s", async (_name, who, want) => {
     expect(await keys(users[who] as User)).toEqual(want);
   });
 
   test("scrollback is visible to exactly the terminal's watch audience", async () => {
     const db = office.db;
-    const canView = dbFloorVisibility(db);
+    const canView = dbOperationVisibility(db);
     for (const u of Object.values(users)) {
-      const found = new Set((await keys(u)).filter((k) => k.startsWith("robot:")));
-      for (const [id, ownerId, floorId, live] of [
-        ["a1", users.robotOwner?.id, "f1", true],
+      const found = new Set((await keys(u)).filter((k) => k.startsWith("henchman:")));
+      for (const [id, ownerId, operationId, live] of [
+        ["a1", users.henchmanOwner?.id, "f1", true],
         ["a2", users.owner?.id, "f2", true],
-        ["a3", users.robotOwner?.id, "f1", false],
+        ["a3", users.henchmanOwner?.id, "f1", false],
         ["a4", users.member?.id, "f3", true],
       ] as const) {
         const watch =
           live &&
-          decideTerminalAccess(u, { ownerUserId: ownerId ?? "", floorId }, "watch", canView).ok;
-        expect({ user: u.role, id, found: found.has(`robot:${id}`) }).toEqual({
+          decideTerminalAccess(u, { ownerUserId: ownerId ?? "", operationId }, "watch", canView).ok;
+        expect({ user: u.role, id, found: found.has(`henchman:${id}`) }).toEqual({
           user: u.role,
           id,
           found: watch,
@@ -134,21 +134,21 @@ describe("ACL matrix", () => {
   test("groups carry what the jump needs, snippets are structured", async () => {
     const res = await search(users.member, "needle");
     const body = (await res.json()) as SearchResponse;
-    const robot = body.groups.find((g) => g.key === "robot:a1");
-    expect(robot).toMatchObject({
+    const henchman = body.groups.find((g) => g.key === "henchman:a1");
+    expect(henchman).toMatchObject({
       kind: "scrollback",
-      floorId: "f1",
-      floorName: "Floor f1",
+      operationId: "f1",
+      operationName: "Operation f1",
       agentId: "a1",
       seatId: "desk-a1",
-      robotName: "task a1",
+      henchmanName: "task a1",
       ownerName: "Rob",
     });
-    const segments = robot?.hits[0]?.snippet ?? [];
+    const segments = henchman?.hits[0]?.snippet ?? [];
     expect(segments.filter((s) => s.hit).map((s) => s.text)).toEqual(["needle"]);
     expect(segments.map((s) => s.text).join("")).toContain("needle found by a1");
     const lobby = body.groups.find((g) => g.key === "chat:lobby");
-    expect(lobby).toMatchObject({ floorName: "Lobby" });
+    expect(lobby).toMatchObject({ operationName: "Lobby" });
     expect(lobby?.hits[0]?.author).toBe("Ada");
     expect(body.terms).toEqual(["needle"]);
   });
@@ -171,7 +171,7 @@ describe("context", () => {
     expect(body.lines[body.matchLine]).toBe("needle found by a1");
   });
 
-  test("is 404 for someone who may not watch the robot", async () => {
+  test("is 404 for someone who may not watch the henchman", async () => {
     const doc = await docOf(users.owner as User, "a2");
     expect(doc).toBeDefined();
     for (const who of ["member", "outsider", "viewer"]) {
@@ -216,7 +216,7 @@ describe("input handling", () => {
     try {
       mountSearchRoutes(local.server.router, {
         auth: local.auth,
-        searcher: new Searcher({ db: local.db, canViewFloor: () => false }),
+        searcher: new Searcher({ db: local.db, canViewOperation: () => false }),
         logger: silent,
         limiter: tight,
       });

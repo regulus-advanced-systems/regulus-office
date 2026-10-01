@@ -32,7 +32,7 @@ export const ZOOM_FACTOR_MAX = 2.2;
  * Projected floor width (metres) up to which `ZOOM_FACTOR_MAX` applies as is:
  * the small office (16 x 13 m). Bigger rooms are fitted at fewer pixels per
  * metre, so their zoom-in limit grows by the same ratio and a desk can be
- * brought as close on a large floor as on a small one (#118).
+ * brought as close in a large room as in a small one (#118).
  */
 export const ZOOM_REFERENCE_WIDTH = (16 + 13) * Math.SQRT1_2;
 /** Wheel sensitivity: zoom factor multiplies by exp(-deltaY * this). */

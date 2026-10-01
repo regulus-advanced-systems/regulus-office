@@ -6,11 +6,11 @@
  */
 import {
   anchorStandPose,
-  type FloorTemplate,
+  type RoomTemplate,
   type Wall,
   type WallAnchor,
   wallById,
-} from "@regulus/floor-layout";
+} from "@regulus/room-layout";
 
 export const CLIPBOARD_ANCHOR_KIND = "queue_clipboard";
 /** How far from its stand point `E` still reaches the clipboard, metres. */
@@ -22,7 +22,7 @@ export interface ClipboardAnchor {
   stand: { x: number; z: number };
 }
 
-export function clipboardAnchors(template: FloorTemplate): ClipboardAnchor[] {
+export function clipboardAnchors(template: RoomTemplate): ClipboardAnchor[] {
   const out: ClipboardAnchor[] = [];
   for (const anchor of template.wallAnchors) {
     if (anchor.kind !== CLIPBOARD_ANCHOR_KIND) continue;

@@ -1,7 +1,7 @@
 /**
  * Add or edit one team webhook channel (#42): kind, name, the webhook URL or
  * bot token (write-only: never prefilled, cleared after submit), Telegram
- * chat id, which floors and which events it gets.
+ * chat id, which operations and which events it gets.
  */
 import {
   NOTIFICATION_EVENTS,
@@ -12,7 +12,7 @@ import {
 } from "@regulus/protocol";
 import { useId, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
-import { selectFloors, useBuildingStore } from "../../state/building.ts";
+import { selectOperations, useBuildingStore } from "../../state/building.ts";
 import { Button } from "../components/Button.tsx";
 
 export const KIND_LABELS: Record<WebhookKind, string> = {
@@ -45,7 +45,7 @@ export interface ChannelFormValue {
   /** Empty when editing and not replacing the secret. */
   secret: string;
   chatId: string;
-  floorIds: string[] | null;
+  operationIds: string[] | null;
   events: NotificationEvent[];
 }
 
@@ -60,9 +60,9 @@ export function ChannelForm({
   onSubmit: (value: ChannelFormValue) => void;
   onCancel: () => void;
 }) {
-  const floors = useBuildingStore(useShallow(selectFloors));
+  const operations = useBuildingStore(useShallow(selectOperations));
   const [kind, setKind] = useState<WebhookKind>(initial?.kind ?? "slack");
-  const [floorIds, setFloorIds] = useState<string[] | null>(initial?.floorIds ?? null);
+  const [operationIds, setOperationIds] = useState<string[] | null>(initial?.operationIds ?? null);
   const [events, setEvents] = useState<NotificationEvent[]>(
     initial?.events ?? ["needs_input", "needs_permission", "done", "error", "pr_merged"],
   );
@@ -84,7 +84,7 @@ export function ChannelForm({
       label: labelRef.current?.value.trim() ?? "",
       secret,
       chatId: chatRef.current?.value.trim() ?? "",
-      floorIds,
+      operationIds,
       events,
     });
   };
@@ -152,18 +152,20 @@ export function ChannelForm({
         <label>
           <input
             type="checkbox"
-            checked={floorIds === null}
-            onChange={(e) => setFloorIds(e.currentTarget.checked ? null : [])}
+            checked={operationIds === null}
+            onChange={(e) => setOperationIds(e.currentTarget.checked ? null : [])}
           />{" "}
           All operations
         </label>
-        {floorIds !== null &&
-          floors.map((f) => (
-            <label key={f.floorId} style={{ display: "block" }}>
+        {operationIds !== null &&
+          operations.map((f) => (
+            <label key={f.operationId} style={{ display: "block" }}>
               <input
                 type="checkbox"
-                checked={floorIds.includes(f.floorId)}
-                onChange={(e) => setFloorIds(toggle(floorIds, f.floorId, e.currentTarget.checked))}
+                checked={operationIds.includes(f.operationId)}
+                onChange={(e) =>
+                  setOperationIds(toggle(operationIds, f.operationId, e.currentTarget.checked))
+                }
               />{" "}
               {f.name}
             </label>

@@ -1,12 +1,12 @@
 /**
  * Which placeholder model (Kenney Furniture Kit, CC0; see
- * packages/assets/models/furniture/README.md) stands in for each floor-layout
+ * packages/assets/models/furniture/README.md) stands in for each room-layout
  * kind, and how to size it. Kinds missing here are drawn procedurally.
  *
  * Models are referenced with `new URL(..., import.meta.url)` so Vite bundles
  * them from the assets package without any config.
  */
-import { HEADING, type ObstacleKind, type SeatKind } from "@regulus/floor-layout";
+import { HEADING, type ObstacleKind, type SeatKind } from "@regulus/room-layout";
 
 export interface ModelSpec {
   /** Resolved asset URL. */
@@ -37,7 +37,7 @@ export interface SitSpec {
   readonly backTop: number;
   /**
    * Inner edge of the armrests, fraction of the half-width from the middle; absent without
-   * armrests. The robot's pelvis (0.55 m) is wider than the desk chair's armrests are apart
+   * armrests. The henchman's pelvis (0.55 m) is wider than the desk chair's armrests are apart
    * (0.36 m), so they end up inside it, hidden (#163).
    */
   readonly armrestsInner?: number;
@@ -178,7 +178,7 @@ export function smallPlantUrl(id: string): string {
 }
 
 /**
- * 0.82 m tall (was 0.9, #163): the seated robot's big head starts 0.51 m above
+ * 0.82 m tall (was 0.9, #163): the seated henchman's big head starts 0.51 m above
  * its hips, so with the hips on a 0.9 m chair's cushion (0.35 m) the backrest
  * top (0.9 m) cut 3 cm into the head. At 0.82 m the cushion is at 0.31 m and
  * the head clears the backrest by 2 cm.

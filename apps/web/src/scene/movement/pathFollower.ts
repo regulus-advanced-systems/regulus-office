@@ -1,12 +1,12 @@
 /**
  * Advance a pose along a list of waypoints at walking speed, turning toward
- * the travel direction with a rate limit. A robot facing well away from its
+ * the travel direction with a rate limit. A henchman facing well away from its
  * way (more than TURN_IN_PLACE_ABOVE) first turns on the spot and only then
  * sets off, so it always walks face-first (#119). Pure: the store calls it
  * once per frame with the elapsed time and keeps the returned pose and
  * remaining path.
  */
-import type { Vec2 } from "@regulus/floor-layout";
+import type { Vec2 } from "@regulus/room-layout";
 import {
   angleDelta,
   distance,

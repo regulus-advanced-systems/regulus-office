@@ -27,7 +27,7 @@ const sb = (agentId: string, createdAt = old): SandboxInfo => ({
 });
 
 describe("reapSandboxes (#169)", () => {
-  test("removes sandboxes of untracked robots and of robots down for a while", async () => {
+  test("removes sandboxes of untracked henchmen and of henchmen down for a while", async () => {
     const views: Record<string, { status: AgentStatus; lastActivityAt: number }> = {
       working: { status: "working", lastActivityAt: NOW - 10 * SANDBOX_REAP_GRACE_MS },
       starting: { status: "starting", lastActivityAt: NOW - 10 * SANDBOX_REAP_GRACE_MS },

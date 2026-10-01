@@ -1,14 +1,14 @@
 /**
- * What a notification is about (#42): a robot, reduced to the fields a
+ * What a notification is about (#42): a henchman, reduced to the fields a
  * notification may carry. Terminal output, prompts, permission requests,
  * status reasons and tokens are not in here, so no formatter can leak them.
  */
 import type { AgentStatus, NotificationEvent, ProviderId } from "@regulus/protocol";
 
-/** The slice of an AgentView (agents/manager/robot.ts) notifications read. */
-export interface RobotSnapshot {
+/** The slice of an AgentView (agents/manager/henchman.ts) notifications read. */
+export interface HenchmanSnapshot {
   agentId: string;
-  floorId: string;
+  operationId: string;
   repoId: string;
   ownerUserId: string;
   ownerName: string;
@@ -18,17 +18,17 @@ export interface RobotSnapshot {
   prNumber: number;
 }
 
-/** A robot event about to be delivered, with the names resolved. */
-export interface RobotNotice {
+/** A henchman event about to be delivered, with the names resolved. */
+export interface HenchmanNotice {
   /** Unique per delivery (dedupe on the client). */
   id: string;
   event: NotificationEvent;
   agentId: string;
-  floorId: string;
-  floorName: string;
+  operationId: string;
+  operationName: string;
   ownerUserId: string;
   ownerName: string;
-  robotName: string;
+  henchmanName: string;
   provider: ProviderId;
   taskTitle: string;
   prNumber: number;
@@ -54,7 +54,7 @@ export function eventForStatus(status: AgentStatus): NotificationEvent | null {
 }
 
 /**
- * After the settle delay: is the event still true? A robot that asked and
+ * After the settle delay: is the event still true? A henchman that asked and
  * went back to work within the delay, or errored and was resumed, sends
  * nothing.
  */
@@ -76,5 +76,5 @@ export function eventStillHolds(
   }
 }
 
-/** Robots in these statuses wait for their human (tab badge). */
+/** Henchmen in these statuses wait for their human (tab badge). */
 export const ATTENTION_STATUSES: readonly AgentStatus[] = ["waiting_input", "waiting_permission"];

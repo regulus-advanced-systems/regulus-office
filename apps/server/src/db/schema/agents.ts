@@ -1,6 +1,6 @@
 /**
- * Robots: `agents`, their event stream, credential profiles used to spawn
- * them, and the per-floor task queue (SPEC §5, §7, §8).
+ * Henchmen: `agents`, their event stream, credential profiles used to spawn
+ * them, and the per-operation task queue (SPEC §5, §7, §8).
  */
 import {
   AGENT_EVENT_KINDS,
@@ -13,20 +13,20 @@ import {
 import { sql } from "drizzle-orm";
 import { check, index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 import { enumText, id, inEnum, jsonText, timestampMs, timestamps } from "./_columns.ts";
-import { floorRepos, floors } from "./floors.ts";
+import { operationRepos, operations } from "./operations.ts";
 import { users } from "./users.ts";
 
 export const agents = sqliteTable(
   "agents",
   {
     id: id(),
-    floorId: text("floor_id")
+    operationId: text("operation_id")
       .notNull()
-      .references(() => floors.id, { onDelete: "cascade" }),
+      .references(() => operations.id, { onDelete: "cascade" }),
     repoId: text("repo_id")
       .notNull()
-      .references(() => floorRepos.id, { onDelete: "cascade" }),
-    /** Seat from the floor layout; the `desks` row mirrors this via `desks.agentId`. */
+      .references(() => operationRepos.id, { onDelete: "cascade" }),
+    /** Seat from the operation layout; the `desks` row mirrors this via `desks.agentId`. */
     deskSeatId: text("desk_seat_id").notNull(),
     ownerUserId: text("owner_user_id")
       .notNull()
@@ -64,7 +64,7 @@ export const agents = sqliteTable(
     ...timestamps(),
   },
   (t) => [
-    index("agents_floor_id_idx").on(t.floorId),
+    index("agents_operation_id_idx").on(t.operationId),
     index("agents_owner_user_id_idx").on(t.ownerUserId),
     index("agents_status_idx").on(t.status),
     check("agents_provider_check", inEnum("provider", PROVIDER_IDS)),
@@ -129,16 +129,16 @@ export const credentialProfiles = sqliteTable(
   ],
 );
 
-/** Per-floor queue of work to spawn robots for (SPEC §5 `tasks`, §9.4 clipboard). */
+/** Per-operation queue of work to spawn henchmen for (SPEC §5 `tasks`, §9.4 clipboard). */
 export const tasks = sqliteTable(
   "tasks",
   {
     id: id(),
-    floorId: text("floor_id")
+    operationId: text("operation_id")
       .notNull()
-      .references(() => floors.id, { onDelete: "cascade" }),
-    /** Repo the task binds to; null means the floor's primary repo. */
-    repoId: text("repo_id").references(() => floorRepos.id, { onDelete: "set null" }),
+      .references(() => operations.id, { onDelete: "cascade" }),
+    /** Repo the task binds to; null means the operation's primary repo. */
+    repoId: text("repo_id").references(() => operationRepos.id, { onDelete: "set null" }),
     position: integer("position").notNull(),
     kind: enumText("kind", TASK_KINDS).notNull(),
     refNumber: integer("ref_number"),
@@ -152,16 +152,16 @@ export const tasks = sqliteTable(
     createdBy: text("created_by")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
-    /** Task title for the robot and the clipboard (#37). */
+    /** Task title for the henchman and the clipboard (#37). */
     title: text("title").notNull().default(""),
-    /** Provider permission mode for the robot; null = the provider default (#166). */
+    /** Provider permission mode for the henchman; null = the provider default (#166). */
     permissionMode: text("permission_mode"),
     /**
      * The owner's credential profile id (or `office:<provider>`), a reference
      * only; null = their own CLI login. Never a secret (SPEC §8).
      */
     profileId: text("profile_id"),
-    /** The PR the task's robot opened, once it appears (#35 cache / event bus). */
+    /** The PR the task's henchman opened, once it appears (#35 cache / event bus). */
     prNumber: integer("pr_number"),
     /** Why it failed, or why a queued task is not starting; safe to show. */
     reason: text("reason").notNull().default(""),
@@ -170,8 +170,8 @@ export const tasks = sqliteTable(
     ...timestamps(),
   },
   (t) => [
-    uniqueIndex("tasks_floor_position_unique").on(t.floorId, t.position),
-    index("tasks_floor_state_idx").on(t.floorId, t.state),
+    uniqueIndex("tasks_operation_position_unique").on(t.operationId, t.position),
+    index("tasks_operation_state_idx").on(t.operationId, t.state),
     check("tasks_kind_check", inEnum("kind", TASK_KINDS)),
     check("tasks_state_check", inEnum("state", TASK_STATES)),
     check("tasks_provider_check", inEnum("provider", PROVIDER_IDS)),
@@ -179,10 +179,10 @@ export const tasks = sqliteTable(
 );
 
 /** A room's queue concurrency (#37); a room without a row uses the protocol defaults. */
-export const floorQueueSettings = sqliteTable("floor_queue_settings", {
-  floorId: text("floor_id")
+export const operationQueueSettings = sqliteTable("operation_queue_settings", {
+  operationId: text("operation_id")
     .primaryKey()
-    .references(() => floors.id, { onDelete: "cascade" }),
+    .references(() => operations.id, { onDelete: "cascade" }),
   maxRunning: integer("max_running").notNull(),
   maxPerOwner: integer("max_per_owner").notNull(),
   ...timestamps(),

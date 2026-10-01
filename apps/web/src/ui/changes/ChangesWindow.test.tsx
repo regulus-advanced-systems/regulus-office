@@ -4,7 +4,7 @@ import { act } from "react";
 import { click, mount, useDom } from "../a11y/dom.ts";
 import { AgentPanel } from "../agent/AgentPanel.tsx";
 import { useAgentStore } from "../agent/agentStore.ts";
-import { ROBOT_OWNER, recorder, seed } from "../agent/testHarness.tsx";
+import { HENCHMAN_OWNER, recorder, seed } from "../agent/testHarness.tsx";
 import type { ChangesApi, ChangesFailure } from "./api.ts";
 import { ChangesWindowHost } from "./ChangesWindow.tsx";
 import { useChangesWindow } from "./changesStore.ts";
@@ -136,7 +136,7 @@ async function open(api: ChangesApi) {
 
 describe("changes window", () => {
   test("a watcher sees the tree and diffs read-only: no commit, no checkboxes, no discard", async () => {
-    seed({ userId: "someone-else", robot: { status: "working" } });
+    seed({ userId: "someone-else", henchman: { status: "working" } });
     const { api } = fakeApi(
       snap([file("src/a.ts"), file("README.md", { uncommitted: false })], false),
     );
@@ -152,7 +152,7 @@ describe("changes window", () => {
   });
 
   test("the owner commits the chosen files with their fingerprints", async () => {
-    seed({ userId: ROBOT_OWNER, robot: { status: "working" } });
+    seed({ userId: HENCHMAN_OWNER, henchman: { status: "working" } });
     const { api, calls } = fakeApi(
       snap([file("a.ts"), file("b.ts"), file("c.ts", { uncommitted: false })], true),
     );
@@ -176,8 +176,8 @@ describe("changes window", () => {
     expect(text()).toContain("Committed 1 file as abcdef1");
   });
 
-  test("a commit refused because the robot edited a file names the file", async () => {
-    seed({ userId: ROBOT_OWNER, robot: { status: "working" } });
+  test("a commit refused because the henchman edited a file names the file", async () => {
+    seed({ userId: HENCHMAN_OWNER, henchman: { status: "working" } });
     const { api } = fakeApi(snap([file("a.ts")], true), {
       commitFails: { ok: false, status: 409, code: "changed_since_viewed", files: ["a.ts"] },
     });
@@ -195,7 +195,7 @@ describe("changes window", () => {
   });
 
   test("discard asks for confirmation first", async () => {
-    seed({ userId: ROBOT_OWNER, robot: { status: "working" } });
+    seed({ userId: HENCHMAN_OWNER, henchman: { status: "working" } });
     const { api, calls } = fakeApi(snap([file("new.txt", { kind: "untracked" })], true));
     await open(api);
     await click(buttonByLabel("Discard changes to new.txt") as HTMLButtonElement);
@@ -210,7 +210,7 @@ describe("changes window", () => {
   });
 
   test("images preview through blob URLs, revoked when closed", async () => {
-    seed({ userId: "someone-else", robot: { status: "working" } });
+    seed({ userId: "someone-else", henchman: { status: "working" } });
     const { api, calls } = fakeApi(
       snap([file("logo.png", { binary: true, additions: null })], false),
     );
@@ -224,7 +224,7 @@ describe("changes window", () => {
   });
 
   test("push and open PR hands over to the PR dialog once everything is committed", async () => {
-    seed({ userId: ROBOT_OWNER, robot: { status: "working" } });
+    seed({ userId: HENCHMAN_OWNER, henchman: { status: "working" } });
     const { api } = fakeApi(snap([file("a.ts", { uncommitted: false })], true));
     await open(api);
     await click(buttonByText("Push and open PR…") as HTMLButtonElement);
@@ -233,15 +233,15 @@ describe("changes window", () => {
     expect(useAgentStore.getState().dialog).toBe("pr");
   });
 
-  test("the robot panel opens the window for watchers and for the owner", async () => {
-    seed({ userId: "someone-else", robot: { status: "working" } });
+  test("the henchman panel opens the window for watchers and for the owner", async () => {
+    seed({ userId: "someone-else", henchman: { status: "working" } });
     const { wrap } = recorder();
     useAgentStore.getState().openAgentPanel("a1");
     const m = await mount(wrap(<AgentPanel />));
     await click(buttonByText("View changes") as HTMLButtonElement);
     expect(useChangesWindow.getState().agentId).toBe("a1");
     await m.unmount();
-    seed({ robot: { status: "working" } });
+    seed({ henchman: { status: "working" } });
     useAgentStore.getState().openAgentPanel("a1");
     const m2 = await mount(wrap(<AgentPanel />));
     expect(buttonByText("Review changes")).toBeDefined();

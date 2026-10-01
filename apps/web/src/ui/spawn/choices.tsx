@@ -1,7 +1,7 @@
 /**
  * The spawn dialog's smaller radio groups (#142): the effort levels of the
- * chosen model as a segmented control, and the floor's repos as a list
- * (only shown when the floor has more than one).
+ * chosen model as a segmented control, and the operation's repos as a list
+ * (only shown when the operation has more than one).
  */
 import type { ProviderId } from "@regulus/protocol";
 import { effortLabel, findModel } from "./models.ts";

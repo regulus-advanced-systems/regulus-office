@@ -1,5 +1,7 @@
 # ADR 0002: Room transport
 
+> Since #226, floors are called operations and robots henchmen.
+
 Date: 2026-09-28. Status: accepted.
 
 ## Context

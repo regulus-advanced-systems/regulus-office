@@ -1,7 +1,7 @@
 /**
  * Head accessories (antenna, visor, cap), the status antenna bulb, the human
  * badge and the agent chest light (SPEC §9.3). Geometries are module-level
- * singletons and materials come from the toon/unlit caches, so 20 robots add
+ * singletons and materials come from the toon/unlit caches, so 20 henchmen add
  * no per-instance GPU resources beyond their cloned skeletons.
  */
 import { BoxGeometry, CylinderGeometry, SphereGeometry } from "three";

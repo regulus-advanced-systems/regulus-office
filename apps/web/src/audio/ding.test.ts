@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { createDingGate, DING_MIN_INTERVAL_MS, playDing } from "./ding.ts";
 
-describe("robot ding", () => {
+describe("henchman ding", () => {
   test("muted by volume 0 and by reduced motion", () => {
     const gate = createDingGate();
     expect(gate({ now: 0, volume: 0, reducedMotion: false })).toBe(false);

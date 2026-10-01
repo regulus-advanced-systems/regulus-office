@@ -1,5 +1,5 @@
 /**
- * The FloorRoom's view of the AgentManager: `agent.spawn` and the robot
+ * The OperationRoom's view of the AgentManager: `agent.spawn` and the henchman
  * controls in, a result or a rejection reason out. Reasons are the manager's
  * human-safe messages; anything unexpected becomes "internal error" and is
  * logged server-side (message only, never objects that might carry env).
@@ -8,8 +8,8 @@ import type { AgentCommandResult } from "@regulus/protocol";
 import type {
   AgentControlCommand,
   AgentControlOutcome,
-  FloorAgentCommands,
-} from "../../rooms/floor/room.ts";
+  OperationAgentCommands,
+} from "../../rooms/operation/room.ts";
 import { AgentManagerError } from "./errors.ts";
 import type { AgentManager } from "./manager.ts";
 import { errorSummary } from "./runtime.ts";
@@ -69,7 +69,7 @@ async function run(
   }
 }
 
-export function floorAgentCommands(manager: AgentManager): FloorAgentCommands {
+export function operationAgentCommands(manager: AgentManager): OperationAgentCommands {
   return {
     async spawn(actor, command) {
       const { type: _type, ...input } = command;

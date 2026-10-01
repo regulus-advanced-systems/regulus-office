@@ -6,8 +6,8 @@
  *   PATCH  /api/skin-rules/:id    change match, skin or priority
  *   DELETE /api/skin-rules/:id
  *
- * Writes need a same-origin request and are audited. The FloorRooms
- * republish every robot's skin after a change (setup.ts).
+ * Writes need a same-origin request and are audited. The OperationRooms
+ * republish every henchman's skin after a change (setup.ts).
  */
 import { CreateSkinRule, SKIN_RULES_API_PATH, UpdateSkinRule } from "@regulus/protocol";
 import { AUDIT_ACTIONS, type AuditAction, writeAudit } from "../auth/audit.ts";
@@ -15,9 +15,9 @@ import type { OfficeAuth } from "../auth/auth.ts";
 import { AuthHttpError, forbidden, unauthorized } from "../auth/errors.ts";
 import { checkOrigin } from "../auth/origin.ts";
 import type { Db } from "../db/index.ts";
-import { type FloorActor, isOfficeManager } from "../floors/access.ts";
-import { readBody } from "../floors/routes.ts";
 import { json, type RouteContext, type Router } from "../http/router.ts";
+import { isOfficeManager, type OperationActor } from "../operations/access.ts";
+import { readBody } from "../operations/routes.ts";
 import { SkinRuleError, type SkinRuleStore } from "./store.ts";
 
 export interface SkinRoutesDeps {
@@ -32,7 +32,10 @@ export function mountSkinRoutes(router: Router, deps: SkinRoutesDeps): void {
   const { auth, db, rules } = deps;
 
   const handle =
-    (fn: (ctx: RouteContext, actor: FloorActor) => Promise<Response> | Response, write = false) =>
+    (
+      fn: (ctx: RouteContext, actor: OperationActor) => Promise<Response> | Response,
+      write = false,
+    ) =>
     async (ctx: RouteContext) => {
       try {
         if (write) {
@@ -52,7 +55,7 @@ export function mountSkinRoutes(router: Router, deps: SkinRoutesDeps): void {
         throw err;
       }
     };
-  const audit = (actor: FloorActor, action: AuditAction, id: string, meta: object) =>
+  const audit = (actor: OperationActor, action: AuditAction, id: string, meta: object) =>
     writeAudit(db, {
       userId: actor.id,
       action,

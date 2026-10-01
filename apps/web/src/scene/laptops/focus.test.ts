@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { Seat } from "@regulus/floor-layout";
+import type { Seat } from "@regulus/room-layout";
 import { DESK_FOCUS_RADIUS, nearestSeat, terminalDeskAt } from "./focus.ts";
 
 const seat = (id: string, x: number, z: number, kind: Seat["kind"] = "desk"): Seat => ({
@@ -31,7 +31,7 @@ describe("terminalDeskAt (#205)", () => {
         [0.6, 0.8],
       ] as const) {
         const at = { x: dx * d, z: dz * d };
-        // Unless the free desk is the nearest one within reach, E opens this robot's terminal.
+        // Unless the free desk is the nearest one within reach, E opens this henchman's terminal.
         const free = nearestSeat(seats, at, 1.6)?.id === "free";
         expect(terminalDeskAt(seats, at, occupied)?.id ?? null).toBe(free ? null : "busy");
       }

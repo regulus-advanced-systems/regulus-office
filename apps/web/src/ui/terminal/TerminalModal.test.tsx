@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import type { FloorState, RobotState, UserRole } from "@regulus/protocol";
+import type { HenchmanState, OperationState, UserRole } from "@regulus/protocol";
 import { act } from "react";
-import { useFloorStore } from "../../state/floor.ts";
+import { useOperationStore } from "../../state/operation.ts";
 import { useSessionStore } from "../../state/session.ts";
 import { useUiStore } from "../../state/ui.ts";
 import { click, type Mounted, mount, useDom } from "../a11y/dom.ts";
@@ -19,7 +19,7 @@ const deps: TerminalDeps = {
   wsBase: () => "ws://office",
 };
 
-const robot = (ownerUserId: string): RobotState =>
+const henchman = (ownerUserId: string): HenchmanState =>
   ({
     agentId: "a1",
     ownerUserId,
@@ -27,7 +27,7 @@ const robot = (ownerUserId: string): RobotState =>
     ownerName: "Rita",
     seatId: "s1",
     taskTitle: "Fix login",
-  }) as unknown as RobotState;
+  }) as unknown as HenchmanState;
 
 function signIn(id: string, role: UserRole) {
   useSessionStore.setState({ status: "authenticated", user: { id, displayName: id, role } });
@@ -55,9 +55,9 @@ async function serverHello(mode: "watch" | "control", viewers = 1, peers?: unkno
 beforeEach(() => {
   FakeSocket.all = [];
   FakeHost.all = [];
-  useFloorStore.setState({
-    floorId: "f1",
-    state: { robots: { a1: robot("rita") } } as unknown as FloorState,
+  useOperationStore.setState({
+    operationId: "f1",
+    state: { henchmen: { a1: henchman("rita") } } as unknown as OperationState,
   });
 });
 
@@ -66,7 +66,7 @@ afterEach(() => {
 });
 
 describe("TerminalModal", () => {
-  test("a member watching someone else's robot: watch only, faces, viewers, typing", async () => {
+  test("a member watching someone else's henchman: watch only, faces, viewers, typing", async () => {
     signIn("mo", "member");
     const m = await openModal();
     expect(FakeSocket.last().url).toBe("ws://office/ws/term/a1?mode=watch");
@@ -93,7 +93,7 @@ describe("TerminalModal", () => {
     await m.unmount();
   });
 
-  test("the robot's owner takes control, types, and releases it", async () => {
+  test("the henchman's owner takes control, types, and releases it", async () => {
     signIn("rita", "member");
     const m = await openModal();
     await serverHello("watch");
@@ -122,7 +122,7 @@ describe("TerminalModal", () => {
     await m.unmount();
   });
 
-  test("admins and office owners only watch other people's robots, with a note (#138)", async () => {
+  test("admins and office owners only watch other people's henchmen, with a note (#138)", async () => {
     for (const role of ["admin", "owner"] as const) {
       signIn("adm", role);
       const m = await openModal();
@@ -151,7 +151,7 @@ describe("TerminalModal", () => {
     await m.unmount();
   });
 
-  test("viewers never get the control button, even on their own robot", async () => {
+  test("viewers never get the control button, even on their own henchman", async () => {
     signIn("rita", "viewer");
     const m = await openModal();
     await serverHello("watch");
@@ -327,7 +327,7 @@ describe("TerminalModal", () => {
       window.innerHeight = 768;
     });
   });
-  test("#158: the robot's owner gets the sign-in link bar when Claude asks to sign in; watchers never", async () => {
+  test("#158: the henchman's owner gets the sign-in link bar when Claude asks to sign in; watchers never", async () => {
     const url = "https://claude.ai/oauth/authorize?code=true&client_id=FAKE&state=FAKEstate";
     const printLink = async () => {
       const host = FakeHost.all.at(-1) as FakeHost;
@@ -339,7 +339,7 @@ describe("TerminalModal", () => {
       await act(async () => FakeSocket.last().bytes("output"));
       await act(async () => new Promise((r) => setTimeout(r, 350)));
     };
-    const bar = () => document.querySelector('[data-testid="robot-sign-in-link"]');
+    const bar = () => document.querySelector('[data-testid="henchman-sign-in-link"]');
 
     signIn("mo", "member");
     let m = await openModal();

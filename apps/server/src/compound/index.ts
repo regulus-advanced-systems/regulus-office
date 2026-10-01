@@ -1,14 +1,14 @@
 /**
  * The compound (SPEC §9.1, D21; #181): the `compound` row, room placement,
  * the build phase, the layout published in the BuildingRoom, and its REST.
- * Pure rules live in @regulus/floor-layout `compound/`.
+ * Pure rules live in @regulus/room-layout `compound/`.
  *
  * Boot wiring (see src/index.ts):
  *   const compound = new CompoundService({ db, logger, config: loadCompoundConfig(),
  *     publish: (s) => rooms.building.setCompound(s), onRoomsChanged: ... });
- *   createFloors({ ..., placer: compound, onChange: (id) => { compound.floorChanged(id); ... } });
- *   compound.boot();   // migrates pre-compound floors into rooms on first run
- *   mountCompoundRoutes(server.router, { auth, compound, floors, lifecycle });
+ *   createOperations({ ..., placer: compound, onChange: (id) => { compound.operationChanged(id); ... } });
+ *   compound.boot();   // migrates pre-compound operations into rooms on first run
+ *   mountCompoundRoutes(server.router, { auth, compound, operations, lifecycle });
  */
 export { type CompoundConfig, CompoundConfigError, loadCompoundConfig } from "./config.ts";
 export { type EnsureCompoundResult, ensureCompound } from "./migrate.ts";

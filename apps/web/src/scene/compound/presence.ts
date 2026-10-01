@@ -1,12 +1,12 @@
 /**
- * Which FloorRooms to be in (SPEC §9.1, #186): the room the player stands in
+ * Which OperationRooms to be in (SPEC §9.1, #186): the room the player stands in
  * plus up to three of the nearest rooms on screen that this viewer may see
  * into. A room that drops out of the pick lingers a few seconds before it is
  * left, so walking along a corridor or turning the camera does not churn
  * joins. Pure; `RoomPresence.tsx` feeds it the camera's view.
  */
-import { MAX_NEARBY_ROOMS } from "../../net/floorLinks.ts";
-import { type CompoundWorld, currentFloorAt, distanceToRoom, isOpenRoom } from "./world.ts";
+import { MAX_NEARBY_ROOMS } from "../../net/operationLinks.ts";
+import { type CompoundWorld, currentOperationAt, distanceToRoom, isOpenRoom } from "./world.ts";
 
 /** How long a room stays joined after it leaves the pick, ms. */
 export const LINGER_MS = 4000;
@@ -17,7 +17,7 @@ export interface RoomPick {
 }
 
 export interface PresenceMemory {
-  /** Floor id → when it was last picked. */
+  /** Operation id → when it was last picked. */
   lastPicked: Map<string, number>;
 }
 
@@ -36,7 +36,7 @@ export function pickRooms(
   memory: PresenceMemory,
   now: number,
 ): RoomPick {
-  const here = currentFloorAt(world, player.x, player.z);
+  const here = currentOperationAt(world, player.x, player.z);
   const hereRoom = here ? world.rooms.find((r) => r.id === here) : undefined;
   const current = hereRoom && isOpenRoom(hereRoom) ? here : null;
   const open = world.rooms.filter((r) => r.kind === "project" && r.id !== current && isOpenRoom(r));

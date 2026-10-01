@@ -1,5 +1,5 @@
 /**
- * Browser client for a robot's changes window (#38; shapes in
+ * Browser client for a henchman's changes window (#38; shapes in
  * `@regulus/protocol` changes-api.ts). The session cookie is the only
  * credential; every answer is schema-checked before the UI sees it.
  */

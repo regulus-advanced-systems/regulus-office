@@ -13,7 +13,7 @@ import {
   filesContaining,
   git,
   pushToRemote,
-  setupFloor,
+  setupOperation,
 } from "./test-helpers.ts";
 import { WorkspaceError } from "./types.ts";
 
@@ -66,7 +66,7 @@ describe("helpers", () => {
 
 describe("prepare", () => {
   test("fetches first and bases the worktree on origin/<default>, not the stale local branch", async () => {
-    const f = await setupFloor(root);
+    const f = await setupOperation(root);
     const local = await git(["-C", f.repo.workdir, "rev-parse", "trunk"]);
     const upstream = await pushToRemote(f.bare, "trunk", "news.md", "upstream moved on");
     expect(upstream).not.toBe(local);
@@ -74,7 +74,7 @@ describe("prepare", () => {
     const agentId = f.addAgent("agent-a1");
     const ws = await f.worktrees.workspaces.prepare({
       agentId,
-      floorId: f.floorId,
+      operationId: f.operationId,
       repoId: f.repo.repoId,
       slug: "Fix Login",
       ownerUserId: f.owner.id,
@@ -107,7 +107,7 @@ describe("prepare", () => {
     expect(await git(["-C", clone, "config", "remote.origin.url"])).toBe(f.repo.remoteUrl);
     expect(await git(["-C", clone, "config", "core.sharedRepository"])).toBe("1"); // git stores --shared=group as 1;
     expect(await git(["-C", f.repo.workdir, "worktree", "list"])).not.toContain(ws.workdir);
-    // Other humans' runners may traverse the floor dir; the area is closed to "other".
+    // Other humans' runners may traverse the operation dir; the area is closed to "other".
     expect((await stat(f.areaOf())).mode & 0o007).toBe(0);
     // Recorded on the agent.
     const row = f.db.select().from(agents).where(eq(agents.id, agentId)).get();
@@ -129,11 +129,11 @@ describe("prepare", () => {
   });
 
   test("slugs are made unique against local and remote branches; prepare is idempotent", async () => {
-    const f = await setupFloor(root);
+    const f = await setupOperation(root);
     await git(["-C", f.bare, "branch", "office/task", "trunk"]); // pushed by someone earlier
     const input = (agentId: string) => ({
       agentId,
-      floorId: f.floorId,
+      operationId: f.operationId,
       repoId: f.repo.repoId,
       slug: "task",
       ownerUserId: f.owner.id,
@@ -146,10 +146,10 @@ describe("prepare", () => {
   });
 
   test("refuses a human's clone whose config their agent tampered with", async () => {
-    const f = await setupFloor(root);
+    const f = await setupOperation(root);
     const input = (agentId: string) => ({
       agentId,
-      floorId: f.floorId,
+      operationId: f.operationId,
       repoId: f.repo.repoId,
       slug: "x",
       ownerUserId: f.owner.id,
@@ -161,7 +161,7 @@ describe("prepare", () => {
   });
 
   test("refuses a mirror whose config was tampered with (before #114 runners could write it)", async () => {
-    const f = await setupFloor(root);
+    const f = await setupOperation(root);
     await git([
       "-C",
       f.repo.workdir,
@@ -172,7 +172,7 @@ describe("prepare", () => {
     const err = await errorOf(
       f.worktrees.workspaces.prepare({
         agentId: f.addAgent("a1"),
-        floorId: f.floorId,
+        operationId: f.operationId,
         repoId: f.repo.repoId,
         slug: "x",
         ownerUserId: f.owner.id,
@@ -182,7 +182,7 @@ describe("prepare", () => {
   });
 
   test("hooks planted in the mirror or a human's clone do not run in office git", async () => {
-    const f = await setupFloor(root);
+    const f = await setupOperation(root);
     const marker = join(root, `hook-ran-${Date.now()}`);
     const plant = async (repo: string) => {
       await mkdir(join(repo, ".git", "hooks"), { recursive: true });
@@ -193,7 +193,7 @@ describe("prepare", () => {
     };
     const input = (agentId: string) => ({
       agentId,
-      floorId: f.floorId,
+      operationId: f.operationId,
       repoId: f.repo.repoId,
       slug: "hooks",
       ownerUserId: f.owner.id,
@@ -206,11 +206,11 @@ describe("prepare", () => {
   });
 
   test("each human gets their own clone; branch names stay unique across them", async () => {
-    const f = await setupFloor(root);
+    const f = await setupOperation(root);
     const bob = f.addUser("Bob", "member");
     const input = (agentId: string, ownerUserId: string) => ({
       agentId,
-      floorId: f.floorId,
+      operationId: f.operationId,
       repoId: f.repo.repoId,
       slug: "same task",
       ownerUserId,
@@ -230,7 +230,7 @@ describe("prepare", () => {
       { clone: f.cloneOf(bob.id), legacy: false },
     );
     // A worktree in someone else's area, or a pre-#114 one, is never treated as Bob's clone.
-    for (const workdir of [a.workdir, join(f.worktreesDir, "wt-floor", "b1"), f.repo.workdir]) {
+    for (const workdir of [a.workdir, join(f.worktreesDir, "wt-operation", "b1"), f.repo.workdir]) {
       expect(ws.cloneFor({ ownerUserId: bob.id, repoId: f.repo.repoId, workdir })).toEqual({
         clone: f.repo.workdir,
         legacy: true,
@@ -239,11 +239,11 @@ describe("prepare", () => {
   });
 
   test("prepareClone (no worktree) gives the owner's clone on the default branch", async () => {
-    const f = await setupFloor(root);
+    const f = await setupOperation(root);
     const agentId = f.addAgent("a1");
     const ws = await f.worktrees.workspaces.prepareClone({
       agentId,
-      floorId: f.floorId,
+      operationId: f.operationId,
       repoId: f.repo.repoId,
       slug: "x",
       ownerUserId: f.owner.id,
@@ -257,11 +257,11 @@ describe("prepare", () => {
   });
 
   test("unknown or foreign repos are refused", async () => {
-    const f = await setupFloor(root);
+    const f = await setupOperation(root);
     const err = await errorOf(
       f.worktrees.workspaces.prepare({
         agentId: "a1",
-        floorId: "other-floor",
+        operationId: "other-operation",
         repoId: f.repo.repoId,
         slug: "x",
         ownerUserId: f.owner.id,
@@ -273,11 +273,11 @@ describe("prepare", () => {
 
 describe("release", () => {
   async function prepared(slug: string) {
-    const f = await setupFloor(root);
+    const f = await setupOperation(root);
     const agentId = f.addAgent(`agent-${slug}`);
     const ws = await f.worktrees.workspaces.prepare({
       agentId,
-      floorId: f.floorId,
+      operationId: f.operationId,
       repoId: f.repo.repoId,
       slug,
       ownerUserId: f.owner.id,
@@ -314,7 +314,7 @@ describe("release", () => {
     const other = f.addAgent("agent-local");
     const w2 = await f.worktrees.workspaces.prepare({
       agentId: other,
-      floorId: f.floorId,
+      operationId: f.operationId,
       repoId: f.repo.repoId,
       slug: "local",
       ownerUserId: f.owner.id,
@@ -324,19 +324,19 @@ describe("release", () => {
   });
 
   test("unknown agents are a no-op", async () => {
-    const f = await setupFloor(root);
+    const f = await setupOperation(root);
     await f.worktrees.workspaces.release({ agentId: "ghost", keepBranch: false });
   });
 });
 
 describe("prune", () => {
   test("removes worktrees of agents that no longer exist and prunes git's records", async () => {
-    const f = await setupFloor(root);
+    const f = await setupOperation(root);
     const keep = f.addAgent("live");
     const gone = f.addAgent("gone");
     const input = (agentId: string) => ({
       agentId,
-      floorId: f.floorId,
+      operationId: f.operationId,
       repoId: f.repo.repoId,
       slug: agentId,
       ownerUserId: f.owner.id,
@@ -344,9 +344,9 @@ describe("prune", () => {
     const live = await f.worktrees.workspaces.prepare(input(keep));
     const dead = await f.worktrees.workspaces.prepare(input(gone));
     f.db.delete(agents).where(eq(agents.id, gone)).run();
-    // Leftover directories git never knew about, in the area and (pre-#114) in the floor dir.
+    // Leftover directories git never knew about, in the area and (pre-#114) in the operation dir.
     const stray = join(f.areaOf(), "stray");
-    const oldStray = join(f.worktreesDir, "wt-floor", "old-agent");
+    const oldStray = join(f.worktreesDir, "wt-operation", "old-agent");
     await mkdir(stray, { recursive: true });
     await mkdir(oldStray, { recursive: true });
     // Prepared by this process, row not inserted yet (the manager inserts it after prepare).

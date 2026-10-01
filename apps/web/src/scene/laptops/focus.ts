@@ -2,7 +2,7 @@
  * Which desk the local player is at (SPEC §9.2 `E` interacts with the
  * nearest interactable; §9.4 the focused desk gets the live terminal).
  */
-import type { Seat } from "@regulus/floor-layout";
+import type { Seat } from "@regulus/room-layout";
 
 /** How close to a seat counts as "at the desk" for `E` and the live screen. */
 export const DESK_INTERACT_RADIUS = 1.6;
@@ -32,7 +32,7 @@ export function nearestSeat(
  * terminal, and `E` opens that terminal; one rule for both, so wherever the
  * live panel shows, `E` reaches it. The nearest desk within
  * `DESK_INTERACT_RADIUS` decides first: a free one is the spawn dialog's
- * (robots/deskInteraction.ts), so neither shows nor opens a terminal.
+ * (henchmen/deskInteraction.ts), so neither shows nor opens a terminal.
  */
 export function terminalDeskAt(
   seats: readonly Seat[],

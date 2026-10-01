@@ -4,7 +4,7 @@
  * south-east"). One shared radial-alpha texture on a small plane under each
  * piece; no shadow maps, no extra render passes.
  */
-import type { Rect } from "@regulus/floor-layout";
+import type { Rect } from "@regulus/room-layout";
 import { DataTexture, LinearFilter, RGBAFormat, SRGBColorSpace } from "three";
 
 export const BLOB_TEXTURE_SIZE = 64;

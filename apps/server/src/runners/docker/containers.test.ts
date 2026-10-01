@@ -51,7 +51,7 @@ describe("runner container changes (#130)", () => {
     ]);
     expect(recreated.id).not.toBe(first.id);
     expect(ensured.id).toBe(recreated.id);
-    expect(ensured.floorMounts).toEqual([mount]);
+    expect(ensured.operationMounts).toEqual([mount]);
   });
 
   test("another human's changes do not wait", async () => {

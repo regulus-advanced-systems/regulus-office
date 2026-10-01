@@ -2,7 +2,7 @@
  * REST shapes for the office's GitHub connection (SPEC §4.2 GitHub, §8, D14;
  * issue #141): one office-level connection, either a GitHub App created with
  * the manifest flow and installed on the org, or an org fine-grained PAT.
- * Floors clone the repos it covers, and "Add floor" lists them.
+ * Operations clone the repos it covers, and "Add operation" lists them.
  *
  * Secrets are write-only: a request may carry a PAT, a response never carries
  * the PAT, the app's private key, its webhook secret or an installation token.
@@ -10,7 +10,7 @@
  */
 import { z } from "zod";
 import { TimestampMs } from "./common.ts";
-import { RepoToken } from "./floors-api.ts";
+import { RepoToken } from "./operations-api.ts";
 
 export const GITHUB_API_PATH = "/api/github";
 export const GITHUB_CONNECTION_API_PATH = `${GITHUB_API_PATH}/connection`;
@@ -74,7 +74,7 @@ export type GitHubConnectionStatus = z.infer<typeof GitHubConnectionStatus>;
 export const GitHubRepoInfo = z.object({
   owner: z.string().max(100),
   name: z.string().max(100),
-  /** `owner/name`, what "Add floor" sends as the repo. */
+  /** `owner/name`, what "Add operation" sends as the repo. */
   fullName: z.string().max(201),
   private: z.boolean(),
   defaultBranch: z.string().max(200),

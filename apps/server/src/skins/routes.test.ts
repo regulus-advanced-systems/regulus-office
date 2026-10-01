@@ -1,16 +1,16 @@
 /** Henchman skin rules (#184) over a real server with sessions: who may change them, validation, audit, republish. */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { SKIN_RULES_API_PATH, type SkinRule } from "@regulus/protocol";
-import { robotFixture } from "@regulus/protocol/src/fixtures.ts";
+import { henchmanFixture } from "@regulus/protocol/src/fixtures.ts";
 import { type Office, startOffice } from "../auth/test-helpers.ts";
 import { auditLog } from "../db/schema/index.ts";
 import { captureLogger } from "../notifications/testing.ts";
-import { createFloorRooms, type FloorRooms } from "../rooms/floor/room.ts";
+import { createOperationRooms, type OperationRooms } from "../rooms/operation/room.ts";
 import { createSkins, type Skins } from "./setup.ts";
 
 let office: Office;
 let skins: Skins;
-let floors: FloorRooms;
+let operations: OperationRooms;
 let owner: { id: string; cookie: string };
 let member: { id: string; cookie: string };
 let admin: { id: string; cookie: string };
@@ -19,11 +19,11 @@ beforeAll(async () => {
   office = startOffice();
   skins = createSkins({ db: office.db });
   skins.mount(office.server.router, office.auth);
-  floors = createFloorRooms({
-    source: { loadFloor: () => undefined, canEnter: () => false },
+  operations = createOperationRooms({
+    source: { loadOperation: () => undefined, canEnter: () => false },
     logger: captureLogger().logger,
   });
-  skins.publishTo(floors);
+  skins.publishTo(operations);
   owner = await office.signUp("Olga");
   member = await office.signUp("Mia");
   admin = await office.signUp("Ada");
@@ -42,7 +42,8 @@ const send = (path: string, method: string, cookie: string, body?: unknown, orig
     headers: origin ? { origin } : undefined,
   });
 
-const skinOf = (agentId: string) => floors.robotsOn("f1").find((r) => r.agentId === agentId)?.skin;
+const skinOf = (agentId: string) =>
+  operations.henchmenOn("f1").find((r) => r.agentId === agentId)?.skin;
 
 describe("skin rules", () => {
   test("only owners and admins see or change them", async () => {
@@ -76,9 +77,13 @@ describe("skin rules", () => {
     expect(evil.status).toBe(403);
   });
 
-  test("rules resolve onto published robots and republish when they change", async () => {
-    floors.publishRobot("f1", { ...robotFixture, agentId: "a-codex", provider: "codex" });
-    floors.publishRobot("f1", { ...robotFixture, agentId: "a-claude", provider: "claude-code" });
+  test("rules resolve onto published henchmen and republish when they change", async () => {
+    operations.publishHenchman("f1", { ...henchmanFixture, agentId: "a-codex", provider: "codex" });
+    operations.publishHenchman("f1", {
+      ...henchmanFixture,
+      agentId: "a-claude",
+      provider: "claude-code",
+    });
     expect(skinOf("a-codex")).toBe("standard");
 
     const created = await send(SKIN_RULES_API_PATH, "POST", owner.cookie, {
@@ -91,7 +96,7 @@ describe("skin rules", () => {
     expect(skinOf("a-codex")).toBe("lab_coat");
     expect(skinOf("a-claude")).toBe("standard");
 
-    // A higher-priority rule for the same robots wins.
+    // A higher-priority rule for the same henchmen wins.
     const black = (await (
       await send(SKIN_RULES_API_PATH, "POST", admin.cookie, {
         match: "provider:codex",
@@ -105,7 +110,7 @@ describe("skin rules", () => {
     };
     expect(list.rules.map((r) => r.id)).toEqual([black.id, rule.id]);
 
-    // Changing and deleting republish too; a robot published later is dressed as well.
+    // Changing and deleting republish too; a henchman published later is dressed as well.
     const patched = await send(`${SKIN_RULES_API_PATH}/${black.id}`, "PATCH", owner.cookie, {
       skinId: "number_two",
     });
@@ -115,7 +120,7 @@ describe("skin rules", () => {
       204,
     );
     expect(skinOf("a-codex")).toBe("lab_coat");
-    floors.publishRobot("f1", { ...robotFixture, agentId: "a-late", provider: "codex" });
+    operations.publishHenchman("f1", { ...henchmanFixture, agentId: "a-late", provider: "codex" });
     expect(skinOf("a-late")).toBe("lab_coat");
 
     expect((await send(`${SKIN_RULES_API_PATH}/nope`, "DELETE", owner.cookie)).status).toBe(404);

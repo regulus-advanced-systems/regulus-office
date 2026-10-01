@@ -1,21 +1,21 @@
 /**
- * Who may open a robot's app (#39), in the spirit of D12 (SPEC §8 rule 4):
+ * Who may open a henchman's app (#39), in the spirit of D12 (SPEC §8 rule 4):
  *
- * - The floor must be visible to the user (floors/access.ts), else the app
+ * - The operation must be visible to the user (operations/access.ts), else the app
  *   does not exist for them (404), as for terminals.
- * - The robot's owner gets full access ("control"): every method and
- *   WebSocket messages both ways. The app runs in their robot's sandbox with
- *   their CLI logins in HOME; driving it is driving their robot's environment.
- * - Everyone else with floor access (members, viewers, admins, the office
+ * - The henchman's owner gets full access ("control"): every method and
+ *   WebSocket messages both ways. The app runs in their henchman's sandbox with
+ *   their CLI logins in HOME; driving it is driving their henchman's environment.
+ * - Everyone else with operation access (members, viewers, admins, the office
  *   owner) may "watch": GET/HEAD only, and WebSocket frames from the app to
  *   the browser only (HMR keeps working, nothing goes back). Like watching a
  *   terminal: they see the app, they cannot act inside another human's sandbox.
  * - Watching is offered only in app domain mode. On the office's own origin
- *   the app's scripts would run with the viewer's office session, so a robot
+ *   the app's scripts would run with the viewer's office session, so a henchman
  *   (or a dependency it installed) could act as the viewer in the office.
- *   Without `OFFICE_SERVICES_DOMAIN` only the owner opens their robot's apps.
+ *   Without `OFFICE_SERVICES_DOMAIN` only the owner opens their henchman's apps.
  */
-import { mayControlRobot, type UserRole } from "@regulus/protocol";
+import { mayControlHenchman, type UserRole } from "@regulus/protocol";
 
 export type AppAccess = "control" | "watch";
 
@@ -30,12 +30,13 @@ export type AppDecision =
 
 export function decideAppAccess(
   user: AppUser,
-  app: { ownerUserId: string; floorId: string },
-  canViewFloor: (user: AppUser, floorId: string) => boolean,
+  app: { ownerUserId: string; operationId: string },
+  canViewOperation: (user: AppUser, operationId: string) => boolean,
   isolatedOrigin: boolean,
 ): AppDecision {
-  if (!canViewFloor(user, app.floorId)) return { ok: false, status: 404, reason: "not_found" };
-  if (mayControlRobot(user, app.ownerUserId)) return { ok: true, access: "control" };
+  if (!canViewOperation(user, app.operationId))
+    return { ok: false, status: 404, reason: "not_found" };
+  if (mayControlHenchman(user, app.ownerUserId)) return { ok: true, access: "control" };
   if (isolatedOrigin) return { ok: true, access: "watch" };
   return { ok: false, status: 403, reason: "owner_only" };
 }

@@ -11,8 +11,9 @@
  * further south for the dock, and blocks the sea, the headlands and the
  * props with obstacles.
  */
-import type { Rect } from "@regulus/floor-layout";
+
 import { blastDoorButtons } from "@regulus/protocol";
+import type { Rect } from "@regulus/room-layout";
 import { mulberry32 } from "../../materials/grime.ts";
 import type { Bounds } from "../placed.ts";
 import type { CompoundWorld } from "../world.ts";

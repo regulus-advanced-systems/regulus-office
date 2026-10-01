@@ -1,7 +1,7 @@
 /**
  * "More options" of the spawn dialog (#142): the first prompt, task title,
  * issue number, permission mode (#166), credential and the own-worktree
- * toggle. All optional; the defaults are "no prompt (the robot waits)", a
+ * toggle. All optional; the defaults are "no prompt (the henchman waits)", a
  * title from the prompt or the issue, the provider's own permission mode
  * (Claude: auto mode), the default credential and a fresh worktree. Credentials are picked
  * by profile id; no secret is ever asked for or shown here (SPEC §8).

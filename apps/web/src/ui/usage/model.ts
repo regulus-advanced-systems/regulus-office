@@ -1,8 +1,8 @@
 /**
  * What the usage wall, the room screens and the HUD panel show (#40), as
  * plain strings and numbers: the viewer's own windows and spend (REST, only
- * ever their own) and the office totals and top robots (BuildingRoom state,
- * robot name and owner only). Pure, so it is unit-tested without a canvas.
+ * ever their own) and the office totals and top henchmen (BuildingRoom state,
+ * henchman name and owner only). Pure, so it is unit-tested without a canvas.
  */
 import {
   type LimitWindowKind,
@@ -113,7 +113,7 @@ export function buildUsageModel(
     officeTodayTokens: formatCompact(officeTokens),
     officeKeysUsd: formatUsd(office?.officeKeysCostUsdEstimate ?? 0),
     activeHumans: office?.activeHumans ?? 0,
-    top: (office?.topRobots ?? []).map((r) => ({
+    top: (office?.topHenchmen ?? []).map((r) => ({
       key: r.agentId,
       name: r.name,
       owner: r.ownerName,

@@ -1,7 +1,7 @@
 /**
  * "Notifications" in Settings (#42): desktop notifications for my own
- * robots (browser permission, one switch per event, quiet hours), for
- * owners/admins other robots' errors, and the team webhooks section.
+ * henchmen (browser permission, one switch per event, quiet hours), for
+ * owners/admins other henchmen's errors, and the team webhooks section.
  */
 import {
   DEFAULT_NOTIFICATION_PREFS,

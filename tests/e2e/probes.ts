@@ -77,7 +77,7 @@ export const distance = (a: Pos, b: Pos) => Math.hypot(a.x - b.x, a.z - b.z);
 
 /**
  * Viewport point of the free-desk click target nearest the middle of the
- * canvas (scene/robots `desk-hotspot-<seatId>` meshes), or null. `skip`
+ * canvas (scene/henchmen `desk-hotspot-<seatId>` meshes), or null. `skip`
  * leaves out seats known to be taken.
  */
 export function freeDeskPoint(

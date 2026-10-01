@@ -9,7 +9,7 @@
  * Results are cached per room and setting, so a re-render or a counter
  * change never regenerates a room. Pure.
  */
-import type { Rect, RoomLayout } from "@regulus/floor-layout";
+import type { Rect, RoomLayout } from "@regulus/room-layout";
 import { type RoomShell, roomShell } from "../lair/assembly.ts";
 import { type WorldLamp, worldLamps } from "../lair/components/BlinkingLamps.tsx";
 import { LAIR_MODELS } from "../lair/models.ts";
@@ -29,8 +29,8 @@ export interface RoomArt {
   pieces: PiecePlacement[];
   /**
    * Laptops on every desk as kit pieces (one instanced draw for all): every
-   * desk while the room's FloorRoom is not joined, the free desks while it is
-   * (robots' desks then get the live LaptopLayer laptop with its screen).
+   * desk while the room's OperationRoom is not joined, the free desks while it is
+   * (henchmen's desks then get the live LaptopLayer laptop with its screen).
    */
   laptops: PiecePlacement[];
   /** The desk seat of each of `laptops`, in the same order. */

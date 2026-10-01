@@ -71,7 +71,7 @@ office ALL=(root) NOPASSWD: /usr/local/lib/office/office-runner-helper provision
 office ALL=(root) NOPASSWD: /usr/local/lib/office/office-runner-helper deprovision *
 office ALL=(root) NOPASSWD: /usr/local/lib/office/office-runner-helper mount-project *
 office ALL=(root) NOPASSWD: /usr/local/lib/office/office-runner-helper reclaim *
-office ALL=(root) NOPASSWD: /usr/local/lib/office/office-runner-helper remove-floor *
+office ALL=(root) NOPASSWD: /usr/local/lib/office/office-runner-helper remove-operation *
 office ALL=(root) NOPASSWD: /usr/local/lib/office/office-runner-helper exec *
 office ALL=(root) NOPASSWD: /usr/local/lib/office/office-runner-helper spawn-piped *
 office ALL=(root) NOPASSWD: /usr/local/lib/office/office-runner-helper kill *
@@ -101,9 +101,9 @@ greppable and lets an operator drop verbs they do not want.
 | `Defaults!… !use_pty` | `attach` is spawned inside the terminal bridge's PTY and `spawn-piped` speaks JSON over pipes; an extra sudo PTY layer would only relay bytes. The helper still runs with sudo's `env_reset`. |
 | `provision` | `useradd` the account and group, HOME 0700, create the sticky run dir, start the account's tmux server in its own scope with `systemd-run --uid --gid --scope`. Root: account creation and cross-uid scopes. |
 | `deprovision` | Kill every process of the account, stop its tmux scope, `userdel --remove`. Root. |
-| `mount-project` | `mount-project <rid> <dir>`: `setfacl` on the human's own clone or agent worktree so their group and the office user can read and write it. `<dir>` must be canonical and inside `<worktrees>/<floor>/<rid>`, that human's own area (#114); mirrors, operation dirs and other humans' areas are refused before anything runs. It also removes "other" access from the area. Root: files in a checkout may belong to the human's account. |
-| `reclaim` | `reclaim <dir>`: upgrade from the shared layout before #114. `<dir>` is the projects root (operation mirrors) or a per-agent worktree directly in an operation dir, `<worktrees>/<floor>/<agent>` (never a runner id there: that is a human's area). Everything in it becomes the office user's again (`chown -R -P -h`), every extended ACL entry is removed (`setfacl -R -P -b`), and "other" loses access to the top dir. Root: those files belong to runner accounts. |
-| `remove-floor` | `remove-floor <slug>`: an operation was deleted in the office (#150). Removes `<projects>/<slug>` (the operation mirrors) and `<worktrees>/<slug>` (every human's area in it: clones and agent worktrees). `<slug>` must be an operation slug (`^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$`: no dots or slashes), so the target is exactly one level below a configured root; both roots must be canonical and the target a real directory, not a symlink. `rm -r --one-file-system` never follows symlinks. The office refuses the delete while henchmen are in the operation. Root: the areas hold files owned by runner accounts. |
+| `mount-project` | `mount-project <rid> <dir>`: `setfacl` on the human's own clone or agent worktree so their group and the office user can read and write it. `<dir>` must be canonical and inside `<worktrees>/<operation>/<rid>`, that human's own area (#114); mirrors, operation dirs and other humans' areas are refused before anything runs. It also removes "other" access from the area. Root: files in a checkout may belong to the human's account. |
+| `reclaim` | `reclaim <dir>`: upgrade from the shared layout before #114. `<dir>` is the projects root (operation mirrors) or a per-agent worktree directly in an operation dir, `<worktrees>/<operation>/<agent>` (never a runner id there: that is a human's area). Everything in it becomes the office user's again (`chown -R -P -h`), every extended ACL entry is removed (`setfacl -R -P -b`), and "other" loses access to the top dir. Root: those files belong to runner accounts. |
+| `remove-operation` | `remove-operation <slug>`: an operation was deleted in the office (#150). Removes `<projects>/<slug>` (the operation mirrors) and `<worktrees>/<slug>` (every human's area in it: clones and agent worktrees). `<slug>` must be an operation slug (`^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$`: no dots or slashes), so the target is exactly one level below a configured root; both roots must be canonical and the target a real directory, not a symlink. `rm -r --one-file-system` never follows symlinks. The office refuses the delete while henchmen are in the operation. Root: the areas hold files owned by runner accounts. |
 | `exec` | Start `agent-<agentId>` on the human's tmux server as the human and move the pane into its own `agent-<agentId>.scope`. Root: acting as another uid, creating a system scope. |
 | `spawn-piped` | `systemd-run --uid --gid --scope` a stdio process (e.g. `codex app-server`) as the human. Root: same. |
 | `kill` | Kill the session and `systemctl kill` every `agent-<agentId>*` scope (only if all its processes are the human's, or the root `unshare` that parents a sandbox's pid namespace), then remove the henchman's sandbox (network namespace, veth, record). Root: the processes belong to another uid. |
@@ -196,10 +196,10 @@ marker, uid 0, and IDs outside `^[a-z0-9]{1,23}$` (runner), `^[A-Za-z0-9_-]{1,64
 
   | Path | Who can reach it |
   |---|---|
-  | `<projects>/<floor>/<repo>` | the office only: the operation mirror, fetched with the operation credential |
-  | `<worktrees>/<floor>/<rid>/` | the office and `office-u-<rid>`: that human's area |
-  | `<worktrees>/<floor>/<rid>/_clones/<repo>` | the human's own clone, copied from the mirror |
-  | `<worktrees>/<floor>/<rid>/<agentId>` | a worktree of that clone for one agent |
+  | `<projects>/<operation>/<repo>` | the office only: the operation mirror, fetched with the operation credential |
+  | `<worktrees>/<operation>/<rid>/` | the office and `office-u-<rid>`: that human's area |
+  | `<worktrees>/<operation>/<rid>/_clones/<repo>` | the human's own clone, copied from the mirror |
+  | `<worktrees>/<operation>/<rid>/<agentId>` | a worktree of that clone for one agent |
 
   Runners get no ACL at all under the projects root, not even traverse, so a
   mirror is out of reach whatever its file modes. The office creates each
@@ -208,7 +208,7 @@ marker, uid 0, and IDs outside `^[a-z0-9]{1,23}$` (runner), `^[A-Za-z0-9_-]{1,64
   `g:office-u-<rid>:rwX` plus the same default ACL (so new files inherit it),
   `u:office:rwX` (+ default) for the office's own git work, and `--x` on each
   ancestor below the worktrees root. The helper checks that the path is inside
-  `<worktrees>/<floor>/<rid>` for the same `<rid>` it grants, so the office
+  `<worktrees>/<operation>/<rid>` for the same `<rid>` it grants, so the office
   cannot give a runner access to anything else, even by mistake. Chosen over a
   shared per-operation group because supplementary groups only apply to new
   processes: adding a human to an operation group would not reach their
@@ -245,11 +245,18 @@ each other's worktrees. Install the new helper and sudoers file (they add the
 
 ## Upgrading for operation deletion (#150)
 
-Deleting an operation in the office uses the `remove-floor` verb. Install the
+Deleting an operation in the office uses the `remove-operation` verb. Install the
 current helper and sudoers file before upgrading. With an older helper the
 delete fails: the operation stays archived with its files and rows, the office
 logs the helper error, and the delete can be retried from Settings → Operations
 once the helper is installed.
+
+## Upgrading for the operations rename (#226)
+
+The verb was called `remove-floor` before #226. The current helper accepts both
+names, and an office that finds only the old verb allowed (an older helper or
+sudoers file) deletes with `remove-floor` and logs a warning. Install the current
+helper and sudoers file to silence it.
 
 ## Upgrading for henchman sandboxes (#169)
 

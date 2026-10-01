@@ -1,4 +1,4 @@
-/** Boot migration from the shared floor clone to per-human clones (#114). */
+/** Boot migration from the shared operation clone to per-human clones (#114). */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -20,10 +20,10 @@ afterAll(async () => {
 async function layout(name: string) {
   const projectsDir = join(root, name, "projects");
   const worktreesDir = join(root, name, "worktrees");
-  await mkdir(join(projectsDir, "floor", "repo", ".git"), { recursive: true });
+  await mkdir(join(projectsDir, "operation", "repo", ".git"), { recursive: true });
   const rid = runnerId("user-a");
-  const area = join(worktreesDir, "floor", rid);
-  const oldWorktree = join(worktreesDir, "floor", "0f8c2d9e-agent");
+  const area = join(worktreesDir, "operation", rid);
+  const oldWorktree = join(worktreesDir, "operation", "0f8c2d9e-agent");
   await mkdir(join(area, "_clones", "repo", ".git"), { recursive: true });
   await mkdir(join(area, "agent-1"), { recursive: true });
   await writeFile(join(area, "agent-1", ".git"), "gitdir: x\n");
@@ -57,7 +57,7 @@ describe("linux-user: reclaim", () => {
   });
 });
 
-describe("docker: whole-floor mounts", () => {
+describe("docker: whole-operation mounts", () => {
   test("every recovered runner is reconciled on every boot; nothing is reclaimed", async () => {
     const l = await layout("docker");
     const reconciled: string[] = [];

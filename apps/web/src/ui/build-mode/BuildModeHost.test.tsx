@@ -3,7 +3,7 @@ import { act } from "react";
 import { rowPlacement, testWorld } from "../../scene/compound/testing.ts";
 import { useCameraStore } from "../../state/camera.ts";
 import { useCompoundStore } from "../../state/compound.ts";
-import { useFloorsStore } from "../../state/floors.ts";
+import { useOperationsStore } from "../../state/operations.ts";
 import { usePlayerStore } from "../../state/player.ts";
 import { useUiStore } from "../../state/ui.ts";
 import { click, type Mounted, mount, press, useDom } from "../a11y/dom.ts";
@@ -19,8 +19,8 @@ useDom();
 const world = testWorld([{ id: "apollo", name: "Apollo", placement: rowPlacement(4) }]);
 const REQUEST = { name: "Hermes", repos: [{ repo: "octo/hello" }] };
 
-const FLOOR = {
-  floorId: "f2",
+const OPERATION = {
+  operationId: "f2",
   name: "Hermes",
   slug: "hermes",
   index: 2,
@@ -60,7 +60,7 @@ async function start(kind: "create" | "move" = "create") {
         world,
         kind === "create"
           ? { kind: "create", request: REQUEST }
-          : { kind: "move", floorId: "apollo", name: "Apollo" },
+          : { kind: "move", operationId: "apollo", name: "Apollo" },
         buildFrame(world),
       );
   });
@@ -95,7 +95,7 @@ describe("build mode", () => {
       });
       useUiStore.setState({ overlay: null });
       useCompoundStore.getState().set(null);
-      useFloorsStore.getState().clear();
+      useOperationsStore.getState().clear();
     });
   });
 
@@ -104,10 +104,10 @@ describe("build mode", () => {
       "POST /api/compound/rooms": (call) => ({
         status: 201,
         body: {
-          floor: FLOOR,
+          operation: OPERATION,
           room: {
             ...(call.body as { placement: object }).placement,
-            floorId: "f2",
+            operationId: "f2",
             name: "Hermes",
             doorX: 0,
             doorY: 0,
@@ -134,7 +134,7 @@ describe("build mode", () => {
     expect(place?.body).toEqual({ ...REQUEST, placement });
     expect(store().intent).toBeNull();
     expect(useUiStore.getState().overlay).toBeNull();
-    expect(useFloorsStore.getState().floors?.map((x) => x.floorId)).toEqual(["f2"]);
+    expect(useOperationsStore.getState().operations?.map((x) => x.operationId)).toEqual(["f2"]);
     // The new room's status panel; the camera stays out while it is built.
     expect(text()).toContain("Operation set up");
     expect(store().watching).toBe("f2");
@@ -200,16 +200,16 @@ describe("build mode", () => {
     expect(status()).toBe("Too close to Apollo: keep 2 tiles clear for a corridor.");
   });
 
-  test("moving: starts on the room, refused while robots run, moves and takes the mover along", async () => {
-    let robots = true;
+  test("moving: starts on the room, refused while henchmen run, moves and takes the mover along", async () => {
+    let henchmen = true;
     const f = server({
       "PATCH /api/compound/rooms/apollo": () =>
-        robots
+        henchmen
           ? {
               status: 409,
               body: {
-                error: "room_has_running_robots",
-                robots: [
+                error: "room_has_running_henchmen",
+                henchmen: [
                   {
                     agentId: "a1",
                     ownerUserId: "u1",
@@ -236,12 +236,12 @@ describe("build mode", () => {
     await settle();
     expect(status()).toContain("A henchman is running in this room");
     expect(store().intent?.kind).toBe("move");
-    robots = false;
+    henchmen = false;
     await press(window, "Enter");
     await settle();
     expect(store().intent).toBeNull();
     expect(store().followMove).toEqual({
-      floorId: "apollo",
+      operationId: "apollo",
       placement: { gridX: 20, gridY: 28, width: 8, depth: 8, doorSide: "south" },
     });
   });

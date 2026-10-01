@@ -11,7 +11,7 @@
 
 /** One compound grid tile, metres (SPEC §9.1). */
 export const TILE = 2;
-/** Room and corridor wall height (the floor templates use 3 m). */
+/** Room and corridor wall height (the room templates use 3 m). */
 export const WALL_HEIGHT = 3;
 /** Wall thickness; the room side is at z = +WALL_THICKNESS / 2. */
 export const WALL_THICKNESS = 0.36;

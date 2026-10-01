@@ -11,7 +11,7 @@
  *   the runner that is not an agent), opened by the human as
  *   `/ws/term/login-<id>`. Success is `claude auth status` exiting 0. Then
  *   the CLI's onboarding is marked complete in the runner (#158: `auth
- *   login` alone leaves it open, and the first robot would ask to sign in
+ *   login` alone leaves it open, and the first henchman would ask to sign in
  *   again); only that flag in `~/.claude.json`, never a credential.
  *
  * Flows are in memory, visible only to the human who started them, one per

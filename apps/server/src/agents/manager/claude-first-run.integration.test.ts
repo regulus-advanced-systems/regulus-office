@@ -1,8 +1,8 @@
 /**
- * #158: a Claude Code robot goes straight to idle after its human signed in,
+ * #158: a Claude Code henchman goes straight to idle after its human signed in,
  * because the office marks Claude's onboarding complete and trusts the
- * robot's own worktree (only that folder) before the spawn; when a first-run
- * screen still shows, the robot waits for its human with a fixed reason.
+ * henchman's own worktree (only that folder) before the spawn; when a first-run
+ * screen still shows, the henchman waits for its human with a fixed reason.
  *
  * Real AgentManager + GitWorktreeWorkspaces + LocalTmuxRunner + hook route,
  * with a fake `claude` that shows the onboarding / trust screens unless the
@@ -23,7 +23,7 @@ import { agents } from "../../db/schema/index.ts";
 import { createOfficeServer, type OfficeServer } from "../../http/server.ts";
 import { createLogger } from "../../logging.ts";
 import { hasTmux, LocalTmuxRunner } from "../../runners/testing/local-tmux-runner.ts";
-import { setupFloor } from "../../worktrees/test-helpers.ts";
+import { setupOperation } from "../../worktrees/test-helpers.ts";
 import { mountClaudeHookRoutes } from "../hooks/routes.ts";
 import { makeManager } from "./test-helpers.ts";
 
@@ -48,7 +48,7 @@ describe.skipIf(!hasTmux() || !Bun.which("curl"))("Claude first run (#158)", () 
   });
 
   async function office(adapterOpts: ConstructorParameters<typeof ClaudeCodeAdapter>[0] = {}) {
-    const f = await setupFloor(root);
+    const f = await setupOperation(root);
     runner = await LocalTmuxRunner.create();
     server = createOfficeServer({
       config: { port: 0, host: "127.0.0.1", webDist: dist },
@@ -60,7 +60,7 @@ describe.skipIf(!hasTmux() || !Bun.which("curl"))("Claude first run (#158)", () 
       screenPollMs: 50,
       ...adapterOpts,
     });
-    const { manager, robots } = makeManager(f.db, runner, [adapter], {
+    const { manager, henchmen } = makeManager(f.db, runner, [adapter], {
       officeUrl: `http://127.0.0.1:${server.port}`,
       workspaces: f.worktrees.workspaces,
       clones: f.worktrees.workspaces,
@@ -74,7 +74,7 @@ describe.skipIf(!hasTmux() || !Bun.which("curl"))("Claude first run (#158)", () 
     const home = (await runner.provision({ userId: f.owner.id })).home;
     const spawn = (taskTitle: string) =>
       manager.spawn(f.owner, {
-        floorId: f.floorId,
+        operationId: f.operationId,
         repoId: f.repo.repoId,
         provider: "claude-code",
         model: "sonnet",
@@ -84,10 +84,10 @@ describe.skipIf(!hasTmux() || !Bun.which("curl"))("Claude first run (#158)", () 
       });
     const workdirOf = (id: string) =>
       f.db.select().from(agents).where(eq(agents.id, id)).get()?.workdir ?? "";
-    return { f, robots, home, spawn, workdirOf };
+    return { f, henchmen, home, spawn, workdirOf };
   }
 
-  test("after `claude auth login` (no onboarding flag), the robot goes straight to idle", async () => {
+  test("after `claude auth login` (no onboarding flag), the henchman goes straight to idle", async () => {
     const o = await office();
     // What `claude auth login` leaves: the account, no onboarding flag. And the credentials
     // file, which the office must never touch.
@@ -101,10 +101,10 @@ describe.skipIf(!hasTmux() || !Bun.which("curl"))("Claude first run (#158)", () 
     await writeFile(secret, '{"claudeAiOauth":"FAKE-NOT-A-TOKEN"}', { mode: 0o600 });
     const secretBefore = await stat(secret);
 
-    const { agentId } = await o.spawn("First robot");
-    const robot = await o.robots.waitFor(agentId, (r) => r.status === "idle", 15_000);
-    expect(robot.statusReason).toBe("");
-    expect(o.robots.history.some((r) => r.status === "waiting_input")).toBe(false);
+    const { agentId } = await o.spawn("First henchman");
+    const henchman = await o.henchmen.waitFor(agentId, (r) => r.status === "idle", 15_000);
+    expect(henchman.statusReason).toBe("");
+    expect(o.henchmen.history.some((r) => r.status === "waiting_input")).toBe(false);
 
     const cfg = JSON.parse(await readFile(join(o.home, ".claude.json"), "utf8"));
     const worktree = o.workdirOf(agentId);
@@ -113,7 +113,7 @@ describe.skipIf(!hasTmux() || !Bun.which("curl"))("Claude first run (#158)", () 
       oauthAccount: { accountUuid: "fake" },
       numStartups: 1,
       hasCompletedOnboarding: true,
-      // Only the robot's own worktree; never the human's clone.
+      // Only the henchman's own worktree; never the human's clone.
       projects: { [worktree]: { hasTrustDialogAccepted: true } },
     });
     expect(Object.keys(cfg.projects)).not.toContain(o.f.cloneOf());
@@ -122,11 +122,11 @@ describe.skipIf(!hasTmux() || !Bun.which("curl"))("Claude first run (#158)", () 
     expect(await readFile(secret, "utf8")).toBe('{"claudeAiOauth":"FAKE-NOT-A-TOKEN"}');
   }, 30_000);
 
-  test("OFFICE_CLAUDE_TRUST_WORKTREES off: the trust dialog makes the robot wait for its human", async () => {
+  test("OFFICE_CLAUDE_TRUST_WORKTREES off: the trust dialog makes the henchman wait for its human", async () => {
     const o = await office({ trustWorktrees: false });
     const { agentId } = await o.spawn("Untrusted");
-    const robot = await o.robots.waitFor(agentId, (r) => r.status === "waiting_input", 15_000);
-    expect(robot).toMatchObject({ handRaised: true, statusReason: CLAUDE_TRUST_REASON });
+    const henchman = await o.henchmen.waitFor(agentId, (r) => r.status === "waiting_input", 15_000);
+    expect(henchman).toMatchObject({ handRaised: true, statusReason: CLAUDE_TRUST_REASON });
     const cfg = JSON.parse(await readFile(join(o.home, ".claude.json"), "utf8"));
     expect(cfg).toEqual({ hasCompletedOnboarding: true });
   }, 30_000);
@@ -136,8 +136,8 @@ describe.skipIf(!hasTmux() || !Bun.which("curl"))("Claude first run (#158)", () 
     // A config the office will not rewrite (not JSON): Claude shows its first-run screens.
     await writeFile(join(o.home, ".claude.json"), "{ broken", { mode: 0o600 });
     const { agentId } = await o.spawn("Needs sign-in");
-    const robot = await o.robots.waitFor(agentId, (r) => r.status === "waiting_input", 15_000);
-    expect(robot).toMatchObject({ handRaised: true, statusReason: CLAUDE_SIGN_IN_REASON });
+    const henchman = await o.henchmen.waitFor(agentId, (r) => r.status === "waiting_input", 15_000);
+    expect(henchman).toMatchObject({ handRaised: true, statusReason: CLAUDE_SIGN_IN_REASON });
     expect(await readFile(join(o.home, ".claude.json"), "utf8")).toBe("{ broken");
   }, 30_000);
 });

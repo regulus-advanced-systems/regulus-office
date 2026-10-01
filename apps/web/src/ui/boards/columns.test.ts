@@ -35,7 +35,7 @@ const repo = (repoId: string, name: string): RepoSummary => ({
 });
 
 describe("issue columns", () => {
-  test("open, in progress (assignee, label or a robot on it) and closed", () => {
+  test("open, in progress (assignee, label or a henchman on it) and closed", () => {
     expect(issueColumn(issue(1))).toBe("open");
     expect(issueColumn(issue(1, { assignees: ["ada"] }))).toBe("in_progress");
     expect(issueColumn(issue(1, { labels: ["In Progress"] }))).toBe("in_progress");
@@ -90,7 +90,7 @@ describe("buildBoard", () => {
     "r1#12": pull(12, { draft: true, checksState: "pending" }),
   };
 
-  test("issue board: three columns, newest first, repo chips only on multi-repo floors", () => {
+  test("issue board: three columns, newest first, repo chips only on multi-repo operations", () => {
     const one = buildBoard("issue", { issues, pulls, repos: [repo("r1", "hello")] });
     expect(one.map((c) => c.id)).toEqual(["open", "in_progress", "closed"]);
     expect(one[0]?.cards.map((c) => c.number)).toEqual([3, 1]);
@@ -100,7 +100,7 @@ describe("buildBoard", () => {
       issues,
       pulls,
       repos: [repo("r1", "hello"), repo("r2", "other")],
-      robots: [{ repoId: "r1", issueNumber: 1 }],
+      henchmen: [{ repoId: "r1", issueNumber: 1 }],
     });
     expect(two[0]?.cards.map((c) => [c.number, c.repoChip])).toEqual([[3, "octo/other"]]);
     expect(two[1]?.cards.map((c) => c.number).sort()).toEqual([1, 2]);

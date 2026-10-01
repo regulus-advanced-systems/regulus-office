@@ -1,10 +1,10 @@
 /**
- * #119: in third person the standing robot turns toward the cursor at the
+ * #119: in third person the standing player turns toward the cursor at the
  * turn rate, faces its travel while walking, turns back to the cursor on
  * arrival, and each heading-only change is relayed through the move throttle.
  */
 import { describe, expect, test } from "bun:test";
-import { HEADING } from "@regulus/floor-layout";
+import { HEADING } from "@regulus/room-layout";
 import { angleDelta, headingOfTravel, type Pose, TURN_RATE } from "../scene/movement/kinematics.ts";
 import { createMoveThrottle } from "../scene/movement/moveThrottle.ts";
 import { createPlayerStore } from "./player.ts";
@@ -29,15 +29,15 @@ describe("facing the cursor", () => {
     expect(store.getState()).toMatchObject({ x: 5, z: 5, animation: "idle" });
   });
 
-  test("a cursor at the robot's feet leaves the heading alone", () => {
+  test("a cursor at the henchman's feet leaves the heading alone", () => {
     const store = standing(HEADING.east);
     store.getState().faceToward(5.1, 5.1, 1);
     expect(store.getState().heading).toBe(HEADING.east);
   });
 
-  test("while walking a path the robot faces its travel, not the cursor", () => {
+  test("while walking a path the henchman faces its travel, not the cursor", () => {
     const store = standing(HEADING.west);
-    store.getState().setTarget(9, 5); // due east, behind the robot
+    store.getState().setTarget(9, 5); // due east, behind the henchman
     for (let i = 0; i < 30; i++) {
       store.getState().advance(FRAME);
       store.getState().faceToward(5, 9, FRAME); // cursor to the south: ignored while walking

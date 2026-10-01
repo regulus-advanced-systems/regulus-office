@@ -14,7 +14,7 @@ describe("ScreenFeedClient", () => {
     const timers: { fn: () => void; ms: number }[] = [];
     const feed = new ScreenFeedClient({
       wsBase: "ws://office",
-      floorId: "f 1",
+      operationId: "f 1",
       onScreen: (id, text) => screens.push([id, text]),
       onRemoved: (id) => removed.push(id),
       socket: FakeSocket.factory,

@@ -6,21 +6,21 @@
  *   `STRIKE_GAP_MS` apart. Each strike swings the disc; the swings add up and
  *   die away (`swingAngle`), and the disc is exactly still again
  *   `SWING_MS` after the last strike.
- * - Robots cheer for `CHEER_MS` from the first strike, then go back to what
- *   they were doing (scene/robots/cheer.ts).
+ * - Henchmen cheer for `CHEER_MS` from the first strike, then go back to what
+ *   they were doing (scene/henchmen/cheer.ts).
  * - Reduced motion: no swing, no cheer, no confetti (the toast and the
  *   gong's glow still tell what happened).
  */
 import type { GongCause } from "@regulus/protocol";
 
 export const STRIKE_GAP_MS = 900;
-/** How long the robots celebrate. */
+/** How long the henchmen celebrate. */
 export const CHEER_MS = 3000;
 /** How long a strike keeps the disc swinging. */
 export const SWING_MS = 3500;
-/** Confetti per ring out of the gong, and over each robot (the pool recycles on busy floors). */
+/** Confetti per ring out of the gong, and over each henchman (the pool recycles on busy operations). */
 export const GONG_CONFETTI = 90;
-export const ROBOT_CONFETTI = 30;
+export const HENCHMAN_CONFETTI = 30;
 /** How long the gong glows after the last strike. */
 export const GLOW_MS = 1200;
 
@@ -31,7 +31,7 @@ const SWING_DECAY_S = 0.8;
 export interface GongRingView {
   /** Increases with every ring heard on this page. */
   id: number;
-  floorId: string;
+  operationId: string;
   cause: GongCause;
   strikes: number;
   /** When it was heard, `performance.now()` ms. */
@@ -48,7 +48,7 @@ export function lastStrikeAt(ring: Pick<GongRingView, "at" | "strikes">): number
   return ring.at + (ring.strikes - 1) * STRIKE_GAP_MS;
 }
 
-/** Whether robots cheer at `now`. */
+/** Whether henchmen cheer at `now`. */
 export function cheerActive(
   ring: Pick<GongRingView, "at"> | null,
   now: number,

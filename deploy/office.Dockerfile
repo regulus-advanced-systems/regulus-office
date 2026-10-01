@@ -12,7 +12,7 @@ COPY apps/server/package.json apps/server/
 COPY apps/web/package.json apps/web/
 COPY packages/agent-adapters/package.json packages/agent-adapters/
 COPY packages/assets/package.json packages/assets/
-COPY packages/floor-layout/package.json packages/floor-layout/
+COPY packages/room-layout/package.json packages/room-layout/
 COPY packages/protocol/package.json packages/protocol/
 RUN bun install --frozen-lockfile
 COPY apps ./apps
@@ -20,7 +20,7 @@ COPY packages ./packages
 RUN bun run --filter '@regulus/web' build
 
 FROM oven/bun:${BUN_VERSION}-slim AS runtime
-# git clones floor repos and pushes branches (SPEC §8 floor workdirs); ca-certificates for HTTPS;
+# git clones operation repos and pushes branches (SPEC §8 operation workdirs); ca-certificates for HTTPS;
 # sqlite3 for the `backup` service (scripts/backup.sh, #203), which runs this image.
 RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates sqlite3 \
     && rm -rf /var/lib/apt/lists/*
@@ -35,19 +35,19 @@ COPY apps/server/package.json apps/server/
 COPY apps/web/package.json apps/web/
 COPY packages/agent-adapters/package.json packages/agent-adapters/
 COPY packages/assets/package.json packages/assets/
-COPY packages/floor-layout/package.json packages/floor-layout/
+COPY packages/room-layout/package.json packages/room-layout/
 COPY packages/protocol/package.json packages/protocol/
 # Only the server's runtime dependency graph; the web client ships prebuilt.
 RUN bun install --frozen-lockfile --production --filter '@regulus/server' \
     && rm -rf /root/.bun/install/cache
 COPY apps/server ./apps/server
 COPY packages/agent-adapters ./packages/agent-adapters
-COPY packages/floor-layout ./packages/floor-layout
+COPY packages/room-layout ./packages/room-layout
 COPY packages/protocol ./packages/protocol
 COPY --from=build /app/apps/web/dist ./apps/web/dist
 COPY scripts/backup.sh scripts/backup-schedule.sh scripts/restore-db.sh ./scripts/
 # /data is the SQLite + blob volume; owned by `bun` so a fresh named volume inherits it.
-# Floor workdirs are shared with runner containers (uid 1001, gid 1001; runner/Dockerfile)
+# Operation workdirs are shared with runner containers (uid 1001, gid 1001; runner/Dockerfile)
 # through group 1001: `bun` is a member, and the roots are setgid 2775 so everything created
 # below them belongs to that group. Fresh named volumes copy this ownership and mode.
 RUN groupadd -g 1001 runners && usermod -aG runners bun \
@@ -59,6 +59,6 @@ VOLUME ["/data"]
 EXPOSE 4600
 HEALTHCHECK --interval=10s --timeout=3s --start-period=10s --retries=3 \
   CMD ["bun", "-e", "fetch('http://127.0.0.1:4600/healthz').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
-# umask 0002: dirs and files the office creates under the floor roots stay group-writable for
+# umask 0002: dirs and files the office creates under the operation roots stay group-writable for
 # the runners; `exec` keeps bun as the signal-receiving main process.
 CMD ["sh", "-c", "umask 0002 && exec bun apps/server/src/index.ts"]

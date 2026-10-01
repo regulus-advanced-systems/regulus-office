@@ -8,18 +8,18 @@ import type {
   ClientCommandPayload,
   ClientCommandType,
   CommandRejected,
-  FloorState,
+  OperationState,
 } from "@regulus/protocol";
 
 /**
  * Room names registered on the server. Not part of packages/protocol yet;
  * the server-side room registration must use the same strings.
  */
-export const ROOM_NAMES = { building: "building", floor: "floor" } as const;
+export const ROOM_NAMES = { building: "building", operation: "operation" } as const;
 
-/** Options sent with a FloorRoom join (matched by the server via filterBy). */
-export interface FloorJoinOptions {
-  floorId: string;
+/** Options sent with a OperationRoom join (matched by the server via filterBy). */
+export interface OperationJoinOptions {
+  operationId: string;
 }
 
 export type Unsubscribe = () => void;
@@ -49,7 +49,7 @@ export interface RoomHandle<S> {
 
 export interface RoomTransport {
   joinBuilding(): Promise<RoomHandle<BuildingState>>;
-  joinFloor(options: FloorJoinOptions): Promise<RoomHandle<FloorState>>;
+  joinOperation(options: OperationJoinOptions): Promise<RoomHandle<OperationState>>;
 }
 
 /** Colyseus close codes the client must not retry after (shared-types `CloseCode`). */

@@ -1,10 +1,10 @@
 /**
- * Each human's own clone of a floor repo (#114).
+ * Each human's own clone of an operation repo (#114).
  *
- * The floor clone from #30 (`<projects>/<floor>/<repo>`) is an office-only
- * mirror: the office fetches into it with the floor credential, and no
+ * The operation clone from #30 (`<projects>/<operation>/<repo>`) is an office-only
+ * mirror: the office fetches into it with the operation credential, and no
  * runner can reach it. On a human's first spawn on a repo the office makes
- * `<worktrees>/<floor>/<rid>/_clones/<repo>` (../runners/layout.ts):
+ * `<worktrees>/<operation>/<rid>/_clones/<repo>` (../runners/layout.ts):
  *
  * 1. fetch the mirror from GitHub (hardened, token scoped to the remote);
  * 2. `git init --shared=group` a temp dir, `origin` = the real remote;
@@ -41,7 +41,7 @@ async function exists(path: string): Promise<boolean> {
 
 /**
  * Create `dir` (and parents) and take away "other" permissions from it:
- * other humans' runners may traverse the floor dir, so a human's area must
+ * other humans' runners may traverse the operation dir, so a human's area must
  * only be open to its owner (the office) and group or ACL. Keeps setgid.
  */
 export async function ensurePrivateDir(dir: string): Promise<void> {
@@ -58,7 +58,7 @@ export interface CloneDeps {
   locks: KeyedMutex;
 }
 
-/** Fetch `origin` into `clone` with the floor credential, sent only to the repo's remote. */
+/** Fetch `origin` into `clone` with the operation credential, sent only to the repo's remote. */
 export async function fetchOrigin(
   deps: CloneDeps,
   repo: RepoCheckout,
@@ -126,5 +126,5 @@ export async function ensureHumanClone(
     await rm(partial, { recursive: true, force: true });
     throw err;
   }
-  deps.logger.info({ repoId: repo.repoId, clone }, "human clone created from the floor mirror");
+  deps.logger.info({ repoId: repo.repoId, clone }, "human clone created from the operation mirror");
 }

@@ -1,4 +1,4 @@
-/** Human presence commands: move, sit, emote, chat, floor.go (SPEC §6). */
+/** Human presence commands: move, sit, emote, chat, operation.go (SPEC §6). */
 import { z } from "zod";
 import { ChatText, Id } from "../common.ts";
 import { EMOTES } from "../enums.ts";
@@ -26,10 +26,10 @@ export const ChatCommand = z.object({
   text: ChatText,
 });
 
-/** Change floor; `ride` plays the elevator animation, `teleport` is the quick menu. */
-export const FloorGoCommand = z.object({
-  type: z.literal("floor.go"),
-  floorId: Id,
+/** Change operation; `ride` plays the elevator animation, `teleport` is the quick menu. */
+export const OperationGoCommand = z.object({
+  type: z.literal("operation.go"),
+  operationId: Id,
   mode: z.enum(["ride", "teleport"]).default("ride"),
 });
 
@@ -38,5 +38,5 @@ export const presenceCommands = [
   SitCommand,
   EmoteCommand,
   ChatCommand,
-  FloorGoCommand,
+  OperationGoCommand,
 ] as const;

@@ -45,8 +45,8 @@ export interface RoomDefinition<S extends object, J = unknown> {
   parseJoinOptions?(options: unknown): J;
   /**
    * Join options that select a room instance: a join goes to the live
-   * instance created with the same values, or creates one (e.g. one FloorRoom
-   * per `floorId`). Without it every join shares one instance.
+   * instance created with the same values, or creates one (e.g. one OperationRoom
+   * per `operationId`). Without it every join shares one instance.
    */
   filterBy?: readonly (keyof J & string)[];
   /**

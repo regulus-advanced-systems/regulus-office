@@ -1,10 +1,10 @@
-/** Merged robot PRs notify from the GitHub event bus (#35 → #42), once per merge. */
+/** Merged henchman PRs notify from the GitHub event bus (#35 → #42), once per merge. */
 import { describe, expect, test } from "bun:test";
 import { eq } from "drizzle-orm";
 import { agents } from "../db/schema/index.ts";
 import { type AnyGitHubEvent, GitHubEventBus } from "../github/events.ts";
 import { NotificationDirectory } from "./directory.ts";
-import type { RobotSnapshot } from "./events.ts";
+import type { HenchmanSnapshot } from "./events.ts";
 import { notifyMergedPullRequests } from "./pr-merged.ts";
 import { captureLogger, seededDb } from "./testing.ts";
 
@@ -14,12 +14,12 @@ function setup() {
   seed.addAgent("a2", 2, seed.member.id, 22);
   seed.addAgent("a3", 1, seed.other.id, null);
   const bus = new GitHubEventBus();
-  const merged: RobotSnapshot[] = [];
+  const merged: HenchmanSnapshot[] = [];
   const directory = new NotificationDirectory(seed.db);
   const off = notifyMergedPullRequests({
     db: seed.db,
     events: bus,
-    center: { pullRequestMerged: (robot) => merged.push(robot) },
+    center: { pullRequestMerged: (henchman) => merged.push(henchman) },
     directory,
     logger: captureLogger().logger,
   });
@@ -40,7 +40,7 @@ function closed(
     receivedAt: Date.now(),
     repo: { owner: "octo", name: "web", fullName: "octo/web" },
     repoIds,
-    floorIds: [],
+    operationIds: [],
     installationId: null,
     sender: null,
     fromOfficeApp: false,
@@ -59,7 +59,7 @@ function closed(
 }
 
 describe("notifyMergedPullRequests", () => {
-  test("a merge notifies the robot's owner once, whether webhook or poll reports it", () => {
+  test("a merge notifies the henchman's owner once, whether webhook or poll reports it", () => {
     const s = setup();
     s.bus.emit(closed(["repo-1"], 11));
     s.bus.emit(closed(["repo-1"], 11, { source: "poll" }));
@@ -73,7 +73,7 @@ describe("notifyMergedPullRequests", () => {
     });
     // Across restarts: a new subscriber on the same database stays quiet.
     s.off();
-    const again: RobotSnapshot[] = [];
+    const again: HenchmanSnapshot[] = [];
     notifyMergedPullRequests({
       db: s.db,
       events: s.bus,
@@ -105,7 +105,7 @@ describe("notifyMergedPullRequests", () => {
     expect(s.merged).toHaveLength(1);
   });
 
-  test("a PR merged after its robot was sent home still reaches the owner", () => {
+  test("a PR merged after its henchman was sent home still reaches the owner", () => {
     const s = setup();
     s.db
       .update(agents)

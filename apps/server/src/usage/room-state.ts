@@ -1,10 +1,14 @@
 /**
  * Copies the office usage summary (summary.ts `office()`) into the
  * BuildingRoom's `usage` state (SPEC §6 channel 1). Only office totals and
- * the leaderboard (robot name + owner) go there: shared state is seen by
+ * the leaderboard (henchman name + owner) go there: shared state is seen by
  * everyone, so no human's own limits or spend ever do.
  */
-import { TopRobotUsageSchema, type UsageSummary, type UsageSummarySchema } from "@regulus/protocol";
+import {
+  TopHenchmanUsageSchema,
+  type UsageSummary,
+  type UsageSummarySchema,
+} from "@regulus/protocol";
 
 type UsageState = InstanceType<typeof UsageSummarySchema>;
 
@@ -17,15 +21,15 @@ export function applyUsageSummary(state: UsageState, summary: UsageSummary): voi
   state.activeHumans = summary.activeHumans;
   state.dayStart = summary.dayStart;
   state.observedAt = summary.observedAt;
-  state.topRobots.clear();
-  for (const r of summary.topRobots) {
-    const row = new TopRobotUsageSchema();
+  state.topHenchmen.clear();
+  for (const r of summary.topHenchmen) {
+    const row = new TopHenchmanUsageSchema();
     row.agentId = r.agentId;
     row.name = r.name;
     row.ownerName = r.ownerName;
     row.provider = r.provider;
     row.tokens = r.tokens;
-    state.topRobots.push(row);
+    state.topHenchmen.push(row);
   }
 }
 

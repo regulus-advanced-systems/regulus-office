@@ -1,64 +1,64 @@
 /**
- * Read-only probes for robots in the office scene (needs `?stats`, see probes.ts). Each robot
- * is the group `robot-<agentId>` (apps/web/src/scene/robots/Robot.tsx), whose `userData`
- * carries the RobotState it draws (status, action, handRaised, seatId) and the animation it
+ * Read-only probes for henchmen in the office scene (needs `?stats`, see probes.ts). Each henchman
+ * is the group `henchman-<agentId>` (apps/web/src/scene/henchmen/Henchman.tsx), whose `userData`
+ * carries the HenchmanState it draws (status, action, handRaised, seatId) and the animation it
  * resolved from them (clip name, seated or not).
  */
 import type { Page, WebSocket } from "@playwright/test";
 
-export interface RobotProbe {
+export interface HenchmanProbe {
   agentId: string;
   status: string;
   action: string;
   handRaised: boolean;
-  /** Why the robot is in `error` (RobotState.statusReason), else "". */
+  /** Why the henchman is in `error` (HenchmanState.statusReason), else "". */
   statusReason: string;
   animation: string;
   seated: boolean;
   seatId: string;
 }
 
-/** Every robot the page draws, keyed by agent id. */
-export function robots(page: Page): Promise<Record<string, RobotProbe>> {
+/** Every henchman the page draws, keyed by agent id. */
+export function henchmen(page: Page): Promise<Record<string, HenchmanProbe>> {
   return page.evaluate(() => {
     type Obj = { name: string; userData: Record<string, unknown> };
     const r3f = (
       window as unknown as { __regulusR3F?: { scene: { traverse(f: (o: Obj) => void): void } } }
     ).__regulusR3F;
-    const out: Record<string, RobotProbe> = {};
+    const out: Record<string, HenchmanProbe> = {};
     r3f?.scene.traverse((o) => {
-      if (!o.name.startsWith("robot-") || !("status" in o.userData)) return;
-      const agentId = o.name.slice("robot-".length);
-      out[agentId] = { agentId, ...(o.userData as Omit<RobotProbe, "agentId">) };
+      if (!o.name.startsWith("henchman-") || !("status" in o.userData)) return;
+      const agentId = o.name.slice("henchman-".length);
+      out[agentId] = { agentId, ...(o.userData as Omit<HenchmanProbe, "agentId">) };
     });
     return out;
   });
 }
 
 /**
- * Starts sampling every robot's (status, action, animation, handRaised, and the reason of an
+ * Starts sampling every henchman's (status, action, animation, handRaised, and the reason of an
  * `error`) inside the page every 50 ms, so short-lived states are not missed between Playwright
  * polls. Read with {@link history}. These are what the scene drew: on a slow page a state can pass
  * without being drawn, so it also starts {@link recordStatuses} (what the page received).
  */
-export async function recordRobots(page: Page): Promise<void> {
+export async function recordHenchmen(page: Page): Promise<void> {
   await page.evaluate(() => {
     type Obj = { name: string; userData: Record<string, unknown> };
     const w = window as unknown as {
       __regulusR3F?: { scene: { traverse(f: (o: Obj) => void): void } };
-      __robotHistory?: string[];
-      __robotTimer?: number;
+      __henchmanHistory?: string[];
+      __henchmanTimer?: number;
     };
-    w.__robotHistory = [];
-    if (w.__robotTimer) clearInterval(w.__robotTimer);
-    w.__robotTimer = window.setInterval(() => {
+    w.__henchmanHistory = [];
+    if (w.__henchmanTimer) clearInterval(w.__henchmanTimer);
+    w.__henchmanTimer = window.setInterval(() => {
       w.__regulusR3F?.scene.traverse((o) => {
-        if (!o.name.startsWith("robot-") || !("status" in o.userData)) return;
+        if (!o.name.startsWith("henchman-") || !("status" in o.userData)) return;
         const d = o.userData;
         const entry =
           `${d.status}/${d.action}/${d.animation}/${d.handRaised ? "hand" : "-"}` +
           (d.statusReason ? ` (${d.statusReason})` : "");
-        const h = w.__robotHistory ?? [];
+        const h = w.__henchmanHistory ?? [];
         if (h[h.length - 1] !== entry) h.push(entry);
       });
     }, 50);
@@ -66,39 +66,39 @@ export async function recordRobots(page: Page): Promise<void> {
   await recordStatuses(page);
 }
 
-/** Distinct `status/action/animation/hand[ (statusReason)]` samples since {@link recordRobots}, in order. */
+/** Distinct `status/action/animation/hand[ (statusReason)]` samples since {@link recordHenchmen}, in order. */
 export function history(page: Page): Promise<string[]> {
   return page.evaluate(
-    () => (window as unknown as { __robotHistory?: string[] }).__robotHistory ?? [],
+    () => (window as unknown as { __henchmanHistory?: string[] }).__henchmanHistory ?? [],
   );
 }
 
 /**
- * Starts logging, per robot, every `status/action` the page's floor state received (the store
+ * Starts logging, per henchman, every `status/action` the page's operation state received (the store
  * `?stats` publishes, apps/web/src/scene/perf/stats.ts). The store is updated on every state
  * patch, so a state that lasted one patch is in the log even when the page drew no frame and
  * React rendered no commit while it lasted (a software-rendered CI page draws 1-3 fps, #179).
- * Called by {@link recordRobots}; read with {@link statuses}.
+ * Called by {@link recordHenchmen}; read with {@link statuses}.
  */
 async function recordStatuses(page: Page): Promise<void> {
   await page.evaluate(() => {
-    type Robot = { status: string; action: string };
-    type Snapshot = { state: { robots: Record<string, Robot> } | null };
+    type Henchman = { status: string; action: string };
+    type Snapshot = { state: { henchmen: Record<string, Henchman> } | null };
     const w = window as unknown as {
-      __regulusFloorStore?: {
+      __regulusOperationStore?: {
         getState(): Snapshot;
         subscribe(listener: (s: Snapshot) => void): () => void;
       };
       __statusLog?: Record<string, string[]>;
       __statusUnsubscribe?: () => void;
     };
-    const store = w.__regulusFloorStore;
-    if (!store) throw new Error("no floor store on the page (needs ?stats)");
+    const store = w.__regulusOperationStore;
+    if (!store) throw new Error("no operation store on the page (needs ?stats)");
     w.__statusUnsubscribe?.();
     const log: Record<string, string[]> = {};
     w.__statusLog = log;
     const take = (s: Snapshot) => {
-      for (const [agentId, r] of Object.entries(s.state?.robots ?? {})) {
+      for (const [agentId, r] of Object.entries(s.state?.henchmen ?? {})) {
         const entry = `${r.status}/${r.action}`;
         const list = (log[agentId] ??= []);
         if (list[list.length - 1] !== entry) list.push(entry);
@@ -109,7 +109,7 @@ async function recordStatuses(page: Page): Promise<void> {
   });
 }
 
-/** Distinct `status/action` of one robot, in the order the page received them (see recordStatuses). */
+/** Distinct `status/action` of one henchman, in the order the page received them (see recordStatuses). */
 export function statuses(page: Page, agentId: string): Promise<string[]> {
   return page.evaluate(
     (id) =>

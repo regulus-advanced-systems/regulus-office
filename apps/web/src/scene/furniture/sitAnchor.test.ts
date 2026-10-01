@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { officeL2Template as base, HEADING, type Seat, TEMPLATES } from "@regulus/floor-layout";
+import { officeL2Template as base, HEADING, type Seat, TEMPLATES } from "@regulus/room-layout";
 import {
   BACK_GAP,
   SEATED_BACK_DEPTH,

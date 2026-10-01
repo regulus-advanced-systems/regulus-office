@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import type { FloorState, SearchContextResponse, SearchResponse } from "@regulus/protocol";
-import { floorFixture, robotFixture } from "@regulus/protocol/src/fixtures.ts";
+import type { OperationState, SearchContextResponse, SearchResponse } from "@regulus/protocol";
+import { henchmanFixture, operationFixture } from "@regulus/protocol/src/fixtures.ts";
 import { act } from "react";
 import { roomLayout } from "../../scene/compound/interiors.ts";
 import { rowPlacement, testWorld } from "../../scene/compound/testing.ts";
 import { useCompoundStore } from "../../state/compound.ts";
-import { useFloorStore } from "../../state/floor.ts";
+import { useOperationStore } from "../../state/operation.ts";
 import { usePlayerStore } from "../../state/player.ts";
 import { useUiStore } from "../../state/ui.ts";
 import { click, type Mounted, mount, useDom } from "../a11y/dom.ts";
@@ -23,13 +23,13 @@ const RESULT: SearchResponse = {
   truncated: false,
   groups: [
     {
-      key: "robot:a1",
+      key: "henchman:a1",
       kind: "scrollback",
-      floorId: "f1",
-      floorName: "Apollo",
+      operationId: "f1",
+      operationName: "Apollo",
       agentId: "a1",
       seatId: "seat-1",
-      robotName: "Fix login",
+      henchmanName: "Fix login",
       ownerName: "Rob",
       hits: [
         {
@@ -47,8 +47,8 @@ const RESULT: SearchResponse = {
     {
       key: "chat:lobby",
       kind: "chat",
-      floorId: "lobby",
-      floorName: "Lobby",
+      operationId: "lobby",
+      operationName: "Lobby",
       hits: [
         {
           docId: 12,
@@ -65,7 +65,7 @@ const RESULT: SearchResponse = {
 const CONTEXT: SearchContextResponse = {
   docId: 11,
   agentId: "a1",
-  floorId: "f1",
+  operationId: "f1",
   lines: ["$ make", "compiling", "found the needle here", "done"],
   matchLine: 2,
 };
@@ -121,7 +121,7 @@ describe("SearchPanel", () => {
     expect(calls).toEqual(["search:needle"]);
 
     const groups = Array.from(document.querySelectorAll("[data-group]"));
-    expect(groups.map((g) => g.getAttribute("data-group"))).toEqual(["robot:a1", "chat:lobby"]);
+    expect(groups.map((g) => g.getAttribute("data-group"))).toEqual(["henchman:a1", "chat:lobby"]);
     expect(groups[0]?.textContent).toContain("Fix login (Rob) · Apollo");
     expect(groups[1]?.textContent).toContain("Chat · Lobby");
     const marks = Array.from(document.querySelectorAll(".rg-search__hit mark"));
@@ -131,7 +131,7 @@ describe("SearchPanel", () => {
     expect(groups[0]?.textContent).toContain("<b>here</b>");
   });
 
-  test("a terminal hit closes the dialog and starts a jump to the robot's desk", async () => {
+  test("a terminal hit closes the dialog and starts a jump to the henchman's desk", async () => {
     const { api } = fakeApi();
     mounted = await mount(<SearchPanel api={api} now={() => 5} />);
     useSearchStore.getState().setQuery("needle");
@@ -142,7 +142,7 @@ describe("SearchPanel", () => {
     expect(useUiStore.getState().overlay).toBeNull();
     expect(useSearchStore.getState().jump).toEqual({
       agentId: "a1",
-      floorId: "f1",
+      operationId: "f1",
       seatId: "seat-1",
       docId: 11,
       query: "needle",
@@ -170,7 +170,7 @@ describe("SearchReveal", () => {
     expect(document.querySelector('[data-testid="search-reveal"]')).toBeNull();
   });
 
-  test("nothing for another robot's terminal", async () => {
+  test("nothing for another henchman's terminal", async () => {
     useSearchStore.getState().setReveal({ agentId: "a2", docId: 11, query: "needle" });
     mounted = await mount(<SearchReveal agentId="a1" api={fakeApi().api} />);
     expect(document.querySelector('[data-testid="search-reveal"]')).toBeNull();
@@ -178,7 +178,7 @@ describe("SearchReveal", () => {
 });
 
 describe("tickJump", () => {
-  // The robot's room in a small compound (#186): seats are in compound metres.
+  // The henchman's room in a small compound (#186): seats are in compound metres.
   const world = testWorld([{ id: "f1", placement: rowPlacement(4), deskCount: 2 }]);
   const room = world.rooms.find((r) => r.id === "f1");
   const layout = room ? roomLayout(room) : null;
@@ -188,7 +188,7 @@ describe("tickJump", () => {
     id: seat.id,
     pose: { x: room.origin.x + seat.pose.x, z: room.origin.z + seat.pose.z },
   };
-  const target = { agentId: "a1", floorId: "f1", docId: 11, query: "needle", startedAt: 0 };
+  const target = { agentId: "a1", operationId: "f1", docId: 11, query: "needle", startedAt: 0 };
   const recorder = () => {
     const log: string[] = [];
     const deps: JumpDeps = {
@@ -199,8 +199,8 @@ describe("tickJump", () => {
     return { log, deps };
   };
 
-  test("rides to the robot's floor first", () => {
-    useFloorStore.setState({ floorId: "lobby", state: null });
+  test("rides to the henchman's operation first", () => {
+    useOperationStore.setState({ operationId: "lobby", state: null });
     const { log, deps } = recorder();
     const progress = { rode: false, walkingSince: null };
     expect(tickJump(target, progress, deps)).toBe(true);
@@ -210,16 +210,16 @@ describe("tickJump", () => {
 
   test("walks to the desk, opens the terminal there with the match to reveal", () => {
     const state = {
-      ...floorFixture,
-      floorId: "f1",
+      ...operationFixture,
+      operationId: "f1",
       layoutTemplateId: "room",
-      robots: { a1: { ...robotFixture, seatId: desk.id } },
-    } as FloorState;
+      henchmen: { a1: { ...henchmanFixture, seatId: desk.id } },
+    } as OperationState;
     useCompoundStore.setState({ world });
-    useFloorStore.getState().apply(state);
+    useOperationStore.getState().apply(state);
     usePlayerStore.setState({
       spawned: true,
-      spawnKey: "floor:f1",
+      spawnKey: "operation:f1",
       x: desk.pose.x + 8,
       z: desk.pose.z,
       target: null,

@@ -1,8 +1,8 @@
 /**
- * Labels for the robot permission modes (#166). The values and the default
+ * Labels for the henchman permission modes (#166). The values and the default
  * per provider come from protocol `permission-modes.ts`, which cites the
  * provider docs; this file only says them in office words. Used by the spawn
- * dialog's "More options" and the robot panel.
+ * dialog's "More options" and the henchman panel.
  */
 import { type PermissionMode, type ProviderId, permissionModesFor } from "@regulus/protocol";
 

@@ -1,10 +1,10 @@
 /**
- * Client state for the robot controls (#33): which robot's panel is open,
+ * Client state for the henchman controls (#33): which henchman's panel is open,
  * which dialog is up, the pending permission requests the server sent us
- * (only if we may control that robot, SPEC §8 rule 4), in-flight commands
- * and the last result or refusal per robot.
+ * (only if we may control that henchman, SPEC §8 rule 4), in-flight commands
+ * and the last result or refusal per henchman.
  *
- * The scene (a click on a robot or its desk, #29) calls `openAgentPanel`.
+ * The scene (a click on a henchman or its desk, #29) calls `openAgentPanel`.
  * Server messages are folded in by agentSync.ts; commands go out through
  * `sendAgentCommand` (agentCommands.ts).
  */
@@ -25,19 +25,19 @@ export interface AgentRefusal {
 }
 
 export interface AgentUiStore {
-  /** Robot whose panel is open. */
+  /** Henchman whose panel is open. */
   panelAgentId: string | null;
   openAgentPanel: (agentId: string) => void;
   closeAgentPanel: () => void;
 
-  /** Send-home or PR dialog for the panel's robot. */
+  /** Send-home or PR dialog for the panel's henchman. */
   dialog: AgentDialog | null;
   openDialog: (dialog: AgentDialog) => void;
   closeDialog: () => void;
 
-  /** Pending permission requests by robot (controllers only ever receive these). */
+  /** Pending permission requests by henchman (controllers only ever receive these). */
   permissions: Record<string, PendingPermission[]>;
-  /** Robot whose permission dialog is open. */
+  /** Henchman whose permission dialog is open. */
   permissionAgentId: string | null;
   /** Requests closed without an answer; they do not pop up again by themselves. */
   dismissed: Record<string, true>;
@@ -53,7 +53,7 @@ export interface AgentUiStore {
   started: (agentId: string, type: string) => void;
   succeeded: (result: AgentCommandResult) => void;
   refused: (agentId: string, refusal: AgentRefusal) => void;
-  /** Forget a robot that left (sent home, floor change). */
+  /** Forget a henchman that left (sent home, operation change). */
   forget: (agentId: string) => void;
   reset: () => void;
 }
@@ -157,7 +157,7 @@ export function createAgentStore() {
 
 export const useAgentStore = createAgentStore();
 
-/** For the scene (#29): open the panel of the robot that was clicked. */
+/** For the scene (#29): open the panel of the henchman that was clicked. */
 export function openAgentPanel(agentId: string): void {
   useAgentStore.getState().openAgentPanel(agentId);
 }

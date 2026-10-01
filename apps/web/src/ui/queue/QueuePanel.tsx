@@ -1,17 +1,17 @@
 /**
  * The room's task queue (SPEC §9.4 clipboard, 2D panel; #37): queued tasks
- * in run order, running ones with their robot, and recent history with
+ * in run order, running ones with their henchman, and recent history with
  * failure reasons and linked PRs. Owners and room managers reorder and
  * cancel; owners retry; room managers set how many tasks run at once.
  * Everyone who can see the room sees the queue.
  */
 import type { ClientCommandPayload, CommandRejected, QueueTask } from "@regulus/protocol";
-import { hasFloorAccess, mayConfigureQueue } from "@regulus/protocol";
+import { hasOperationAccess, mayConfigureQueue } from "@regulus/protocol";
 import { useEffect, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { getOfficeClient } from "../../net/index.ts";
-import { useFloorStore } from "../../state/floor.ts";
-import { useFloorsStore } from "../../state/floors.ts";
+import { useOperationStore } from "../../state/operation.ts";
+import { useOperationsStore } from "../../state/operations.ts";
 import { useSessionStore } from "../../state/session.ts";
 import { FormAlert } from "../auth/AuthCard.tsx";
 import { Button } from "../components/Button.tsx";
@@ -119,12 +119,13 @@ function TaskRow({
 export function QueuePanel({ send = officeSend() }: { send?: QueueSend }) {
   const closePanel = useQueueStore((s) => s.closePanel);
   const openAdd = useQueueStore((s) => s.openAdd);
-  const floorId = useFloorStore((s) => s.floorId);
-  const { tasks, settings } = useFloorStore(
+  const operationId = useOperationStore((s) => s.operationId);
+  const { tasks, settings } = useOperationStore(
     useShallow((s) => ({ tasks: s.state?.queue ?? NO_TASKS, settings: s.state?.queueSettings })),
   );
   const access =
-    useFloorsStore((s) => s.floors?.find((f) => f.floorId === floorId)?.access) ?? null;
+    useOperationsStore((s) => s.operations?.find((f) => f.operationId === operationId)?.access) ??
+    null;
   const userId = useSessionStore((s) => s.user?.id ?? null);
   const me = userId ? { id: userId } : null;
   const [error, setError] = useQueueRejections();
@@ -169,7 +170,7 @@ export function QueuePanel({ send = officeSend() }: { send?: QueueSend }) {
           Each task starts a henchman for the human who queued it, when a desk and a slot are free
           {settings ? ` (${settings.maxRunning} at once, ${settings.maxPerOwner} per person)` : ""}.
         </p>
-        {hasFloorAccess(access, "spawn") && (
+        {hasOperationAccess(access, "spawn") && (
           <Button variant="primary" onClick={() => openAdd()}>
             Queue a task…
           </Button>

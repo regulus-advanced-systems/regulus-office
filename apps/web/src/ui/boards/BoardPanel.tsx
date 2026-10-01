@@ -1,15 +1,15 @@
 /**
  * The GDT-style 2D panel for an issue or PR board (SPEC §9.4; #36): the
  * board's columns with their cards; a card opens its detail (CardDetail).
- * Opened from the 3D board (click or `E`); cards come from the FloorRoom
+ * Opened from the 3D board (click or `E`); cards come from the OperationRoom
  * state (#35 summaries), so the panel updates live.
  */
-import type { CardKind, IssueCard, PullCard, RepoSummary, RobotState } from "@regulus/protocol";
-import { hasFloorAccess } from "@regulus/protocol";
+import type { CardKind, HenchmanState, IssueCard, PullCard, RepoSummary } from "@regulus/protocol";
+import { hasOperationAccess } from "@regulus/protocol";
 import { useEffect, useMemo } from "react";
 import { useShallow } from "zustand/react/shallow";
-import { useFloorStore } from "../../state/floor.ts";
-import { useFloorsStore } from "../../state/floors.ts";
+import { useOperationStore } from "../../state/operation.ts";
+import { useOperationsStore } from "../../state/operations.ts";
 import { useUiStore } from "../../state/ui.ts";
 import { Modal } from "../components/Modal.tsx";
 import type { BoardsApi } from "./api.ts";
@@ -21,7 +21,7 @@ import "./boards.css";
 const NO_ISSUES: Readonly<Record<string, IssueCard>> = {};
 const NO_PULLS: Readonly<Record<string, PullCard>> = {};
 const NO_REPOS: readonly RepoSummary[] = [];
-const NO_ROBOTS: Readonly<Record<string, RobotState>> = {};
+const NO_HENCHMEN: Readonly<Record<string, HenchmanState>> = {};
 
 function Badge({ tone, children }: { tone: string; children: string }) {
   return <span className={`rg-board__badge rg-board__badge--${tone}`}>{children}</span>;
@@ -91,23 +91,25 @@ export function BoardPanel({ kind, api }: { kind: CardKind; api?: BoardsApi }) {
   const selected = useBoardStore((s) => s.selected);
   const selectCard = useBoardStore((s) => s.selectCard);
   const closeBoard = useBoardStore((s) => s.closeBoard);
-  const floorId = useFloorStore((s) => s.floorId);
-  const board = useFloorStore(
+  const operationId = useOperationStore((s) => s.operationId);
+  const board = useOperationStore(
     useShallow((s) => ({
       issues: s.state?.issues ?? NO_ISSUES,
       pulls: s.state?.pulls ?? NO_PULLS,
       repos: s.state?.repos ?? NO_REPOS,
-      robots: s.state?.robots ?? NO_ROBOTS,
+      henchmen: s.state?.henchmen ?? NO_HENCHMEN,
     })),
   );
-  const access = useFloorsStore((s) => s.floors?.find((f) => f.floorId === floorId)?.access);
+  const access = useOperationsStore(
+    (s) => s.operations?.find((f) => f.operationId === operationId)?.access,
+  );
   const columns = useMemo(
     () =>
       buildBoard(kind, {
         issues: board.issues,
         pulls: board.pulls,
         repos: board.repos,
-        robots: Object.values(board.robots),
+        henchmen: Object.values(board.henchmen),
       }),
     [kind, board],
   );
@@ -120,18 +122,18 @@ export function BoardPanel({ kind, api }: { kind: CardKind; api?: BoardsApi }) {
       title={BOARD_TITLES[kind]}
       width={selected ? 720 : Math.max(640, columns.length * 220)}
     >
-      {selected && floorId ? (
+      {selected && operationId ? (
         <CardDetail
           key={selected}
           api={api}
           cardRef={{
-            floorId,
+            operationId,
             kind,
             repoId: card?.repoId ?? selected.split("#")[0] ?? "",
             number: card?.number ?? Number(selected.split("#")[1]),
           }}
           summaryTitle={card?.title ?? ""}
-          canCarry={hasFloorAccess(access ?? null, "spawn")}
+          canCarry={hasOperationAccess(access ?? null, "spawn")}
           onBack={() => selectCard(null)}
           onCarried={closeBoard}
         />
@@ -147,16 +149,16 @@ export function BoardPanelHost({ api }: { api?: BoardsApi }) {
   const open = useBoardStore((s) => s.open);
   const openOverlay = useUiStore((s) => s.openOverlay);
   const closeOverlay = useUiStore((s) => s.closeOverlay);
-  const floorId = useFloorStore((s) => s.floorId);
+  const operationId = useOperationStore((s) => s.operationId);
   const closeBoard = useBoardStore((s) => s.closeBoard);
   useEffect(() => {
     if (!open) return;
     openOverlay(BOARD_OVERLAY);
     return () => closeOverlay(BOARD_OVERLAY);
   }, [open, openOverlay, closeOverlay]);
-  // Leaving the floor closes its board.
+  // Leaving the operation closes its board.
   useEffect(() => {
     closeBoard();
-  }, [floorId, closeBoard]);
+  }, [operationId, closeBoard]);
   return open ? <BoardPanel kind={open} api={api} /> : null;
 }

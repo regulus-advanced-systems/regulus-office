@@ -1,5 +1,5 @@
 /**
- * Per-robot permission mode (#166): how much a robot may do before it raises
+ * Per-henchman permission mode (#166): how much a henchman may do before it raises
  * its hand. The value is the provider CLI's own name for the mode, passed
  * through its own flag or setting; the allowed values are per provider.
  *
@@ -11,7 +11,7 @@
  * - `default` ("Manual"): asks before every edit, command and network call.
  * - `acceptEdits`: file edits and common filesystem commands run; the rest asks.
  * Left out: `plan` (edits wait for a plan approved in the terminal),
- * `dontAsk` (denies instead of asking, so a robot can never raise its hand) and
+ * `dontAsk` (denies instead of asking, so a henchman can never raise its hand) and
  * `bypassPermissions` (the docs require an isolated container or VM).
  *
  * Codex, the app-server `approvalPolicy` / `approval_policy`
@@ -56,7 +56,7 @@ export function isPermissionModeFor(provider: ProviderId, mode: string): mode is
 }
 
 /**
- * The mode a robot runs in: the stored one when it is valid for the provider,
+ * The mode a henchman runs in: the stored one when it is valid for the provider,
  * else the provider default (rows from before #166 have none).
  */
 export function effectivePermissionMode(

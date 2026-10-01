@@ -2,10 +2,10 @@
  * Harness for tests/e2e/agents.e2e.ts: an office-server process the spec starts, stops and
  * restarts itself (Playwright's webServer cannot be restarted mid-run), in production mode
  * with the `docker` runner backend, a small test runner image holding the fake `claude`
- * (tests/e2e/runner), floor repos cloned from local bare repos over file://, and PRs sent to a
+ * (tests/e2e/runner), operation repos cloned from local bare repos over file://, and PRs sent to a
  * fake GitHub on 127.0.0.1.
  *
- * Runners mount only their human's own area under the worktrees dir (the default floor root).
+ * Runners mount only their human's own area under the worktrees dir (the default operation root).
  * Runners use host networking and run as the host user's uid:gid (never root) so they can write
  * the worktrees the office creates. They reach the office on a private address of this host,
  * like Compose runners reach `office` on 172.x (#162): the office listens on 127.0.0.1 only, and

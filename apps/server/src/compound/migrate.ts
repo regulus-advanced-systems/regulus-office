@@ -4,14 +4,14 @@
  * it runs here, idempotently, in one write transaction:
  *
  * - No `compound` row yet: create it (OFFICE_COMPOUND_SIZE, lobby on the
- *   south edge) and lay every live floor out as a ready room in rows off the
+ *   south edge) and lay every live operation out as a ready room in rows off the
  *   main corridor, in elevator order, sized by its desk seats. The compound
- *   grows if they do not fit. Repos, members, desks, robots and seats are
- *   untouched: they hang off the floor id, which does not change.
- * - Otherwise: reconcile, placing any live floor that has no valid spot
- *   (a floor written without one, or restored onto a built-over spot).
+ *   grows if they do not fit. Repos, members, desks, henchmen and seats are
+ *   untouched: they hang off the operation id, which does not change.
+ * - Otherwise: reconcile, placing any live operation that has no valid spot
+ *   (an operation written without one, or restored onto a built-over spot).
  *
- * Archived floors are placed when they are restored.
+ * Archived operations are placed when they are restored.
  */
 import {
   type CompoundSpec,
@@ -20,31 +20,31 @@ import {
   planMigration,
   type ReconcileInput,
   reconcilePlacements,
-} from "@regulus/floor-layout";
+} from "@regulus/room-layout";
 import { asc, isNull } from "drizzle-orm";
 import { AUDIT_ACTIONS, type DbOrTx, writeAudit } from "../auth/audit.ts";
 import type { Db } from "../db/index.ts";
-import { floors } from "../db/schema/index.ts";
+import { operations } from "../db/schema/index.ts";
 import type { Logger } from "../logging.ts";
 import { liveRooms, readSpec, sizeForUnplaced, writePlacement, writeSpec } from "./store.ts";
 
 export interface EnsureCompoundResult {
   spec: CompoundSpec;
-  /** True when this call created the compound (and migrated the floors). */
+  /** True when this call created the compound (and migrated the operations). */
   created: boolean;
-  /** Floors given a (new) placement. */
+  /** Operations given a (new) placement. */
   placed: string[];
-  /** Live floors that found no spot (compound full); they stay off the map. */
+  /** Live operations that found no spot (compound full); they stay off the map. */
   unplaced: string[];
 }
 
-/** Elevator order for migrated floors: the order people knew them in. */
+/** Elevator order for migrated operations: the order people knew them in. */
 function elevatorOrder(db: DbOrTx): Map<string, number> {
   const rows = db
-    .select({ id: floors.id })
-    .from(floors)
-    .where(isNull(floors.archivedAt))
-    .orderBy(asc(floors.index), asc(floors.createdAt), asc(floors.id))
+    .select({ id: operations.id })
+    .from(operations)
+    .where(isNull(operations.archivedAt))
+    .orderBy(asc(operations.index), asc(operations.createdAt), asc(operations.id))
     .all();
   return new Map(rows.map((r, i) => [r.id, i]));
 }
@@ -107,7 +107,7 @@ export function ensureCompound(
   if (result.created || result.placed.length > 0) {
     options.logger?.info(
       { width: result.spec.width, depth: result.spec.depth, placed: result.placed.length },
-      result.created ? "compound created, floors migrated into rooms" : "rooms placed",
+      result.created ? "compound created, operations migrated into rooms" : "rooms placed",
     );
   }
   if (result.unplaced.length > 0) {

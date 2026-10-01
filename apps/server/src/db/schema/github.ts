@@ -1,5 +1,5 @@
 /**
- * Cached GitHub board data per floor repo (SPEC §5 `github_issues`,
+ * Cached GitHub board data per operation repo (SPEC §5 `github_issues`,
  * `github_pulls`; §9.4 boards). Rows are refreshed by the sync job / webhooks;
  * `raw` keeps the full API payload for fields the boards do not model yet.
  *
@@ -9,13 +9,13 @@
 import { CHECKS_STATES, REVIEW_STATES } from "@regulus/protocol";
 import { check, index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 import { enumText, id, inEnum, jsonText, timestampMs, timestamps } from "./_columns.ts";
-import { floorRepos } from "./floors.ts";
+import { operationRepos } from "./operations.ts";
 
 const cardColumns = () => ({
   id: id(),
   repoId: text("repo_id")
     .notNull()
-    .references(() => floorRepos.id, { onDelete: "cascade" }),
+    .references(() => operationRepos.id, { onDelete: "cascade" }),
   number: integer("number").notNull(),
   title: text("title").notNull(),
   /** GitHub state as reported (`open`, `closed`, ...). */

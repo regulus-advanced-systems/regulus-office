@@ -1,11 +1,11 @@
 /**
  * AgentManager (issue #26): agent lifecycle, persistence, re-adoption,
- * event log, RobotState publishing, status ladder.
+ * event log, HenchmanState publishing, status ladder.
  *
  * - manager.ts        AgentManager: spawn, prompt, respondPermission, interrupt,
  *                     stop, resume, sendHome, resolveTerminalTarget; the event sink
  * - state-machine.ts  allowed status transitions
- * - robot.ts          event → RobotState reducer (action, hand, bubbles)
+ * - henchman.ts          event → HenchmanState reducer (action, hand, bubbles)
  * - ladder.ts         heuristic status rungs and the session watcher
  * - adopt.ts          re-adoption on boot
  * - store.ts          agents / agent_events (retention) / desks / audit
@@ -18,10 +18,10 @@
 export * from "./commands.ts";
 export * from "./credentials.ts";
 export * from "./errors.ts";
+export * from "./henchman.ts";
 export * from "./ladder.ts";
 export * from "./launch.ts";
 export * from "./manager.ts";
-export * from "./robot.ts";
 export * from "./runner-backend.ts";
 export * from "./state-machine.ts";
 export * from "./store.ts";

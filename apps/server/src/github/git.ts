@@ -1,5 +1,5 @@
 /**
- * Server-side git for floor repos (SPEC §8): clone, inspect, and (in #31)
+ * Server-side git for operation repos (SPEC §8): clone, inspect, and (in #31)
  * push. Runs the system `git` with a minimal, isolated environment.
  *
  * Credential handling: a repo's PAT is handed to one git command through
@@ -75,7 +75,7 @@ export function redactGitOutput(
   return out;
 }
 
-/** Short, redacted, single-paragraph reason for `floor_repos.cloneError`. */
+/** Short, redacted, single-paragraph reason for `operation_repos.cloneError`. */
 export function summarizeGitError(stderr: string, secrets: readonly (string | null | undefined)[]) {
   const lines = redactGitOutput(stderr, secrets)
     .split("\n")

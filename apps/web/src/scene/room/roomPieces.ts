@@ -1,7 +1,7 @@
 /**
- * Turns a floor template's walls into renderable boxes and planes (SPEC §12,
+ * Turns a room template's walls into renderable boxes and planes (SPEC §12,
  * research 03 §1, §8): two full back walls, front stub walls with a dark
- * grey cap, window panes on the interior of full walls, and the floor name
+ * grey cap, window panes on the interior of full walls, and the operation name
  * plate on the exterior face of `nameWallId`. In first-person view
  * (SPEC §9.2) the front stubs are drawn at full height instead, without
  * caps (`frontWalls: "full"`). Pure; `Room.tsx` draws it.
@@ -9,14 +9,14 @@
 import {
   type CompassDirection,
   DIRECTION,
-  type FloorTemplate,
   type Palette,
+  type RoomTemplate,
   WALL_THICKNESS,
   type Wall,
   wallDirection,
   wallLength,
   wallPoint,
-} from "@regulus/floor-layout";
+} from "@regulus/room-layout";
 
 export type Vec3Tuple = readonly [number, number, number];
 
@@ -120,7 +120,7 @@ export function wallFaces(piece: Pick<WallPiece, "facing" | "exterior">): WallFa
   return faces;
 }
 
-export function roomPieces(template: FloorTemplate, options: RoomPiecesOptions = {}): RoomPieces {
+export function roomPieces(template: RoomTemplate, options: RoomPiecesOptions = {}): RoomPieces {
   const promoteStubs = options.frontWalls === "full";
   const walls: WallPiece[] = [];
   const caps: CapPiece[] = [];

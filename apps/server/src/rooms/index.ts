@@ -1,7 +1,7 @@
 /**
  * Room wiring for the office server: builds the transport, defines the
  * BuildingRoom on top of the database, and hands back what boot needs.
- * and the FloorRoom (SPEC §6 channel 2, one instance per floor).
+ * and the OperationRoom (SPEC §6 channel 2, one instance per operation).
  */
 import { ROOM_NAMES } from "@regulus/protocol";
 import { AUDIT_ACTIONS, writeAudit } from "../auth/audit.ts";
@@ -9,12 +9,12 @@ import { originPolicyFor } from "../auth/origin.ts";
 import type { Db } from "../db/index.ts";
 import type { Logger } from "../logging.ts";
 import type { RoomAuth } from "./auth.ts";
-import { DrizzleFloorSource } from "./building/floors.ts";
+import { DrizzleOperationSource } from "./building/operations.ts";
 import { type BuildingRoom, createBuildingRoom } from "./building/room.ts";
 import { DrizzleChatStore } from "./chat/store.ts";
 import { ColyseusRoomTransport } from "./colyseus/transport.ts";
-import { createFloorRooms, type FloorRooms } from "./floor/room.ts";
-import { DrizzleFloorRoomSource } from "./floor/source.ts";
+import { createOperationRooms, type OperationRooms } from "./operation/room.ts";
+import { DrizzleOperationRoomSource } from "./operation/source.ts";
 import type { RoomTransport } from "./transport.ts";
 
 export type { RoomAuth, RoomAuthUser } from "./auth.ts";
@@ -25,7 +25,7 @@ export {
   DEV_USER_HEADER,
   denyAllAuth,
 } from "./auth.ts";
-export { FLOOR_CLOSED_CODE, type FloorRooms } from "./floor/room.ts";
+export { OPERATION_CLOSED_CODE, type OperationRooms } from "./operation/room.ts";
 export type {
   HttpAttachment,
   RoomClient,
@@ -48,12 +48,12 @@ export interface RoomsOptions {
 export interface Rooms {
   transport: RoomTransport;
   building: BuildingRoom;
-  /** FloorRoom registry: `publishRobot` / `removeRobot` for the AgentManager (#26). */
-  floors: FloorRooms;
-  /** Re-read floors and robot counters into the building room (call after floor/agent changes). */
-  refreshFloors(): Promise<void>;
-  /** A floor changed (created, archived, repo cloned): refresh the building list and its room. */
-  floorChanged(floorId: string): Promise<void>;
+  /** OperationRoom registry: `publishHenchman` / `removeHenchman` for the AgentManager (#26). */
+  operations: OperationRooms;
+  /** Re-read operations and henchman counters into the building room (call after operation/agent changes). */
+  refreshOperations(): Promise<void>;
+  /** An operation changed (created, archived, repo cloned): refresh the building list and its room. */
+  operationChanged(operationId: string): Promise<void>;
 }
 
 export function createRooms(options: RoomsOptions): Rooms {
@@ -63,12 +63,12 @@ export function createRooms(options: RoomsOptions): Rooms {
     logger,
     originPolicy: originPolicyFor(publicUrl, production),
   });
-  const floorSource = new DrizzleFloorRoomSource(db);
+  const operationSource = new DrizzleOperationRoomSource(db);
   const building = createBuildingRoom({
     chat: new DrizzleChatStore(db),
-    floors: new DrizzleFloorSource(db),
+    operations: new DrizzleOperationSource(db),
     logger: logger.child({ room: ROOM_NAMES.building }),
-    canVisit: (user, floorId) => floorSource.canEnter(user, floorId),
+    canVisit: (user, operationId) => operationSource.canEnter(user, operationId),
     blastDoor: {
       openMs: blastDoorMs,
       audit: (press) => {
@@ -86,20 +86,20 @@ export function createRooms(options: RoomsOptions): Rooms {
       },
     },
   });
-  const floors = createFloorRooms({
-    source: floorSource,
-    logger: logger.child({ room: ROOM_NAMES.floor }),
+  const operations = createOperationRooms({
+    source: operationSource,
+    logger: logger.child({ room: ROOM_NAMES.operation }),
   });
   transport.defineRoom(ROOM_NAMES.building, building);
-  transport.defineRoom(ROOM_NAMES.floor, floors.definition);
+  transport.defineRoom(ROOM_NAMES.operation, operations.definition);
   return {
     transport,
     building,
-    floors,
-    refreshFloors: () => building.refreshFloors(),
-    async floorChanged(floorId) {
-      floors.refreshFloor(floorId);
-      await building.refreshFloors();
+    operations,
+    refreshOperations: () => building.refreshOperations(),
+    async operationChanged(operationId) {
+      operations.refreshOperation(operationId);
+      await building.refreshOperations();
     },
   };
 }

@@ -1,0 +1,16 @@
+{
+  "name": "@regulus/room-layout",
+  "version": "0.0.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "description": "Data-driven room templates, seats, wall anchors and nav grid",
+  "main": "src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@regulus/protocol": "workspace:*",
+    "zod": "4.6.5"
+  }
+}

@@ -103,7 +103,7 @@ export function skinLook(skin: string | undefined): SkinLook {
   return SKIN_LOOKS[skinIdFor(skin)];
 }
 
-/** The palette with the robot's provider colour as trim (falls back to the skin's own). */
+/** The palette with the henchman's provider colour as trim (falls back to the skin's own). */
 export function paletteFor(skin: string | undefined, trim: string | undefined): Palette {
   const look = skinLook(skin);
   return trim ? { ...look.palette, trim } : look.palette;

@@ -47,6 +47,6 @@ export async function refreshIfDrifted(
     if (sessions === null) return now;
     const busy = await piped.busy(c.userId, async () => sessions, false);
     if (busy.sessions.length > 0 || busy.piped.length > 0) return now;
-    return containers.recreate(c.userId, now.floorMounts, "the runner image changed");
+    return containers.recreate(c.userId, now.operationMounts, "the runner image changed");
   });
 }

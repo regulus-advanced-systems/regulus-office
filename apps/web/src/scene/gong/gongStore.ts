@@ -1,7 +1,7 @@
 /**
- * The last ring of the merge gong heard on the floor we are on (#43). The
- * gong, the robots and the confetti all read it; gongSync.ts writes it from
- * the FloorRoom's `pr.merged` / `gong.ring` messages. Changing floors forgets it.
+ * The last ring of the merge gong heard in the operation we are in (#43). The
+ * gong, the henchmen and the confetti all read it; gongSync.ts writes it from
+ * the OperationRoom's `pr.merged` / `gong.ring` messages. Changing operations forgets it.
  */
 import type { GongCause } from "@regulus/protocol";
 import { create } from "zustand";
@@ -11,7 +11,10 @@ export interface GongStore {
   ring: GongRingView | null;
   /** Strikes heard on this page so far (read by the e2e probes). */
   strikes: number;
-  heard(input: { floorId: string; cause: GongCause; strikes: number }, now?: number): GongRingView;
+  heard(
+    input: { operationId: string; cause: GongCause; strikes: number },
+    now?: number,
+  ): GongRingView;
   forget(): void;
 }
 

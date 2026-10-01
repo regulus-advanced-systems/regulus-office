@@ -216,7 +216,7 @@ describe("the onboarding plan (SPEC §8)", () => {
 describe("ClaudeCodeAdapter.prepareSpawn", () => {
   const plan = { agentId: "a1" } as SpawnPlan;
 
-  test("trusts the robot's worktree by default; nothing without one", async () => {
+  test("trusts the henchman's worktree by default; nothing without one", async () => {
     const adapter = new ClaudeCodeAdapter();
     expect(await adapter.prepareSpawn(plan, ctx, { worktree: "/srv/wt/a1" })).toEqual({
       outcome: "changed",

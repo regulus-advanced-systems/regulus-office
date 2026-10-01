@@ -1,5 +1,5 @@
 /**
- * Per-user robot looks (SPEC §9.3): a named colour set (primary body colour,
+ * Per-user henchman looks (SPEC §9.3): a named colour set (primary body colour,
  * secondary joint colour, accent for accessories/badge) and an accessory.
  * `AvatarLook.colorSet` / `.accessory` are free strings on the wire; unknown
  * values fall back to defaults here so a stale profile never breaks rendering.

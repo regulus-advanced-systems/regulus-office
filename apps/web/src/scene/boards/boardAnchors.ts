@@ -5,14 +5,15 @@
  * room generated for the compound (#182/#186) gets its boards by listing
  * those anchors, wherever they hang.
  */
+
+import type { CardKind } from "@regulus/protocol";
 import {
   anchorStandPose,
-  type FloorTemplate,
+  type RoomTemplate,
   type Wall,
   type WallAnchor,
   wallById,
-} from "@regulus/floor-layout";
-import type { CardKind } from "@regulus/protocol";
+} from "@regulus/room-layout";
 
 export const BOARD_ANCHOR_KINDS: Readonly<Record<string, CardKind>> = {
   issue_board: "issue",
@@ -29,7 +30,7 @@ export interface BoardAnchor {
   stand: { x: number; z: number };
 }
 
-export function boardAnchors(template: FloorTemplate): BoardAnchor[] {
+export function boardAnchors(template: RoomTemplate): BoardAnchor[] {
   const out: BoardAnchor[] = [];
   for (const anchor of template.wallAnchors) {
     const kind = BOARD_ANCHOR_KINDS[anchor.kind];

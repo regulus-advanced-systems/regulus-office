@@ -1,6 +1,6 @@
 /**
  * Integration: per-agent sandboxes (#169) of the DockerRunner against a real
- * Docker daemon, with the tiny fixture image (tmux + busybox). Two robots of
+ * Docker daemon, with the tiny fixture image (tmux + busybox). Two henchmen of
  * one human each run a web server on port 3000 in their own sandbox, and the
  * human's runner reaches both by sandbox name over a user-defined network, as
  * the office does over the runners network. Also: limits, isolation (no view
@@ -117,7 +117,7 @@ describe.skipIf(!enabled)("DockerRunner sandboxes (real Docker, #169)", () => {
     // A dev server that ignores $PORT and insists on 3000, as many do.
     const script = [
       "mkdir -p /tmp/www",
-      `echo "robot ${agentId} PORT=$PORT" > /tmp/www/index.html`,
+      `echo "henchman ${agentId} PORT=$PORT" > /tmp/www/index.html`,
       "touch $HOME/made-by-" + agentId,
       "exec busybox httpd -f -p 3000 -h /tmp/www",
     ].join(" && ");
@@ -159,7 +159,7 @@ describe.skipIf(!enabled)("DockerRunner sandboxes (real Docker, #169)", () => {
       labels: TEST_LABEL,
       pull: false,
       network: NETWORK,
-      floorRoots: [join(root, "worktrees")],
+      operationRoots: [join(root, "worktrees")],
       sandboxes: settings,
     });
     for (const agentId of ["a1", "a2"]) {
@@ -176,7 +176,7 @@ describe.skipIf(!enabled)("DockerRunner sandboxes (real Docker, #169)", () => {
     if (root) await rm(root, { recursive: true, force: true });
   }, 120_000);
 
-  test("two robots of one human both serve on port 3000, reachable by sandbox name", async () => {
+  test("two henchmen of one human both serve on port 3000, reachable by sandbox name", async () => {
     for (const agentId of ["a1", "a2"]) {
       const ports = await waitFor(
         () => runner.listPorts({ userId: "u1", agentId }),
@@ -197,7 +197,7 @@ describe.skipIf(!enabled)("DockerRunner sandboxes (real Docker, #169)", () => {
       const got = await engine.exec(containerId ?? "", {
         cmd: ["busybox", "wget", "-qO-", `http://${info?.host}:3000/`],
       });
-      expect(got.stdout.trim()).toBe(`robot ${agentId} PORT=${info?.ports.first}`);
+      expect(got.stdout.trim()).toBe(`henchman ${agentId} PORT=${info?.ports.first}`);
     }
   });
 
@@ -223,7 +223,7 @@ describe.skipIf(!enabled)("DockerRunner sandboxes (real Docker, #169)", () => {
     expect(JSON.stringify(c)).not.toContain("docker.sock");
     expect(JSON.stringify(c)).not.toContain(KEY);
     expect((await inSandbox("a1", ["id", "-u"])).stdout.trim()).toBe("1001");
-    // Files the robot makes stay group-writable for the office (#150).
+    // Files the henchman makes stay group-writable for the office (#150).
     const made = await inSandbox("a1", ["stat", "-c", "%a", "/home/runner/made-by-a1"]);
     expect(made.stdout.trim()).toBe("664");
     // The HOME volume is the human's: a2 sees what a1 made (CLI logins are shared).
@@ -255,7 +255,7 @@ describe.skipIf(!enabled)("DockerRunner sandboxes (real Docker, #169)", () => {
       labels: TEST_LABEL,
       pull: false,
       network: NETWORK,
-      floorRoots: [join(root, "worktrees")],
+      operationRoots: [join(root, "worktrees")],
       sandboxes: settings,
     });
     await again.recover();
@@ -266,13 +266,13 @@ describe.skipIf(!enabled)("DockerRunner sandboxes (real Docker, #169)", () => {
     expect(listed.find((s) => s.agentId === "a2")?.ports).toEqual(
       infos.get("a2")?.ports as SandboxInfo["ports"],
     );
-    // Starting the robot again keeps its running sandbox.
+    // Starting the henchman again keeps its running sandbox.
     const id = (await inspect("a2")).Id;
     await again.sandbox({ userId: "u1", agentId: "a2" }, { workdir: workdir("u1", "a2") });
     expect((await inspect("a2")).Id).toBe(id);
   });
 
-  test("stop removes the sandbox and its dev server; the other robot keeps running", async () => {
+  test("stop removes the sandbox and its dev server; the other henchman keeps running", async () => {
     await runner.kill({ userId: "u1", agentId: "a1" });
     const gone = await inspect("a1").then(
       () => 200,

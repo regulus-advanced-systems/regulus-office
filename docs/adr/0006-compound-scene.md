@@ -1,5 +1,7 @@
 # 0006: The compound scene, room presence and migrated seats
 
+> Since #226, floors are called operations and robots henchmen.
+
 ## Context
 
 With the compound (SPEC §9, D21; #186) the office is one walkable lair instead

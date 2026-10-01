@@ -9,6 +9,7 @@
 import { join, resolve } from "node:path";
 import { inspect } from "node:util";
 import { z } from "zod";
+import { type DeprecatedEnvUse, withRenamedEnv } from "./deprecated-env.ts";
 import {
   checkSandboxSettings,
   DEFAULT_SANDBOX_SETTINGS,
@@ -16,7 +17,7 @@ import {
 } from "./runners/sandbox.ts";
 
 export const DEFAULT_PORT = 4600;
-/** Production clone root for floor repos (SPEC §8). */
+/** Production clone root for operation repos (SPEC §8). */
 export const DEFAULT_PROJECTS_DIR = "/srv/office/projects";
 export const DEFAULT_GITHUB_REMOTE_BASE = "https://github.com";
 /** Production root for per-agent git worktrees (SPEC §8). */
@@ -207,7 +208,7 @@ export const envSchema = z.object({
     emptyToUndefined,
     z.coerce.number().int().positive().default(4096),
   ),
-  OFFICE_DOCKER_FLOOR_ROOTS: z.preprocess(
+  OFFICE_DOCKER_OPERATION_ROOTS: z.preprocess(
     emptyToUndefined,
     z
       .string()
@@ -253,6 +254,8 @@ export interface GithubOAuthConfig {
 }
 
 export interface OfficeConfig {
+  /** Renamed variables still set under their old name (logged at boot, see deprecated-env.ts). */
+  deprecatedEnv?: DeprecatedEnvUse[];
   /** TCP port to listen on. 0 picks a free port (tests). */
   port: number;
   /** Interface to bind. */
@@ -260,17 +263,17 @@ export interface OfficeConfig {
   /** Absolute path to the SQLite database, blobs and other persistent state. */
   dataDir: string;
   /**
-   * Where floor repos are cloned: `<projectsDir>/<floor-slug>/<repo>` (SPEC §8).
+   * Where operation repos are cloned: `<projectsDir>/<operation-slug>/<repo>` (SPEC §8).
    * Default `/srv/office/projects` in production, `<dataDir>/projects` otherwise.
    */
   projectsDir: string;
   /**
-   * Base URL floor repos are cloned from, `<base>/<owner>/<name>.git`.
+   * Base URL operation repos are cloned from, `<base>/<owner>/<name>.git`.
    * Default `https://github.com`; tests point it at local bare repos.
    */
   githubRemoteBase: string;
   /**
-   * Per-agent git worktrees: `<worktreesDir>/<floor-slug>/<agentId>` (SPEC §8).
+   * Per-agent git worktrees: `<worktreesDir>/<operation-slug>/<agentId>` (SPEC §8).
    * Default `/srv/office/worktrees` in production, `<dataDir>/worktrees` otherwise.
    */
   worktreesDir: string;
@@ -318,22 +321,22 @@ export interface OfficeConfig {
    */
   runnerOfficeUrl: string;
   /**
-   * `OFFICE_CLAUDE_TRUST_WORKTREES` (default true): before a Claude Code robot starts, mark its
+   * `OFFICE_CLAUDE_TRUST_WORKTREES` (default true): before a Claude Code henchman starts, mark its
    * own office-created worktree trusted in the runner's `~/.claude.json`, so Claude's workspace
-   * trust dialog does not hold the robot (#158). Never the human's clone or any other folder.
+   * trust dialog does not hold the henchman (#158). Never the human's clone or any other folder.
    */
   claudeTrustWorktrees: boolean;
   /** Docker runner backend settings; only used when that backend is selected. */
   docker: DockerBackendConfig;
   /**
    * Per-agent sandboxes (SPEC §8, D18, #169) for the docker and linux-user backends:
-   * null when `OFFICE_SANDBOXES=false` (robots then run in their human's runner).
+   * null when `OFFICE_SANDBOXES=false` (henchmen then run in their human's runner).
    */
   sandbox: SandboxConfig | null;
 }
 
 /**
- * `OFFICE_SANDBOX_*`: limits and ports of each robot's sandbox. Defaults
+ * `OFFICE_SANDBOX_*`: limits and ports of each henchman's sandbox. Defaults
  * (runners/sandbox.ts) suit the 8 vCPU / 16 GB central VM (D11): 2 GiB, 2 CPUs,
  * 1024 pids, ports 20000 + 10 per slot, 2000 slots.
  */
@@ -363,8 +366,8 @@ export interface DockerBackendConfig {
   /** CPU limit in cores (Docker NanoCpus / 1e9). */
   cpus: number | undefined;
   pidsLimit: number;
-  /** Roots under which a human's own `<root>/<floor>/<runner id>` dir is mounted (#114). */
-  floorRoots: string[];
+  /** Roots under which a human's own `<root>/<operation>/<runner id>` dir is mounted (#114). */
+  operationRoots: string[];
   /** Office paths that live in named volumes (Compose); mounted with a volume subpath. */
   volumeMap: { path: string; volume: string }[];
 }
@@ -381,7 +384,8 @@ const defaultWebDist = () => resolve(import.meta.dir, "../../web/dist");
  * Throws {@link ConfigError} with every offending variable named and no values echoed.
  */
 export function loadConfig(env: Record<string, string | undefined> = process.env): OfficeConfig {
-  const parsed = envSchema.safeParse(env);
+  const renamed = withRenamedEnv(env);
+  const parsed = envSchema.safeParse(renamed.env);
   if (!parsed.success) {
     const lines = parsed.error.issues.map((i) => `  ${i.path.join(".") || "?"}: ${i.message}`);
     throw new ConfigError(`Invalid environment:\n${lines.join("\n")}`);
@@ -480,9 +484,10 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
       cpus: e.OFFICE_DOCKER_RUNNER_CPUS,
       pidsLimit: e.OFFICE_DOCKER_RUNNER_PIDS,
       // Default: the worktrees dir, which holds every human's own area (#114).
-      floorRoots: e.OFFICE_DOCKER_FLOOR_ROOTS ?? [worktreesDir],
+      operationRoots: e.OFFICE_DOCKER_OPERATION_ROOTS ?? [worktreesDir],
       volumeMap: e.OFFICE_DOCKER_VOLUME_MAP,
     },
+    deprecatedEnv: renamed.deprecated,
   };
 }
 

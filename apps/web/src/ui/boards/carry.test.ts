@@ -1,10 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import type { FloorState } from "@regulus/protocol";
-import { floorFixture } from "@regulus/protocol/src/fixtures.ts";
+import type { OperationState } from "@regulus/protocol";
+import { operationFixture } from "@regulus/protocol/src/fixtures.ts";
 import { carriedPrefill, carriedView, dropCard, myCarried, pickCard } from "./carry.ts";
 
-function floor(): FloorState {
-  const base = structuredClone(floorFixture);
+function operation(): OperationState {
+  const base = structuredClone(operationFixture);
   return {
     ...base,
     repos: [{ repoId: "r1", owner: "octo", name: "hello", defaultBranch: "main", isPrimary: true }],
@@ -29,7 +29,7 @@ function floor(): FloorState {
         state: "open",
         labels: [],
         assignees: [],
-        author: "robot",
+        author: "henchman",
         url: "https://github.com/octo/hello/pull/9",
         updatedAt: 1,
         draft: false,
@@ -62,7 +62,7 @@ function floor(): FloorState {
 
 describe("carried cards", () => {
   test("the user's own card is found by user id", () => {
-    const state = floor();
+    const state = operation();
     expect(myCarried(state, "u-ada")?.number).toBe(7);
     expect(myCarried(state, "u-ben")?.cardKind).toBe("pr");
     expect(myCarried(state, "u-cy")).toBeNull();
@@ -70,7 +70,7 @@ describe("carried cards", () => {
   });
 
   test("an issue card prefills repo, issue, title and prompt", () => {
-    const state = floor();
+    const state = operation();
     const card = carriedView(state, myCarried(state, "u-ada") as never);
     expect(carriedPrefill(card)).toEqual({
       repoId: "r1",
@@ -82,7 +82,7 @@ describe("carried cards", () => {
   });
 
   test("a PR card prefills repo, title and a prompt naming its branch, but no issue", () => {
-    const state = floor();
+    const state = operation();
     const prefill = carriedPrefill(carriedView(state, myCarried(state, "u-ben") as never));
     expect(prefill.issueNumber).toBeUndefined();
     expect(prefill.taskTitle).toBe("PR #9 Speed up tests");
@@ -90,21 +90,21 @@ describe("carried cards", () => {
   });
 
   test("a card that has left the board still prefills what is known", () => {
-    const state = { ...floor(), issues: {} };
+    const state = { ...operation(), issues: {} };
     const view = carriedView(state, myCarried(state, "u-ada") as never);
     expect(view.title).toBe("");
     expect(carriedPrefill(view).taskTitle).toBe("#7");
   });
 
   test("long titles are clipped to the spawn form's limit", () => {
-    const state = floor();
+    const state = operation();
     const issue = state.issues["r1#7"];
     if (issue) issue.title = "x".repeat(300);
     const prefill = carriedPrefill(carriedView(state, myCarried(state, "u-ada") as never));
     expect(prefill.taskTitle?.length).toBe(200);
   });
 
-  test("pick and drop send the floor commands; a missing room is not fatal", () => {
+  test("pick and drop send the operation commands; a missing room is not fatal", () => {
     const sent: unknown[] = [];
     const send = ((type: string, payload: unknown) => sent.push({ type, payload })) as never;
     expect(pickCard({ kind: "pr", repoId: "r1", number: 9 }, send)).toBe(true);
@@ -116,7 +116,7 @@ describe("carried cards", () => {
       { type: "card.drop", payload: {} },
     ]);
     const failing = (() => {
-      throw new Error("floor room not joined");
+      throw new Error("operation room not joined");
     }) as never;
     expect(pickCard({ kind: "issue", repoId: "r1", number: 7 }, failing)).toBe(false);
     expect(() => dropCard("x", failing)).not.toThrow();

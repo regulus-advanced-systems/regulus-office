@@ -1,16 +1,16 @@
 /**
  * Per-agent sandbox containers for the docker backend (SPEC §8, D18, #169).
  *
- * Every coding robot runs in its own `<prefix>-sbx-<agentId>` container, made
+ * Every coding henchman runs in its own `<prefix>-sbx-<agentId>` container, made
  * from the runner image with the same hardening as the human's runner
  * (containers.ts): the same non-root uid, `CapDrop: ALL`, `no-new-privileges`,
  * an init process, no Docker socket. What it shares with the runner is the
  * human's HOME volume (so CLI logins work) and nothing else: its only other
- * mount is the human's own area on the robot's floor (#114/#122).
+ * mount is the human's own area on the henchman's operation (#114/#122).
  *
  * Of its own it has: a network namespace on the runners network (the office
  * reaches its ports by container name, nothing is published on the host), a
- * pid namespace (it cannot see the runner's or another robot's processes),
+ * pid namespace (it cannot see the runner's or another henchman's processes),
  * its own tmux server on its own tmpfs, memory/CPU/pids limits, and a port
  * range (`PORT`, ../sandbox.ts), recorded in a label so it survives office
  * restarts.
@@ -56,7 +56,7 @@ export interface DockerSandbox {
   ports: PortRange;
   /** Container name: its DNS name on the runners network. */
   host: string;
-  /** Mounts besides HOME (the human's area on the robot's floor). */
+  /** Mounts besides HOME (the human's area on the henchman's operation). */
   areaMounts: MountSpec[];
   createdAt?: number;
 }
@@ -289,7 +289,7 @@ export class DockerSandboxes {
         SecurityOpt: ["no-new-privileges"],
         ...(r.network ? { NetworkMode: r.network } : {}),
         Memory: s.memoryBytes,
-        // No swap beyond the memory limit: a runaway robot is OOM-killed, not the host.
+        // No swap beyond the memory limit: a runaway henchman is OOM-killed, not the host.
         MemorySwap: s.memoryBytes,
         NanoCpus: Math.round(s.cpus * 1e9),
         PidsLimit: s.pids,

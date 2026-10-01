@@ -1,7 +1,7 @@
 /**
- * The changes window (#38) in the agents e2e: the owner reviews the robot's branch, commits
- * one of two new files and discards the other after confirming; a member on the floor sees
- * the same window read-only and the server refuses their commit. Git runs in the robot's
+ * The changes window (#38) in the agents e2e: the owner reviews the henchman's branch, commits
+ * one of two new files and discards the other after confirming; a member on the operation sees
+ * the same window read-only and the server refuses their commit. Git runs in the henchman's
  * docker sandbox, so this also proves the runner path end to end.
  */
 import { expect, type Page } from "@playwright/test";
@@ -11,11 +11,11 @@ export interface ChangesCheckDeps {
   memberPage: Page;
   agentId: string;
   task: string;
-  /** Open the robot panel on `page`. */
+  /** Open the henchman panel on `page`. */
   openPanel(page: Page): Promise<void>;
-  /** Write a file into the robot's worktree as the runner user (inside its sandbox). */
+  /** Write a file into the henchman's worktree as the runner user (inside its sandbox). */
   writeInWorktree(name: string, content: string): void;
-  /** Plain git in the robot's worktree, from the host. */
+  /** Plain git in the henchman's worktree, from the host. */
   worktreeGit(args: string[]): string;
   worktreeHas(name: string): boolean;
 }
@@ -23,7 +23,7 @@ export interface ChangesCheckDeps {
 export async function checkChangesWindow(d: ChangesCheckDeps): Promise<void> {
   const title = `Changes: ${d.task}`;
 
-  // The owner: the robot's commit shows against the merge-base, with its diff.
+  // The owner: the henchman's commit shows against the merge-base, with its diff.
   await d.openPanel(d.ownerPage);
   await d.ownerPage
     .locator("section.rg-agent-panel")
@@ -60,7 +60,7 @@ export async function checkChangesWindow(d: ChangesCheckDeps): Promise<void> {
   await win.getByRole("button", { name: "Done", exact: true }).click();
   await expect(win).toHaveCount(0);
 
-  // A member on the floor watches read-only; the server refuses their writes (D12).
+  // A member on the operation watches read-only; the server refuses their writes (D12).
   await d.openPanel(d.memberPage);
   await d.memberPage
     .locator("section.rg-agent-panel")

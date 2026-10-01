@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { HEADING } from "@regulus/floor-layout";
+import { HEADING } from "@regulus/room-layout";
 import { followPath, TURN_IN_PLACE_ABOVE } from "./pathFollower.ts";
 
 describe("followPath", () => {

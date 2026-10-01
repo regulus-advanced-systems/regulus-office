@@ -1,20 +1,20 @@
 /**
  * Test fixtures for the usage tracker (#40): an in-memory database with a
- * few humans, a floor and robots with chosen providers, models, credential
+ * few humans, an operation and henchmen with chosen providers, models, credential
  * profiles and session ids.
  */
 import type { ProviderId } from "@regulus/protocol";
-import { agents, desks, floorRepos, floors } from "../db/schema/index.ts";
-import { testDb } from "../floors/test-helpers.ts";
+import { agents, desks, operationRepos, operations } from "../db/schema/index.ts";
+import { testDb } from "../operations/test-helpers.ts";
 
 export function usageDb() {
   const { db, addUser } = testDb();
   const ada = addUser("Ada", "owner");
   const bob = addUser("Bob", "member");
   const cy = addUser("Cy", "member");
-  db.insert(floors)
+  db.insert(operations)
     .values({
-      id: "floor-1",
+      id: "operation-1",
       name: "Web",
       slug: "web",
       index: 1,
@@ -22,10 +22,10 @@ export function usageDb() {
       layoutTemplateId: "t",
     })
     .run();
-  db.insert(floorRepos)
+  db.insert(operationRepos)
     .values({
       id: "repo-1",
-      floorId: "floor-1",
+      operationId: "operation-1",
       owner: "octo",
       name: "web",
       url: "file:///dev/null",
@@ -35,7 +35,7 @@ export function usageDb() {
       cloneStatus: "ready",
     })
     .run();
-  db.insert(desks).values({ floorId: "floor-1", seatId: "seat-1" }).run();
+  db.insert(desks).values({ operationId: "operation-1", seatId: "seat-1" }).run();
   const addAgent = (
     id: string,
     ownerUserId: string,
@@ -52,7 +52,7 @@ export function usageDb() {
     db.insert(agents)
       .values({
         id,
-        floorId: "floor-1",
+        operationId: "operation-1",
         repoId: "repo-1",
         deskSeatId: "seat-1",
         ownerUserId,

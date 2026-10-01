@@ -1,13 +1,13 @@
 /**
- * The throwaway checkout a workflow robot reads (#155).
+ * The throwaway checkout a workflow henchman reads (#155).
  *
- * `<worktrees>/<floor>/<rid of the workflow identity>/wf-<runId>`: a fresh
- * `git init` in the workflow identity's own area on the floor, so the runner
- * mounts nothing of any human (#114) and the robot never sees a human's clone,
+ * `<worktrees>/<operation>/<rid of the workflow identity>/wf-<runId>`: a fresh
+ * `git init` in the workflow identity's own area on the operation, so the runner
+ * mounts nothing of any human (#114) and the henchman never sees a human's clone,
  * the office mirror or a credential. The office fetches the PR head (and the
  * base, for the diff) with the App's installation token, which goes only to
  * the repo's remote URL for that one command and is never stored: the
- * checkout has no remote at all, so there is nothing a robot could push to.
+ * checkout has no remote at all, so there is nothing a henchman could push to.
  * The office mirror seeds objects first when it exists (local, no token).
  *
  * Git hardening as for humans' clones (worktrees/git-ops.ts): no hooks, no
@@ -15,7 +15,7 @@
  * PR controls `.gitattributes`.
  *
  * Unless the workflow may run the PR's code, the tree is made read-only
- * before the robot starts. The directory is removed after the run.
+ * before the henchman starts. The directory is removed after the run.
  */
 import { chmod, lstat, readdir, rm, stat } from "node:fs/promises";
 import { join } from "node:path";
@@ -25,12 +25,12 @@ import { ensurePrivateDir } from "../worktrees/clones.ts";
 import { type GitContext, gitIn } from "../worktrees/git-ops.ts";
 import { WorkflowRefusal } from "./github-app.ts";
 
-/** The runner identity every workflow robot runs as: no human's HOME, logins or areas. */
+/** The runner identity every workflow henchman runs as: no human's HOME, logins or areas. */
 export const WORKFLOW_RUNNER_USER = "officeworkflows";
 
 export interface CheckoutRequest {
   worktreesDir: string;
-  floorSlug: string;
+  operationSlug: string;
   runId: string;
   /** Credential-free `https://github.com/o/r.git`. */
   remoteUrl: string;
@@ -55,10 +55,12 @@ const HEAD = "refs/office/head";
 const BASE = "refs/office/base";
 const REF = /^refs\/(heads|pull|tags)\/[A-Za-z0-9._/-]{1,250}$/;
 
-export function checkoutDir(req: Pick<CheckoutRequest, "worktreesDir" | "floorSlug" | "runId">) {
+export function checkoutDir(
+  req: Pick<CheckoutRequest, "worktreesDir" | "operationSlug" | "runId">,
+) {
   if (!/^[A-Za-z0-9-]{1,64}$/.test(req.runId)) throw new Error("invalid run id");
   return join(
-    humanAreaDir(req.worktreesDir, req.floorSlug, WORKFLOW_RUNNER_USER),
+    humanAreaDir(req.worktreesDir, req.operationSlug, WORKFLOW_RUNNER_USER),
     `wf-${req.runId}`,
   );
 }

@@ -1,5 +1,7 @@
 # ADR 0003: Per-agent sandboxes
 
+> Since #226, floors are called operations and robots henchmen.
+
 Date: 2026-09-30. Status: accepted (owner decision D18, #139; implemented in #169).
 
 ## Context

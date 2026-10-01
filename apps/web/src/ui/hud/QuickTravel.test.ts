@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import type { FloorInfo } from "@regulus/protocol";
+import type { OperationInfo } from "@regulus/protocol";
 import { rowPlacement, testWorld } from "../../scene/compound/testing.ts";
-import { anyCloning, cloneBadge } from "../../state/floors.ts";
+import { anyCloning, cloneBadge } from "../../state/operations.ts";
 import { travelRooms } from "./QuickTravel.tsx";
 
 describe("quick travel rooms (#186)", () => {
@@ -34,8 +34,8 @@ describe("quick travel rooms (#186)", () => {
       cloneError: null,
       hasCredential: false,
     });
-    const floor = (...statuses: ("cloning" | "ready" | "error")[]): FloorInfo => ({
-      floorId: "f",
+    const operation = (...statuses: ("cloning" | "ready" | "error")[]): OperationInfo => ({
+      operationId: "f",
       name: "F",
       slug: "f",
       index: 1,
@@ -45,11 +45,11 @@ describe("quick travel rooms (#186)", () => {
       access: "view",
       repos: statuses.map(repo),
     });
-    expect(cloneBadge(floor("ready", "cloning"))).toBe("cloning");
-    expect(cloneBadge(floor("cloning", "error"))).toBe("error");
-    expect(cloneBadge(floor("ready"))).toBeNull();
+    expect(cloneBadge(operation("ready", "cloning"))).toBe("cloning");
+    expect(cloneBadge(operation("cloning", "error"))).toBe("error");
+    expect(cloneBadge(operation("ready"))).toBeNull();
     expect(cloneBadge(undefined)).toBeNull();
-    expect(anyCloning([floor("ready"), floor("cloning")])).toBe(true);
+    expect(anyCloning([operation("ready"), operation("cloning")])).toBe(true);
     expect(anyCloning(null)).toBe(false);
   });
 });

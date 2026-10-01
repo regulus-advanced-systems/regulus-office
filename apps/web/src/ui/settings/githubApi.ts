@@ -1,6 +1,6 @@
 /**
  * Browser client for the office GitHub connection (#141; SPEC §8, D14):
- * status, the repo list for "Add floor", connect with an org PAT, start the
+ * status, the repo list for "Add operation", connect with an org PAT, start the
  * GitHub App manifest flow, connect an existing app (#224), disconnect. Owners and admins only. A PAT goes
  * out in one request body and nothing here keeps it; responses never carry
  * a token, the app's private key or its webhook secret; neither does an

@@ -1,6 +1,6 @@
 /**
  * Periodic transcript scan (#40, research 04 §4): every few minutes, for each
- * human with a Claude Code robot that is live or was active recently, ask the
+ * human with a Claude Code henchman that is live or was active recently, ask the
  * adapter's `readUsage` in that human's own runner. The scan itself runs as
  * the runner identity (claude-code/transcript-scan.ts); the office process
  * never opens a human's HOME. Humans are scanned one at a time.
@@ -15,7 +15,7 @@ import { bindRunnerOps, type Runner } from "../runners/types.ts";
 import type { UsageTracker } from "./tracker.ts";
 
 export const SCAN_INTERVAL_MS = 5 * 60_000;
-/** After a robot's last activity its transcripts are still scanned this long. */
+/** After a henchman's last activity its transcripts are still scanned this long. */
 export const SCAN_RECENT_MS = 60 * 60_000;
 /** How far back a scan looks after an office restart (weekly window + a day). */
 export const SCAN_LOOKBACK_MS = 8 * 24 * 60 * 60_000;

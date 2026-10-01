@@ -4,9 +4,9 @@
  * credential replaced by `[redacted]`.
  *
  * Scrollback snapshots are captured as plain text (`capture-pane` without
- * `-e`), but chat and older snapshots may still carry escapes, and a robot
+ * `-e`), but chat and older snapshots may still carry escapes, and a henchman
  * may print a token it was given. The terminal itself masks nothing (its
- * viewers see exactly what the robot printed), so the index is stricter than
+ * viewers see exactly what the henchman printed), so the index is stricter than
  * the terminal: a search result must never be a way to fish for keys across
  * the whole office (SPEC §8). The scrubber is pattern based and therefore
  * best effort; see the PR notes for what it cannot catch.

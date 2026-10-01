@@ -1,7 +1,7 @@
 /**
  * Runner backends (SPEC §8): one runner identity per human, agents inside that
  * human's tmux server (SPEC §4.4), or, with per-agent sandboxes (D18, #169),
- * each coding robot in its own sandbox of that identity (`Runner.sandbox`).
+ * each coding henchman in its own sandbox of that identity (`Runner.sandbox`).
  * Implemented by `linux-user` (#22) and `docker` (#23);
  * `testing/local-tmux-runner.ts` is a test double.
  *
@@ -104,11 +104,11 @@ export interface PortInfo {
   pid?: number;
 }
 
-/** A `floor_repos` row as far as the runner is concerned (SPEC §5). */
-export interface FloorRepoRef {
-  floorId: string;
+/** An `operation_repos` row as far as the runner is concerned (SPEC §5). */
+export interface OperationRepoRef {
+  operationId: string;
   repoId: string;
-  /** Host path of the checkout, e.g. `/srv/office/projects/<floor>/<repo>`. */
+  /** Host path of the checkout, e.g. `/srv/office/projects/<operation>/<repo>`. */
   workdir: string;
 }
 
@@ -117,13 +117,13 @@ export interface MountedProject {
   workdir: string;
 }
 
-/** What a robot's sandbox is created for (#169). */
+/** What a henchman's sandbox is created for (#169). */
 export interface SandboxSpec {
-  /** The robot's working directory; its human's area on that floor is all the sandbox sees. */
+  /** The henchman's working directory; its human's area on that operation is all the sandbox sees. */
   workdir: string;
 }
 
-/** A robot's own sandbox (SPEC §8, D18, #169; see sandbox.ts). */
+/** A henchman's own sandbox (SPEC §8, D18, #169; see sandbox.ts). */
 export interface SandboxInfo {
   userId: string;
   agentId: string;
@@ -143,7 +143,7 @@ export interface Runner {
   readonly backend: BackendId;
 
   /**
-   * Create (idempotently) the robot's own sandbox (D18). From then on `exec` and
+   * Create (idempotently) the henchman's own sandbox (D18). From then on `exec` and
    * `spawnPiped` of plans for `agent.agentId`, and every session, process and port
    * call for it, run in that sandbox, and `kill` removes it. Absent or null: the
    * backend runs agents in the human's runner (sandboxes turned off, test backend).
@@ -152,7 +152,7 @@ export interface Runner {
   /** Every sandbox of this office, so orphans can be reaped. */
   listSandboxes?(): Promise<SandboxInfo[]>;
   /**
-   * The robot's existing sandbox, without creating one (null when it has none):
+   * The henchman's existing sandbox, without creating one (null when it has none):
    * where the services proxy (#39) reaches its ports. Cheap: served from the
    * backend's routes, so it may be called every discovery tick.
    */
@@ -160,8 +160,8 @@ export interface Runner {
 
   /** Create (idempotently) the human's runner identity, HOME and tmux server. */
   provision(user: RunnerUser): Promise<RunnerHandle>;
-  /** Make a floor repo reachable (and writable by the runner group) inside the runner. */
-  mountProject(user: RunnerUser, repo: FloorRepoRef): Promise<MountedProject>;
+  /** Make an operation repo reachable (and writable by the runner group) inside the runner. */
+  mountProject(user: RunnerUser, repo: OperationRepoRef): Promise<MountedProject>;
 
   /**
    * Write `plan.files`, then start `plan.argv` in a detached tmux session named

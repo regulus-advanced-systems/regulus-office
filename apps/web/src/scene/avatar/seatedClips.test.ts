@@ -131,7 +131,7 @@ describe("seated clips (#159)", () => {
         expect(sampleTrack(track, 0.5)).toEqual(sampleTrack(still, 0));
       }
     }
-    // Without the dance clip there is no cheer (an older GLB): the robot just sits.
+    // Without the dance clip there is no cheer (an older GLB): the henchman just sits.
     expect(seatedClips(sitDown(), rest).map((c) => c.name)).not.toContain(SEATED_CLIPS.cheer);
   });
 

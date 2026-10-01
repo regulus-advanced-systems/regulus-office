@@ -1,5 +1,5 @@
 /**
- * Where the seated robot's body is, relative to the avatar's origin (the
+ * Where the seated henchman's body is, relative to the avatar's origin (the
  * group `RobotAvatar` is placed with), in the still seated pose of #159
  * (`SEATED_CLIPS.idle`, the last frame of `Robot_Sitting`), in metres after
  * `MODEL_SCALE`. Measured from robot.glb (#163) and checked against the file
@@ -7,7 +7,7 @@
  *
  * The seated pose leaves the feet at the origin and puts the hips 0.24 m
  * behind it, so an avatar placed on a seat point sits 0.24 m behind where it
- * was put: that is what drove the robot's body through the chair's backrest.
+ * was put: that is what drove the henchman's body through the chair's backrest.
  * `seatedOffset` places the hips instead, from the seat's sit anchor
  * (furniture/sitAnchor.ts).
  */
@@ -22,9 +22,9 @@ export const SEATED_BACK_DEPTH = 0.252;
 export const SEATED_FRONT_DEPTH = 0.239;
 /** The underside of the head, above the Hips bone. The head overhangs the back by 0.22 m. */
 export const SEATED_HEAD_BOTTOM = 0.51;
-/** Air between the robot's back and the backrest, so the two never z-fight. */
+/** Air between the henchman's back and the backrest, so the two never z-fight. */
 export const BACK_GAP = 0.02;
-/** Air between the robot's front and the table edge in front of it. */
+/** Air between the henchman's front and the table edge in front of it. */
 export const TABLE_GAP = 0.02;
 
 /** A seat's sittable surfaces, relative to its seat point (furniture/sitAnchor.ts). */

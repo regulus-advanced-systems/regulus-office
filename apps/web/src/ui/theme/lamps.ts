@@ -1,5 +1,5 @@
 /**
- * Which lamp a status lights (#189). Robot statuses map the way the
+ * Which lamp a status lights (#189). Henchman statuses map the way the
  * henchman's status light does (scene/avatar/statusBulb.ts): grey starting,
  * green idle or done, blue working, amber waiting with a raised hand, red
  * error, dark when stopped or offline. Lamps that want attention blink.

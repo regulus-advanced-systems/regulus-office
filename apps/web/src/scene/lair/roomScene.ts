@@ -13,7 +13,7 @@ import {
   type RoomLight,
   type Wall,
   wallPoint,
-} from "@regulus/floor-layout";
+} from "@regulus/room-layout";
 import { furnitureHeading } from "../furniture/placement.ts";
 import { type RoomShell, roomShell } from "./assembly.ts";
 import { type WorldLamp, worldLamps } from "./components/BlinkingLamps.tsx";

@@ -17,9 +17,9 @@ export const ROBOT_MODEL_URL = new URL(
 export const MODEL_FORWARD = new Vector3(0, 0, 1);
 
 /**
- * robot.glb faces +z, but a heading of 0 faces -z (floor-layout geometry.ts;
+ * robot.glb faces +z, but a heading of 0 faces -z (room-layout geometry.ts;
  * three.js `rotation.y`): `RobotAvatar` turns the model half way round, so
- * every caller sets `rotation.y = heading` and the robot faces its heading.
+ * every caller sets `rotation.y = heading` and the henchman faces its heading.
  */
 export const MODEL_YAW = Math.PI;
 
@@ -47,7 +47,7 @@ export const RAISED_HAND_TIME = 0.9;
 /**
  * The raised hand: the right-arm tracks of a clip (the wave) held at `at`
  * seconds, so it blends over any base pose and the hand stays up without
- * waving (#159: a waiting robot is still apart from its raised hand).
+ * waving (#159: a waiting henchman is still apart from its raised hand).
  */
 export function armOnlyClip(source: AnimationClip, at = RAISED_HAND_TIME): AnimationClip {
   const tracks = source.tracks.filter((track) => RIGHT_ARM_TRACK.test(track.name));

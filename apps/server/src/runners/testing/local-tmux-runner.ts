@@ -24,8 +24,8 @@ import {
 import type {
   AgentRef,
   AttachArgv,
-  FloorRepoRef,
   MountedProject,
+  OperationRepoRef,
   PortInfo,
   ProcessInfo,
   Runner,
@@ -81,7 +81,7 @@ export class LocalTmuxRunner implements Runner {
     return { userId: user.userId, backend: this.backend, home, tmuxSocket: this.socket };
   }
 
-  async mountProject(_user: RunnerUser, repo: FloorRepoRef): Promise<MountedProject> {
+  async mountProject(_user: RunnerUser, repo: OperationRepoRef): Promise<MountedProject> {
     return { workdir: repo.workdir };
   }
 

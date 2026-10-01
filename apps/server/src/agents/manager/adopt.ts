@@ -3,7 +3,7 @@
  * agents, because their tmux sessions live in the human's runner, not in
  * the office process.
  *
- * For every robot that still holds a desk:
+ * For every henchman that still holds a desk:
  * - `exited`: shown at its desk as it was.
  * - tmux agents (`exec` launch) whose session is still on the owner's tmux
  *   server: the structured channel is re-attached with `connect` on a plan
@@ -13,11 +13,11 @@
  *   died with the office; when the adapter can resume and a provider session
  *   id is stored, they are relaunched on that session.
  * - everything else is marked `offline` (resumable with `agent.resume`).
- * - a workspace from before per-human clones (#114) lives in the floor's
- *   shared mirror: its process is stopped and the robot marked `offline` with
+ * - a workspace from before per-human clones (#114) lives in the operation's
+ *   shared mirror: its process is stopped and the henchman marked `offline` with
  *   the reason; it cannot be resumed (the PR button and send-home still work).
  *
- * Robots in their own sandboxes (D18, #169) are found the same way: the
+ * Henchmen in their own sandboxes (D18, #169) are found the same way: the
  * runner lists each sandbox's sessions with the human's. Afterwards the
  * sandboxes nobody re-adopted are reaped (sandbox-reaper.ts).
  */
@@ -101,12 +101,12 @@ async function adoptOne(
       mgr.markOffline(live);
       mgr.logger.warn({ agentId: row.id }, "agent workspace predates per-human clones; offline");
     }
-    mgr.publishRobot(live);
+    mgr.publishHenchman(live);
     return;
   }
   if (row.status === "exited" || !adapter) {
     if (!adapter) mgr.markOffline(live);
-    mgr.publishRobot(live);
+    mgr.publishHenchman(live);
     return;
   }
 
@@ -127,7 +127,7 @@ async function adoptOne(
     const control = adapter.connect(adoptionPlan(row), ctx);
     live.ctx = ctx;
     mgr.attach(live, control, !adapter.capabilities.structured);
-    mgr.publishRobot(live);
+    mgr.publishHenchman(live);
     mgr.logger.info({ agentId: row.id }, "agent re-adopted");
     return;
   }
@@ -139,7 +139,7 @@ async function adoptOne(
     Boolean(row.providerSessionId) &&
     isRunningStatus(row.status);
   if (resumable) {
-    mgr.publishRobot(live);
+    mgr.publishHenchman(live);
     try {
       await mgr.relaunch(live);
       mgr.logger.info({ agentId: row.id }, "agent resumed on its provider session");
@@ -149,7 +149,7 @@ async function adoptOne(
     }
   }
   mgr.markOffline(live);
-  mgr.publishRobot(live);
+  mgr.publishHenchman(live);
 }
 
 function isRunningStatus(status: AgentStatus): boolean {

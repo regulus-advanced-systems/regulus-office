@@ -1,11 +1,12 @@
 /**
- * The floor's issue and PR boards (SPEC §9.4; #36), one per `issue_board` /
- * `pr_board` wall anchor, painted from the FloorRoom's board summaries
+ * The operation's issue and PR boards (SPEC §9.4; #36), one per `issue_board` /
+ * `pr_board` wall anchor, painted from the OperationRoom's board summaries
  * (#35). A click, or `E` near one, opens its 2D panel (ui/boards). Also the
- * cards being carried around the floor (CarriedCards).
+ * cards being carried around the operation (CarriedCards).
  */
-import type { FloorTemplate } from "@regulus/floor-layout";
-import type { IssueCard, PullCard, RepoSummary, RobotState } from "@regulus/protocol";
+
+import type { HenchmanState, IssueCard, PullCard, RepoSummary } from "@regulus/protocol";
+import type { RoomTemplate } from "@regulus/room-layout";
 import { useCallback, useMemo } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { usePlayerStore } from "../../state/player.ts";
@@ -22,10 +23,10 @@ import type { BoardLook } from "./CorkBoardLook.tsx";
 const NO_ISSUES: Readonly<Record<string, IssueCard>> = {};
 const NO_PULLS: Readonly<Record<string, PullCard>> = {};
 const NO_REPOS: readonly RepoSummary[] = [];
-const NO_ROBOTS: Readonly<Record<string, RobotState>> = {};
+const NO_HENCHMEN: Readonly<Record<string, HenchmanState>> = {};
 
 export interface BoardLayerProps {
-  template: FloorTemplate;
+  template: RoomTemplate;
   look?: BoardLook;
   /** Draw carried cards here (the compound draws them once, in world space). */
   carried?: boolean;
@@ -40,11 +41,11 @@ export function BoardLayer({ template, look, carried = true }: BoardLayerProps) 
       issues: s.state?.issues ?? NO_ISSUES,
       pulls: s.state?.pulls ?? NO_PULLS,
       repos: s.state?.repos ?? NO_REPOS,
-      robots: s.state?.robots ?? NO_ROBOTS,
+      henchmen: s.state?.henchmen ?? NO_HENCHMEN,
     })),
   );
   const columns = useMemo(() => {
-    const input = { ...state, robots: Object.values(state.robots) };
+    const input = { ...state, henchmen: Object.values(state.henchmen) };
     return { issue: buildBoard("issue", input), pr: buildBoard("pr", input) };
   }, [state]);
   const reachId = usePlayerStore((s) =>

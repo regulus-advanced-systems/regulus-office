@@ -1,5 +1,7 @@
 # 0005: Generated room interiors and stable seat ids
 
+> Since #226, floors are called operations and robots henchmen.
+
 ## Context
 
 The compound (SPEC §9.1, D8, D21) replaces the three fixed floor templates with

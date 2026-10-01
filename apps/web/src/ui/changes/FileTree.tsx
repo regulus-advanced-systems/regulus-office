@@ -1,6 +1,6 @@
 /**
  * The changed files as a tree (#38). Each file shows its kind, line counts
- * and whether it is committed yet. The robot's owner also gets a checkbox
+ * and whether it is committed yet. The henchman's owner also gets a checkbox
  * (include in the commit) and Discard on uncommitted files; everyone else
  * sees the same tree read-only.
  */

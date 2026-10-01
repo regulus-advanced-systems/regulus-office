@@ -1,19 +1,19 @@
 /**
- * A robot's changes window (#38; SPEC §10 M2, D10): opened from the robot
- * panel. While it is open it polls the robot's worktree every 2 s: a tree of
+ * A henchman's changes window (#38; SPEC §10 M2, D10): opened from the henchman
+ * panel. While it is open it polls the henchman's worktree every 2 s: a tree of
  * the files the branch changes against the merge-base with the default
  * branch, and the selected file's diff (images as before/after previews).
  *
- * Everyone who can see the floor watches read-only. The robot's owner (D12;
+ * Everyone who can see the operation watches read-only. The henchman's owner (D12;
  * `canWrite` from the server, which checks every write again) also picks
  * files and commits them with a message, discards a file's uncommitted
  * changes after confirming, and goes on to push and open the PR through the
- * existing PR dialog (#112). When the robot touched a file after its human
+ * existing PR dialog (#112). When the henchman touched a file after its human
  * looked, the server refuses and the window says which files to review.
  */
-import type { ChangedFile, RobotState } from "@regulus/protocol";
+import type { ChangedFile, HenchmanState } from "@regulus/protocol";
 import { useEffect, useId, useMemo, useState } from "react";
-import { useFloorStore } from "../../state/floor.ts";
+import { useOperationStore } from "../../state/operation.ts";
 import { useAgentStore } from "../agent/agentStore.ts";
 import { useAgentOverlay } from "../agent/useAgentOverlay.ts";
 import { Button } from "../components/Button.tsx";
@@ -30,14 +30,14 @@ const liveApi = createChangesApi();
 export function ChangesWindowHost({ api = liveApi }: { api?: ChangesApi }) {
   const agentId = useChangesWindow((s) => s.agentId);
   const close = useChangesWindow((s) => s.closeChanges);
-  const robot = useFloorStore((s) => (agentId ? s.state?.robots[agentId] : undefined));
-  useAgentOverlay(agentId !== null && robot !== undefined, "agent-changes");
-  // The robot left (sent home, floor changed): close.
+  const henchman = useOperationStore((s) => (agentId ? s.state?.henchmen[agentId] : undefined));
+  useAgentOverlay(agentId !== null && henchman !== undefined, "agent-changes");
+  // The henchman left (sent home, operation changed): close.
   useEffect(() => {
-    if (agentId && !robot) close();
-  }, [agentId, robot, close]);
-  if (!agentId || !robot) return null;
-  return <ChangesWindow key={agentId} api={api} robot={robot} onClose={close} />;
+    if (agentId && !henchman) close();
+  }, [agentId, henchman, close]);
+  if (!agentId || !henchman) return null;
+  return <ChangesWindow key={agentId} api={api} henchman={henchman} onClose={close} />;
 }
 
 interface Alert {
@@ -47,14 +47,14 @@ interface Alert {
 
 function ChangesWindow({
   api,
-  robot,
+  henchman,
   onClose,
 }: {
   api: ChangesApi;
-  robot: RobotState;
+  henchman: HenchmanState;
   onClose: () => void;
 }) {
-  const agentId = robot.agentId;
+  const agentId = henchman.agentId;
   const { snapshot, error, refresh } = useChangesPoll(api, agentId);
   const [selected, setSelected] = useState<string | null>(null);
   const [excluded, setExcluded] = useState<ReadonlySet<string>>(new Set());
@@ -155,7 +155,7 @@ function ChangesWindow({
     <Modal
       open
       onClose={onClose}
-      title={`Changes: ${robot.taskTitle || robot.model}`}
+      title={`Changes: ${henchman.taskTitle || henchman.model}`}
       width={1040}
       dismissOnBackdrop={false}
       footer={footer}
@@ -176,7 +176,7 @@ function ChangesWindow({
           )}
           {snapshot && !canWrite && (
             <span className="rg-changes__readonly" data-testid="changes-readonly">
-              Read only: only {robot.ownerName || "its owner"} can commit or discard
+              Read only: only {henchman.ownerName || "its owner"} can commit or discard
             </span>
           )}
         </div>

@@ -30,7 +30,7 @@ describe("ScreenTextures", () => {
     expect(textures.paints).toBe(2);
   });
 
-  test("retain disposes textures of robots that left", () => {
+  test("retain disposes textures of henchmen that left", () => {
     const textures = new ScreenTextures({ createCanvas: fakeCanvas });
     let disposed = 0;
     textures.texture("a1").addEventListener("dispose", () => {

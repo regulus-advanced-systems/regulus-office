@@ -1,7 +1,7 @@
 /**
  * "Henchman skins" in Settings, for office owners and admins (#184, SPEC §5
- * `skin_rules`, §9.3 D22): every robot is a henchman in the yellow jumpsuit
- * with its provider's trim; a rule gives the robots it matches (`role:pm`,
+ * `skin_rules`, §9.3 D22): every henchman is a henchman in the yellow jumpsuit
+ * with its provider's trim; a rule gives the henchmen it matches (`role:pm`,
  * `office_agent:<id>`, `provider:<id>`) a special skin from the built-in set.
  * The highest priority wins. A turntable previews the skin being chosen.
  */

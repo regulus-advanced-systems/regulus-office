@@ -1,6 +1,6 @@
 /** Sample state objects used by tests. Not exported from the package index. */
 import type { BuildingState, HumanPresence } from "./building-state.ts";
-import type { FloorState, RobotState } from "./floor-state.ts";
+import type { HenchmanState, OperationState } from "./operation-state.ts";
 
 export const humanFixture: HumanPresence = {
   sessionId: "s1",
@@ -15,7 +15,7 @@ export const humanFixture: HumanPresence = {
     hair: "white",
     accessory: "goggles",
   },
-  floorId: "lobby",
+  operationId: "lobby",
   position: { x: 1.5, z: -2.25, heading: 0.5 },
   animation: "walk",
   doing: "heading to the elevator",
@@ -26,16 +26,16 @@ export const humanFixture: HumanPresence = {
 
 export const buildingFixture: BuildingState = {
   humans: { s1: humanFixture },
-  floors: {
+  operations: {
     lobby: {
-      floorId: "lobby",
+      operationId: "lobby",
       name: "Lobby",
       slug: "lobby",
       index: 0,
       paletteId: "teal-cream",
-      robotsWorking: 0,
-      robotsWaiting: 0,
-      robotsTotal: 0,
+      henchmenWorking: 0,
+      henchmenWaiting: 0,
+      henchmenTotal: 0,
       humansPresent: 1,
       gridX: 26,
       gridY: 56,
@@ -50,14 +50,14 @@ export const buildingFixture: BuildingState = {
       decorStyle: "ops_room",
     },
     f1: {
-      floorId: "f1",
+      operationId: "f1",
       name: "Regulus Office",
       slug: "regulus-office",
       index: 1,
       paletteId: "oak-sky",
-      robotsWorking: 2,
-      robotsWaiting: 1,
-      robotsTotal: 3,
+      henchmenWorking: 2,
+      henchmenWaiting: 1,
+      henchmenTotal: 3,
       humansPresent: 0,
       gridX: 4,
       gridY: 44,
@@ -77,7 +77,7 @@ export const buildingFixture: BuildingState = {
       id: "m1",
       userId: "u1",
       displayName: "Ante",
-      floorId: "lobby",
+      operationId: "lobby",
       text: "hello office",
       ts: 1_700_000_001_000,
     },
@@ -106,7 +106,7 @@ export const buildingFixture: BuildingState = {
     todayCostUsdEstimate: 1.25,
     officeKeysCostUsdEstimate: 0.25,
     activeHumans: 2,
-    topRobots: [
+    topHenchmen: [
       {
         agentId: "a1",
         name: "Ada's Claude Code henchman",
@@ -122,7 +122,7 @@ export const buildingFixture: BuildingState = {
     enabled: true,
     privilege: "coordinator",
     activity: "patrolling",
-    floorId: "f1",
+    operationId: "f1",
     position: { x: 0, z: 0, heading: 3.14 },
     animation: "walk",
     doing: "visiting Ada",
@@ -164,7 +164,7 @@ export const buildingFixture: BuildingState = {
   },
 };
 
-export const robotFixture: RobotState = {
+export const henchmanFixture: HenchmanState = {
   agentId: "a1",
   ownerUserId: "u1",
   ownerName: "Ante",
@@ -188,8 +188,8 @@ export const robotFixture: RobotState = {
   lastActivityAt: 1_700_000_003_000,
 };
 
-export const floorFixture: FloorState = {
-  floorId: "f1",
+export const operationFixture: OperationState = {
+  operationId: "f1",
   name: "Regulus Office",
   slug: "regulus-office",
   paletteId: "oak-sky",
@@ -203,7 +203,7 @@ export const floorFixture: FloorState = {
       isPrimary: true,
     },
   ],
-  robots: { a1: robotFixture },
+  henchmen: { a1: henchmanFixture },
   desks: {
     "seat-1": { seatId: "seat-1", agentId: "a1" },
     "seat-2": { seatId: "seat-2", agentId: "" },

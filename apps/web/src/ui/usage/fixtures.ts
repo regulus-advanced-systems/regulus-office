@@ -59,7 +59,7 @@ export const OFFICE: UsageSummary = {
   todayCostUsdEstimate: 42.5,
   officeKeysCostUsdEstimate: 4,
   activeHumans: 3,
-  topRobots: [
+  topHenchmen: [
     {
       agentId: "a1",
       name: "Ada's Codex henchman",

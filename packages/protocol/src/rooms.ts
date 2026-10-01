@@ -6,18 +6,18 @@ import { z } from "zod";
 import { Id } from "./common.ts";
 
 /** Colyseus room names as registered on the server and joined by the client. */
-export const ROOM_NAMES = { building: "building", floor: "floor" } as const;
+export const ROOM_NAMES = { building: "building", operation: "operation" } as const;
 export type RoomName = (typeof ROOM_NAMES)[keyof typeof ROOM_NAMES];
 
 /**
- * Floor id of the lobby (SPEC §9.1: floor 0). The lobby is not a `floors`
- * row, so presence and `floor.go` refer to it by this constant.
+ * Operation id of the lobby (SPEC §9.1: operation 0). The lobby is not an `operations`
+ * row, so presence and `operation.go` refer to it by this constant.
  */
-export const LOBBY_FLOOR_ID = "lobby";
+export const LOBBY_OPERATION_ID = "lobby";
 
-/** Options sent with `client.joinOrCreate(ROOM_NAMES.floor, options)`. */
-export const FloorJoinOptions = z.object({ floorId: Id });
-export type FloorJoinOptions = z.infer<typeof FloorJoinOptions>;
+/** Options sent with `client.joinOrCreate(ROOM_NAMES.operation, options)`. */
+export const OperationJoinOptions = z.object({ operationId: Id });
+export type OperationJoinOptions = z.infer<typeof OperationJoinOptions>;
 
 /** Options sent with `client.joinOrCreate(ROOM_NAMES.building, options)`; none yet. */
 export const BuildingJoinOptions = z.object({}).loose();
@@ -32,7 +32,7 @@ export const CommandRejected = z.object({
   /** The `type` of the command that was rejected. */
   type: z.string().max(64),
   reason: z.string().max(500),
-  /** The robot an `agent.*` command was about, so its panel can show the reason. */
+  /** The henchman an `agent.*` command was about, so its panel can show the reason. */
   agentId: Id.optional(),
   /** Uncommitted files when `agent.pr` was refused over a dirty worktree. */
   files: z.array(z.string().max(1024)).max(500).optional(),

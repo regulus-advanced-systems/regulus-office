@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { HEADING } from "@regulus/floor-layout";
+import { HEADING } from "@regulus/room-layout";
 import { OrthographicCamera, Raycaster, Vector2, Vector3 } from "three";
 import {
   CURSOR_DEADZONE,
@@ -57,7 +57,7 @@ describe("cursorHeading", () => {
     expect(cursorHeading(at, { x: 5, z: 9 }) as number).toBeCloseTo(HEADING.south);
     expect(cursorHeading(at, { x: 2, z: 5 }) as number).toBeCloseTo(HEADING.west);
   });
-  test("ignores a cursor at the robot's feet", () => {
+  test("ignores a cursor at the henchman's feet", () => {
     expect(cursorHeading(at, { x: 5 + CURSOR_DEADZONE / 2, z: 5 })).toBeNull();
     expect(cursorHeading(at, at)).toBeNull();
   });

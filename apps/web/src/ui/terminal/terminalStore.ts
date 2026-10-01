@@ -1,6 +1,6 @@
 /**
- * Which robot's terminal modal is open. The scene (laptop click, `E` at an
- * occupied desk) and later the robots themselves (#29) call `openTerminal`.
+ * Which henchman's terminal modal is open. The scene (laptop click, `E` at an
+ * occupied desk) and later the henchmen themselves (#29) call `openTerminal`.
  */
 import { create } from "zustand";
 

@@ -1,7 +1,7 @@
 /**
  * Integration: DockerRunner against a real Docker daemon. Builds a tiny image
  * from fixtures/Dockerfile (debian-slim + tmux + the fake agent, not the full
- * runner image), provisions a runner, mounts the human's area on a floor, runs
+ * runner image), provisions a runner, mounts the human's area on an operation, runs
  * the fake agent in tmux and drives, inspects and kills it. Then checks that a
  * second human's runner has no mount of, and cannot see, the first human's
  * clone and worktrees (#114).
@@ -105,7 +105,7 @@ describe.skipIf(!enabled)("DockerRunner (real Docker)", () => {
       labels: TEST_LABEL,
       pull: false,
       pidsLimit: 256,
-      floorRoots: [join(root, "worktrees")],
+      operationRoots: [join(root, "worktrees")],
     });
     handle = await runner.provision(user);
   }, 600_000);
@@ -137,7 +137,7 @@ describe.skipIf(!enabled)("DockerRunner (real Docker)", () => {
   }
 
   test("mounts the human's area, runs the fake agent, drives, inspects and kills it", async () => {
-    expect(await runner.mountProject(user, { floorId: "f1", repoId: "r1", workdir })).toEqual({
+    expect(await runner.mountProject(user, { operationId: "f1", repoId: "r1", workdir })).toEqual({
       workdir,
     });
     const p = plan("a1");
@@ -253,11 +253,11 @@ describe.skipIf(!enabled)("DockerRunner (real Docker)", () => {
   }, 30_000);
 
   test("another human's runner has no mount of, and cannot see, u1's clone and worktrees", async () => {
-    const floor = join(root, "worktrees", "f1");
+    const operation = join(root, "worktrees", "f1");
     const mirror = join(root, "projects", "f1", "repo");
     const secret = join(workdir, "secret.txt");
-    const worktreeA = join(floor, "u1", "agent-a");
-    const areaB = join(floor, "u2");
+    const worktreeA = join(operation, "u1", "agent-a");
+    const areaB = join(operation, "u2");
     await mkdir(worktreeA, { recursive: true });
     await mkdir(mirror, { recursive: true });
     await mkdir(join(areaB, "agent-b"), { recursive: true });
@@ -267,7 +267,11 @@ describe.skipIf(!enabled)("DockerRunner (real Docker)", () => {
     await chmod(join(areaB, "agent-b"), 0o777);
 
     const b = { userId: "u2" };
-    await runner.mountProject(b, { floorId: "f1", repoId: "r1", workdir: join(areaB, "agent-b") });
+    await runner.mountProject(b, {
+      operationId: "f1",
+      repoId: "r1",
+      workdir: join(areaB, "agent-b"),
+    });
     const { containerId } = await runner.provision(b);
     const info = await engine.json<{
       HostConfig: { Mounts: { Source?: string; Target: string }[] };
@@ -275,7 +279,7 @@ describe.skipIf(!enabled)("DockerRunner (real Docker)", () => {
     const targets = info.HostConfig.Mounts.map((m) => m.Target);
     expect(targets).toEqual(["/home/runner", areaB]);
     for (const m of info.HostConfig.Mounts) {
-      expect(`${m.Source ?? ""} ${m.Target}`).not.toContain(join(floor, "u1"));
+      expect(`${m.Source ?? ""} ${m.Target}`).not.toContain(join(operation, "u1"));
       expect(`${m.Source ?? ""} ${m.Target}`).not.toContain(join(root, "projects"));
     }
     const sh = (script: string) =>
@@ -283,8 +287,8 @@ describe.skipIf(!enabled)("DockerRunner (real Docker)", () => {
     for (const path of [secret, workdir, worktreeA, join(worktreeA, "work.txt"), mirror]) {
       expect((await sh(`test -e '${path}'`)).code).not.toBe(0);
     }
-    // The floor dir inside the runner holds only B's own area.
-    expect((await sh(`ls -A '${floor}'`)).stdout.trim()).toBe("u2");
+    // The operation dir inside the runner holds only B's own area.
+    expect((await sh(`ls -A '${operation}'`)).stdout.trim()).toBe("u2");
     expect(
       (await sh(`echo ok > '${areaB}/agent-b/b.txt' && cat '${areaB}/agent-b/b.txt'`)).stdout,
     ).toBe("ok\n");
@@ -302,7 +306,11 @@ describe.skipIf(!enabled)("DockerRunner (real Docker)", () => {
       argv: ["sleep", "1"],
       cwd: "/home/runner",
     });
-    const mounted = await runner.mountProject(d, { floorId: "f2", repoId: "r1", workdir: repoDir });
+    const mounted = await runner.mountProject(d, {
+      operationId: "f2",
+      repoId: "r1",
+      workdir: repoDir,
+    });
     expect(mounted).toEqual({ workdir: repoDir });
     // It ran to completion (exit 0), rather than being killed by the recreate.
     expect(await check.exited).toBe(0);
@@ -314,11 +322,13 @@ describe.skipIf(!enabled)("DockerRunner (real Docker)", () => {
     expect(info.HostConfig.Mounts.map((m) => m.Target)).toEqual(["/home/runner", area]);
   }, 60_000);
 
-  test("whole-floor mounts from before #114 are dropped from an idle runner", async () => {
+  test("whole-operation mounts from before #114 are dropped from an idle runner", async () => {
     const c = { userId: "u3" };
-    const floor = join(root, "worktrees", "f1");
+    const operation = join(root, "worktrees", "f1");
     await runner.provision(c);
-    await runner.containers.recreate(c.userId, [{ Type: "bind", Source: floor, Target: floor }]);
+    await runner.containers.recreate(c.userId, [
+      { Type: "bind", Source: operation, Target: operation },
+    ]);
     expect(await runner.reconcileMounts(c)).toBe(true);
     const { containerId } = await runner.provision(c);
     const info = await engine.json<{ HostConfig: { Mounts: { Target: string }[] } }>(

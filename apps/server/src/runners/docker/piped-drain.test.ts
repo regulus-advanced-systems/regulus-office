@@ -1,6 +1,6 @@
 /**
  * #126: a piped side process (the spawn dialog's `claude auth status` login
- * check) that is still running when the first spawn on a floor needs the runner
+ * check) that is still running when the first spawn on an operation needs the runner
  * recreated with the human's area. `mountProject` waits a bounded time for it
  * instead of refusing, and a `RunnerBusyError` names what is actually busy.
  */
@@ -14,7 +14,7 @@ import { FakeEngine } from "./testing/fake-engine.ts";
 const IMAGE = "runner:test";
 const user = { userId: "u1" };
 const area = "/srv/office/worktrees/f1/u1";
-const repo = { floorId: "f1", repoId: "r1", workdir: `${area}/_clones/repo` };
+const repo = { operationId: "f1", repoId: "r1", workdir: `${area}/_clones/repo` };
 
 let fake: FakeEngine;
 let sessions: Set<string>;
@@ -168,12 +168,12 @@ describe("mount changes and piped processes started meanwhile", () => {
     await proc.exited;
   });
 
-  test("two first spawns on different floors both keep their mounts", async () => {
+  test("two first spawns on different operations both keep their mounts", async () => {
     const r = runner();
     const other = "/srv/office/worktrees/f2/u1";
     await Promise.all([
       r.mountProject(user, repo),
-      r.mountProject(user, { floorId: "f2", repoId: "r9", workdir: `${other}/_clones/repo` }),
+      r.mountProject(user, { operationId: "f2", repoId: "r9", workdir: `${other}/_clones/repo` }),
     ]);
     const body = JSON.parse(fake.calls("POST", "/containers/create").at(-1)?.body ?? "{}");
     const targets = body.HostConfig.Mounts.map((m: { Target: string }) => m.Target);

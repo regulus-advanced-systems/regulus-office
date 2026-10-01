@@ -42,9 +42,9 @@ const MILESTONES: Array<{ title: string; description: string }> = [
       "Runners, tmux/PTY bridge, Claude Code and Codex at desks, credentials onboarding, worktrees, PRs. SPEC §10 M1.",
   },
   {
-    title: "M2 Floors and boards",
+    title: "M2 Operations and boards",
     description:
-      "Elevator, floor templates, GitHub boards, task queue, changes window, services, usage tracker, notifications, deploy script. SPEC §10 M2.",
+      "Elevator, room templates, GitHub boards, task queue, changes window, services, usage tracker, notifications, deploy script. SPEC §10 M2.",
   },
   {
     title: "M3 Collaboration",
@@ -57,14 +57,14 @@ const MILESTONES: Array<{ title: string; description: string }> = [
       "OpenCode, Gemini CLI, Kimi Code via ACP, base-URL backends (DeepSeek, Z.AI, Kimi plan), custom executable, board kiosk agents. SPEC §10 M4.",
   },
   {
-    title: "M5 PM robot",
+    title: "M5 PM henchman",
     description:
-      "Hermes-based project-manager robot: managed or external, daily brief, patrol, privileges; self-upgrade. SPEC §10 M5.",
+      "Hermes-based project-manager henchman: managed or external, daily brief, patrol, privileges; self-upgrade. SPEC §10 M5.",
   },
   {
     title: "M6 Polish and tycoon layer",
     description:
-      "Weather, coffee, dog, holidays, achievements, rooftop bar, arcade, floor upgrades, build mode, performance. SPEC §10 M6.",
+      "Weather, coffee, dog, holidays, achievements, rooftop bar, arcade, operation upgrades, build mode, performance. SPEC §10 M6.",
   },
 ];
 
@@ -83,10 +83,10 @@ const LABELS: Array<{ name: string; color: string; description: string }> = [
   { name: "area:web", color: "1D76DB", description: "apps/web" },
   { name: "area:protocol", color: "1D76DB", description: "packages/protocol" },
   { name: "area:adapters", color: "1D76DB", description: "packages/agent-adapters" },
-  { name: "area:layout", color: "1D76DB", description: "packages/floor-layout" },
+  { name: "area:layout", color: "1D76DB", description: "packages/room-layout" },
   { name: "area:assets", color: "1D76DB", description: "packages/assets" },
   { name: "area:infra", color: "1D76DB", description: "deploy/, runner/, CI" },
-  { name: "area:pm", color: "1D76DB", description: "PM robot (Hermes) bridge" },
+  { name: "area:pm", color: "1D76DB", description: "PM henchman (Hermes) bridge" },
   { name: "area:github", color: "1D76DB", description: "GitHub App, boards, webhooks" },
   { name: "area:media", color: "1D76DB", description: "LiveKit, jukebox, audio" },
   { name: "area:docs", color: "1D76DB", description: "docs/, ADRs" },
@@ -106,7 +106,7 @@ const I: Issue[] = [
     milestone: "M0 Foundations",
     areas: ["server", "web", "protocol", "infra"],
     epic: true,
-    body: `Deliver a running office with humans walking around a lobby: auth, DB, multiplayer, the isometric scene in Game Dev Tycoon style, robot avatars, FPV toggle, HUD shell and CI. No agents yet.
+    body: `Deliver a running office with humans walking around a lobby: auth, DB, multiplayer, the isometric scene in Game Dev Tycoon style, henchman avatars, FPV toggle, HUD shell and CI. No agents yet.
 ${common("§10 M0, §4, §5, §6, §9, §12")}
 
 Exit criteria: two browsers log in with invite links, see each other walk in the lobby, toggle FPV, chat; Playwright smoke test passes in CI; \`docker compose up\` serves it behind Caddy.`,
@@ -118,9 +118,9 @@ Exit criteria: two browsers log in with invite links, see each other walk in the
     body: `Implement \`packages/protocol\` as the single source of truth for wire types.
 
 Scope:
-- Enums: AgentStatus, AgentAction, ProviderId, BackendId, UserRole, FloorAccess, CredentialAuthKind, PmPrivilege (SPEC §6, §5).
-- State shapes for BuildingRoom (HumanPresence, floor summaries, jukebox state, PM state) and FloorRoom (RobotState, desks, decor, queue, board summaries, services, carried cards).
-- Client→server command union (\`move\`, \`sit\`, \`emote\`, \`chat\`, \`floor.go\`, \`agent.*\`, \`queue.*\`, \`card.*\`, \`decor.*\`, \`jukebox.*\`, \`screen.share.*\`, \`pm.ask\`) with zod schemas.
+- Enums: AgentStatus, AgentAction, ProviderId, BackendId, UserRole, OperationAccess, CredentialAuthKind, PmPrivilege (SPEC §6, §5).
+- State shapes for BuildingRoom (HumanPresence, operation summaries, jukebox state, PM state) and OperationRoom (HenchmanState, desks, decor, queue, board summaries, services, carried cards).
+- Client→server command union (\`move\`, \`sit\`, \`emote\`, \`chat\`, \`operation.go\`, \`agent.*\`, \`queue.*\`, \`card.*\`, \`decor.*\`, \`jukebox.*\`, \`screen.share.*\`, \`pm.ask\`) with zod schemas.
 - AgentEvent union used by adapters.
 - Colyseus \`@colyseus/schema\` classes for room state, generated from or kept in lockstep with the TS types.
 - Unit tests for validators.
@@ -137,7 +137,7 @@ ${common("§4, §11")}`,
     title: "server: Drizzle + bun:sqlite schema, migrations, backup script",
     milestone: "M0 Foundations",
     areas: ["server", "infra"],
-    body: `Create the Drizzle schema for the SPEC §5 tables (users/profiles, invites, floors, floor_repos, floor_members, desks, agents, agent_events, credential_profiles, usage_samples, usage_limits, tasks, github_issues, github_pulls, decor, whiteboards, jukebox_*, services, pm_briefs, audit_log). WAL mode, busy_timeout, migrations runner on boot, \`scripts/backup.sh\` using \`sqlite3 .backup\`. Keep the Postgres path open (no SQLite-only SQL in app code).
+    body: `Create the Drizzle schema for the SPEC §5 tables (users/profiles, invites, operations, operation_repos, operation_members, desks, agents, agent_events, credential_profiles, usage_samples, usage_limits, tasks, github_issues, github_pulls, decor, whiteboards, jukebox_*, services, pm_briefs, audit_log). WAL mode, busy_timeout, migrations runner on boot, \`scripts/backup.sh\` using \`sqlite3 .backup\`. Keep the Postgres path open (no SQLite-only SQL in app code).
 ${common("§5, research 01 §9")}`,
   },
   {
@@ -153,7 +153,7 @@ ${common("§4.2, §11, research 01 §8")}`,
       "server: Colyseus BuildingRoom on Bun with presence, move, chat; RoomTransport interface",
     milestone: "M0 Foundations",
     areas: ["server", "protocol"],
-    body: `Add Colyseus with \`@colyseus/bun-websockets\`. Implement BuildingRoom: join with auth, HumanPresence schema, \`move\` at ≤20 Hz relayed to others, \`chat\` persisted (last 1000 lines), floor list with counters. Wrap Colyseus behind a small \`RoomTransport\` interface so a raw Bun WebSocket implementation can replace it (document the fallback in an ADR). Load test with 20 simulated clients.
+    body: `Add Colyseus with \`@colyseus/bun-websockets\`. Implement BuildingRoom: join with auth, HumanPresence schema, \`move\` at ≤20 Hz relayed to others, \`chat\` persisted (last 1000 lines), operation list with counters. Wrap Colyseus behind a small \`RoomTransport\` interface so a raw Bun WebSocket implementation can replace it (document the fallback in an ADR). Load test with 20 simulated clients.
 ${common("§6, research 01 §2")}`,
   },
   {
@@ -168,7 +168,7 @@ ${common("§4.2, §4.3")}`,
       "web: lobby scene in Game Dev Tycoon style (ortho camera, cream vignette, dollhouse room, toon shading)",
     milestone: "M0 Foundations",
     areas: ["web", "assets"],
-    body: `Render the lobby from a floor template: orthographic camera at yaw 45°, pitch 35.264°, fixed yaw, limited zoom; \`#FFF6D9\` backdrop with radial vignette; room with two full back walls and front stub walls with dark cap; MeshToonMaterial with 3-4 step ramp; hemisphere + directional key from upper-left; soft contact shadows; grime decal at 10-15% on walls/floors; no outlines. Placeholder furniture from Kenney Furniture Kit (CC0) with entries in ATTRIBUTION.md if any CC-BY. Runs at 60 fps on an iGPU laptop at 1080p.
+    body: `Render the lobby from a room template: orthographic camera at yaw 45°, pitch 35.264°, fixed yaw, limited zoom; \`#FFF6D9\` backdrop with radial vignette; room with two full back walls and front stub walls with dark cap; MeshToonMaterial with 3-4 step ramp; hemisphere + directional key from upper-left; soft contact shadows; grime decal at 10-15% on walls/operations; no outlines. Placeholder furniture from Kenney Furniture Kit (CC0) with entries in ATTRIBUTION.md if any CC-BY. Runs at 60 fps on an iGPU laptop at 1080p.
 ${common("§9.2, §12, research 03 §8")}`,
   },
   {
@@ -181,10 +181,10 @@ ${common("§9.2, §9.3")}`,
   },
   {
     title:
-      "web: robot avatar (Quaternius LowPoly Robot), toon material, idle/walk/sit animations, colour sets, name plates",
+      "web: henchman avatar (Quaternius LowPoly Robot), toon material, idle/walk/sit animations, colour sets, name plates",
     milestone: "M0 Foundations",
     areas: ["web", "assets"],
-    body: `Import the Quaternius Animated LowPoly Robot (CC0) as GLB into \`packages/assets\`; apply toon material; wire idle/walk/sit/wave/dance clips via drei useAnimations; per-user colour set + accessory; floating name plate for humans; \`<Clone>\` for many instances; verify 20 robots on screen at 60 fps.
+    body: `Import the Quaternius Animated LowPoly Robot (CC0) as GLB into \`packages/assets\`; apply toon material; wire idle/walk/sit/wave/dance clips via drei useAnimations; per-user colour set + accessory; floating name plate for humans; \`<Clone>\` for many instances; verify 20 henchmen on screen at 60 fps.
 ${common("§9.3, research 03 §9")}`,
   },
   {
@@ -192,22 +192,22 @@ ${common("§9.3, research 03 §9")}`,
       "web: first-person view toggle (perspective camera, pointer lock, full front walls, crossfade)",
     milestone: "M0 Foundations",
     areas: ["web"],
-    body: `Toggle with \`V\` and a HUD button. Perspective camera at robot eye height, PointerLockControls, WASD, collision against template obstacles; front stub walls swap to full walls in FPV; 300 ms crossfade; reduced-motion setting respected.
+    body: `Toggle with \`V\` and a HUD button. Perspective camera at henchman eye height, PointerLockControls, WASD, collision against template obstacles; front stub walls swap to full walls in FPV; 300 ms crossfade; reduced-motion setting respected.
 ${common("§9.2")}`,
   },
   {
     title: "web: HUD shell and dialog components in Game Dev Tycoon UI style",
     milestone: "M0 Foundations",
     areas: ["web"],
-    body: `Design tokens (colours from SPEC §12, Open Sans), top bar (office name, floor name, clock), top-right status box, panel and modal components (golden border #F5C542 on #FFF9EF with cream glow, round X button, orange gradient primary, red destructive), toast notifications, settings panel skeleton, keyboard navigation and focus trapping. Storybook-free: a /ui-kit dev route showing every component.
+    body: `Design tokens (colours from SPEC §12, Open Sans), top bar (office name, operation name, clock), top-right status box, panel and modal components (golden border #F5C542 on #FFF9EF with cream glow, round X button, orange gradient primary, red destructive), toast notifications, settings panel skeleton, keyboard navigation and focus trapping. Storybook-free: a /ui-kit dev route showing every component.
 ${common("§12, research 03 §5")}`,
   },
   {
     title:
-      "floor-layout: template schema, Lobby template, tier templates (small/medium/large), nav grid, tests",
+      "room-layout: template schema, Lobby template, tier templates (small/medium/large), nav grid, tests",
     milestone: "M0 Foundations",
     areas: ["layout"],
-    body: `Define FloorTemplate (size, wallHeight, seats, wallAnchors, obstacles, spawn, elevator) and Palette types. Author the Lobby template (elevator bank, reception desk, usage wall, lounge with TV, jukebox spot, whiteboard, coffee machine) and the "Office L2" medium template modelled on GDT's second office (shared table with seats, CEO L-desk, cabinets, kitchenette, meeting table), plus small and large variants. Nav grid generator with tests. Palettes per research 03.
+    body: `Define RoomTemplate (size, wallHeight, seats, wallAnchors, obstacles, spawn, elevator) and Palette types. Author the Lobby template (elevator bank, reception desk, usage wall, lounge with TV, jukebox spot, whiteboard, coffee machine) and the "Office L2" medium template modelled on GDT's second office (shared table with seats, CEO L-desk, cabinets, kitchenette, meeting table), plus small and large variants. Nav grid generator with tests. Palettes per research 03.
 ${common("§9.1, research 03 §4")}`,
   },
   {
@@ -231,17 +231,17 @@ ${common("§4.2, §11")}`,
     milestone: "M1 Agents at desks",
     areas: ["server", "adapters", "web", "infra"],
     epic: true,
-    body: `First real robots: spawn Claude Code and Codex at a desk on a single floor, watch them work, open their terminal, approve permissions, resume, send home, get a PR. Per-user runners and credential onboarding.
+    body: `First real henchmen: spawn Claude Code and Codex at a desk on a single operation, watch them work, open their terminal, approve permissions, resume, send home, get a PR. Per-user runners and credential onboarding.
 ${common("§10 M1, §7, §8")}
 
-Exit criteria: a member connects Codex via device code in the UI and Claude via \`/login\` inside their own terminal; spawns one of each on a floor cloned from GitHub; robots animate by action; a raised hand opens a permission prompt; one-click PR appears on GitHub; office-server restart does not kill robots.`,
+Exit criteria: a member connects Codex via device code in the UI and Claude via \`/login\` inside their own terminal; spawns one of each on an operation cloned from GitHub; henchmen animate by action; a raised hand opens a permission prompt; one-click PR appears on GitHub; office-server restart does not kill henchmen.`,
   },
   {
     title:
       "server: Runner interface and linux-user backend (per-human Linux user, systemd-run scopes, tmux per human)",
     milestone: "M1 Agents at desks",
     areas: ["server", "infra"],
-    body: `Define \`Runner\` (provision(user), exec(plan) → tmux session, attach(session, mode), listProcesses(agent), kill(agent), mountProject(floorRepo)). Implement linux-user backend: \`useradd -m office-u-<id>\`, per-human tmux server socket under /run/office/tmux/, agents launched via \`systemd-run --uid --gid --scope --unit=agent-<id>\`, project workdirs group-accessible, cgroup-based process listing. Document sudoers requirements. Integration test with a fake agent script.
+    body: `Define \`Runner\` (provision(user), exec(plan) → tmux session, attach(session, mode), listProcesses(agent), kill(agent), mountProject(operationRepo)). Implement linux-user backend: \`useradd -m office-u-<id>\`, per-human tmux server socket under /run/office/tmux/, agents launched via \`systemd-run --uid --gid --scope --unit=agent-<id>\`, project workdirs group-accessible, cgroup-based process listing. Document sudoers requirements. Integration test with a fake agent script.
 ${common("§8, research 01 §10, §12; research 04 §5")}`,
   },
   {
@@ -249,7 +249,7 @@ ${common("§8, research 01 §10, §12; research 04 §5")}`,
       "server: Runner docker backend (one runner container per human, credential volume, workdir mounts)",
     milestone: "M1 Agents at desks",
     areas: ["server", "infra"],
-    body: `Implement the docker backend using \`runner/Dockerfile\`: create/start one container per human with a named credential volume at HOME, floor workdirs bind-mounted, non-root uid, \`IS_SANDBOX=1\`; tmux sessions via \`docker exec\`; process/port listing inside the container's net namespace; never mount the Docker socket into runners. Compose wiring. Integration test with a fake agent.
+    body: `Implement the docker backend using \`runner/Dockerfile\`: create/start one container per human with a named credential volume at HOME, operation workdirs bind-mounted, non-root uid, \`IS_SANDBOX=1\`; tmux sessions via \`docker exec\`; process/port listing inside the container's net namespace; never mount the Docker socket into runners. Compose wiring. Integration test with a fake agent.
 ${common("§8, research 01 §10")}`,
   },
   {
@@ -271,7 +271,7 @@ ${common("§9.4, research 01 §1, §7")}`,
     title: "server: AgentManager lifecycle state machine, persistence, re-adopt on boot, event log",
     milestone: "M1 Agents at desks",
     areas: ["server", "protocol"],
-    body: `Own the agent lifecycle: spawn → starting → idle/working/waiting_* → done/error/exited. Persist agents and provider session ids; on boot re-adopt live tmux sessions and mark the rest offline; append AgentEvents to agent_events with rolling retention; publish RobotState into FloorRoom; status derivation ladder (structured → hooks → OSC title → capture-pane regex).
+    body: `Own the agent lifecycle: spawn → starting → idle/working/waiting_* → done/error/exited. Persist agents and provider session ids; on boot re-adopt live tmux sessions and mark the rest offline; append AgentEvents to agent_events with rolling retention; publish HenchmanState into OperationRoom; status derivation ladder (structured → hooks → OSC title → capture-pane regex).
 ${common("§7, research 04 §3")}`,
   },
   {
@@ -295,15 +295,15 @@ ${common("§7, research 04 §1.2")}`,
       "web: spawn dialog, desk interaction, status antenna, action animations, raised hand, work bubbles",
     milestone: "M1 Agents at desks",
     areas: ["web"],
-    body: `\`E\` at a free desk opens the spawn dialog (provider, credential profile, model, effort, prompt, issue prefill). Robot sits at the seat; antenna bulb colour by status; actions map to clips (typing, reading papers, thinking, failing facepalm, celebrating spin + confetti); raised hand + ding for waiting_permission; GDT-style bubbles emitted from the laptop while working (cyan tool calls, amber edits, blue tests, orange-red failures) flying to floor HUD counters; floor-decal name labels.
+    body: `\`E\` at a free desk opens the spawn dialog (provider, credential profile, model, effort, prompt, issue prefill). Henchman sits at the seat; antenna bulb colour by status; actions map to clips (typing, reading papers, thinking, failing facepalm, celebrating spin + confetti); raised hand + ding for waiting_permission; GDT-style bubbles emitted from the laptop while working (cyan tool calls, amber edits, blue tests, orange-red failures) flying to operation HUD counters; floor-decal name labels.
 ${common("§9.3, §9.4, research 03 §4")}`,
   },
   {
     title:
-      "server+web: floors bound to GitHub repos (clone), floor_repos, membership, FloorRoom state",
+      "server+web: operations bound to GitHub repos (clone), operation_repos, membership, OperationRoom state",
     milestone: "M1 Agents at desks",
     areas: ["server", "web", "github"],
-    body: `Add floor: name, palette, template tier, one or more repos (owner/name via GitHub App/PAT or public URL); clone into /srv/office/projects/<floor>/<repo>; floor_members with manage/spawn/view; FloorRoom with robots, desks, decor; client joins exactly one FloorRoom; floor name painted on the exterior stub wall.
+    body: `Add operation: name, palette, template tier, one or more repos (owner/name via GitHub App/PAT or public URL); clone into /srv/office/projects/<operation>/<repo>; operation_members with manage/spawn/view; OperationRoom with henchmen, desks, decor; client joins exactly one OperationRoom; operation name painted on the exterior stub wall.
 ${common("§5, §6, §9.1, D7")}`,
   },
   {
@@ -327,102 +327,102 @@ ${common("§8, D2, research 04 §5, §6")}`,
       "server+web: agent controls (prompt, approve/deny, interrupt, stop, resume, send-home animation)",
     milestone: "M1 Agents at desks",
     areas: ["server", "web"],
-    body: `Commands \`agent.prompt\`, \`agent.approve\`, \`agent.stop\`, \`agent.resume\` with ACL; permission prompt UI from AgentEvent permission_request; interrupt sends SIGINT/adapter interrupt; send-home walks the robot to the elevator carrying a box then frees the desk; resume re-spawns with the provider session id.
+    body: `Commands \`agent.prompt\`, \`agent.approve\`, \`agent.stop\`, \`agent.resume\` with ACL; permission prompt UI from AgentEvent permission_request; interrupt sends SIGINT/adapter interrupt; send-home walks the henchman to the elevator carrying a box then frees the desk; resume re-spawns with the provider session id.
 ${common("§6, §7")}`,
   },
 
   // ───────────────────────────── M2 ─────────────────────────────
   {
-    title: "Epic: M2 Floors and boards",
-    milestone: "M2 Floors and boards",
+    title: "Epic: M2 Operations and boards",
+    milestone: "M2 Operations and boards",
     areas: ["server", "web", "github"],
     epic: true,
-    body: `Multiple floors with an elevator, GitHub issue/PR boards, task queue, changes window, running-apps discovery, usage tracker wall, search, notifications, merge gong, and a one-command VPS deploy.
+    body: `Multiple operations with an elevator, GitHub issue/PR boards, task queue, changes window, running-apps discovery, usage tracker wall, search, notifications, merge gong, and a one-command VPS deploy.
 ${common("§10 M2")}
 
-Exit criteria: three projects on three floors; issue dragged from the board onto a desk spawns a robot; queue runs three issues with concurrency 2; PR merge rings the gong; usage wall shows the viewer's Claude and Codex windows; office deployed on a Hetzner VM with one command.`,
+Exit criteria: three projects on three operations; issue dragged from the board onto a desk spawns a henchman; queue runs three issues with concurrency 2; PR merge rings the gong; usage wall shows the viewer's Claude and Codex windows; office deployed on a Hetzner VM with one command.`,
   },
   {
     title:
-      "web+server: elevator with floor panel, quick menu teleport, per-floor palettes and template tiers",
-    milestone: "M2 Floors and boards",
+      "web+server: elevator with operation panel, quick menu teleport, per-operation palettes and template tiers",
+    milestone: "M2 Operations and boards",
     areas: ["web", "server", "layout"],
-    body: `Elevator object with door animation and a floor panel listing floors with name, colour chip and working/waiting counts; 1.5 s ride; \`F\` quick menu teleports; \`floor.go\` switches FloorRoom; palettes cycle per floor; template tier upgrade flow when desks run out (owner confirms).
+    body: `Elevator object with door animation and an operation panel listing operations with name, colour chip and working/waiting counts; 1.5 s ride; \`F\` quick menu teleports; \`operation.go\` switches OperationRoom; palettes cycle per operation; template tier upgrade flow when desks run out (owner confirms).
 ${common("§9.1, §9.4, D8")}`,
   },
   {
     title:
       "server: GitHub App integration (manifest setup, installation tokens, webhooks, polling, PAT fallback, issue/PR cache)",
-    milestone: "M2 Floors and boards",
+    milestone: "M2 Operations and boards",
     areas: ["server", "github"],
-    body: `Setup page creates a GitHub App through the manifest flow; store app id/private key/webhook secret; installation tokens via octokit; webhook endpoint with signature verification for issues, pull_request, check_suite, pull_request_review; polling mode (ETag conditional, 30-60 s) when webhooks are unavailable; fine-grained PAT fallback; cache into github_issues/github_pulls; push board summaries into FloorRoom.
+    body: `Setup page creates a GitHub App through the manifest flow; store app id/private key/webhook secret; installation tokens via octokit; webhook endpoint with signature verification for issues, pull_request, check_suite, pull_request_review; polling mode (ETag conditional, 30-60 s) when webhooks are unavailable; fine-grained PAT fallback; cache into github_issues/github_pulls; push board summaries into OperationRoom.
 ${common("§4.2, D14, research 01 §11")}`,
   },
   {
     title:
       "web+server: issue board and PR board (cork boards, panels, carry-a-card, assign, comment, merge/close)",
-    milestone: "M2 Floors and boards",
+    milestone: "M2 Operations and boards",
     areas: ["web", "server", "github"],
-    body: `Cork boards on wall anchors (Open / In progress / Closed; Draft / In review / Approved / Merged / Closed with CI status); unfocused = canvas texture, click = GDT-style panel with markdown body and comments (sanitised); pluck a card and carry it (visible to all) and drop on a desk to prefill spawn; assign on GitHub; comment; merge (squash/merge/rebase) and close for users with floor manage; repo chip per card for multi-repo floors.
+    body: `Cork boards on wall anchors (Open / In progress / Closed; Draft / In review / Approved / Merged / Closed with CI status); unfocused = canvas texture, click = GDT-style panel with markdown body and comments (sanitised); pluck a card and carry it (visible to all) and drop on a desk to prefill spawn; assign on GitHub; comment; merge (squash/merge/rebase) and close for users with operation manage; repo chip per card for multi-repo operations.
 ${common("§9.4, D7")}`,
   },
   {
     title:
       "server+web: task queue (issue/PR/freeform tasks, concurrency, reorder, retry, auto-worktree, PR linking, wall clipboard)",
-    milestone: "M2 Floors and boards",
+    milestone: "M2 Operations and boards",
     areas: ["server", "web"],
-    body: `Queue model per floor; runner picks the next task when a desk and the concurrency slot are free; spawns with the task's provider/model/profile; auto-worktree; links the PR when it appears; states queued/running/done/failed/cancelled; reorder, retry, cancel; clipboard object on the wall + panel; survives restarts.
+    body: `Queue model per operation; runner picks the next task when a desk and the concurrency slot are free; spawns with the task's provider/model/profile; auto-worktree; links the PR when it appears; states queued/running/done/failed/cancelled; reorder, retry, cancel; clipboard object on the wall + panel; survives restarts.
 ${common("§5, §9.4")}`,
   },
   {
     title:
-      "server+web: changes window per robot (live diff vs merge-base, per-file diff, commit, discard, push + PR)",
-    milestone: "M2 Floors and boards",
+      "server+web: changes window per henchman (live diff vs merge-base, per-file diff, commit, discard, push + PR)",
+    milestone: "M2 Operations and boards",
     areas: ["server", "web"],
-    body: `Poll \`git status\`/diff in the robot's worktree every 2 s while open; file tree; per-file diff viewer; commit with message; discard file; push + PR; image previews; ACL: owner/admin.
+    body: `Poll \`git status\`/diff in the henchman's worktree every 2 s while open; file tree; per-file diff viewer; commit with message; discard file; push + PR; image previews; ACL: owner/admin.
 ${common("§10 M2, D10")}`,
   },
   {
     title:
       "server+web: services discovery (cgroup + /proc/net scan) and authenticated proxy with Running apps panel",
-    milestone: "M2 Floors and boards",
+    milestone: "M2 Operations and boards",
     areas: ["server", "web"],
-    body: `Every 2-3 s while agents are active: list LISTEN sockets in each agent's cgroup / container net namespace, map to pid and title (fast path: URLs in PTY output); services table; \`/p/<floor>/port/<n>/\` reverse proxy with auth and WebSocket upgrade rewriting; "Running apps" panel with Open buttons; note Vite \`base\` caveat and per-port subdomain mode.
+    body: `Every 2-3 s while agents are active: list LISTEN sockets in each agent's cgroup / container net namespace, map to pid and title (fast path: URLs in PTY output); services table; \`/p/<operation>/port/<n>/\` reverse proxy with auth and WebSocket upgrade rewriting; "Running apps" panel with Open buttons; note Vite \`base\` caveat and per-port subdomain mode.
 ${common("§9.4, research 01 §12")}`,
   },
   {
     title:
       "server+web: usage tracker (usage_samples/limits, Claude statusline, Codex rate limits, transcript scan, lobby wall)",
-    milestone: "M2 Floors and boards",
+    milestone: "M2 Operations and boards",
     areas: ["server", "web"],
-    body: `Aggregate usage from adapter in-band events, the Claude statusline forwarder, Codex \`account/rateLimits\`, and a periodic ccusage-style transcript scan inside each runner (dedupe by message id); price table for estimates; lobby wall (Canvas 2D texture) and a small per-floor display showing the viewer's own windows (5-hour / weekly / credits), today's spend estimate, top robots by tokens, office totals; never another user's limits; no enforcement (D13).
+    body: `Aggregate usage from adapter in-band events, the Claude statusline forwarder, Codex \`account/rateLimits\`, and a periodic ccusage-style transcript scan inside each runner (dedupe by message id); price table for estimates; lobby wall (Canvas 2D texture) and a small per-operation display showing the viewer's own windows (5-hour / weekly / credits), today's spend estimate, top henchmen by tokens, office totals; never another user's limits; no enforcement (D13).
 ${common("§9.4, D13, research 04 §4")}`,
   },
   {
     title: "server+web: search across chat and persisted terminal scrollback with jump-to-desk",
-    milestone: "M2 Floors and boards",
+    milestone: "M2 Operations and boards",
     areas: ["server", "web"],
-    body: `SQLite FTS5 over chat and scrollback snapshots (ANSI stripped); \`/\` opens search; results grouped by robot/floor; click walks the avatar to the desk and opens the terminal at the match.
+    body: `SQLite FTS5 over chat and scrollback snapshots (ANSI stripped); \`/\` opens search; results grouped by henchman/operation; click walks the avatar to the desk and opens the terminal at the match.
 ${common("D10")}`,
   },
   {
     title: "server+web: notifications (desktop + tab badge; Slack/Discord/Telegram webhooks)",
-    milestone: "M2 Floors and boards",
+    milestone: "M2 Operations and boards",
     areas: ["server", "web"],
-    body: `Browser notifications and tab-title badge when a robot needs input or finishes (per-user setting); server-side webhooks (Slack/Discord/Telegram) on needs-input, done, PR merged with a 5 s settle and rate limit; admin config panel.
+    body: `Browser notifications and tab-title badge when a henchman needs input or finishes (per-user setting); server-side webhooks (Slack/Discord/Telegram) on needs-input, done, PR merged with a 5 s settle and rate limit; admin config panel.
 ${common("D15")}`,
   },
   {
-    title: "web: merge gong, confetti and robot dance on PR merge",
-    milestone: "M2 Floors and boards",
+    title: "web: merge gong, confetti and henchman dance on PR merge",
+    milestone: "M2 Operations and boards",
     areas: ["web", "server"],
-    body: `MergeWatch emits \`pr.merged\`; gong object rings (Web Audio synth), confetti particles, robots on the floor play the dance clip for 3 s; triple ring when the queue empties; manual bang on interact.
+    body: `MergeWatch emits \`pr.merged\`; gong object rings (Web Audio synth), confetti particles, henchmen on the operation play the dance clip for 3 s; triple ring when the queue empties; manual bang on interact.
 ${common("D9")}`,
   },
   {
     title:
       "infra: one-command VPS deploy script (cloud-init for Hetzner/Ubuntu, Docker, Compose, Caddy TLS)",
-    milestone: "M2 Floors and boards",
+    milestone: "M2 Operations and boards",
     areas: ["infra", "docs"],
     body: `\`deploy/vps.sh\` and a cloud-init template: install Docker, clone the release, write .env from prompts (domain, master key), \`docker compose up -d\`, print the claim link. Hetzner example with hcloud CLI; generic Ubuntu path. Docs page for DNS + firewall (80/443, LiveKit ports when media profile is on).
 ${common("D11, D15")}`,
@@ -434,7 +434,7 @@ ${common("D11, D15")}`,
     milestone: "M3 Collaboration",
     areas: ["web", "server", "media"],
     epic: true,
-    body: `Humans working together in the office: whiteboard, wall pictures, jukebox, screen share and voice through LiveKit, chat, emotes, sitting, and the meeting room for multi-robot patterns.
+    body: `Humans working together in the office: whiteboard, wall pictures, jukebox, screen share and voice through LiveKit, chat, emotes, sitting, and the meeting room for multi-henchman patterns.
 ${common("§10 M3")}`,
   },
   {
@@ -442,7 +442,7 @@ ${common("§10 M3")}`,
       "web+server: collaborative whiteboard (Excalidraw + Yjs, y-websocket endpoint, persistence, wall snapshot)",
     milestone: "M3 Collaboration",
     areas: ["web", "server"],
-    body: `\`/ws/wb/<floorId>\` y-websocket in the Bun server; y-excalidraw binding; Yjs updates persisted in whiteboards; lazy-load Excalidraw; unfocused board shows an \`exportToCanvas\` snapshot texture (throttled 2 s); live cursors and names; building-wide board in the lobby.
+    body: `\`/ws/wb/<operationId>\` y-websocket in the Bun server; y-excalidraw binding; Yjs updates persisted in whiteboards; lazy-load Excalidraw; unfocused board shows an \`exportToCanvas\` snapshot texture (throttled 2 s); live cursors and names; building-wide board in the lobby.
 ${common("§9.4, research 01 §6, §7")}`,
   },
   {
@@ -472,15 +472,15 @@ ${common("D5, research 01 §4")}`,
     title: "web+server: text chat, whereabouts, walk-to-teammate, emotes, sitting",
     milestone: "M3 Collaboration",
     areas: ["web", "server"],
-    body: `Chat overlay with fading bubbles and history; whereabouts panel with per-human \`doing\` and floor; click a name to walk there (rides the elevator if needed); emote wheel (hold G) with wave/thumbs up/clap/dance/point/facepalm; sit on couches/chairs with synced seat state.
+    body: `Chat overlay with fading bubbles and history; whereabouts panel with per-human \`doing\` and operation; click a name to walk there (rides the elevator if needed); emote wheel (hold G) with wave/thumbs up/clap/dance/point/facepalm; sit on couches/chairs with synced seat state.
 ${common("§10 M3")}`,
   },
   {
     title:
-      "server+web: meeting room with multi-robot patterns (debate, lead+team, map-reduce, red/blue, review panel)",
+      "server+web: meeting room with multi-henchman patterns (debate, lead+team, map-reduce, red/blue, review panel)",
     milestone: "M3 Collaboration",
     areas: ["server", "web"],
-    body: `Meeting room object on medium/large templates; start a meeting with 2-5 robots (any providers), a pattern, round and token budgets; shared worktree with a \`.meeting/\` notes dir; orchestrator drives turns through adapters; door sign and wall board show progress; output committed on a branch or posted as a PR review; persisted and resumable.
+    body: `Meeting room object on medium/large templates; start a meeting with 2-5 henchmen (any providers), a pattern, round and token budgets; shared worktree with a \`.meeting/\` notes dir; orchestrator drives turns through adapters; door sign and wall board show progress; output committed on a branch or posted as a PR review; persisted and resumable.
 ${common("D9, research 02 feature 56")}`,
   },
 
@@ -536,30 +536,30 @@ ${common("research 04 §3A")}`,
     title: "server+web: board kiosk agents (Issues/PR/Queue) with restricted tools and briefs",
     milestone: "M4 More providers",
     areas: ["server", "web", "pm"],
-    body: `Small restricted robots standing at each board that summarise the board on interaction and can enqueue tasks via an office CLI/REST with a scoped token; implemented as PM sub-tasks when the PM robot is configured, otherwise as standalone agents with disallowed edit tools.
+    body: `Small restricted henchmen standing at each board that summarise the board on interaction and can enqueue tasks via an office CLI/REST with a scoped token; implemented as PM sub-tasks when the PM henchman is configured, otherwise as standalone agents with disallowed edit tools.
 ${common("D10, research 02 feature 55")}`,
   },
 
   // ───────────────────────────── M5 ─────────────────────────────
   {
-    title: "Epic: M5 PM robot",
-    milestone: "M5 PM robot",
+    title: "Epic: M5 PM henchman",
+    milestone: "M5 PM henchman",
     areas: ["pm", "server", "web"],
     epic: true,
-    body: `A Hermes-powered project-manager robot that walks the office, tracks robots/tasks/projects, and delivers a daily brief; managed profile or external gateway; privilege presets; plus self-upgrade from the admin UI.
+    body: `A Hermes-powered project-manager henchman that walks the office, tracks henchmen/tasks/projects, and delivers a daily brief; managed profile or external gateway; privilege presets; plus self-upgrade from the admin UI.
 ${common("§10 M5, D3, D4")}`,
   },
   {
     title:
       "pm: PmEngine interface and Hermes managed profile (install, config, office toolset over REST with scoped token, privilege presets)",
-    milestone: "M5 PM robot",
+    milestone: "M5 PM henchman",
     areas: ["pm", "server"],
     body: `\`PmEngine\` (start, stop, ask, schedule, events). Managed mode installs Hermes into a dedicated profile in the VM (or a container), configures the office toolset (read agents/tasks/boards/usage; enqueue tasks; comment on issues/PRs; spawn/stop only under \`manager\`) as Hermes tools calling the office REST API with a scoped service token; presets observer/coordinator/manager (default coordinator); approvals routed to the owner.
 ${common("D3, D4, research 04 §1.8")}`,
   },
   {
     title: "pm: external Hermes gateway mode (URL + token), session mapping, health checks",
-    milestone: "M5 PM robot",
+    milestone: "M5 PM henchman",
     areas: ["pm"],
     body: `Connect to an existing Hermes instance over its TUI-gateway JSON-RPC/WebSocket or API server; same PmEngine interface; map office questions to sessions; health indicator in admin panel; document required Hermes config (tools, cron delivery to the office webhook).
 ${common("D3, research 04 §1.8")}`,
@@ -567,23 +567,23 @@ ${common("D3, research 04 §1.8")}`,
   {
     title:
       "pm+web: daily brief (cron, delivery at reception on arrival, Slack/Telegram), brief UI and history",
-    milestone: "M5 PM robot",
+    milestone: "M5 PM henchman",
     areas: ["pm", "web", "server"],
-    body: `Cron job in Hermes produces a markdown brief (overnight robot activity, PRs merged/opened, queue state, usage, blockers) posted to the office; stored in pm_briefs; when the owner enters the office the PM robot walks to them and presents it in a GDT-style dialog; optional Slack/Telegram delivery; history panel at reception.
+    body: `Cron job in Hermes produces a markdown brief (overnight henchman activity, PRs merged/opened, queue state, usage, blockers) posted to the office; stored in pm_briefs; when the owner enters the office the PM henchman walks to them and presents it in a GDT-style dialog; optional Slack/Telegram delivery; history panel at reception.
 ${common("§10 M5")}`,
   },
   {
     title:
-      "web+server: PM robot in the world (patrol route, visits waiting robots, reception chat)",
-    milestone: "M5 PM robot",
+      "web+server: PM henchman in the world (patrol route, visits waiting henchmen, reception chat)",
+    milestone: "M5 PM henchman",
     areas: ["web", "server", "pm"],
-    body: `Distinct PM robot model/colour; deterministic-by-clock patrol route across floors via the elevator; walks to robots in waiting_* states; interact at reception or anywhere to ask questions (streams the Hermes answer into a dialog); \`pm.ask\` command.
+    body: `Distinct PM henchman model/colour; deterministic-by-clock patrol route across operations via the elevator; walks to henchmen in waiting_* states; interact at reception or anywhere to ask questions (streams the Hermes answer into a dialog); \`pm.ask\` command.
 ${common("§9.1, research 02 sync patterns")}`,
   },
   {
     title:
-      "server+web+infra: self-upgrade from the admin UI (release check, image pull, restart, robots survive)",
-    milestone: "M5 PM robot",
+      "server+web+infra: self-upgrade from the admin UI (release check, image pull, restart, henchmen survive)",
+    milestone: "M5 PM henchman",
     areas: ["infra", "server", "web"],
     body: `Admin panel shows current version and latest GitHub release; upgrade pulls the new image and restarts the office container while runners and tmux sessions keep running; re-adopt on boot; rollback note.
 ${common("D15")}`,
@@ -595,7 +595,7 @@ ${common("D15")}`,
     milestone: "M6 Polish and tycoon layer",
     areas: ["web", "server"],
     epic: true,
-    body: `Ambience and progression: weather and day-night, coffee buff, office dog, holiday themes, achievements, rooftop bar, arcade, floor upgrades and build mode, performance pass.
+    body: `Ambience and progression: weather and day-night, coffee buff, office dog, holiday themes, achievements, rooftop bar, arcade, operation upgrades and build mode, performance pass.
 ${common("§10 M6, D9")}`,
   },
   {
@@ -612,16 +612,16 @@ ${common("§10 M6, D9")}`,
   },
   {
     title:
-      "web+server: office dog per floor (A* wandering, naps by busy robots, barks at waiting robots, pettable)",
+      "web+server: office dog per operation (A* wandering, naps by busy henchmen, barks at waiting henchmen, pettable)",
     milestone: "M6 Polish and tycoon layer",
     areas: ["web", "server"],
-    body: `Deterministic-by-clock route legs from the server; behaviours keyed to robot states; pet interaction; nameable per floor.\n${common("D9, research 02 feature 16")}`,
+    body: `Deterministic-by-clock route legs from the server; behaviours keyed to henchman states; pet interaction; nameable per operation.\n${common("D9, research 02 feature 16")}`,
   },
   {
     title: "web: holiday themes (auto by calendar, admin override)",
     milestone: "M6 Polish and tycoon layer",
     areas: ["web"],
-    body: `Decor swaps and robot accessories for a few holidays; building-wide; toggle in settings.\n${common("D9")}`,
+    body: `Decor swaps and henchman accessories for a few holidays; building-wide; toggle in settings.\n${common("D9")}`,
   },
   {
     title: "server+web: achievements and trophy shelf",
@@ -639,20 +639,20 @@ ${common("§10 M6, D9")}`,
     title: "web+server: arcade cabinet with spectator screen and high scores",
     milestone: "M6 Polish and tycoon layer",
     areas: ["web", "server"],
-    body: `Falling-blocks game on the cabinet; spectators see the player's frames on the cabinet texture; pauses when the player's robot needs input; persistent high-score table.\n${common("D9, research 02 feature 20")}`,
+    body: `Falling-blocks game on the cabinet; spectators see the player's frames on the cabinet texture; pauses when the player's henchman needs input; persistent high-score table.\n${common("D9, research 02 feature 20")}`,
   },
   {
-    title: "web+server: floor tier upgrades and tycoon build mode (furniture placement)",
+    title: "web+server: operation tier upgrades and tycoon build mode (furniture placement)",
     milestone: "M6 Polish and tycoon layer",
     areas: ["web", "server", "layout"],
-    body: `Upgrade a floor's template tier with a move-in animation; build mode lets floor managers place/move furniture from a palette on the grid with nav-grid regeneration; saved as a per-floor layout override.\n${common("D8")}`,
+    body: `Upgrade an operation's template tier with a move-in animation; build mode lets operation managers place/move furniture from a palette on the grid with nav-grid regeneration; saved as a per-operation layout override.\n${common("D8")}`,
   },
   {
     title:
       "web: performance pass (hidden-tab pause, quality presets, instancing audit, reduced motion)",
     milestone: "M6 Polish and tycoon layer",
     areas: ["web"],
-    body: `Pause the render loop when hidden; low/medium/high presets (pixel ratio, shadows, bubble count); instancing for all static props; reduced-motion disables bubbles/confetti; profile 20 robots + 5 humans on an iGPU laptop.\n${common("§11")}`,
+    body: `Pause the render loop when hidden; low/medium/high presets (pixel ratio, shadows, bubble count); instancing for all static props; reduced-motion disables bubbles/confetti; profile 20 henchmen + 5 humans on an iGPU laptop.\n${common("§11")}`,
   },
 ];
 

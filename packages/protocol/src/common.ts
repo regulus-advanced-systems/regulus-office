@@ -18,7 +18,7 @@ export const GhNumber = z.number().int().positive();
 export type GhNumber = z.infer<typeof GhNumber>;
 
 /**
- * Position on a floor's ground plane in world units. `x`/`z` follow the
+ * Position on an operation's ground plane in world units. `x`/`z` follow the
  * three.js convention (y is up); `heading` is yaw in radians.
  */
 export const WorldPos = z.object({

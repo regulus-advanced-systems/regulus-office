@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { HEADING, OBSTACLE_KINDS, SEAT_KINDS } from "@regulus/floor-layout";
+import { HEADING, OBSTACLE_KINDS, SEAT_KINDS } from "@regulus/room-layout";
 import { Box3, Vector3 } from "three";
 import { CHAIR_MODEL } from "../furniture/catalog.ts";
 import { LAIR_MODEL_COMPONENTS } from "./components/LairModels.tsx";
@@ -18,7 +18,7 @@ import {
 import { placementMatrix } from "./placements.ts";
 
 describe("model id → piece map (for the room generator, #182)", () => {
-  test("every floor-layout obstacle kind and every lair prop kind has a model", () => {
+  test("every room-layout obstacle kind and every lair prop kind has a model", () => {
     for (const id of [...OBSTACLE_KINDS, ...LAIR_PROP_KINDS]) {
       const model = LAIR_MODELS[id];
       expect(model).toBeDefined();

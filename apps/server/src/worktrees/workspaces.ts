@@ -1,11 +1,11 @@
 /**
  * {@link Workspaces} over `git worktree` (SPEC §8, §10 M1), on each human's
- * own clone of the floor repo (#114, clones.ts; layout in
+ * own clone of the operation repo (#114, clones.ts; layout in
  * ../runners/layout.ts).
  *
  * prepare: make the owner's clone on first use, `git fetch origin` in it with
  * the project credential, then `git worktree add --no-track -b office/<slug>
- * <worktreesDir>/<floor>/<rid>/<agentId> origin/<default>`, so an agent never
+ * <worktreesDir>/<operation>/<rid>/<agentId> origin/<default>`, so an agent never
  * starts from a stale local branch (agent-office #119). The owner's runner is
  * given access with `mountProject` (their own area only), and the branch and
  * workdir are recorded on the agent row.
@@ -14,7 +14,7 @@
  * the remote. Only `office/` branches are ever deleted.
  *
  * Agents from before #114 have worktrees of the shared mirror
- * (`<worktreesDir>/<floor>/<agentId>`). {@link GitWorktreeWorkspaces.cloneFor}
+ * (`<worktreesDir>/<operation>/<agentId>`). {@link GitWorktreeWorkspaces.cloneFor}
  * reports them as `legacy`: the office's own git (status, PR, release) still
  * works on them, but they are never started in a runner again.
  */
@@ -22,7 +22,7 @@ import { rm, stat } from "node:fs/promises";
 import { basename, isAbsolute, join, relative } from "node:path";
 import { and, eq } from "drizzle-orm";
 import type { Db } from "../db/index.ts";
-import { agents, floors } from "../db/schema/index.ts";
+import { agents, operations } from "../db/schema/index.ts";
 import { type GitRunner, runGit, summarizeGitError } from "../github/git.ts";
 import type { RepoAccess, RepoCheckout } from "../github/repo-access.ts";
 import type { Logger } from "../logging.ts";
@@ -54,7 +54,7 @@ import {
 export interface WorktreeDeps {
   db: Db;
   repos: RepoAccess;
-  /** Humans' areas: `<worktreesDir>/<floor-slug>/<rid>/{_clones/<repo>,<agentId>}`. */
+  /** Humans' areas: `<worktreesDir>/<operation-slug>/<rid>/{_clones/<repo>,<agentId>}`. */
   worktreesDir: string;
   logger: Logger;
   /** Grants the owner's runner access to their clone and the worktree. */
@@ -128,14 +128,14 @@ export class GitWorktreeWorkspaces implements Workspaces, HumanClones {
   /** The ready repo, and the owner's area and clone paths for a spawn on it. */
   #target(input: PrepareWorkspaceInput) {
     const repo = this.#readyRepo(input.repoId);
-    if (repo.floorId !== input.floorId) throw new WorkspaceError("repo_not_found");
-    const floor = this.#deps.db
-      .select({ slug: floors.slug })
-      .from(floors)
-      .where(eq(floors.id, input.floorId))
+    if (repo.operationId !== input.operationId) throw new WorkspaceError("repo_not_found");
+    const operation = this.#deps.db
+      .select({ slug: operations.slug })
+      .from(operations)
+      .where(eq(operations.id, input.operationId))
       .get();
-    if (!floor) throw new WorkspaceError("repo_not_found", "operation not found");
-    const area = humanAreaDir(this.#deps.worktreesDir, floor.slug, input.ownerUserId);
+    if (!operation) throw new WorkspaceError("repo_not_found", "operation not found");
+    const area = humanAreaDir(this.#deps.worktreesDir, operation.slug, input.ownerUserId);
     return { repo, area, clone: join(area, CLONES_DIR, basename(repo.workdir)) };
   }
 
@@ -163,7 +163,7 @@ export class GitWorktreeWorkspaces implements Workspaces, HumanClones {
     for (const workdir of workdirs) {
       await runner.mountProject(
         { userId: ownerUserId },
-        { floorId: repo.floorId, repoId: repo.repoId, workdir },
+        { operationId: repo.operationId, repoId: repo.repoId, workdir },
       );
     }
   }

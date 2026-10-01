@@ -1,10 +1,10 @@
 /**
  * Integration (#39): services discovery and the proxy against a real docker
- * sandbox (#169). A robot runs two web servers in its sandbox: one on
+ * sandbox (#169). A henchman runs two web servers in its sandbox: one on
  * `0.0.0.0:$PORT` and one on `127.0.0.1:3001`. The scanner must find both
  * inside the sandbox's own network namespace, title the first from its page,
  * mark the second "localhost only", and the owner must reach the first
- * through `/p/<floor>/a/<agent>/port/<n>/`.
+ * through `/p/<operation>/a/<agent>/port/<n>/`.
  *
  * The office reaches sandboxes by container name on the runners network; this
  * test process is not on that network, so it uses the container's address on
@@ -119,12 +119,12 @@ describe.skipIf(!enabled)("services in a real docker sandbox (#39)", () => {
       labels: TEST_LABEL,
       pull: false,
       network: NETWORK,
-      floorRoots: [join(root, "worktrees")],
+      operationRoots: [join(root, "worktrees")],
       sandboxes: DEFAULT_SANDBOX_SETTINGS,
     });
     office = await startServicesOffice({ runner: byAddress(runner) });
     owner = await office.signUp("Owner");
-    office.addFloor("f1", { [owner.id]: "spawn" });
+    office.addOperation("f1", { [owner.id]: "spawn" });
     office.addAgent("a1", "f1", owner.id);
     const area = join(root, "worktrees", "f1", runnerId(owner.id));
     const workdir = join(area, "a1");
@@ -138,11 +138,11 @@ describe.skipIf(!enabled)("services in a real docker sandbox (#39)", () => {
     port = info?.ports.first ?? 0;
     const script = [
       "mkdir -p /tmp/www /tmp/local",
-      "echo '<title>Sandbox App</title>robot a1' > /tmp/www/index.html",
+      "echo '<title>Sandbox App</title>henchman a1' > /tmp/www/index.html",
       "echo local > /tmp/local/index.html",
       // The app as if configured with the proxy's base path (Vite `base`).
       'mkdir -p "/tmp/www/p/f1/a/a1/port/$PORT"',
-      'echo "robot a1 behind the proxy" > "/tmp/www/p/f1/a/a1/port/$PORT/index.html"',
+      'echo "henchman a1 behind the proxy" > "/tmp/www/p/f1/a/a1/port/$PORT/index.html"',
       "busybox httpd -p 127.0.0.1:3001 -h /tmp/local",
       'echo "Local: http://localhost:$PORT/"',
       "exec busybox httpd -f -p $PORT -h /tmp/www",
@@ -187,7 +187,7 @@ describe.skipIf(!enabled)("services in a real docker sandbox (#39)", () => {
       headers: { cookie: owner.cookie },
     });
     expect(res.status).toBe(200);
-    expect((await res.text()).trim()).toBe("robot a1 behind the proxy");
+    expect((await res.text()).trim()).toBe("henchman a1 behind the proxy");
     const local = await fetch(new URL(servicesProxyPath("f1", "a1", 3001), office.server.url), {
       headers: { cookie: owner.cookie },
     });

@@ -4,7 +4,7 @@
  * `AgentControl.interrupt`), `agent.sendHome` (issue #33: free the desk, keep
  * or delete the branch) and `agent.worktree` (read the worktree's uncommitted
  * files for the send-home and PR dialogs), and `agent.emergencyStop` (D12,
- * #138: an office owner/admin kills another person's robot, branch kept).
+ * #138: an office owner/admin kills another person's henchman, branch kept).
  *
  * `profileId` names a credential profile; the secret itself never travels
  * over the wire (SPEC §8). `office:<provider>` selects an office-wide key.
@@ -16,7 +16,7 @@ import { PermissionModeSchema } from "../permission-modes.ts";
 
 export const SpawnAgentCommand = z.object({
   type: z.literal("agent.spawn"),
-  floorId: Id,
+  operationId: Id,
   repoId: Id,
   /** Omit to let the server pick a free desk. */
   seatId: Id.optional(),
@@ -24,7 +24,7 @@ export const SpawnAgentCommand = z.object({
   model: ModelName,
   effort: Effort.optional(),
   /**
-   * The robot's permission mode (#166), in the provider's own terms; omit for
+   * The henchman's permission mode (#166), in the provider's own terms; omit for
    * the provider default. Which values a provider accepts is checked by the
    * server with `isPermissionModeFor` (a discriminated-union member cannot
    * carry a cross-field refinement).
@@ -32,7 +32,7 @@ export const SpawnAgentCommand = z.object({
   permissionMode: PermissionModeSchema.optional(),
   profileId: Id.optional(),
   /**
-   * First prompt; empty or omitted = the robot starts idle and waits to be
+   * First prompt; empty or omitted = the henchman starts idle and waits to be
    * prompted from its panel or terminal (#142).
    */
   prompt: z.string().trim().max(PROMPT_MAX).default(""),
@@ -61,7 +61,7 @@ export const StopAgentCommand = z.object({
 });
 
 /**
- * Office owner/admin escape hatch on someone else's robot (D12, #138): kill
+ * Office owner/admin escape hatch on someone else's henchman (D12, #138): kill
  * the session like `agent.stop`, keep the branch and the desk, audited with
  * the optional reason. Grants no other control.
  */

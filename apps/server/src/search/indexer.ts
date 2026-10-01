@@ -8,16 +8,16 @@
  * - Scrollback: the snapshot files under `<dataDir>/terminals/scrollback`
  *   are scanned; a file whose mtime and size are unchanged is skipped, a
  *   changed one is chunked and diffed against the agent's rows (chunks.ts).
- *   Only live robots (an `agents` row without `exited_at`) are indexed; a
- *   robot that exits, is removed or loses its file loses its rows on the next
+ *   Only live henchmen (an `agents` row without `exited_at`) are indexed; a
+ *   henchman that exits, is removed or loses its file loses its rows on the next
  *   sync. The index thus mirrors the snapshots it came from: at most one
- *   1 MiB snapshot per live robot. Login terminals (`login-…`, #32) never
+ *   1 MiB snapshot per live henchman. Login terminals (`login-…`, #32) never
  *   have snapshots and are refused here as well.
  */
 import type { Database } from "bun:sqlite";
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
-import { LOBBY_FLOOR_ID } from "@regulus/protocol";
+import { LOBBY_OPERATION_ID } from "@regulus/protocol";
 import type { Db } from "../db/index.ts";
 import type { Logger } from "../logging.ts";
 import { isLoginTerminalId } from "../terminals/login-sessions.ts";
@@ -44,14 +44,14 @@ export interface SearchIndexerOptions {
 interface ChatRow {
   id: string;
   display_name: string;
-  floor_id: string;
+  operation_id: string;
   text: string;
   ts: number;
 }
 
-/** The floor a chat line counts for; building-wide lines belong to the lobby. */
-export function chatFloor(floorId: string): string {
-  return floorId === "" ? LOBBY_FLOOR_ID : floorId;
+/** The operation a chat line counts for; building-wide lines belong to the lobby. */
+export function chatOperation(operationId: string): string {
+  return operationId === "" ? LOBBY_OPERATION_ID : operationId;
 }
 
 export class SearchIndexer {
@@ -84,11 +84,11 @@ export class SearchIndexer {
       "SELECT count(*) AS n FROM search_docs WHERE kind = 'chat' AND source_id = ?",
     );
     const insert = client.query(
-      `INSERT INTO search_docs (kind, source_id, floor_id, ts, author, body)
+      `INSERT INTO search_docs (kind, source_id, operation_id, ts, author, body)
        VALUES ('chat', ?, ?, ?, ?, ?)`,
     );
     const select = client.query<ChatRow, [number, number, string]>(
-      `SELECT id, display_name, floor_id, text, ts FROM chat_messages
+      `SELECT id, display_name, operation_id, text, ts FROM chat_messages
        WHERE ts > ? OR (ts = ? AND id > ?) ORDER BY ts, id LIMIT ${CHAT_BATCH}`,
     );
     let mark = Number(getMeta(client, "chat_ts") ?? "0") - CHAT_OVERLAP_MS;
@@ -101,7 +101,7 @@ export class SearchIndexer {
           if (exists.get(row.id)?.n) continue;
           insert.run(
             row.id,
-            chatFloor(row.floor_id),
+            chatOperation(row.operation_id),
             row.ts,
             row.display_name,
             indexableText(row.text),
@@ -122,7 +122,12 @@ export class SearchIndexer {
    * Replace an agent's scrollback rows with the chunks of `text`, touching
    * only chunks that changed. `ts` stamps new chunks.
    */
-  indexSnapshot(agentId: string, floorId: string, text: string, ts: number = this.#now()): void {
+  indexSnapshot(
+    agentId: string,
+    operationId: string,
+    text: string,
+    ts: number = this.#now(),
+  ): void {
     if (!AGENT_ID_PATTERN.test(agentId) || isLoginTerminalId(agentId)) return;
     const chunks = chunkScrollback(indexableText(text));
     const wanted = new Map<string, { seq: number; body: string }>();
@@ -134,9 +139,9 @@ export class SearchIndexer {
       )
       .all(agentId);
     const del = client.query("DELETE FROM search_docs WHERE id = ?");
-    const upd = client.query("UPDATE search_docs SET seq = ?, floor_id = ? WHERE id = ?");
+    const upd = client.query("UPDATE search_docs SET seq = ?, operation_id = ? WHERE id = ?");
     const ins = client.query(
-      `INSERT INTO search_docs (kind, source_id, floor_id, ts, seq, hash, body)
+      `INSERT INTO search_docs (kind, source_id, operation_id, ts, seq, hash, body)
        VALUES ('scrollback', ?, ?, ?, ?, ?, ?)`,
     );
     client.transaction(() => {
@@ -148,10 +153,10 @@ export class SearchIndexer {
           continue;
         }
         kept.add(row.hash);
-        upd.run(want.seq, floorId, row.id);
+        upd.run(want.seq, operationId, row.id);
       }
       for (const [hash, want] of wanted) {
-        if (!kept.has(hash)) ins.run(agentId, floorId, ts, want.seq, hash, want.body);
+        if (!kept.has(hash)) ins.run(agentId, operationId, ts, want.seq, hash, want.body);
       }
     })();
   }
@@ -171,11 +176,11 @@ export class SearchIndexer {
     const client = this.#client;
     const live = new Map(
       client
-        .query<{ id: string; floor_id: string }, []>(
-          "SELECT id, floor_id FROM agents WHERE exited_at IS NULL",
+        .query<{ id: string; operation_id: string }, []>(
+          "SELECT id, operation_id FROM agents WHERE exited_at IS NULL",
         )
         .all()
-        .map((r) => [r.id, r.floor_id]),
+        .map((r) => [r.id, r.operation_id]),
     );
     let names: string[] = [];
     try {
@@ -190,8 +195,8 @@ export class SearchIndexer {
     for (const name of names) {
       if (!name.endsWith(".txt")) continue;
       const agentId = name.slice(0, -4);
-      const floorId = live.get(agentId);
-      if (!floorId || !AGENT_ID_PATTERN.test(agentId) || isLoginTerminalId(agentId)) continue;
+      const operationId = live.get(agentId);
+      if (!operationId || !AGENT_ID_PATTERN.test(agentId) || isLoginTerminalId(agentId)) continue;
       seen.add(agentId);
       const path = join(this.#dir, name);
       try {
@@ -200,7 +205,7 @@ export class SearchIndexer {
         const known = sources.get(agentId);
         if (known && known.mtime_ms === mtime && known.size === info.size) continue;
         const text = capTail(await readFile(path, "utf8"), SCROLLBACK_MAX_BYTES);
-        this.indexSnapshot(agentId, floorId, text, mtime);
+        this.indexSnapshot(agentId, operationId, text, mtime);
         client.run(
           "INSERT OR REPLACE INTO search_sources (agent_id, mtime_ms, size) VALUES (?, ?, ?)",
           [agentId, mtime, info.size],

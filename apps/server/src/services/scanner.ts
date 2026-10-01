@@ -1,14 +1,14 @@
 /**
  * Services discovery loop (SPEC §9.4, research 01 §12, #39). Every 2.5 s it
- * lists the LISTEN sockets in each running robot's sandbox (through the
- * runner, so inside the robot's container or network namespace), turns them
- * into services (discovery.ts) and publishes each floor's list to its
- * FloorRoom and the `services` table. A robot's services are that robot's.
+ * lists the LISTEN sockets in each running henchman's sandbox (through the
+ * runner, so inside the henchman's container or network namespace), turns them
+ * into services (discovery.ts) and publishes each operation's list to its
+ * OperationRoom and the `services` table. A henchman's services are that henchman's.
  *
- * New ports are titled once: the robot's terminal is captured and the dev
+ * New ports are titled once: the henchman's terminal is captured and the dev
  * server's banner above its printed URL names it (the fast path), then the
  * page `<title>` is fetched from the service itself, else the process name.
- * Robots whose ports have not changed for a while are scanned every 4th tick.
+ * Henchmen whose ports have not changed for a while are scanned every 4th tick.
  */
 import {
   AGENT_STATUSES,
@@ -33,7 +33,7 @@ import type { KnownService, ServiceRegistry } from "./registry.ts";
 import type { ServiceStore, StoredService } from "./store.ts";
 
 export const SCAN_INTERVAL_MS = 2_500;
-/** Unchanged scans after which a robot is scanned every {@link QUIET_EVERY}th tick. */
+/** Unchanged scans after which a henchman is scanned every {@link QUIET_EVERY}th tick. */
 export const QUIET_AFTER = 12;
 export const QUIET_EVERY = 4;
 /** `lastSeenAt` is written (and published) at most this often. */
@@ -42,14 +42,14 @@ export const LAST_SEEN_EVERY_MS = 60_000;
 const TITLE_TRIES = 3;
 const SCAN_CONCURRENCY = 4;
 
-/** Robots whose sandbox may run dev servers: everything but down. */
+/** Henchmen whose sandbox may run dev servers: everything but down. */
 export const SCANNED_STATUSES: readonly AgentStatus[] = AGENT_STATUSES.filter(
   (s) => s !== "exited" && s !== "offline" && s !== "error",
 );
 
-export interface ScannedRobot {
+export interface ScannedHenchman {
   id: string;
-  floorId: string;
+  operationId: string;
   ownerUserId: string;
   tmuxSession: string;
 }
@@ -59,9 +59,9 @@ export interface ScannerDeps {
   runner: Runner;
   registry: ServiceRegistry;
   store: ServiceStore;
-  /** Replace a floor's services in its FloorRoom. */
-  publish(floorId: string, services: ServiceState[]): void;
-  /** Whether other floor members may open this robot's apps (app domain mode). */
+  /** Replace an operation's services in its OperationRoom. */
+  publish(operationId: string, services: ServiceState[]): void;
+  /** Whether other operation members may open this henchman's apps (app domain mode). */
   shared(agentId: string): boolean;
   /** A page title from the service itself (GET /), or null. */
   probeTitle?(target: ServiceTarget, port: number): Promise<string | null>;
@@ -104,7 +104,7 @@ export class ServiceScanner {
     await this.#running;
   }
 
-  /** One scan of every running robot; overlapping calls share the running scan. */
+  /** One scan of every running henchman; overlapping calls share the running scan. */
   tick(): Promise<void> {
     this.#running ??= this.#scanAll().finally(() => {
       this.#running = undefined;
@@ -112,32 +112,32 @@ export class ServiceScanner {
     return this.#running;
   }
 
-  /** Scan this robot on the next tick even if it is quiet. */
+  /** Scan this henchman on the next tick even if it is quiet. */
   nudge(agentId: string): void {
     this.#quiet.delete(agentId);
   }
 
   async #scanAll(): Promise<void> {
     const tick = this.#tick++;
-    const robots = this.#robots();
-    const live = new Set(robots.map((r) => r.id));
-    const changedFloors = new Set<string>();
+    const henchmen = this.#henchmen();
+    const live = new Set(henchmen.map((r) => r.id));
+    const changedOperations = new Set<string>();
     for (const agentId of this.#d.registry.agentIds()) {
       if (live.has(agentId)) continue;
       const gone = this.#d.registry.delete(agentId);
       this.#quiet.delete(agentId);
-      if (gone && gone.services.size > 0) changedFloors.add(gone.floorId);
+      if (gone && gone.services.size > 0) changedOperations.add(gone.operationId);
       this.#d.store.removeAgents([agentId]);
     }
     if (!this.#booted) this.#d.store.retainAgents([...live]);
-    const due = robots.filter(
+    const due = henchmen.filter(
       (r) => (this.#quiet.get(r.id) ?? 0) < QUIET_AFTER || tick % QUIET_EVERY === 0,
     );
     const queue = [...due];
     const worker = async () => {
       for (let r = queue.shift(); r; r = queue.shift()) {
         try {
-          if (await this.#scanRobot(r)) changedFloors.add(r.floorId);
+          if (await this.#scanHenchman(r)) changedOperations.add(r.operationId);
         } catch (err) {
           this.#d.logger.warn({ agentId: r.id, err: String(err) }, "services scan failed");
         }
@@ -146,16 +146,16 @@ export class ServiceScanner {
     await Promise.all(Array.from({ length: SCAN_CONCURRENCY }, worker));
     this.#booted = true;
     this.#persisted.clear();
-    for (const floorId of changedFloors) {
-      this.#d.publish(floorId, this.#d.registry.servicesOn(floorId, this.#d.shared));
+    for (const operationId of changedOperations) {
+      this.#d.publish(operationId, this.#d.registry.servicesOn(operationId, this.#d.shared));
     }
   }
 
-  #robots(): ScannedRobot[] {
+  #henchmen(): ScannedHenchman[] {
     return this.#d.db
       .select({
         id: agents.id,
-        floorId: agents.floorId,
+        operationId: agents.operationId,
         ownerUserId: agents.ownerUserId,
         tmuxSession: agents.tmuxSession,
       })
@@ -169,25 +169,27 @@ export class ServiceScanner {
     const runner = this.#d.runner;
     const sandbox = runner.sandboxOf ? await runner.sandboxOf(agent) : null;
     if (sandbox) return { host: sandbox.host, sandboxed: true };
-    // Without a sandbox, linux-user robots (and the local dev backend) share the office's
-    // network namespace; a docker robot then sits in its human's runner, which the office
+    // Without a sandbox, linux-user henchmen (and the local dev backend) share the office's
+    // network namespace; a docker henchman then sits in its human's runner, which the office
     // does not address.
     return runner.backend === "linux-user" ? { host: "127.0.0.1", sandboxed: false } : null;
   }
 
-  /** Scan one robot; true when its floor's list changed. */
-  async #scanRobot(robot: ScannedRobot): Promise<boolean> {
+  /** Scan one henchman; true when its operation's list changed. */
+  async #scanHenchman(henchman: ScannedHenchman): Promise<boolean> {
     const runner = this.#d.runner;
-    const agent = { userId: robot.ownerUserId, agentId: robot.id };
+    const agent = { userId: henchman.ownerUserId, agentId: henchman.id };
     const now = this.#now();
     const target = await this.#target(agent);
     const ports = await runner.listPorts(agent);
-    const prev = this.#d.registry.get(robot.id);
+    const prev = this.#d.registry.get(henchman.id);
     const old = (port: number) => prev?.services.get(port) as Tracked | undefined;
     const fresh = ports.some((p) => !old(p.port));
     const processes = fresh ? await runner.listProcesses(agent).catch(() => []) : [];
     const listeners = toListeners(ports, processes, target);
-    const screen = listeners.some((l) => needsTitle(old(l.port))) ? await this.#screen(robot) : "";
+    const screen = listeners.some((l) => needsTitle(old(l.port)))
+      ? await this.#screen(henchman)
+      : "";
 
     let changed =
       (prev?.services.size ?? 0) !== listeners.length || prev?.target?.host !== target?.host;
@@ -196,7 +198,7 @@ export class ServiceScanner {
       const before = old(l.port);
       const item: Tracked = before
         ? { ...before, pid: l.pid, address: l.address, localOnly: l.localOnly }
-        : this.#fresh(robot, l, now);
+        : this.#fresh(henchman, l, now);
       if (l.command) item.command = l.command;
       let dirty =
         !before ||
@@ -209,8 +211,8 @@ export class ServiceScanner {
         item.persistedAt = now;
         this.#d.store.upsert({
           ...item,
-          agentId: robot.id,
-          url: servicesProxyPath(robot.floorId, robot.id, item.port),
+          agentId: henchman.id,
+          url: servicesProxyPath(henchman.operationId, henchman.id, item.port),
         });
         changed = true;
       }
@@ -218,19 +220,19 @@ export class ServiceScanner {
     }
     for (const port of prev?.services.keys() ?? []) if (!next.has(port)) changed = true;
     this.#d.registry.set({
-      agentId: robot.id,
-      floorId: robot.floorId,
-      ownerUserId: robot.ownerUserId,
+      agentId: henchman.id,
+      operationId: henchman.operationId,
+      ownerUserId: henchman.ownerUserId,
       target,
       services: next,
     });
-    if (changed) this.#d.store.prune(robot.id, [...next.keys()]);
-    this.#quiet.set(robot.id, changed ? 0 : (this.#quiet.get(robot.id) ?? 0) + 1);
+    if (changed) this.#d.store.prune(henchman.id, [...next.keys()]);
+    this.#quiet.set(henchman.id, changed ? 0 : (this.#quiet.get(henchman.id) ?? 0) + 1);
     return changed && (next.size > 0 || (prev?.services.size ?? 0) > 0);
   }
 
-  #fresh(robot: ScannedRobot, l: Listener, now: number): Tracked {
-    const stored = this.#persisted.get(`${robot.id}:${l.port}`);
+  #fresh(henchman: ScannedHenchman, l: Listener, now: number): Tracked {
+    const stored = this.#persisted.get(`${henchman.id}:${l.port}`);
     return {
       ...l,
       id: stored?.id ?? crypto.randomUUID(),
@@ -261,10 +263,10 @@ export class ServiceScanner {
     return this.#d.probeTitle(target, l.port).catch(() => null);
   }
 
-  async #screen(robot: ScannedRobot): Promise<string> {
+  async #screen(henchman: ScannedHenchman): Promise<string> {
     try {
       const text = await this.#d.runner.capturePane(
-        { userId: robot.ownerUserId, name: robot.tmuxSession },
+        { userId: henchman.ownerUserId, name: henchman.tmuxSession },
         200,
       );
       return printedPorts(text).size > 0 ? text : "";

@@ -2,7 +2,7 @@
  * Boot wiring for the office GitHub connection (#141):
  *
  *   const github = createGitHubConnection({ db, keyring, config, logger });
- *   createFloors({ ..., connection: github.connection });
+ *   createOperations({ ..., connection: github.connection });
  *   mountGitHubRoutes(server.router, { auth, db, logger, ...github });
  */
 import type { OfficeConfig } from "../config.ts";

@@ -1,5 +1,7 @@
 # Tech-stack research: self-hosted multiplayer 3D office simulator (Bun + TypeScript)
 
+> Since #226, floors are called operations and robots henchmen; this research predates the rename.
+
 Research date: 2026-09-28. Compiled by a research agent; each item gives recommendation, why, main risk, sources.
 
 ## 1. Browser 3D engine

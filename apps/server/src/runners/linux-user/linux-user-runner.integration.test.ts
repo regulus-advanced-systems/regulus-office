@@ -3,9 +3,9 @@
  * fake agent through tmux + a systemd scope as that account, reads and drives
  * it, lists its processes via the cgroup, finds a listening port, kills it and
  * deprovisions. Then (#114) a second human's account can neither read nor
- * write the first human's clone and worktrees nor write the floor mirror, and
+ * write the first human's clone and worktrees nor write the operation mirror, and
  * `reclaim` takes a pre-#114 shared dir back from runner accounts, and
- * `remove-floor` deletes a deleted floor's dirs (#150). Needs root
+ * `remove-operation` deletes a deleted operation's dirs (#150). Needs root
  * via the installed helper, so it only runs with OFFICE_TEST_LINUX_USER=1 and
  * passwordless sudo (the CI `linux-user` job; see
  * docs/deploy/linux-user-runner.md for the setup it expects).
@@ -90,11 +90,11 @@ describe.skipIf(!enabled)("LinuxUserRunner (real accounts, systemd, tmux)", () =
     verbTimeoutsMs: { provision: PROVISION_TIMEOUT_MS },
     onCall: logCall,
   });
-  const floor = `floor-${rid}`;
-  const floorDir = join(WORKTREES, floor);
-  const mirrorDir = join(PROJECTS, floor);
-  // The human's own clone in their area, <worktrees>/<floor>/<rid>/_clones/<repo> (#114).
-  const workdir = join(floorDir, rid, "_clones", "repo");
+  const operation = `operation-${rid}`;
+  const operationDir = join(WORKTREES, operation);
+  const mirrorDir = join(PROJECTS, operation);
+  // The human's own clone in their area, <worktrees>/<operation>/<rid>/_clones/<repo> (#114).
+  const workdir = join(operationDir, rid, "_clones", "repo");
 
   /**
    * The human's account, provisioned by whichever test needs it first.
@@ -114,7 +114,7 @@ describe.skipIf(!enabled)("LinuxUserRunner (real accounts, systemd, tmux)", () =
   async function ready(): Promise<RunnerHandle> {
     const handle = await provisioned();
     try {
-      await runner.mountProject(user, { floorId: "f", repoId: "r", workdir });
+      await runner.mountProject(user, { operationId: "f", repoId: "r", workdir });
     } catch (err) {
       throw new Error(`setup: mountProject of ${workdir} failed: ${String(err)}`);
     }
@@ -131,7 +131,7 @@ describe.skipIf(!enabled)("LinuxUserRunner (real accounts, systemd, tmux)", () =
     const results = await Promise.allSettled([runner.deprovision(user), runner.deprovision(userB)]);
     for (const r of results) if (r.status === "rejected") throw r.reason;
     expect(Bun.spawnSync(["getent", "passwd", `office-u-${rid}`]).exitCode).not.toBe(0);
-    for (const dir of [floorDir, mirrorDir]) {
+    for (const dir of [operationDir, mirrorDir]) {
       await Bun.$`sudo -n rm -rf ${dir}`.nothrow();
       await rm(dir, { recursive: true, force: true });
     }
@@ -175,16 +175,16 @@ describe.skipIf(!enabled)("LinuxUserRunner (real accounts, systemd, tmux)", () =
 
   test("mountProject makes the workdir writable by the human and readable back", async () => {
     await provisioned();
-    await runner.mountProject(user, { floorId: "f", repoId: "r", workdir });
+    await runner.mountProject(user, { operationId: "f", repoId: "r", workdir });
     const acl = await Bun.$`getfacl -p ${workdir}`.text();
     expect(acl).toContain(`group:office-u-${rid}:rwx`);
     expect(acl).toContain(`default:group:office-u-${rid}:rwx`);
     // The area is closed to "other"; the helper refuses anything outside it.
-    expect((await stat(join(floorDir, rid))).mode & 0o007).toBe(0);
+    expect((await stat(join(operationDir, rid))).mode & 0o007).toBe(0);
     await mkdir(join(mirrorDir, "repo"), { recursive: true });
-    for (const dir of [join(mirrorDir, "repo"), floorDir, join(floorDir, ridB)]) {
+    for (const dir of [join(mirrorDir, "repo"), operationDir, join(operationDir, ridB)]) {
       await expect(
-        runner.mountProject(user, { floorId: "f", repoId: "r", workdir: dir }),
+        runner.mountProject(user, { operationId: "f", repoId: "r", workdir: dir }),
       ).rejects.toThrow();
     }
   });
@@ -291,16 +291,16 @@ describe.skipIf(!enabled)("LinuxUserRunner (real accounts, systemd, tmux)", () =
 
   test("another human's account can neither read nor write this human's clone and worktrees", async () => {
     await ready();
-    const worktreeA = join(floorDir, rid, "agent-a");
+    const worktreeA = join(operationDir, rid, "agent-a");
     const secret = join(workdir, "secret.txt");
     await mkdir(worktreeA, { recursive: true });
     await Bun.write(secret, "only for A\n");
     await Bun.write(join(worktreeA, "work.txt"), "A's work\n");
-    await runner.mountProject(user, { floorId: "f", repoId: "r", workdir: worktreeA });
-    const cloneB = join(floorDir, ridB, "_clones", "repo");
+    await runner.mountProject(user, { operationId: "f", repoId: "r", workdir: worktreeA });
+    const cloneB = join(operationDir, ridB, "_clones", "repo");
     await mkdir(cloneB, { recursive: true });
     await provisioned(userB);
-    await runner.mountProject(userB, { floorId: "f", repoId: "r", workdir: cloneB });
+    await runner.mountProject(userB, { operationId: "f", repoId: "r", workdir: cloneB });
 
     // A itself can (the control).
     expect(await runner.readTextFile(user, secret)).toBe("only for A\n");
@@ -311,11 +311,11 @@ describe.skipIf(!enabled)("LinuxUserRunner (real accounts, systemd, tmux)", () =
     for (const path of [secret, join(worktreeA, "work.txt")]) {
       expect(await runner.readTextFile(userB, path).catch(() => null)).toBeNull();
     }
-    expect(await runner.listDir(userB, join(floorDir, rid)).catch(() => [])).toEqual([]);
+    expect(await runner.listDir(userB, join(operationDir, rid)).catch(() => [])).toEqual([]);
     for (const path of [
       join(workdir, ".git-planted"),
       join(worktreeA, "by-b.txt"),
-      join(floorDir, rid, "by-b.txt"),
+      join(operationDir, rid, "by-b.txt"),
       join(mirrorDir, "repo", "by-b.txt"),
     ]) {
       await expect(writeAs(ridB, path)).rejects.toThrow();
@@ -343,28 +343,28 @@ describe.skipIf(!enabled)("LinuxUserRunner (real accounts, systemd, tmux)", () =
     expect((await stat(hook)).uid).toBe(process.getuid?.() ?? -1);
     expect((await stat(mirrorDir)).mode & 0o007).toBe(0);
     // Only the projects root or an old per-agent worktree qualify.
-    await expect(runner.reclaim(join(floorDir, rid))).rejects.toThrow();
+    await expect(runner.reclaim(join(operationDir, rid))).rejects.toThrow();
   }, 2);
 
-  test("remove-floor deletes only that floor's dirs, runner-owned files too, no symlink following", async () => {
+  test("remove-operation deletes only that operation's dirs, runner-owned files too, no symlink following", async () => {
     await provisioned();
     const gone = `gone-${rid}`;
     const area = join(WORKTREES, gone, rid);
     const clone = join(area, "_clones", "repo");
     await mkdir(clone, { recursive: true });
     await mkdir(join(PROJECTS, gone, "repo"), { recursive: true });
-    await runner.mountProject(user, { floorId: "g", repoId: "r", workdir: clone });
+    await runner.mountProject(user, { operationId: "g", repoId: "r", workdir: clone });
     // Files and a dir owned by the human's account.
     const nested = join(clone, "locked", "by-a.txt");
     await runner.helper.call("write-file", [rid, nested, "644"], { stdin: "a\n" });
     await runner.helper.call("write-file", [rid, join(clone, "locked", ".keep"), "600"], {
       stdin: "",
     });
-    // A symlink out of the area into another floor must not be followed.
-    const outside = join(floorDir, "outside.txt");
+    // A symlink out of the area into another operation must not be followed.
+    const outside = join(operationDir, "outside.txt");
     await Bun.write(outside, "keep me\n");
-    await Bun.$`ln -s ${floorDir} ${join(area, "escape")}`;
-    expect(await runner.removeFloorDirs(gone)).toEqual([
+    await Bun.$`ln -s ${operationDir} ${join(area, "escape")}`;
+    expect(await runner.removeOperationDirs(gone)).toEqual([
       join(PROJECTS, gone),
       join(WORKTREES, gone),
     ]);
@@ -374,7 +374,7 @@ describe.skipIf(!enabled)("LinuxUserRunner (real accounts, systemd, tmux)", () =
     expect(await readFile(outside, "utf8")).toBe("keep me\n");
     expect(await stat(workdir)).toBeTruthy();
     // Nothing left to remove is fine; a path is refused before root.
-    expect(await runner.removeFloorDirs(gone)).toEqual([]);
-    await expect(runner.helper.call("remove-floor", [floorDir])).rejects.toThrow();
+    expect(await runner.removeOperationDirs(gone)).toEqual([]);
+    await expect(runner.helper.call("remove-operation", [operationDir])).rejects.toThrow();
   });
 });

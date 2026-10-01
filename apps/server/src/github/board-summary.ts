@@ -1,7 +1,7 @@
 /**
- * Board summaries for the FloorRoom (SPEC §6 channel 2 "issue/PR board
+ * Board summaries for the OperationRoom (SPEC §6 channel 2 "issue/PR board
  * summaries"; #35, UI in #36): the cached issues and PRs of every repo on a
- * floor as protocol `IssueCard` / `PullCard`s. Open cards, plus cards closed
+ * operation as protocol `IssueCard` / `PullCard`s. Open cards, plus cards closed
  * in the last two days (so a merge still shows), newest first and capped so
  * the room state stays small.
  */
@@ -15,19 +15,19 @@ import {
 } from "@regulus/protocol";
 import { and, desc, eq, gt, inArray, or } from "drizzle-orm";
 import type { Db } from "../db/index.ts";
-import { floorRepos, githubIssues, githubPulls } from "../db/schema/index.ts";
+import { githubIssues, githubPulls, operationRepos } from "../db/schema/index.ts";
 
 export const BOARD_CARD_LIMIT = 200;
 export const RECENTLY_CLOSED_MS = 2 * 24 * 60 * 60_000;
 
-export interface FloorBoard {
+export interface OperationBoard {
   issues: IssueCard[];
   pulls: PullCard[];
 }
 
-/** Where summaries go: `FloorRooms.publishBoard`. */
+/** Where summaries go: `OperationRooms.publishBoard`. */
 export interface BoardSink {
-  publishBoard(floorId: string, board: FloorBoard): void;
+  publishBoard(operationId: string, board: OperationBoard): void;
 }
 
 const list = (text: string): string[] => {
@@ -48,11 +48,11 @@ const rawOf = (text: string): Record<string, unknown> => {
 };
 const s = (v: unknown, max: number) => (typeof v === "string" ? v.slice(0, max) : "");
 
-export function buildFloorBoard(db: Db, floorId: string, now = Date.now()): FloorBoard {
+export function buildOperationBoard(db: Db, operationId: string, now = Date.now()): OperationBoard {
   const repoIds = db
-    .select({ id: floorRepos.id })
-    .from(floorRepos)
-    .where(eq(floorRepos.floorId, floorId))
+    .select({ id: operationRepos.id })
+    .from(operationRepos)
+    .where(eq(operationRepos.operationId, operationId))
     .all()
     .map((r) => r.id);
   if (repoIds.length === 0) return { issues: [], pulls: [] };

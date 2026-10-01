@@ -1,7 +1,7 @@
 /**
  * Desktop notifications and the tab badge (#42), as small pure pieces plus
  * thin wrappers around the browser's Notification API and document.title.
- * Nothing here holds more than the robot name, floor, status, task title and
+ * Nothing here holds more than the henchman name, operation, status, task title and
  * PR link that the server already limited `notify.event` to.
  */
 import {
@@ -34,11 +34,11 @@ export function wantsDesktop(ev: NotifyEvent, prefs: NotificationPrefs, date: Da
 }
 
 export function notificationTitle(ev: NotifyEvent): string {
-  return `${ev.robotName} ${NOTIFICATION_EVENT_LABELS[ev.event]}`;
+  return `${ev.henchmanName} ${NOTIFICATION_EVENT_LABELS[ev.event]}`;
 }
 
 export function notificationBody(ev: NotifyEvent): string {
-  const lines = [ev.floorName ? `Operation: ${ev.floorName}` : "", ev.taskTitle];
+  const lines = [ev.operationName ? `Operation: ${ev.operationName}` : "", ev.taskTitle];
   if (ev.prNumber > 0) lines.push(`Pull request #${ev.prNumber}`);
   return lines.filter(Boolean).join("\n");
 }
@@ -67,13 +67,13 @@ export async function requestDesktopPermission(): Promise<DesktopPermission> {
   }
 }
 
-/** Show one notification; `onClick` focuses the office on that robot. Returns false if not shown. */
+/** Show one notification; `onClick` focuses the office on that henchman. Returns false if not shown. */
 export function showDesktop(ev: NotifyEvent, onClick: () => void): boolean {
   if (desktopPermission() !== "granted") return false;
   try {
     const n = new Notification(notificationTitle(ev), {
       body: notificationBody(ev),
-      // One notification per robot and event: a newer one replaces it.
+      // One notification per henchman and event: a newer one replaces it.
       tag: `regulus-${ev.agentId}-${ev.event}`,
     });
     n.onclick = () => {

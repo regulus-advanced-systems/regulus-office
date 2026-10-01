@@ -38,7 +38,7 @@ describe.skipIf(!hasTmux())("AgentManager observer (tmux)", () => {
       script: [{ kind: "status", ts: 1, status: "idle" }],
       onPrompt: (_text, ts) => [{ kind: "status", ts, status: "waiting_input" }],
     });
-    const { manager, robots } = makeManager(office.db, runner, [adapter], {
+    const { manager, henchmen } = makeManager(office.db, runner, [adapter], {
       observer: {
         statusChanged: (view, previous) =>
           seen.push({
@@ -51,9 +51,9 @@ describe.skipIf(!hasTmux())("AgentManager observer (tmux)", () => {
     });
     const { agentId } = await manager.spawn(
       office.member,
-      spawnInput(office.floorId, office.repoId, { taskTitle: "Fix it" }),
+      spawnInput(office.operationId, office.repoId, { taskTitle: "Fix it" }),
     );
-    await robots.waitFor(agentId, (r) => r.status === "waiting_input");
+    await henchmen.waitFor(agentId, (r) => r.status === "waiting_input");
     const asked = seen.find((s) => s.status === "waiting_input");
     expect(asked?.badge).toEqual([agentId]);
     expect(seen[0]?.previous).toBe("starting");

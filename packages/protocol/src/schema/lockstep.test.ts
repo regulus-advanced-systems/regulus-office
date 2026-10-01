@@ -10,8 +10,8 @@ import * as blastDoor from "../blast-door.ts";
 import * as building from "../building-state.ts";
 import { WorldPos } from "../common.ts";
 import * as compound from "../compound.ts";
-import { buildingFixture, floorFixture } from "../fixtures.ts";
-import * as floor from "../floor-state.ts";
+import { buildingFixture, operationFixture } from "../fixtures.ts";
+import * as operation from "../operation-state.ts";
 import * as schemas from "./index.ts";
 import { type SchemaClass, schemaFieldNames, schemaMetadata } from "./introspect.ts";
 
@@ -20,11 +20,11 @@ const pairs: Array<[string, z.ZodObject, SchemaClass]> = [
   ["WorldPos", WorldPos, schemas.WorldPosSchema],
   ["GeniusLook", building.GeniusLook, schemas.GeniusLookSchema],
   ["HumanPresence", building.HumanPresence, schemas.HumanPresenceSchema],
-  ["FloorSummary", building.FloorSummary, schemas.FloorSummarySchema],
+  ["OperationSummary", building.OperationSummary, schemas.OperationSummarySchema],
   ["ChatMessage", building.ChatMessage, schemas.ChatMessageSchema],
   ["JukeboxQueueEntry", building.JukeboxQueueEntry, schemas.JukeboxQueueEntrySchema],
   ["JukeboxState", building.JukeboxState, schemas.JukeboxStateSchema],
-  ["TopRobotUsage", building.TopRobotUsage, schemas.TopRobotUsageSchema],
+  ["TopHenchmanUsage", building.TopHenchmanUsage, schemas.TopHenchmanUsageSchema],
   ["UsageSummary", building.UsageSummary, schemas.UsageSummarySchema],
   ["PmState", building.PmState, schemas.PmStateSchema],
   ["TileRect", compound.TileRect, schemas.TileRectSchema],
@@ -32,18 +32,18 @@ const pairs: Array<[string, z.ZodObject, SchemaClass]> = [
   ["CompoundState", compound.CompoundState, schemas.CompoundStateSchema],
   ["BlastDoorState", blastDoor.BlastDoorState, schemas.BlastDoorStateSchema],
   ["BuildingState", building.BuildingState, schemas.BuildingStateSchema],
-  ["BubbleEmits", floor.BubbleEmits, schemas.BubbleEmitsSchema],
-  ["RobotState", floor.RobotState, schemas.RobotStateSchema],
-  ["DeskState", floor.DeskState, schemas.DeskStateSchema],
-  ["DecorState", floor.DecorState, schemas.DecorStateSchema],
-  ["QueueTask", floor.QueueTask, schemas.QueueTaskSchema],
-  ["QueueSettings", floor.QueueSettings, schemas.QueueSettingsSchema],
-  ["IssueCard", floor.IssueCard, schemas.IssueCardSchema],
-  ["PullCard", floor.PullCard, schemas.PullCardSchema],
-  ["ServiceState", floor.ServiceState, schemas.ServiceStateSchema],
-  ["CarriedCard", floor.CarriedCard, schemas.CarriedCardSchema],
-  ["RepoSummary", floor.RepoSummary, schemas.RepoSummarySchema],
-  ["FloorState", floor.FloorState, schemas.FloorStateSchema],
+  ["BubbleEmits", operation.BubbleEmits, schemas.BubbleEmitsSchema],
+  ["HenchmanState", operation.HenchmanState, schemas.HenchmanStateSchema],
+  ["DeskState", operation.DeskState, schemas.DeskStateSchema],
+  ["DecorState", operation.DecorState, schemas.DecorStateSchema],
+  ["QueueTask", operation.QueueTask, schemas.QueueTaskSchema],
+  ["QueueSettings", operation.QueueSettings, schemas.QueueSettingsSchema],
+  ["IssueCard", operation.IssueCard, schemas.IssueCardSchema],
+  ["PullCard", operation.PullCard, schemas.PullCardSchema],
+  ["ServiceState", operation.ServiceState, schemas.ServiceStateSchema],
+  ["CarriedCard", operation.CarriedCard, schemas.CarriedCardSchema],
+  ["RepoSummary", operation.RepoSummary, schemas.RepoSummarySchema],
+  ["OperationState", operation.OperationState, schemas.OperationStateSchema],
 ];
 
 /** Build a schema instance from a plain object using the class's field metadata. */
@@ -85,7 +85,7 @@ describe("Colyseus schema lockstep", () => {
   });
 
   test("every zod state shape has a Colyseus twin", () => {
-    const exported: unknown[] = [...Object.values(building), ...Object.values(floor)];
+    const exported: unknown[] = [...Object.values(building), ...Object.values(operation)];
     const zodObjects = exported.filter(
       (v): v is z.ZodObject => typeof v === "object" && v !== null && "shape" in v,
     );
@@ -104,14 +104,14 @@ describe("Colyseus schema lockstep", () => {
     expect(building.BuildingState.safeParse(json).success).toBe(true);
   });
 
-  test("floor fixture round-trips through encode/decode", () => {
-    const state = hydrate(schemas.FloorStateSchema, floorFixture);
-    expect(plain(state.toJSON())).toEqual(plain(floorFixture));
+  test("operation fixture round-trips through encode/decode", () => {
+    const state = hydrate(schemas.OperationStateSchema, operationFixture);
+    expect(plain(state.toJSON())).toEqual(plain(operationFixture));
     const bytes = new Encoder(state).encodeAll();
-    const decoded = new schemas.FloorStateSchema();
+    const decoded = new schemas.OperationStateSchema();
     new Decoder(decoded).decode(bytes);
     const json = plain(decoded.toJSON());
-    expect(json).toEqual(plain(floorFixture));
-    expect(floor.FloorState.safeParse(json).success).toBe(true);
+    expect(json).toEqual(plain(operationFixture));
+    expect(operation.OperationState.safeParse(json).success).toBe(true);
   });
 });

@@ -121,7 +121,7 @@ describe("draw budget of the whole compound on screen (#183, #186, SPEC §11)", 
     expect(cost.drawCalls).toBeLessThanOrEqual(LAIR_DRAW_CALL_BUDGET);
     // A furnished room stays within the per-room triangle budget.
     expect(sceneCost(placeRoom(room("open")).pieces).triangles).toBeLessThan(ROOM_TRIANGLE_BUDGET);
-    // The joined room draws its robot's laptop itself; free desks keep the kit laptop.
+    // The joined room draws its henchman's laptop itself; free desks keep the kit laptop.
     const laptops = lists.pieces.filter((p) => p.piece === "laptop");
     expect(laptops).toHaveLength(11);
   });

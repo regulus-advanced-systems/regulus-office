@@ -2,13 +2,13 @@
  * REST for the issue and PR board panel (SPEC §9.4, D7; #36). Shapes and
  * paths are in `@regulus/protocol` boards-api.ts.
  *
- * - Reading a card needs `view` on its floor; the body comes from the #35
+ * - Reading a card needs `view` on its operation; the body comes from the #35
  *   cache, comments are read live.
- * - Writing (comment, assign, merge, close) needs floor `manage` (office
+ * - Writing (comment, assign, merge, close) needs operation `manage` (office
  *   owners and admins have it everywhere) and a same-origin request. Each
  *   write is audited (`github.board_*`, no comment text) and made with the
- *   floor repo's office credential: the App installation token narrowed to
- *   the repo, else the org PAT (#141). A floor repo's own stored PAT and any
+ *   operation repo's office credential: the App installation token narrowed to
+ *   the repo, else the org PAT (#141). An operation repo's own stored PAT and any
  *   human's personal token are never used; without an office credential the
  *   write is refused with `office_credential_missing`.
  * - Posted comments end with a footer naming the human, "via Regulus Office".
@@ -16,7 +16,7 @@
  *   board is republished, so every viewer sees the change without waiting
  *   for the webhook or the next poll.
  *
- * A floor the caller cannot see, or a card that is not on it, answers 404.
+ * An operation the caller cannot see, or a card that is not on it, answers 404.
  */
 import {
   BOARDS_API_PATH,
@@ -36,11 +36,11 @@ import type { OfficeAuth, SessionUser } from "../auth/auth.ts";
 import { AuthHttpError, forbidden, unauthorized } from "../auth/errors.ts";
 import { checkOrigin } from "../auth/origin.ts";
 import type { Db } from "../db/index.ts";
-import { floorRepos, githubIssues, githubPulls } from "../db/schema/index.ts";
-import { floorAccessFor } from "../floors/access.ts";
-import { readBody } from "../floors/routes.ts";
+import { githubIssues, githubPulls, operationRepos } from "../db/schema/index.ts";
 import { json, type RouteContext, type Router } from "../http/router.ts";
 import type { Logger } from "../logging.ts";
+import { operationAccessFor } from "../operations/access.ts";
+import { readBody } from "../operations/routes.ts";
 import { type BoardGitHub, officeCommentBody, type RepoName } from "./board-actions.ts";
 import type { BoardCache } from "./board-cache.ts";
 import { normalizeIssue, normalizePull } from "./board-normalize.ts";
@@ -53,14 +53,14 @@ export interface BoardRoutesDeps {
   officeToken(owner: string, name: string): Promise<string | null>;
   github: BoardGitHub;
   /** The #35 cache and board publisher (`GitHubSync`). */
-  sync: { cache: BoardCache; publish(floorIds: readonly string[]): void };
+  sync: { cache: BoardCache; publish(operationIds: readonly string[]): void };
   logger: Logger;
   /** A PR was merged from the board: ring the merge gong now (#43). */
   onMerged?(pull: { repoIds: readonly string[]; number: number; title?: string }): void;
 }
 
 interface Target {
-  floorId: string;
+  operationId: string;
   kind: CardKind;
   repoId: string;
   repo: RepoName;
@@ -91,7 +91,7 @@ const text = (v: unknown, max: number) => (typeof v === "string" ? v.slice(0, ma
 
 export function mountBoardRoutes(router: Router, deps: BoardRoutesDeps): void {
   const { auth, db, github, sync, logger } = deps;
-  const base = `${BOARDS_API_PATH}/:floorId/:kind/:repoId/:number`;
+  const base = `${BOARDS_API_PATH}/:operationId/:kind/:repoId/:number`;
 
   const session = async (request: Request): Promise<SessionUser> => {
     const user = await auth.getSessionFromRequest(request);
@@ -104,14 +104,14 @@ export function mountBoardRoutes(router: Router, deps: BoardRoutesDeps): void {
   };
   const notFound = () => new AuthHttpError(404, "card_not_found");
 
-  /** The floor repo `repoId` on `floorId`, if the user may see the floor. */
-  const floorRepo = (user: SessionUser, floorId: string, repoId: string) => {
-    const access = floorAccessFor(db, { id: user.id, role: user.role }, floorId);
+  /** The operation repo `repoId` on `operationId`, if the user may see the operation. */
+  const operationRepo = (user: SessionUser, operationId: string, repoId: string) => {
+    const access = operationAccessFor(db, { id: user.id, role: user.role }, operationId);
     if (!access) throw notFound();
     const repo = db
-      .select({ owner: floorRepos.owner, name: floorRepos.name })
-      .from(floorRepos)
-      .where(and(eq(floorRepos.id, repoId), eq(floorRepos.floorId, floorId)))
+      .select({ owner: operationRepos.owner, name: operationRepos.name })
+      .from(operationRepos)
+      .where(and(eq(operationRepos.id, repoId), eq(operationRepos.operationId, operationId)))
       .get();
     if (!repo) throw notFound();
     return { access, repo };
@@ -127,12 +127,12 @@ export function mountBoardRoutes(router: Router, deps: BoardRoutesDeps): void {
   };
 
   const target = (ctx: RouteContext, user: SessionUser) => {
-    const { floorId = "", kind = "", repoId = "" } = ctx.params;
+    const { operationId = "", kind = "", repoId = "" } = ctx.params;
     const number = Number(ctx.params.number);
     if (!(CARD_KINDS as readonly string[]).includes(kind)) throw notFound();
     if (!Number.isInteger(number) || number <= 0) throw notFound();
-    const { access, repo } = floorRepo(user, floorId, repoId);
-    const t: Target = { floorId, kind: kind as CardKind, repoId, repo, number };
+    const { access, repo } = operationRepo(user, operationId, repoId);
+    const t: Target = { operationId, kind: kind as CardKind, repoId, repo, number };
     const row = cardRow(t);
     if (!row) throw notFound();
     return { t, row, access };
@@ -169,7 +169,7 @@ export function mountBoardRoutes(router: Router, deps: BoardRoutesDeps): void {
       }
     };
 
-  /** Re-read the card from GitHub into the cache and republish its floors' boards. */
+  /** Re-read the card from GitHub into the cache and republish its operations' boards. */
   const refresh = async (token: string, t: Target) => {
     try {
       const raw = await github.fetch(token, t.repo, t.kind, t.number);
@@ -182,7 +182,7 @@ export function mountBoardRoutes(router: Router, deps: BoardRoutesDeps): void {
         const fields = normalizeIssue(raw);
         if (fields) sync.cache.upsertIssue(followed.repoIds, fields);
       }
-      sync.publish(followed.floorIds);
+      sync.publish(followed.operationIds);
     } catch (err) {
       // The webhook or the next poll catches up.
       logger.warn({ err, repo: `${t.repo.owner}/${t.repo.name}` }, "board refresh failed");
@@ -216,7 +216,7 @@ export function mountBoardRoutes(router: Router, deps: BoardRoutesDeps): void {
       targetKind: "github_card",
       targetId: `${t.repoId}#${t.number}`,
       meta: {
-        floorId: t.floorId,
+        operationId: t.operationId,
         kind: t.kind,
         repo: `${t.repo.owner}/${t.repo.name}`,
         number: t.number,
@@ -270,9 +270,9 @@ export function mountBoardRoutes(router: Router, deps: BoardRoutesDeps): void {
   );
 
   router.get(
-    `${BOARDS_API_PATH}/:floorId/:repoId/assignees`,
+    `${BOARDS_API_PATH}/:operationId/:repoId/assignees`,
     handle(async (ctx, user) => {
-      const { repo } = floorRepo(user, ctx.params.floorId ?? "", ctx.params.repoId ?? "");
+      const { repo } = operationRepo(user, ctx.params.operationId ?? "", ctx.params.repoId ?? "");
       const token = await tokenFor(repo);
       if (!token) throw new AuthHttpError(409, "office_credential_missing");
       try {

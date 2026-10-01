@@ -19,10 +19,10 @@ const SPEC_TABLES = [
   "users",
   "user_profiles",
   "invites",
-  "floors",
+  "operations",
   "compound",
-  "floor_repos",
-  "floor_members",
+  "operation_repos",
+  "operation_members",
   "desks",
   "agents",
   "agent_events",
@@ -53,7 +53,7 @@ const EXTRA_TABLES = [
   "workflows",
   "workflow_runs",
   "workflow_events",
-  "floor_queue_settings",
+  "operation_queue_settings",
 ] as const;
 
 /** Better Auth's remaining core tables (`users` is in SPEC_TABLES); see schema/auth.ts. */
@@ -89,7 +89,7 @@ function tableNames(db: Db): string[] {
   return rows.map((r) => r.name);
 }
 
-async function seedFloorWithAgent(db: Db) {
+async function seedOperationWithAgent(db: Db) {
   const [user] = await db
     .insert(schema.users)
     .values({ name: "Ante", email: "ante@example.com" })
@@ -98,8 +98,8 @@ async function seedFloorWithAgent(db: Db) {
   await db
     .insert(schema.userProfiles)
     .values({ userId: user.id, displayName: "Ante", role: "owner" });
-  const [floor] = await db
-    .insert(schema.floors)
+  const [operation] = await db
+    .insert(schema.operations)
     .values({
       name: "Regulus",
       slug: "regulus",
@@ -108,11 +108,11 @@ async function seedFloorWithAgent(db: Db) {
       layoutTemplateId: "l2",
     })
     .returning();
-  if (!floor) throw new Error("insert floors returned nothing");
+  if (!operation) throw new Error("insert operations returned nothing");
   const [repo] = await db
-    .insert(schema.floorRepos)
+    .insert(schema.operationRepos)
     .values({
-      floorId: floor.id,
+      operationId: operation.id,
       owner: "regulus-advanced-systems",
       name: "regulus-office",
       url: "https://github.com/regulus-advanced-systems/regulus-office",
@@ -120,11 +120,11 @@ async function seedFloorWithAgent(db: Db) {
       isPrimary: true,
     })
     .returning();
-  if (!repo) throw new Error("insert floor_repos returned nothing");
+  if (!repo) throw new Error("insert operation_repos returned nothing");
   const [agent] = await db
     .insert(schema.agents)
     .values({
-      floorId: floor.id,
+      operationId: operation.id,
       repoId: repo.id,
       deskSeatId: "seat-1",
       ownerUserId: user.id,
@@ -136,7 +136,7 @@ async function seedFloorWithAgent(db: Db) {
     })
     .returning();
   if (!agent) throw new Error("insert agents returned nothing");
-  return { user, floor, repo, agent };
+  return { user, operation, repo, agent };
 }
 
 describe("openDatabase", () => {
@@ -183,9 +183,9 @@ describe("runMigrations", () => {
 });
 
 describe("schema smoke", () => {
-  test("inserts and reads across users, floors, agents and events", async () => {
+  test("inserts and reads across users, operations, agents and events", async () => {
     const db = openMigrated();
-    const { user, floor, agent } = await seedFloorWithAgent(db);
+    const { user, operation, agent } = await seedOperationWithAgent(db);
 
     await db.insert(schema.agentEvents).values({
       agentId: agent.id,
@@ -195,7 +195,7 @@ describe("schema smoke", () => {
     });
     await db
       .insert(schema.desks)
-      .values({ floorId: floor.id, seatId: "seat-1", agentId: agent.id });
+      .values({ operationId: operation.id, seatId: "seat-1", agentId: agent.id });
 
     const found = await db.query.agents.findFirst({ where: eq(schema.agents.id, agent.id) });
     expect(found?.status).toBe("starting");
@@ -209,22 +209,22 @@ describe("schema smoke", () => {
 
   test("bumps updatedAt on update", async () => {
     const db = openMigrated();
-    const { floor } = await seedFloorWithAgent(db);
-    const before = floor.updatedAt.getTime();
+    const { operation } = await seedOperationWithAgent(db);
+    const before = operation.updatedAt.getTime();
     await Bun.sleep(5);
     const [updated] = await db
-      .update(schema.floors)
+      .update(schema.operations)
       .set({ name: "Renamed" })
-      .where(eq(schema.floors.id, floor.id))
+      .where(eq(schema.operations.id, operation.id))
       .returning();
     expect(updated?.name).toBe("Renamed");
     expect(updated?.updatedAt.getTime()).toBeGreaterThan(before);
-    expect(updated?.createdAt.getTime()).toBe(floor.createdAt.getTime());
+    expect(updated?.createdAt.getTime()).toBe(operation.createdAt.getTime());
   });
 
   test("enforces foreign keys and cascades agent deletion to events", async () => {
     const db = openMigrated();
-    const { agent } = await seedFloorWithAgent(db);
+    const { agent } = await seedOperationWithAgent(db);
     await db.insert(schema.agentEvents).values({
       agentId: agent.id,
       ts: new Date(),
@@ -245,9 +245,9 @@ describe("schema smoke", () => {
 
   test("rejects enum values outside the protocol lists", async () => {
     const db = openMigrated();
-    const { floor, repo, user } = await seedFloorWithAgent(db);
+    const { operation, repo, user } = await seedOperationWithAgent(db);
     const bad = db.insert(schema.agents).values({
-      floorId: floor.id,
+      operationId: operation.id,
       repoId: repo.id,
       deskSeatId: "seat-2",
       ownerUserId: user.id,
@@ -263,7 +263,7 @@ describe("schema smoke", () => {
 
   test("credential profiles: cli_login rows never carry a secret; office keys allowed", async () => {
     const db = openMigrated();
-    const { user } = await seedFloorWithAgent(db);
+    const { user } = await seedOperationWithAgent(db);
 
     await db.insert(schema.credentialProfiles).values({
       userId: user.id,
@@ -307,7 +307,7 @@ describe("schema smoke", () => {
 
   test("usage and limits upsert by (user, provider, window)", async () => {
     const db = openMigrated();
-    const { user, agent } = await seedFloorWithAgent(db);
+    const { user, agent } = await seedOperationWithAgent(db);
     await db.insert(schema.usageSamples).values({
       userId: user.id,
       agentId: agent.id,

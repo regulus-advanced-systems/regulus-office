@@ -1,7 +1,7 @@
 /**
  * App domain mode (#39): the office path hands out a one-time ticket, the app
  * host swaps it for its own cookie, and the app is served at `/` on its own
- * origin. Floor members who do not own the robot watch it read-only: GET and
+ * origin. Operation members who do not own the henchman watch it read-only: GET and
  * HEAD, and WebSocket frames from the app only.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
@@ -67,7 +67,7 @@ describe("services proxy, app domain mode", () => {
     owner = await office.signUp("Owner");
     viewer = await office.signUp("Viewer", "viewer");
     outsider = await office.signUp("Outsider");
-    office.addFloor("f1", { [owner.id]: "spawn", [viewer.id]: "view" });
+    office.addOperation("f1", { [owner.id]: "spawn", [viewer.id]: "view" });
     office.addAgent("a1", "f1", owner.id);
     runner.ports.set("a1", [{ port: upstream.port, address: "0.0.0.0", pid: 10 }]);
     await office.scanner.tick();
@@ -103,7 +103,7 @@ describe("services proxy, app domain mode", () => {
     expect(post.status).toBe(200);
   });
 
-  test("a floor viewer watches read-only", async () => {
+  test("an operation viewer watches read-only", async () => {
     const { cookie } = await openApp(viewer.cookie);
     expect((await onApp("/", cookie)).status).toBe(200);
     expect((await onApp("/", cookie, { method: "HEAD" })).status).toBe(200);

@@ -36,7 +36,7 @@ describe("permission modes (#166)", () => {
   });
 
   test("agent.spawn accepts known modes and refuses anything else", () => {
-    const base = { floorId: "f1", repoId: "r1", provider: "claude-code", model: "opus" };
+    const base = { operationId: "f1", repoId: "r1", provider: "claude-code", model: "opus" };
     for (const permissionMode of PERMISSION_MODES) {
       expect(parseClientCommand("agent.spawn", { ...base, permissionMode }).success).toBe(true);
     }

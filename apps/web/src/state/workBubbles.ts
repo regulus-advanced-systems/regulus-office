@@ -1,6 +1,6 @@
 /**
- * Work bubbles in flight per kind (SPEC §9.3 "bubbles fly to the floor's HUD
- * counters"). The HUD counter shows the floor total minus what is still in
+ * Work bubbles in flight per kind (SPEC §9.3 "bubbles fly to the operation's HUD
+ * counters"). The HUD counter shows the operation total minus what is still in
  * the air, so a counter ticks up as each bubble lands and always ends on the
  * server's number. With reduced motion nothing is ever in flight.
  */
@@ -9,7 +9,7 @@ import {
   type BubbleDelta,
   type BubbleKind,
   zeroDelta,
-} from "../scene/robots/bubbles/bubbleEmits.ts";
+} from "../scene/henchmen/bubbles/bubbleEmits.ts";
 
 export interface WorkBubblesStore {
   inFlight: BubbleDelta;

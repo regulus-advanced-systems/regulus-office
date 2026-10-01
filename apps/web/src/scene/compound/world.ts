@@ -3,29 +3,30 @@
  * published layout (the special rooms and the placed project rooms) with its
  * footprint in metres, door, build state, counters and whether this viewer
  * may enter it, plus the corridors. Pure: built from the BuildingRoom state
- * and the REST floor list, then shared by the scene, navigation, presence
+ * and the REST operation list, then shared by the scene, navigation, presence
  * and quick travel.
  *
  * Coordinates are compound metres (protocol `compound.ts`): x east, z south,
  * origin at the compound's north-west corner; a room's interior is drawn in
  * its own frame with its north-west corner at `origin`.
  */
-import { doorApproach, type Pose } from "@regulus/floor-layout";
+
 import {
   type BuildingState,
   type DecorStyle,
   type DoorSide,
-  type FloorSummary,
-  LOBBY_FLOOR_ID,
+  LOBBY_OPERATION_ID,
+  type OperationSummary,
   type RoomBuildState,
   type SpecialRoomKind,
   type TileRect,
 } from "@regulus/protocol";
+import { doorApproach, type Pose } from "@regulus/room-layout";
 
 export type WorldRoomKind = "project" | SpecialRoomKind;
 
 export interface WorldRoom {
-  /** Floor id for project rooms and the lobby; the special room's kind otherwise. */
+  /** Operation id for project rooms and the lobby; the special room's kind otherwise. */
   readonly id: string;
   readonly kind: WorldRoomKind;
   readonly name: string;
@@ -43,9 +44,9 @@ export interface WorldRoom {
   readonly buildEndsAt: number;
   readonly deskCount: number;
   readonly decorStyle: DecorStyle;
-  readonly robotsWorking: number;
-  readonly robotsWaiting: number;
-  readonly robotsTotal: number;
+  readonly henchmenWorking: number;
+  readonly henchmenWaiting: number;
+  readonly henchmenTotal: number;
 }
 
 export interface CompoundWorld {
@@ -69,22 +70,22 @@ const SPECIAL_NAMES: Readonly<Record<SpecialRoomKind, string>> = {
 
 /**
  * The world from the published state, or null until the compound is first
- * published. `enterable` lists the floor ids the viewer may enter (the REST
- * floor list); null while it is loading, when only the special rooms are open.
+ * published. `enterable` lists the operation ids the viewer may enter (the REST
+ * operation list); null while it is loading, when only the special rooms are open.
  */
 export function compoundWorld(
-  state: Pick<BuildingState, "compound" | "floors"> | null,
+  state: Pick<BuildingState, "compound" | "operations"> | null,
   enterable: ReadonlySet<string> | null,
 ): CompoundWorld | null {
   const c = state?.compound;
   if (!state || !c || c.width === 0) return null;
   const m = c.tileMetres;
   const rooms: WorldRoom[] = [];
-  const lobby = state.floors[LOBBY_FLOOR_ID];
+  const lobby = state.operations[LOBBY_OPERATION_ID];
   for (const s of c.specialRooms) {
     const rect = { x: s.gridX, y: s.gridY, w: s.width, d: s.depth };
     rooms.push({
-      id: s.kind === "lobby" ? LOBBY_FLOOR_ID : s.kind,
+      id: s.kind === "lobby" ? LOBBY_OPERATION_ID : s.kind,
       kind: s.kind,
       name: SPECIAL_NAMES[s.kind],
       rect,
@@ -97,15 +98,17 @@ export function compoundWorld(
       buildEndsAt: 0,
       deskCount: 0,
       decorStyle: "ops_room",
-      robotsWorking: s.kind === "lobby" ? (lobby?.robotsWorking ?? 0) : 0,
-      robotsWaiting: s.kind === "lobby" ? (lobby?.robotsWaiting ?? 0) : 0,
-      robotsTotal: s.kind === "lobby" ? (lobby?.robotsTotal ?? 0) : 0,
+      henchmenWorking: s.kind === "lobby" ? (lobby?.henchmenWorking ?? 0) : 0,
+      henchmenWaiting: s.kind === "lobby" ? (lobby?.henchmenWaiting ?? 0) : 0,
+      henchmenTotal: s.kind === "lobby" ? (lobby?.henchmenTotal ?? 0) : 0,
     });
   }
-  const placed = Object.values(state.floors)
-    .filter((f) => f.floorId !== LOBBY_FLOOR_ID && f.gridX >= 0 && f.gridY >= 0 && f.width > 0)
+  const placed = Object.values(state.operations)
+    .filter(
+      (f) => f.operationId !== LOBBY_OPERATION_ID && f.gridX >= 0 && f.gridY >= 0 && f.width > 0,
+    )
     .sort((a, b) => a.index - b.index);
-  for (const f of placed) rooms.push(projectRoom(f, m, enterable?.has(f.floorId) ?? false));
+  for (const f of placed) rooms.push(projectRoom(f, m, enterable?.has(f.operationId) ?? false));
   return {
     version: c.version,
     width: c.width,
@@ -118,10 +121,10 @@ export function compoundWorld(
   };
 }
 
-function projectRoom(f: FloorSummary, m: number, enterable: boolean): WorldRoom {
+function projectRoom(f: OperationSummary, m: number, enterable: boolean): WorldRoom {
   const rect = { x: f.gridX, y: f.gridY, w: f.width, d: f.depth };
   return {
-    id: f.floorId,
+    id: f.operationId,
     kind: "project",
     name: f.name,
     rect,
@@ -134,9 +137,9 @@ function projectRoom(f: FloorSummary, m: number, enterable: boolean): WorldRoom 
     buildEndsAt: f.buildEndsAt,
     deskCount: Math.max(1, f.deskCount),
     decorStyle: f.decorStyle,
-    robotsWorking: f.robotsWorking,
-    robotsWaiting: f.robotsWaiting,
-    robotsTotal: f.robotsTotal,
+    henchmenWorking: f.henchmenWorking,
+    henchmenWaiting: f.henchmenWaiting,
+    henchmenTotal: f.henchmenTotal,
   };
 }
 
@@ -164,10 +167,10 @@ export function roomById(world: CompoundWorld, id: string): WorldRoom | undefine
 }
 
 /**
- * The FloorRoom the player is "in" (SPEC §9.1): the project room under them,
+ * The OperationRoom the player is "in" (SPEC §9.1): the project room under them,
  * or null in the lobby, the other special rooms, the corridors and outside.
  */
-export function currentFloorAt(world: CompoundWorld, x: number, z: number): string | null {
+export function currentOperationAt(world: CompoundWorld, x: number, z: number): string | null {
   const room = roomAt(world, x, z);
   return room && room.kind === "project" ? room.id : null;
 }

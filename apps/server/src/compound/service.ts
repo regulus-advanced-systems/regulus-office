@@ -4,10 +4,18 @@
  * placed, running the build phase, and publishing the layout.
  *
  * Owners and admins build and move rooms; every change is audited. Moving is
- * refused while robots run in the room. New rooms are created through the
- * floor service, which calls {@link CompoundService.claim} inside its create
- * transaction; removal is the floor delete (#150).
+ * refused while henchmen run in the room. New rooms are created through the
+ * operation service, which calls {@link CompoundService.claim} inside its create
+ * transaction; removal is the operation delete (#150).
  */
+
+import {
+  type CompoundLayoutResponse,
+  type CompoundRoomInfo,
+  LOBBY_OPERATION_ID,
+  type PlacementCheckResponse,
+  type RoomPlacement,
+} from "@regulus/protocol";
 import {
   type CompoundLayout,
   type CompoundSpec,
@@ -18,27 +26,20 @@ import {
   legacyRoomSize,
   roomSummaryPlacement,
   rowSlot,
-} from "@regulus/floor-layout";
-import {
-  type CompoundLayoutResponse,
-  type CompoundRoomInfo,
-  LOBBY_FLOOR_ID,
-  type PlacementCheckResponse,
-  type RoomPlacement,
-} from "@regulus/protocol";
+} from "@regulus/room-layout";
 import { AUDIT_ACTIONS, type DbOrTx, writeAudit } from "../auth/audit.ts";
 import { AuthHttpError, forbidden } from "../auth/errors.ts";
 import type { Db } from "../db/index.ts";
-import { type FloorActor, isOfficeManager } from "../floors/access.ts";
-import { robotsOn } from "../floors/lifecycle.ts";
 import type { Logger } from "../logging.ts";
+import { isOfficeManager, type OperationActor } from "../operations/access.ts";
+import { henchmenOn } from "../operations/lifecycle.ts";
 import { BuildTimers } from "./build.ts";
 import type { CompoundConfig } from "./config.ts";
 import { ensureCompound } from "./migrate.ts";
 import type { CompoundSnapshot, RoomFields } from "./room-state.ts";
 import { liveRooms, type RoomRow, readSpec, writePlacement } from "./store.ts";
 
-/** Placement columns for a new `floors` row. */
+/** Placement columns for a new `operations` row. */
 export interface NewRoomColumns {
   gridX: number;
   gridY: number;
@@ -49,7 +50,7 @@ export interface NewRoomColumns {
   buildStartedAt: Date;
 }
 
-/** What the floor service needs from the compound when it creates a floor. */
+/** What the operation service needs from the compound when it creates an operation. */
 export interface RoomPlacer {
   /**
    * Inside the create transaction, before the row is inserted: check the
@@ -57,8 +58,8 @@ export interface RoomPlacer {
    */
   claim(
     tx: DbOrTx,
-    actor: FloorActor,
-    floorId: string,
+    actor: OperationActor,
+    operationId: string,
     requested: RoomPlacement | undefined,
     deskSeats: number,
   ): NewRoomColumns;
@@ -71,11 +72,11 @@ export interface CompoundServiceDeps {
   now?: () => number;
   /** The layout or a room's placement/build state changed: publish it. */
   publish?(snapshot: CompoundSnapshot): void;
-  /** Rooms whose summary changed outside a floor change (built, moved, re-placed). */
-  onRoomsChanged?(floorIds: string[]): void;
+  /** Rooms whose summary changed outside an operation change (built, moved, re-placed). */
+  onRoomsChanged?(operationIds: string[]): void;
 }
 
-const requireManager = (actor: FloorActor) => {
+const requireManager = (actor: OperationActor) => {
   if (!isOfficeManager(actor.role)) throw forbidden("owner_or_admin_required");
 };
 
@@ -95,7 +96,7 @@ export class CompoundService implements RoomPlacer {
       logger: deps.logger,
       buildMs: deps.config.buildMs,
       now: this.#now,
-      onReady: (floorId) => this.#changed([floorId]),
+      onReady: (operationId) => this.#changed([operationId]),
     });
   }
 
@@ -115,10 +116,10 @@ export class CompoundService implements RoomPlacer {
   }
 
   /**
-   * A floor was created, archived, restored or deleted (or a repo cloned):
+   * An operation was created, archived, restored or deleted (or a repo cloned):
    * place any room that needs it, follow builds, republish.
    */
-  floorChanged(_floorId?: string): void {
+  operationChanged(_operationId?: string): void {
     const { placed: moved } = ensureCompound(this.#db, {
       sizeTiles: this.#deps.config.sizeTiles,
       logger: this.#deps.logger,
@@ -128,9 +129,9 @@ export class CompoundService implements RoomPlacer {
     if (moved.length > 0) this.#deps.onRoomsChanged?.(moved);
   }
 
-  #changed(floorIds: string[]): void {
+  #changed(operationIds: string[]): void {
     this.publish();
-    this.#deps.onRoomsChanged?.(floorIds);
+    this.#deps.onRoomsChanged?.(operationIds);
   }
 
   #spec(db: DbOrTx = this.#db): CompoundSpec {
@@ -156,7 +157,7 @@ export class CompoundService implements RoomPlacer {
     const fields = new Map<string, RoomFields>();
     const lobby = layout.specialRooms.find((s) => s.kind === "lobby");
     if (lobby) {
-      fields.set(LOBBY_FLOOR_ID, {
+      fields.set(LOBBY_OPERATION_ID, {
         ...roomSummaryPlacement(lobby),
         buildState: "ready",
         buildEndsAt: 0,
@@ -188,11 +189,11 @@ export class CompoundService implements RoomPlacer {
     const { state, rooms } = this.snapshot();
     const names = new Map(liveRooms(this.#db).map((r) => [r.id, r.name]));
     const list: CompoundRoomInfo[] = [];
-    for (const [floorId, f] of rooms) {
-      if (floorId === LOBBY_FLOOR_ID) continue;
+    for (const [operationId, f] of rooms) {
+      if (operationId === LOBBY_OPERATION_ID) continue;
       list.push({
-        floorId,
-        name: names.get(floorId) ?? "",
+        operationId,
+        name: names.get(operationId) ?? "",
         gridX: f.gridX,
         gridY: f.gridY,
         width: f.width,
@@ -207,13 +208,17 @@ export class CompoundService implements RoomPlacer {
     return { compound: state, rooms: list };
   }
 
-  /** Build-mode ghost: would `placement` be valid (ignoring room `floorId`, when moving it)? */
-  check(actor: FloorActor, placement: RoomPlacement, floorId?: string): PlacementCheckResponse {
+  /** Build-mode ghost: would `placement` be valid (ignoring room `operationId`, when moving it)? */
+  check(
+    actor: OperationActor,
+    placement: RoomPlacement,
+    operationId?: string,
+  ): PlacementCheckResponse {
     requireManager(actor);
     const result = checkPlacement(
       this.#spec(),
       placed(liveRooms(this.#db)),
-      floorId ?? "new",
+      operationId ?? "new",
       placement,
     );
     return result.ok
@@ -223,8 +228,8 @@ export class CompoundService implements RoomPlacer {
 
   claim(
     tx: DbOrTx,
-    actor: FloorActor,
-    floorId: string,
+    actor: OperationActor,
+    operationId: string,
     requested: RoomPlacement | undefined,
     deskSeats: number,
   ): NewRoomColumns {
@@ -233,7 +238,7 @@ export class CompoundService implements RoomPlacer {
     const others = placed(liveRooms(tx));
     let placement: RoomPlacement;
     if (requested) {
-      const result = checkPlacement(spec, others, floorId, requested);
+      const result = checkPlacement(spec, others, operationId, requested);
       if (!result.ok) {
         throw new AuthHttpError(409, "placement_invalid", {
           reason: result.reason,
@@ -244,15 +249,15 @@ export class CompoundService implements RoomPlacer {
     } else {
       const size = legacyRoomSize(deskSeats);
       const found =
-        rowSlot(spec, others, floorId, size) ?? findPlacement(spec, others, floorId, size);
+        rowSlot(spec, others, operationId, size) ?? findPlacement(spec, others, operationId, size);
       if (!found) throw new AuthHttpError(409, "compound_full");
       placement = found;
     }
     writeAudit(tx, {
       userId: actor.id,
       action: AUDIT_ACTIONS.compoundRoomPlace,
-      targetKind: "floor",
-      targetId: floorId,
+      targetKind: "operation",
+      targetId: operationId,
       meta: { placement, auto: !requested },
     });
     const instant = this.#deps.config.buildMs <= 0;
@@ -263,40 +268,40 @@ export class CompoundService implements RoomPlacer {
     };
   }
 
-  /** Move and/or resize a room. Refused while any robot in it is running. */
-  move(actor: FloorActor, floorId: string, placement: RoomPlacement): CompoundRoomInfo {
+  /** Move and/or resize a room. Refused while any henchman in it is running. */
+  move(actor: OperationActor, operationId: string, placement: RoomPlacement): CompoundRoomInfo {
     requireManager(actor);
     this.#db.transaction(
       (tx) => {
         const spec = this.#spec(tx);
         const rooms = liveRooms(tx);
-        const room = rooms.find((r) => r.id === floorId);
-        if (!room) throw new AuthHttpError(404, "floor_not_found");
-        const running = robotsOn(tx, floorId).filter((r) => r.running);
+        const room = rooms.find((r) => r.id === operationId);
+        if (!room) throw new AuthHttpError(404, "operation_not_found");
+        const running = henchmenOn(tx, operationId).filter((r) => r.running);
         if (running.length > 0) {
-          throw new AuthHttpError(409, "room_has_running_robots", { robots: running });
+          throw new AuthHttpError(409, "room_has_running_henchmen", { henchmen: running });
         }
-        const result = checkPlacement(spec, placed(rooms), floorId, placement);
+        const result = checkPlacement(spec, placed(rooms), operationId, placement);
         if (!result.ok) {
           throw new AuthHttpError(409, "placement_invalid", {
             reason: result.reason,
             conflicts: result.conflicts,
           });
         }
-        writePlacement(tx, floorId, placement);
+        writePlacement(tx, operationId, placement);
         writeAudit(tx, {
           userId: actor.id,
           action: AUDIT_ACTIONS.compoundRoomMove,
-          targetKind: "floor",
-          targetId: floorId,
+          targetKind: "operation",
+          targetId: operationId,
           meta: { name: room.name, from: room.placement, to: placement },
         });
       },
       { behavior: "immediate" },
     );
-    this.#changed([floorId]);
-    const info = this.layoutResponse().rooms.find((r) => r.floorId === floorId);
-    if (!info) throw new AuthHttpError(404, "floor_not_found");
+    this.#changed([operationId]);
+    const info = this.layoutResponse().rooms.find((r) => r.operationId === operationId);
+    if (!info) throw new AuthHttpError(404, "operation_not_found");
     return info;
   }
 

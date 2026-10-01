@@ -1,12 +1,12 @@
 import { describe, expect, test } from "bun:test";
+import type { QueueTask } from "@regulus/protocol";
 import {
-  type FloorTemplate,
   largeTemplate,
   lobbyTemplate,
   officeL2Template,
+  type RoomTemplate,
   smallTemplate,
-} from "@regulus/floor-layout";
-import type { QueueTask } from "@regulus/protocol";
+} from "@regulus/room-layout";
 import { clipboardAnchors, clipboardInReach } from "./clipboardAnchors.ts";
 import { clipboardKey, layoutClipboard } from "./clipboardTexture.ts";
 
@@ -15,7 +15,7 @@ const t = (id: string, state: QueueTask["state"], position: number) =>
 
 describe("queue clipboard (#37)", () => {
   test("every project room hangs one clipboard on its queue anchor; the lobby none", () => {
-    for (const tpl of [smallTemplate, officeL2Template, largeTemplate] as FloorTemplate[]) {
+    for (const tpl of [smallTemplate, officeL2Template, largeTemplate] as RoomTemplate[]) {
       const clips = clipboardAnchors(tpl);
       expect(clips.map((c) => c.anchor.kind)).toEqual(["queue_clipboard"]);
       const [clip] = clips;
@@ -32,7 +32,7 @@ describe("queue clipboard (#37)", () => {
       wallAnchors: smallTemplate.wallAnchors.map((a) =>
         a.kind === "queue_clipboard" ? { ...a, wallId: "north", t: 3 } : a,
       ),
-    } as FloorTemplate;
+    } as RoomTemplate;
     expect(clipboardAnchors(moved)[0]?.wall.id).toBe("north");
   });
 

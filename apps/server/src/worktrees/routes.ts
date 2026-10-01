@@ -9,8 +9,8 @@ import type { OfficeAuth } from "../auth/auth.ts";
 import { AuthHttpError, forbidden, unauthorized } from "../auth/errors.ts";
 import { checkOrigin } from "../auth/origin.ts";
 import type { Db } from "../db/index.ts";
-import { isOfficeManager } from "../floors/access.ts";
 import { json, type Router } from "../http/router.ts";
+import { isOfficeManager } from "../operations/access.ts";
 import type { PruneResult } from "./prune.ts";
 
 export const WORKTREES_PRUNE_PATH = "/api/worktrees/prune";

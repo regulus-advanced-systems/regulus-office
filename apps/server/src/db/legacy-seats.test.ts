@@ -12,7 +12,7 @@ import {
   legacyDeskCount,
   ROOM_LAYOUT_ID,
   roomDeskSeatIds,
-} from "@regulus/floor-layout";
+} from "@regulus/room-layout";
 import { MEMORY_DB_PATH, openDatabase, runMigrations } from "./index.ts";
 import { legacySeatMigrationSql, legacySeatStatements } from "./legacy-seats.ts";
 
@@ -84,7 +84,8 @@ describe("0017_room_seats", () => {
       ]);
     });
     sql.run("PRAGMA foreign_keys = ON");
-    runMigrations(db);
+    // Through 0017 only: 0018 (#226) renames the tables this test reads.
+    runMigrations(db, before("operations_henchmen"));
 
     const floorsAfter = sql
       .query<{ id: string; layout_template_id: string }, []>(

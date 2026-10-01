@@ -1,5 +1,5 @@
 /**
- * Search UI state (#41): the query box, its results, a jump to a robot's
+ * Search UI state (#41): the query box, its results, a jump to a henchman's
  * desk in progress, and the match the terminal modal should reveal.
  */
 import type { SearchResponse } from "@regulus/protocol";

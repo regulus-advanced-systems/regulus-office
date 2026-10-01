@@ -8,11 +8,11 @@ import {
   type ClientCommandType,
   COMMAND_REJECTED_MESSAGE,
   CommandRejected,
-  type FloorState,
-  FloorStateSchema,
+  type OperationState,
+  OperationStateSchema,
 } from "@regulus/protocol";
 import {
-  type FloorJoinOptions,
+  type OperationJoinOptions,
   ROOM_NAMES,
   type RoomHandle,
   type RoomTransport,
@@ -96,8 +96,12 @@ export class ColyseusTransport implements RoomTransport {
     return new ColyseusRoomHandle<BuildingState, InstanceType<typeof BuildingStateSchema>>(room);
   }
 
-  async joinFloor(options: FloorJoinOptions): Promise<RoomHandle<FloorState>> {
-    const room = await this.client.joinOrCreate(ROOM_NAMES.floor, options, FloorStateSchema);
-    return new ColyseusRoomHandle<FloorState, InstanceType<typeof FloorStateSchema>>(room);
+  async joinOperation(options: OperationJoinOptions): Promise<RoomHandle<OperationState>> {
+    const room = await this.client.joinOrCreate(
+      ROOM_NAMES.operation,
+      options,
+      OperationStateSchema,
+    );
+    return new ColyseusRoomHandle<OperationState, InstanceType<typeof OperationStateSchema>>(room);
   }
 }

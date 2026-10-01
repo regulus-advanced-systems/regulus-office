@@ -24,7 +24,7 @@ export const HumanPresenceSchema = schema(
     displayName: t.string().default(""),
     role: t.string().default("viewer"),
     avatar: GeniusLookSchema,
-    floorId: t.string().default(""),
+    operationId: t.string().default(""),
     position: WorldPosSchema,
     animation: t.string().default("idle"),
     doing: t.string().default(""),
@@ -35,16 +35,16 @@ export const HumanPresenceSchema = schema(
   "HumanPresence",
 );
 
-export const FloorSummarySchema = schema(
+export const OperationSummarySchema = schema(
   {
-    floorId: t.string().default(""),
+    operationId: t.string().default(""),
     name: t.string().default(""),
     slug: t.string().default(""),
     index: t.uint16().default(0),
     paletteId: t.string().default(""),
-    robotsWorking: t.uint16().default(0),
-    robotsWaiting: t.uint16().default(0),
-    robotsTotal: t.uint16().default(0),
+    henchmenWorking: t.uint16().default(0),
+    henchmenWaiting: t.uint16().default(0),
+    henchmenTotal: t.uint16().default(0),
     humansPresent: t.uint16().default(0),
     gridX: t.int16().default(-1),
     gridY: t.int16().default(-1),
@@ -58,7 +58,7 @@ export const FloorSummarySchema = schema(
     deskCount: t.uint16().default(0),
     decorStyle: t.string().default("ops_room"),
   },
-  "FloorSummary",
+  "OperationSummary",
 );
 
 export const ChatMessageSchema = schema(
@@ -66,7 +66,7 @@ export const ChatMessageSchema = schema(
     id: t.string().default(""),
     userId: t.string().default(""),
     displayName: t.string().default(""),
-    floorId: t.string().default(""),
+    operationId: t.string().default(""),
     text: t.string().default(""),
     ts: t.number().default(0),
   },
@@ -97,7 +97,7 @@ export const JukeboxStateSchema = schema(
   "JukeboxState",
 );
 
-export const TopRobotUsageSchema = schema(
+export const TopHenchmanUsageSchema = schema(
   {
     agentId: t.string().default(""),
     name: t.string().default(""),
@@ -105,7 +105,7 @@ export const TopRobotUsageSchema = schema(
     provider: t.string().default("custom"),
     tokens: t.number().default(0),
   },
-  "TopRobotUsage",
+  "TopHenchmanUsage",
 );
 
 export const UsageSummarySchema = schema(
@@ -116,7 +116,7 @@ export const UsageSummarySchema = schema(
     todayCostUsdEstimate: t.float64().default(0),
     officeKeysCostUsdEstimate: t.float64().default(0),
     activeHumans: t.number().default(0),
-    topRobots: t.array(TopRobotUsageSchema),
+    topHenchmen: t.array(TopHenchmanUsageSchema),
     dayStart: t.number().default(0),
     observedAt: t.number().default(0),
   },
@@ -128,7 +128,7 @@ export const PmStateSchema = schema(
     enabled: t.boolean().default(false),
     privilege: t.string().default("coordinator"),
     activity: t.string().default("idle"),
-    floorId: t.string().default(""),
+    operationId: t.string().default(""),
     position: WorldPosSchema,
     animation: t.string().default("idle"),
     doing: t.string().default(""),
@@ -192,7 +192,7 @@ export const BlastDoorStateSchema = schema(
 export const BuildingStateSchema = schema(
   {
     humans: t.map(HumanPresenceSchema),
-    floors: t.map(FloorSummarySchema),
+    operations: t.map(OperationSummarySchema),
     chat: t.array(ChatMessageSchema),
     jukebox: JukeboxStateSchema,
     usage: UsageSummarySchema,

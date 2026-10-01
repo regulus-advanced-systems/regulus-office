@@ -2,7 +2,7 @@
  * Scrollback → index chunks (#41).
  *
  * A snapshot is the newest ~10k lines of a pane (terminals/scrollback.ts),
- * rewritten every 15 s while the robot works: lines are appended at the
+ * rewritten every 15 s while the henchman works: lines are appended at the
  * bottom and fall off the top. To re-index only what changed, the text is cut
  * into chunks at content-defined boundaries (a line whose hash hits a
  * pattern, within a min/max size), so the same lines produce the same chunks

@@ -16,9 +16,9 @@ import {
 
 const OVERLAY_PREFIX = "workflows:";
 
-export const workflowsOverlay = (floorId: string): string => `${OVERLAY_PREFIX}${floorId}`;
+export const workflowsOverlay = (operationId: string): string => `${OVERLAY_PREFIX}${operationId}`;
 
-export function floorIdFromWorkflowsOverlay(overlay: string | null): string | null {
+export function operationIdFromWorkflowsOverlay(overlay: string | null): string | null {
   return overlay?.startsWith(OVERLAY_PREFIX) ? overlay.slice(OVERLAY_PREFIX.length) || null : null;
 }
 

@@ -1,5 +1,7 @@
 # Research: AgentSystemLabs/agent-office
 
+> Since #226, our floors are called operations and robots henchmen. The Floor and robot names below are the researched project's own.
+
 Research date: 2026-09-28, HEAD `a8fa16f` (v0.1.116). Inspiration repo; MIT licensed (attribution required if code is copied).
 
 ## License, activity

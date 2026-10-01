@@ -1,5 +1,5 @@
 /**
- * Laptop screen feed `/ws/screens/<floorId>` over a fake runner: ACL on the
+ * Laptop screen feed `/ws/screens/<operationId>` over a fake runner: ACL on the
  * upgrade, first screens on subscribe, change-only pushes, removal, the 2 Hz
  * rate, idle back-off, the size cap, and no polling without subscribers.
  */
@@ -29,9 +29,10 @@ let owner: { id: string; cookie: string };
 let member: { id: string; cookie: string };
 let outsider: { id: string; cookie: string };
 
-const subscribe = (floorId: string, cookie: string) => office.subscribeScreens(floorId, cookie);
-const probe = (floorId: string, headers: Record<string, string>) =>
-  fetch(new URL(screensWsPath(floorId), office.server.url), {
+const subscribe = (operationId: string, cookie: string) =>
+  office.subscribeScreens(operationId, cookie);
+const probe = (operationId: string, headers: Record<string, string>) =>
+  fetch(new URL(screensWsPath(operationId), office.server.url), {
     headers: {
       upgrade: "websocket",
       connection: "Upgrade",
@@ -50,20 +51,20 @@ beforeAll(async () => {
   owner = await office.signUp("Owner");
   member = await office.signUp("Member", "member");
   outsider = await office.signUp("Outsider", "member");
-  office.addFloor("f1", { [member.id]: "view" });
-  office.addFloor("f2");
+  office.addOperation("f1", { [member.id]: "view" });
+  office.addOperation("f2");
   office.addAgent("a1", "f1", owner.id);
   office.addAgent("a2", "f1", member.id);
   office.addAgent("b1", "f2", owner.id);
   panes.set("agent-a1", "$ make\nbuilding...\n\n");
   panes.set("agent-a2", "hello from a2\n");
-  panes.set("agent-b1", "other floor\n");
+  panes.set("agent-b1", "other operation\n");
 });
 
 afterAll(() => office.stop());
 
 describe("screen feed", () => {
-  test("upgrade is checked: plain GET, origin, session and floor visibility", async () => {
+  test("upgrade is checked: plain GET, origin, session and operation visibility", async () => {
     const get = await fetch(new URL(screensWsPath("f1"), office.server.url));
     expect(get.status).toBe(426);
     expect((await probe("f1", { cookie: owner.cookie, origin: "https://evil.test" })).status).toBe(
@@ -75,7 +76,7 @@ describe("screen feed", () => {
     expect((await probe("%E0%A4%A", { cookie: owner.cookie })).status).toBe(404);
   });
 
-  test("a member sees the floor's screens (visible pane only), not other floors'", async () => {
+  test("a member sees the operation's screens (visible pane only), not other operations'", async () => {
     captures.length = 0;
     const client = await subscribe("f1", member.cookie);
     await client.waitFor(
@@ -89,7 +90,7 @@ describe("screen feed", () => {
     await client.close();
   });
 
-  test("pushes only changes, at most once per interval, and a removal when a robot leaves", async () => {
+  test("pushes only changes, at most once per interval, and a removal when a henchman leaves", async () => {
     const client = await subscribe("f1", owner.cookie);
     await client.waitFor((c) => c.screens("a1").length === 1, "first screen");
     await Bun.sleep(INTERVAL * 3);

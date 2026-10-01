@@ -20,9 +20,9 @@ const SLACK_URL = "https://hooks.slack.com/services/T000/B000/fakeSettingsSecret
 const CHANNEL: NotificationChannelView = {
   id: "c1",
   kind: "slack",
-  label: "#robots",
+  label: "#henchmen",
   chatId: null,
-  floorIds: null,
+  operationIds: null,
   events: ["needs_input", "done"],
   enabled: true,
   lastDelivery: null,
@@ -83,7 +83,7 @@ describe("notification settings", () => {
     const labelInput = document.querySelector('input[placeholder="#henchmen"]') as HTMLInputElement;
     const secret = document.querySelector('input[type="password"]') as HTMLInputElement;
     await act(async () => {
-      labelInput.value = "#robots";
+      labelInput.value = "#henchmen";
       secret.value = SLACK_URL;
     });
     await click(button("Add channel") as HTMLButtonElement);
@@ -91,9 +91,9 @@ describe("notification settings", () => {
     const post = f.calls.find((c) => c.method === "POST");
     expect(post?.body).toMatchObject({
       kind: "slack",
-      label: "#robots",
+      label: "#henchmen",
       secret: SLACK_URL,
-      floorIds: null,
+      operationIds: null,
     });
     expect(secret.value).toBe("");
     expect(document.body.innerHTML).not.toContain("fakeSettingsSecret");
@@ -104,7 +104,7 @@ describe("notification settings", () => {
       "GET /api/notifications/channels": { body: { channels: [CHANNEL], canStore: true } },
       "POST /api/notifications/channels/c1/test": { body: { ok: false, code: "http_404" } },
     });
-    expect(text()).toContain("Slack: #robots");
+    expect(text()).toContain("Slack: #henchmen");
     await click(button("Send test") as HTMLButtonElement);
     await settle();
     expect(text()).toContain("does not exist (404)");

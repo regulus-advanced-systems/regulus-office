@@ -1,7 +1,7 @@
 /**
  * Mounts the genius picker in the office: opens it once per visit while the
  * human has not chosen a genius yet (first login, and anyone migrated from
- * the robot avatars), and whenever Settings asks for it.
+ * the robot-model avatars), and whenever Settings asks for it.
  */
 import { useEffect } from "react";
 import { useSessionStore } from "../../state/session.ts";

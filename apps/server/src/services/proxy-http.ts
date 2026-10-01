@@ -1,6 +1,6 @@
 /**
  * HTTP forwarding for the services proxy (#39): builds the upstream request to
- * a robot's dev server and cleans both directions.
+ * a henchman's dev server and cleans both directions.
  *
  * To the app: no office credentials. Office cookies (`office.*`, and their
  * `__Secure-`/`__Host-` forms, which include the app cookie) and `x-office-*`
@@ -17,7 +17,7 @@
  * address are made relative, and in path mode root-relative ones get the prefix.
  *
  * The path is forwarded unchanged, prefix included: an app behind
- * `/p/<floor>/a/<agent>/port/<n>/` must be configured with that base (Vite
+ * `/p/<operation>/a/<agent>/port/<n>/` must be configured with that base (Vite
  * `base`, Next `basePath`); app domain mode serves it at `/`.
  */
 import type { ServiceTarget } from "./discovery.ts";
@@ -25,7 +25,7 @@ import type { ServiceTarget } from "./discovery.ts";
 export interface ForwardContext {
   target: ServiceTarget;
   port: number;
-  /** Path mode: `/p/<floor>/a/<agent>/port/<n>/`; app domain mode: "". */
+  /** Path mode: `/p/<operation>/a/<agent>/port/<n>/`; app domain mode: "". */
   prefix: string;
   /** Host and protocol the browser used (`office.example`, `https`). */
   publicHost: string;

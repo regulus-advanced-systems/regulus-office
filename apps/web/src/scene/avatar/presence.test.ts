@@ -10,7 +10,7 @@ const humanFixture: HumanPresence = {
   displayName: "Ada",
   role: "member",
   avatar: DEFAULT_GENIUS_LOOK,
-  floorId: "lobby",
+  operationId: "lobby",
   position: { x: 0, z: 0, heading: 0 },
   animation: "walk",
   doing: "heading to the elevator",
@@ -43,9 +43,9 @@ describe("presence", () => {
       presenceAnimation({ animation: "sit_idle", doing: "typing in Ada's terminal", seatId: "d1" }),
     ).toBe("sit_type");
     expect(presenceAnimation({ animation: "idle", doing: "typing", seatId: "" })).toBe("idle");
-    expect(presenceAnimation({ animation: "idle", doing: "watching robot Ada", seatId: "" })).toBe(
-      "read",
-    );
+    expect(
+      presenceAnimation({ animation: "idle", doing: "watching henchman Ada", seatId: "" }),
+    ).toBe("read");
     expect(presenceAnimation({ animation: "idle", doing: "thinking", seatId: "" })).toBe("think");
     expect(presenceAnimation({ animation: "wave", doing: "reading", seatId: "" })).toBe("wave");
   });

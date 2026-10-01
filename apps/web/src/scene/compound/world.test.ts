@@ -1,10 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import { checkPlacement, defaultCompoundSpec } from "@regulus/floor-layout";
-import { LOBBY_FLOOR_ID } from "@regulus/protocol";
+import { LOBBY_OPERATION_ID } from "@regulus/protocol";
+import { checkPlacement, defaultCompoundSpec } from "@regulus/room-layout";
 import { rowPlacement, testState, testWorld } from "./testing.ts";
 import {
   compoundWorld,
-  currentFloorAt,
+  currentOperationAt,
   distanceToRoom,
   isOpenRoom,
   lobbyOf,
@@ -30,7 +30,7 @@ describe("compoundWorld", () => {
       ["apollo", "hermes"],
     );
     expect(world.rooms.map((r) => r.id)).toEqual([
-      LOBBY_FLOOR_ID,
+      LOBBY_OPERATION_ID,
       "conference",
       "break_room",
       "apollo",
@@ -47,7 +47,7 @@ describe("compoundWorld", () => {
       enterable: true,
     });
     expect(world.rooms.map((r) => [r.id, isOpenRoom(r)])).toEqual([
-      [LOBBY_FLOOR_ID, true],
+      [LOBBY_OPERATION_ID, true],
       ["conference", true],
       ["break_room", true],
       ["apollo", true],
@@ -60,7 +60,7 @@ describe("compoundWorld", () => {
   test("the REST list still loading: only the special rooms are open", () => {
     const world = compoundWorld(testState([{ id: "apollo", placement: rowPlacement(4) }]), null);
     expect(world?.rooms.find((r) => r.id === "apollo")?.enterable).toBe(false);
-    expect(world?.rooms.find((r) => r.id === LOBBY_FLOOR_ID)?.enterable).toBe(true);
+    expect(world?.rooms.find((r) => r.id === LOBBY_OPERATION_ID)?.enterable).toBe(true);
   });
 });
 
@@ -69,12 +69,12 @@ describe("where the player is", () => {
   const apollo = world.rooms.find((r) => r.id === "apollo");
   if (!apollo) throw new Error("no room");
 
-  test("rooms by point; only project rooms are FloorRooms", () => {
+  test("rooms by point; only project rooms are OperationRooms", () => {
     expect(roomAt(world, apollo.origin.x + 1, apollo.origin.z + 1)?.id).toBe("apollo");
-    expect(currentFloorAt(world, apollo.origin.x + 1, apollo.origin.z + 1)).toBe("apollo");
+    expect(currentOperationAt(world, apollo.origin.x + 1, apollo.origin.z + 1)).toBe("apollo");
     const lobby = lobbyOf(world);
     if (!lobby) throw new Error("no lobby");
-    expect(currentFloorAt(world, lobby.origin.x + 2, lobby.origin.z + 2)).toBeNull();
+    expect(currentOperationAt(world, lobby.origin.x + 2, lobby.origin.z + 2)).toBeNull();
     expect(roomAt(world, 1, 1)).toBeNull();
   });
 

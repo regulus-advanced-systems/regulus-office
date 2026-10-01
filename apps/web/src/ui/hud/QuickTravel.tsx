@@ -8,16 +8,16 @@
 import { useCallback, useMemo } from "react";
 import type { WorldRoom } from "../../scene/compound/world.ts";
 import { useCompoundStore } from "../../state/compound.ts";
-import { cloneBadge, useFloorsStore } from "../../state/floors.ts";
+import { cloneBadge, useOperationsStore } from "../../state/operations.ts";
 import { travelTo } from "../../state/travel.ts";
 import { useUiStore } from "../../state/ui.ts";
 import { Button } from "../components/Button.tsx";
 import { GearIcon } from "../components/icons.tsx";
 import { Modal } from "../components/Modal.tsx";
-import { canManageFloor, floorSettingsOverlay } from "../floors/floorSettings.ts";
 import type { HotkeyEventDetail } from "../hotkeys/registry.ts";
 import { useHotkeyEvents } from "../hotkeys/useHotkeys.ts";
-import { useLocationName } from "./floorName.ts";
+import { canManageOperation, operationSettingsOverlay } from "../operations/operationSettings.ts";
+import { useLocationName } from "./operationName.ts";
 
 export const QUICK_TRAVEL_OVERLAY = "quick-travel";
 
@@ -48,7 +48,7 @@ export function QuickTravelDialog() {
   const close = useUiStore((s) => s.closeOverlay);
   const openOverlay = useUiStore((s) => s.openOverlay);
   const world = useCompoundStore((s) => s.world);
-  const restFloors = useFloorsStore((s) => s.floors);
+  const restOperations = useOperationsStore((s) => s.operations);
   const here = useLocationName();
   const rooms = useMemo(() => travelRooms(world?.rooms ?? []), [world]);
   const go = (room: WorldRoom) => {
@@ -62,7 +62,7 @@ export function QuickTravelDialog() {
         {rooms.map((room) => {
           const badge =
             room.kind === "project"
-              ? cloneBadge(restFloors?.find((f) => f.floorId === room.id))
+              ? cloneBadge(restOperations?.find((f) => f.operationId === room.id))
               : null;
           return (
             <li key={room.id} className="rg-elevator__row">
@@ -75,15 +75,15 @@ export function QuickTravelDialog() {
                 <span className="rg-chip">{room.name}</span>
                 <span className="rg-muted">
                   {badge ? (
-                    <span className="rg-floor-badge" data-kind={badge}>
+                    <span className="rg-operation-badge" data-kind={badge}>
                       {badge === "cloning" ? "cloning" : "clone failed"}
                     </span>
                   ) : room.kind === "project" ? (
-                    `${room.robotsWorking}/${room.robotsTotal} busy`
+                    `${room.henchmenWorking}/${room.henchmenTotal} busy`
                   ) : null}
                 </span>
               </button>
-              {room.kind === "project" && canManageFloor(restFloors, room.id) && (
+              {room.kind === "project" && canManageOperation(restOperations, room.id) && (
                 <Button
                   variant="secondary"
                   size="sm"
@@ -92,7 +92,7 @@ export function QuickTravelDialog() {
                   aria-label={`Operation settings: ${room.name}`}
                   title={`Operation settings: who can use ${room.name}`}
                   icon={<GearIcon />}
-                  onClick={() => openOverlay(floorSettingsOverlay(room.id))}
+                  onClick={() => openOverlay(operationSettingsOverlay(room.id))}
                 />
               )}
             </li>

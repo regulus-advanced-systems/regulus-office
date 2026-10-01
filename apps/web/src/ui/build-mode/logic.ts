@@ -6,14 +6,7 @@
  * `POST /api/compound/check` has the final word; the local check only
  * colours the ghost until its answer is in.
  */
-import {
-  type CompoundSpec,
-  checkPlacement,
-  findPlacement,
-  MAIN_CORRIDOR_ID,
-  rowSlot,
-  tilesToRects,
-} from "@regulus/floor-layout";
+
 import {
   DOOR_SIDES,
   type DoorSide,
@@ -23,6 +16,14 @@ import {
   type RoomPlacement,
   type TileRect,
 } from "@regulus/protocol";
+import {
+  type CompoundSpec,
+  checkPlacement,
+  findPlacement,
+  MAIN_CORRIDOR_ID,
+  rowSlot,
+  tilesToRects,
+} from "@regulus/room-layout";
 import {
   builtBounds,
   type CompoundWorld,

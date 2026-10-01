@@ -9,12 +9,12 @@ import {
   mayCarryCard,
   mayWriteBoard,
 } from "./boards-api.ts";
-import { FLOOR_ACCESSES } from "./enums.ts";
+import { OPERATION_ACCESSES } from "./enums.ts";
 
 describe("board ACL (#36)", () => {
-  test("only floor managers write; spawners and managers carry cards", () => {
-    expect(FLOOR_ACCESSES.filter(mayWriteBoard)).toEqual(["manage"]);
-    expect(FLOOR_ACCESSES.filter(mayCarryCard)).toEqual(["manage", "spawn"]);
+  test("only operation managers write; spawners and managers carry cards", () => {
+    expect(OPERATION_ACCESSES.filter(mayWriteBoard)).toEqual(["manage"]);
+    expect(OPERATION_ACCESSES.filter(mayCarryCard)).toEqual(["manage", "spawn"]);
     expect(mayWriteBoard(null)).toBe(false);
     expect(mayCarryCard(undefined)).toBe(false);
   });

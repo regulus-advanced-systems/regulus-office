@@ -236,7 +236,7 @@ export function KeyProfiles({ api, focus }: { api: ProvidersApi; focus?: string 
         {manager && isOfficeKeyPreset(preset) && (
           <label className="rg-providers__check">
             <input type="checkbox" name="office" /> Office-wide key (members may choose it per
-            robot; usage counts as "office")
+            henchman; usage counts as "office")
           </label>
         )}
         {error && <FormAlert>{error}</FormAlert>}

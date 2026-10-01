@@ -1,13 +1,13 @@
 /**
  * Test fixture for the board panel routes (#36 tests only): a signed-in
- * office with one floor (repos `octo/hello`, covered by the office's org PAT,
+ * office with one operation (repos `octo/hello`, covered by the office's org PAT,
  * and `octo/secret`, which only has its own stored repo PAT), people with each
- * floor access, the board cache seeded with issue #7 and PR #9, and a fake
+ * operation access, the board cache seeded with issue #7 and PR #9, and a fake
  * GitHub that answers the board actions on 127.0.0.1 and records them.
  */
 import { randomBytes } from "node:crypto";
 import { type Office, startOffice } from "../auth/test-helpers.ts";
-import { floorMembers, floorRepos, floors } from "../db/schema/index.ts";
+import { operationMembers, operationRepos, operations } from "../db/schema/index.ts";
 import { createLogger } from "../logging.ts";
 import { createBoardGitHub } from "./board-actions.ts";
 import { BoardCache } from "./board-cache.ts";
@@ -19,7 +19,7 @@ import { createGitHubConnection } from "./setup.ts";
 
 export const ORG_PAT = "github_pat_ORGboards_0123456789abcdefghijkl";
 export const REPO_PAT = "github_pat_REPOsecret_0123456789abcdefghij";
-export const FLOOR = "floor-apollo";
+export const OPERATION = "operation-apollo";
 export const HELLO = "repo-hello";
 export const SECRET = "repo-secret";
 
@@ -129,9 +129,9 @@ export async function boardRoutesFixture() {
   const stranger = await office.signUp("Stan");
 
   const db = office.db;
-  db.insert(floors)
+  db.insert(operations)
     .values({
-      id: FLOOR,
+      id: OPERATION,
       name: "Apollo",
       slug: "apollo",
       index: 1,
@@ -139,9 +139,9 @@ export async function boardRoutesFixture() {
       layoutTemplateId: "t",
     })
     .run();
-  db.insert(floors)
+  db.insert(operations)
     .values({
-      id: "floor-other",
+      id: "operation-other",
       name: "Other",
       slug: "other",
       index: 2,
@@ -153,10 +153,10 @@ export async function boardRoutesFixture() {
     [HELLO, "hello", null],
     [SECRET, "secret", REPO_PAT],
   ] as const) {
-    db.insert(floorRepos)
+    db.insert(operationRepos)
       .values({
         id,
-        floorId: FLOOR,
+        operationId: OPERATION,
         owner: "octo",
         name,
         url: `https://github.com/octo/${name}`,
@@ -173,7 +173,7 @@ export async function boardRoutesFixture() {
     [spawner, "spawn"],
     [viewer, "view"],
   ] as const) {
-    db.insert(floorMembers).values({ floorId: FLOOR, userId: user.id, access }).run();
+    db.insert(operationMembers).values({ operationId: OPERATION, userId: user.id, access }).run();
   }
 
   const cache = new BoardCache(db);

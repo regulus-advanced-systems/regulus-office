@@ -6,9 +6,9 @@
  * Claude's held hook released), when it expires, or when the agent exits or
  * is sent home. Only for adapters without that per-request signal does the
  * agent leaving `waiting_permission` clear everything. Every change is
- * handed to `onChange` with the agent's full list so the FloorRoom can
- * deliver it to the robot's controllers only. The public world only ever
- * sees `RobotState.handRaised`.
+ * handed to `onChange` with the agent's full list so the OperationRoom can
+ * deliver it to the henchman's controllers only. The public world only ever
+ * sees `HenchmanState.handRaised`.
  *
  * Expiry: Claude Code holds a PermissionRequest hook for a bounded time, then
  * falls back to its own dialog in the terminal; after that the office can no
@@ -19,7 +19,7 @@ import type { PendingPermission, PermissionRequestEvent } from "@regulus/protoco
 
 /** Default lifetime of a request when the adapter does not bound it. */
 export const DEFAULT_PERMISSION_TTL_MS = 30 * 60_000;
-/** A robot never has more than this many open requests; the oldest go first. */
+/** A henchman never has more than this many open requests; the oldest go first. */
 const MAX_PER_AGENT = 20;
 
 export type PermissionsListener = (agentId: string, requests: PendingPermission[]) => void;

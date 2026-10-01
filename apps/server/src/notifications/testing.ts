@@ -5,9 +5,9 @@
  */
 import { randomBytes } from "node:crypto";
 import { Writable } from "node:stream";
-import { agents, desks, floorRepos, floors } from "../db/schema/index.ts";
-import { testDb } from "../floors/test-helpers.ts";
+import { agents, desks, operationRepos, operations } from "../db/schema/index.ts";
 import { createLogger } from "../logging.ts";
+import { testDb } from "../operations/test-helpers.ts";
 import type { MasterKeyring } from "../secrets/index.ts";
 import { DEFAULT_SENDER_POLICY, type SenderPolicy } from "./senders.ts";
 
@@ -93,15 +93,15 @@ export function testKeyring(): MasterKeyring {
   return { current: 1, keys: { 1: randomBytes(32) } } as unknown as MasterKeyring;
 }
 
-/** Users, two floors with a repo each, and one robot per floor. */
+/** Users, two operations with a repo each, and one henchman per operation. */
 export function seededDb() {
   const { db, addUser } = testDb();
   const owner = addUser("Olga", "owner");
   const admin = addUser("Ada", "admin");
   const member = addUser("Mia", "member");
   const other = addUser("Sam", "member");
-  for (const [n, id] of ["floor-1", "floor-2"].entries()) {
-    db.insert(floors)
+  for (const [n, id] of ["operation-1", "operation-2"].entries()) {
+    db.insert(operations)
       .values({
         id,
         name: n === 0 ? "Web app" : "API",
@@ -111,10 +111,10 @@ export function seededDb() {
         layoutTemplateId: "t",
       })
       .run();
-    db.insert(floorRepos)
+    db.insert(operationRepos)
       .values({
         id: `repo-${n + 1}`,
-        floorId: id,
+        operationId: id,
         owner: "octo",
         name: n === 0 ? "web" : "api",
         url: "file:///dev/null",
@@ -124,11 +124,11 @@ export function seededDb() {
         cloneStatus: "ready",
       })
       .run();
-    db.insert(desks).values({ floorId: id, seatId: "seat-1" }).run();
+    db.insert(desks).values({ operationId: id, seatId: "seat-1" }).run();
   }
   const addAgent = (
     id: string,
-    floor: 1 | 2,
+    operation: 1 | 2,
     ownerUserId: string,
     prNumber: number | null = null,
   ) =>
@@ -136,8 +136,8 @@ export function seededDb() {
       .insert(agents)
       .values({
         id,
-        floorId: `floor-${floor}`,
-        repoId: `repo-${floor}`,
+        operationId: `operation-${operation}`,
+        repoId: `repo-${operation}`,
         deskSeatId: "seat-1",
         ownerUserId,
         provider: "codex",

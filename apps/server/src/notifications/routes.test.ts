@@ -88,7 +88,7 @@ describe("preferences", () => {
     expect(cross.status).toBe(403);
   });
 
-  test("attention lists the human's waiting robots (none here)", async () => {
+  test("attention lists the human's waiting henchmen (none here)", async () => {
     const res = await send(NOTIFICATION_ATTENTION_API_PATH, "GET", member.cookie);
     expect(await res.json()).toEqual({ agentIds: [] });
   });
@@ -99,7 +99,7 @@ describe("team channels", () => {
     kind: "slack",
     label: "Team",
     secret: fake.slackUrl,
-    floorIds: null,
+    operationIds: null,
     events: ["needs_input", "done", "pr_merged"],
   });
 
@@ -125,14 +125,14 @@ describe("team channels", () => {
     const createdText = await created.text();
     expectNoSecrets(createdText);
     const view = JSON.parse(createdText) as NotificationChannelView;
-    expect(view).toMatchObject({ kind: "slack", label: "Team", floorIds: null, enabled: true });
+    expect(view).toMatchObject({ kind: "slack", label: "Team", operationIds: null, enabled: true });
 
     const tg = await send(NOTIFICATION_CHANNELS_API_PATH, "POST", admin.cookie, {
       kind: "telegram",
       label: "Ops chat",
       secret: fake.telegramToken,
       chatId: "-100123",
-      floorIds: ["floor-x"],
+      operationIds: ["operation-x"],
       events: ["error"],
     });
     expect(tg.status).toBe(201);
@@ -201,7 +201,7 @@ describe("team channels", () => {
       kind: "telegram",
       label: "x",
       secret: fake.telegramToken,
-      floorIds: null,
+      operationIds: null,
       events: [],
     });
     expect(noChat.status).toBe(400);

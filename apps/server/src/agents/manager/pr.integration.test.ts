@@ -1,8 +1,8 @@
 /**
  * `agent.pr`, `agent.worktree` and `agent.sendHome` end to end: a real agent
  * worktree (#31, local bare remote over file://), a fake GitHub REST server
- * on port 0, the FakeAdapter over LocalTmuxRunner, and the FloorRoom's
- * command path (`floorAgentCommands`). Skipped without tmux.
+ * on port 0, the FakeAdapter over LocalTmuxRunner, and the OperationRoom's
+ * command path (`operationAgentCommands`). Skipped without tmux.
  */
 import { afterAll, afterEach, beforeAll, describe, expect, test } from "bun:test";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
@@ -11,7 +11,7 @@ import { join } from "node:path";
 import { FakeAdapter } from "@regulus/agent-adapters";
 import { eq } from "drizzle-orm";
 import { agents } from "../../db/schema/index.ts";
-import type { AgentControlOutcome } from "../../rooms/floor/room.ts";
+import type { AgentControlOutcome } from "../../rooms/operation/room.ts";
 import { hasTmux, LocalTmuxRunner } from "../../runners/testing/local-tmux-runner.ts";
 import {
   commitIn,
@@ -19,9 +19,9 @@ import {
   fakeGitHub,
   git,
   type RecordedRequest,
-  setupFloor,
+  setupOperation,
 } from "../../worktrees/test-helpers.ts";
-import { floorAgentCommands } from "./commands.ts";
+import { operationAgentCommands } from "./commands.ts";
 import { FAKE_AGENT, makeManager } from "./test-helpers.ts";
 
 let root: string;
@@ -40,15 +40,15 @@ afterAll(async () => {
   await rm(root, { recursive: true, force: true });
 });
 
-async function agentOnFloor(respond: (req: RecordedRequest) => Response) {
+async function agentOnOperation(respond: (req: RecordedRequest) => Response) {
   github = fakeGitHub(respond);
-  const f = await setupFloor(root, { apiBase: github.url });
+  const f = await setupOperation(root, { apiBase: github.url });
   runner = await LocalTmuxRunner.create();
   const adapter = new FakeAdapter({
     command: ["sh", FAKE_AGENT],
     script: [{ kind: "status", ts: 1, status: "idle" }],
   });
-  const { manager, robots } = makeManager(f.db, runner, [adapter], {
+  const { manager, henchmen } = makeManager(f.db, runner, [adapter], {
     workspaces: f.worktrees.workspaces,
     clones: f.worktrees.workspaces,
     worktreeTools: {
@@ -57,7 +57,7 @@ async function agentOnFloor(respond: (req: RecordedRequest) => Response) {
     },
   });
   const { agentId } = await manager.spawn(f.owner, {
-    floorId: f.floorId,
+    operationId: f.operationId,
     repoId: f.repo.repoId,
     provider: "custom",
     model: "fake-1",
@@ -65,14 +65,22 @@ async function agentOnFloor(respond: (req: RecordedRequest) => Response) {
     taskTitle: "Fix the login",
     autoWorktree: true,
   });
-  await robots.waitFor(agentId, (r) => r.status === "idle");
+  await henchmen.waitFor(agentId, (r) => r.status === "idle");
   const row = f.db.select().from(agents).where(eq(agents.id, agentId)).get();
   if (!row?.worktreeBranch) throw new Error("no worktree");
-  const commands = floorAgentCommands(manager);
+  const commands = operationAgentCommands(manager);
   const actor = { id: f.owner.id, role: f.owner.role };
   const control = (command: Parameters<NonNullable<typeof commands.control>>[1]) =>
     commands.control?.(actor, command) as Promise<AgentControlOutcome>;
-  return { f, manager, robots, agentId, workdir: row.workdir, branch: row.worktreeBranch, control };
+  return {
+    f,
+    manager,
+    henchmen,
+    agentId,
+    workdir: row.workdir,
+    branch: row.worktreeBranch,
+    control,
+  };
 }
 
 const created = (number: number) =>
@@ -82,8 +90,8 @@ const created = (number: number) =>
   );
 
 describe.skipIf(!hasTmux())("agent.pr / agent.worktree / agent.sendHome", () => {
-  test("a dirty worktree is refused with its files, then the PR opens and the robot shows it", async () => {
-    const { manager, robots, agentId, workdir, branch, control } = await agentOnFloor(() =>
+  test("a dirty worktree is refused with its files, then the PR opens and the henchman shows it", async () => {
+    const { manager, henchmen, agentId, workdir, branch, control } = await agentOnOperation(() =>
       created(12),
     );
     await commitIn(workdir, "login.ts", "Fix login");
@@ -122,14 +130,14 @@ describe.skipIf(!hasTmux())("agent.pr / agent.worktree / agent.sendHome", () => 
     const post = github?.requests[0];
     expect(post?.body).toMatchObject({ title: "Login fix", draft: true, head: branch });
     expect(post?.headers.get("authorization")).toBe(`Bearer ${FAKE_PAT}`);
-    await robots.waitFor(agentId, (r) => r.prNumber === 12);
+    await henchmen.waitFor(agentId, (r) => r.prNumber === 12);
     // The result never carries the token.
     expect(JSON.stringify(opened)).not.toContain(FAKE_PAT);
     await manager.close();
   }, 30_000);
 
   test("an existing PR is returned; no commits is a clear refusal", async () => {
-    const { manager, agentId, workdir, control } = await agentOnFloor((req) =>
+    const { manager, agentId, workdir, control } = await agentOnOperation((req) =>
       req.method === "POST"
         ? Response.json(
             {
@@ -155,7 +163,7 @@ describe.skipIf(!hasTmux())("agent.pr / agent.worktree / agent.sendHome", () => 
   }, 30_000);
 
   test("send home deletes the branch, or keeps it", async () => {
-    const first = await agentOnFloor(() => created(1));
+    const first = await agentOnOperation(() => created(1));
     await commitIn(first.workdir, "a.ts", "Work");
     expect(
       await first.control({ type: "agent.pr", agentId: first.agentId, draft: false }),
@@ -165,13 +173,13 @@ describe.skipIf(!hasTmux())("agent.pr / agent.worktree / agent.sendHome", () => 
     expect(
       await first.control({ type: "agent.sendHome", agentId: first.agentId, keepBranch: false }),
     ).toEqual({ ok: true, result: { type: "agent.sendHome", agentId: first.agentId } });
-    expect(first.robots.removed).toEqual([first.agentId]);
+    expect(first.henchmen.removed).toEqual([first.agentId]);
     expect(await git(["branch", "--list", first.branch], bare)).toBe("");
     expect(await git(["branch", "--list", first.branch], first.f.cloneOf())).toBe("");
     await first.manager.close();
     await runner.dispose();
 
-    const second = await agentOnFloor(() => created(2));
+    const second = await agentOnOperation(() => created(2));
     await commitIn(second.workdir, "b.ts", "More");
     expect(
       await second.control({ type: "agent.sendHome", agentId: second.agentId, keepBranch: true }),

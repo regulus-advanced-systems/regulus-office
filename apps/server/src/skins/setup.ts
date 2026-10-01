@@ -1,12 +1,12 @@
 /**
  * Boot wiring for henchman skins (#184): the rule store, its REST routes,
- * and the FloorRooms' skin resolver, which republishes every robot's skin
+ * and the OperationRooms' skin resolver, which republishes every henchman's skin
  * whenever a rule changes.
  */
 import type { OfficeAuth } from "../auth/auth.ts";
 import type { Db } from "../db/index.ts";
 import type { Router } from "../http/router.ts";
-import type { FloorRooms } from "../rooms/index.ts";
+import type { OperationRooms } from "../rooms/index.ts";
 import { mountSkinRoutes } from "./routes.ts";
 import { SkinRuleStore } from "./store.ts";
 
@@ -16,8 +16,8 @@ export interface Skins {
     router: Router,
     auth: Pick<OfficeAuth, "getSessionFromRequest" | "publicUrl" | "allowedOrigins">,
   ): void;
-  /** Resolve the robots' skins on these FloorRooms, now and after every rule change. */
-  publishTo(floors: Pick<FloorRooms, "setSkins">): () => void;
+  /** Resolve the henchmen's skins on these OperationRooms, now and after every rule change. */
+  publishTo(operations: Pick<OperationRooms, "setSkins">): () => void;
 }
 
 export function createSkins(deps: { db: Db }): Skins {
@@ -27,13 +27,14 @@ export function createSkins(deps: { db: Db }): Skins {
     mount(router, auth) {
       mountSkinRoutes(router, { auth, db: deps.db, rules });
     },
-    publishTo(floors) {
-      const resolver = (robot: Parameters<SkinRuleStore["skinFor"]>[0]) => rules.skinFor(robot);
-      floors.setSkins(resolver);
-      const off = rules.onChange(() => floors.setSkins(resolver));
+    publishTo(operations) {
+      const resolver = (henchman: Parameters<SkinRuleStore["skinFor"]>[0]) =>
+        rules.skinFor(henchman);
+      operations.setSkins(resolver);
+      const off = rules.onChange(() => operations.setSkins(resolver));
       return () => {
         off();
-        floors.setSkins(undefined);
+        operations.setSkins(undefined);
       };
     },
   };

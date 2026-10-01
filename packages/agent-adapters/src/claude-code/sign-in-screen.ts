@@ -1,8 +1,8 @@
 /**
- * Claude Code screens that wait for the robot's human before any hook can
+ * Claude Code screens that wait for the henchman's human before any hook can
  * fire (#158): the first-run onboarding (theme picker, "Select login
  * method", the OAuth paste prompt, "Not logged in · Run /login") and the
- * workspace trust dialog. While one is up the robot would stay "starting"
+ * workspace trust dialog. While one is up the henchman would stay "starting"
  * with no sign of why, so the control watches the pane until the first hook
  * arrives and reports `waiting_input` with one of these fixed reasons.
  *
@@ -14,7 +14,7 @@
 export const CLAUDE_SIGN_IN_REASON = "Claude needs you to finish signing in: open its terminal";
 export const CLAUDE_TRUST_REASON = "Claude asks whether to trust this folder: open its terminal";
 
-/** Wait reasons meant for the human (shown as the robot's status reason). */
+/** Wait reasons meant for the human (shown as the henchman's status reason). */
 export const HUMAN_WAIT_REASONS: ReadonlySet<string> = new Set([
   CLAUDE_SIGN_IN_REASON,
   CLAUDE_TRUST_REASON,

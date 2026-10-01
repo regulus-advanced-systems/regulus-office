@@ -8,7 +8,7 @@ import {
 import { useCallback, useState } from "react";
 import { useBuildingStore } from "../../../state/building.ts";
 import type { ConnectionStatus } from "../../../state/connection.ts";
-import { useFloorStore } from "../../../state/floor.ts";
+import { useOperationStore } from "../../../state/operation.ts";
 import { Button } from "../../components/Button.tsx";
 import { HotkeyList } from "../../hotkeys/HotkeyHelp.tsx";
 import type { HotkeyEventDetail } from "../../hotkeys/registry.ts";
@@ -35,27 +35,27 @@ const USAGE: UsageSummary = {
   todayCostUsdEstimate: 4.32,
   officeKeysCostUsdEstimate: 0.8,
   activeHumans: 3,
-  topRobots: [],
+  topHenchmen: [],
   dayStart: 0,
   observedAt: 0,
 };
 
-const floor = (index: number, name: string, working: number, total: number) => ({
-  floorId: `kit-${index}`,
+const operation = (index: number, name: string, working: number, total: number) => ({
+  operationId: `kit-${index}`,
   name,
   slug: name.toLowerCase().replace(/\s+/g, "-"),
   index,
   paletteId: "teal-cream",
-  robotsWorking: working,
-  robotsWaiting: 0,
-  robotsTotal: total,
+  henchmenWorking: working,
+  henchmenWaiting: 0,
+  henchmenTotal: total,
   humansPresent: 0,
   ...UNPLACED_ROOM,
   ...DEFAULT_ROOM_SETTINGS,
 });
 
-/** Seed the building/floor stores with fake floors (counters, quick travel). */
-function seedFloors() {
+/** Seed the building/operation stores with fake operations (counters, quick travel). */
+function seedOperations() {
   const current = useBuildingStore.getState().state;
   useBuildingStore.getState().apply({
     humans: current?.humans ?? {},
@@ -73,7 +73,7 @@ function seedFloors() {
       enabled: false,
       privilege: "coordinator",
       activity: "idle",
-      floorId: "kit-0",
+      operationId: "kit-0",
       position: { x: 0, z: 0, heading: 0 },
       animation: "idle",
       doing: "",
@@ -82,13 +82,13 @@ function seedFloors() {
     },
     compound: current?.compound ?? EMPTY_COMPOUND,
     blastDoor: current?.blastDoor ?? BLAST_DOOR_CLOSED,
-    floors: {
-      "kit-0": floor(0, "Lobby", 0, 0),
-      "kit-1": floor(1, "Regulus Web", 2, 3),
-      "kit-2": floor(2, "Billing Service", 0, 4),
+    operations: {
+      "kit-0": operation(0, "Lobby", 0, 0),
+      "kit-1": operation(1, "Regulus Web", 2, 3),
+      "kit-2": operation(2, "Billing Service", 0, 4),
     },
   });
-  useFloorStore.getState().setFloorId("kit-1");
+  useOperationStore.getState().setOperationId("kit-1");
 }
 
 export function HudSection() {
@@ -106,14 +106,17 @@ export function HudSection() {
         <div style={{ position: "relative", height: 76, width: "100%" }}>
           <TopBar
             officeName="Regulus Office"
-            floorName="Regulus Web"
+            operationName="Regulus Web"
             date={new Date(2026, 8, 28, 14, 5)}
           />
         </div>
       </Row>
       <Row label="top bar (long)">
         <div style={{ position: "relative", height: 76, width: "100%" }}>
-          <TopBar officeName="An Office With A Very Long Name That Truncates" floorName="Lobby" />
+          <TopBar
+            officeName="An Office With A Very Long Name That Truncates"
+            operationName="Lobby"
+          />
         </div>
       </Row>
       <Row label="connection chips">
@@ -140,7 +143,7 @@ export function HudSection() {
         <div style={{ width: 260 }}>
           <RoomsPanel />
         </div>
-        <Button variant="secondary" size="sm" onClick={seedFloors}>
+        <Button variant="secondary" size="sm" onClick={seedOperations}>
           Seed fake operations
         </Button>
       </Row>

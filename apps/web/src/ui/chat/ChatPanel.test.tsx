@@ -37,7 +37,7 @@ const msg = (id: string, userId: string, displayName: string, text: string): Cha
   id,
   userId,
   displayName,
-  floorId: "lobby",
+  operationId: "lobby",
   text,
   ts: new Date(2026, 8, 28, 14, 5).getTime(),
 });

@@ -6,13 +6,13 @@
  *   const terminals = createTerminals({ db, auth, logger, dataDir, originPolicy, runners });
  *   new WsRouter().use(terminals.bridge).use(terminals.screens).use(rooms.transport.attachment)
  *
- * `screens` is the laptop screen feed (`/ws/screens/<floorId>`, #25).
+ * `screens` is the laptop screen feed (`/ws/screens/<operationId>`, #25).
  */
 import { join } from "node:path";
 import type { OriginPolicy } from "../auth/origin.ts";
 import type { Db } from "../db/index.ts";
 import type { Logger } from "../logging.ts";
-import { dbFloorVisibility } from "./acl.ts";
+import { dbOperationVisibility } from "./acl.ts";
 import { TerminalBridge, type TerminalSessionLookup } from "./bridge.ts";
 import { LoginSessionTargets } from "./login-sessions.ts";
 import { ScreenFeed } from "./screens.ts";
@@ -20,10 +20,10 @@ import { ScrollbackRecorder } from "./scrollback.ts";
 import { DbTerminalTargets, RunnerRegistry } from "./targets.ts";
 
 export {
-  dbFloorVisibility,
+  dbOperationVisibility,
   decideTerminalAccess,
-  type FloorVisibility,
   mayUseTerminal,
+  type OperationVisibility,
   type TerminalDecision,
   type TerminalUser,
 } from "./acl.ts";
@@ -47,7 +47,7 @@ export { capTail, ScrollbackRecorder, type ScrollbackRecorderOptions } from "./s
 export {
   AGENT_ID_PATTERN,
   DbTerminalTargets,
-  type FloorTerminalTargets,
+  type OperationTerminalTargets,
   type RunnerLookup,
   RunnerRegistry,
   type TerminalTarget,
@@ -83,13 +83,13 @@ export function createTerminals(options: TerminalsOptions): Terminals {
     logger,
   });
   const targets = new DbTerminalTargets(options.db, runners);
-  const canViewFloor = dbFloorVisibility(options.db);
+  const canViewOperation = dbOperationVisibility(options.db);
   const logins = new LoginSessionTargets();
   const bridge = new TerminalBridge({
     targets,
     logins,
     sessions: options.sessions,
-    canViewFloor,
+    canViewOperation,
     originPolicy: options.originPolicy,
     logger,
     scrollback,
@@ -97,7 +97,7 @@ export function createTerminals(options: TerminalsOptions): Terminals {
   const screens = new ScreenFeed({
     sources: targets,
     sessions: options.sessions,
-    canViewFloor,
+    canViewOperation,
     originPolicy: options.originPolicy,
     logger,
   });

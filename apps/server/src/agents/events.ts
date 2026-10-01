@@ -3,7 +3,7 @@
  * agent publishes here: the AgentManager piping `AgentControl.events` (#26),
  * and the routes that receive out-of-band inputs (Claude http hooks and
  * statusline forwarder, Codex notify) after `AgentAdapter.ingest` mapped them.
- * The AgentManager's sink persists to `agent_events` and updates RobotState.
+ * The AgentManager's sink persists to `agent_events` and updates HenchmanState.
  */
 import { AgentEvent } from "@regulus/protocol";
 

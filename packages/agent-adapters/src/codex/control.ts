@@ -165,7 +165,7 @@ export class CodexControl implements AgentControl {
       await client.initialize();
       const timeout = this.#opts.threadTimeoutMs ?? THREAD_TIMEOUT_MS;
       const resumeId = this.#plan.providerSessionId;
-      // The robot's approval policy (#166) on both, so a resume keeps it.
+      // The henchman's approval policy (#166) on both, so a resume keeps it.
       const approval = this.#approvalPolicy();
       const res = resumeId
         ? await client.request(

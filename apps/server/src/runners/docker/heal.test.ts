@@ -84,7 +84,7 @@ function makeRunner(opts: { pull?: boolean } = {}): DockerRunner {
     home: "/home/runner",
     pipedDrainMs: 0,
     imageIdTtlMs: 0,
-    floorRoots: ["/srv/office/worktrees"],
+    operationRoots: ["/srv/office/worktrees"],
     logger: { warn: (obj, msg) => void logged.push({ obj, msg }) },
     ...opts,
   });
@@ -304,7 +304,7 @@ describe("a session being created counts as busy", () => {
     await runner.provision(user);
     const creating = runner.exec(user, plan("a1", ["claude"]));
     await newSessionSeen;
-    const repo = { floorId: "f1", repoId: "r1", workdir: `${AREA}/_clones/repo` };
+    const repo = { operationId: "f1", repoId: "r1", workdir: `${AREA}/_clones/repo` };
     const err = await runner.mountProject(user, repo).catch((e) => e);
     expect(err).toBeInstanceOf(RunnerBusyError);
     expect((err as RunnerBusyError).sessions).toEqual(["agent-a1"]);

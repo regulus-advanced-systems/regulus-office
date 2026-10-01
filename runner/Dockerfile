@@ -68,18 +68,18 @@ RUN mkdir -p /etc/codex \
       'check_for_update_on_startup = false' > /etc/codex/config.toml \
     && chmod 0644 /etc/codex/config.toml
 
-# Floor checkouts under /srv/office belong to the office user and are shared with runners through
+# Operation checkouts under /srv/office belong to the office user and are shared with runners through
 # group 1001 (deploy/docker-compose.yml); without this git refuses them as "dubious ownership".
 RUN git config --system --add safe.directory '*'
 
-# umask 0002 in every shell, so files agents create in floor dirs stay group-writable and the
+# umask 0002 in every shell, so files agents create in operation dirs stay group-writable and the
 # office (a member of group 1001) can manage and remove them. The office also sets it for every
 # tmux session and piped process it starts (apps/server/src/runners/docker).
 RUN echo 'umask 0002' > /etc/profile.d/office-umask.sh \
     && printf '\numask 0002\n' >> /etc/bash.bashrc \
     && sed -i 's/^UMASK[[:space:]].*/UMASK 002/' /etc/login.defs
 
-# Non-root runner user: uid 1001 with primary group 1001, the group floor dirs are shared with.
+# Non-root runner user: uid 1001 with primary group 1001, the group operation dirs are shared with.
 # The office maps each human to one runner container; HOME holds that human's credentials.
 RUN useradd -m -s /bin/bash -u 1001 -U runner && test "$(id -g runner)" = 1001
 USER runner

@@ -1,5 +1,5 @@
 /**
- * Poll a robot's changes every `CHANGES_POLL_MS` while the window is open
+ * Poll a henchman's changes every `CHANGES_POLL_MS` while the window is open
  * (#38). The next poll is scheduled after the previous answer, so a slow
  * runner never piles requests up, and polling pauses while the tab is
  * hidden. `refresh()` polls now (after a commit or discard).

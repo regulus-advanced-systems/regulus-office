@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { HEADING, NavGrid } from "@regulus/floor-layout";
+import { HEADING, NavGrid } from "@regulus/room-layout";
 import { WALK_SPEED } from "../scene/movement/kinematics.ts";
 import { planPath } from "../scene/movement/navigation.ts";
 import { createPlayerStore } from "./player.ts";

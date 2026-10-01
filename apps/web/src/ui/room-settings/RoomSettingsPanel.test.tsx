@@ -11,9 +11,9 @@ import { RoomSettingsPanel } from "./RoomSettingsPanel.tsx";
 
 useDom();
 
-const PATH = "/api/floors/f1/room-settings";
+const PATH = "/api/operations/f1/room-settings";
 const INFO: RoomSettingsInfo = {
-  floorId: "f1",
+  operationId: "f1",
   deskCount: 2,
   decorStyle: "ops_room",
   size: { width: 6, depth: 6, doorSide: "south" },
@@ -42,7 +42,7 @@ describe("room settings panel", () => {
       [`PUT ${PATH}`]: (call) => ({ body: { ...INFO, ...(call.body as object) } }),
     });
     const ui = await mount(
-      <RoomSettingsPanel floorId="f1" api={createRoomSettingsApi({ fetch })} />,
+      <RoomSettingsPanel operationId="f1" api={createRoomSettingsApi({ fetch })} />,
     );
     await settle();
     expect(text()).toContain("This 6×6 room fits up to 2 desks.");
@@ -68,7 +68,7 @@ describe("room settings panel", () => {
       [`GET ${PATH}`]: { body: { ...INFO, canManage: false, generated: false, occupiedDesks: [] } },
     });
     const ui = await mount(
-      <RoomSettingsPanel floorId="f1" api={createRoomSettingsApi({ fetch })} />,
+      <RoomSettingsPanel operationId="f1" api={createRoomSettingsApi({ fetch })} />,
     );
     await settle();
     expect(select("Desks (4 seats each)").disabled).toBe(true);
@@ -101,7 +101,7 @@ describe("room settings panel", () => {
     await settle();
     expect(document.querySelector('[role="dialog"]')?.getAttribute("aria-modal")).toBe("false");
     expect(useRoomDraftStore.getState().draft).toEqual({
-      floorId: "f1",
+      operationId: "f1",
       deskCount: 2,
       decorStyle: "ops_room",
     });
@@ -109,7 +109,7 @@ describe("room settings panel", () => {
     expect(useRoomDraftStore.getState().draft?.deskCount).toBe(4);
     expect(text()).toContain("The room shows your changes; save to keep them.");
     await press(document.querySelector('[role="dialog"]') as Element, "Escape");
-    expect(useRoomSettingsDock.getState().floorId).toBeNull();
+    expect(useRoomSettingsDock.getState().operationId).toBeNull();
     expect(useRoomDraftStore.getState().draft).toBeNull();
     await ui.unmount();
   });

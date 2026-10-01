@@ -47,7 +47,7 @@ export function fakePull(number: number, over: Record<string, unknown> = {}) {
     state: "open",
     labels: [],
     assignees: [],
-    user: { login: "robot", type: "User" },
+    user: { login: "henchman", type: "User" },
     html_url: `https://github.com/octo/hello/pull/${number}`,
     body: "Fixes things",
     draft: false,

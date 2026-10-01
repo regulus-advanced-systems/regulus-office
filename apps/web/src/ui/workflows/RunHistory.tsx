@@ -1,5 +1,5 @@
 /**
- * Run history (#155): every run with its trigger, target, status, robot,
+ * Run history (#155): every run with its trigger, target, status, henchman,
  * duration, tokens and links to what it posted; a run opens its log.
  */
 import type { WorkflowRunDetail, WorkflowRunView } from "@regulus/protocol";
@@ -13,13 +13,13 @@ const LINK_LABELS = { review: "review", comment: "comment", labels: "labels", ch
 
 export function RunHistory({
   api,
-  floorId,
+  operationId,
   canEdit,
   pollMs = 5_000,
   now = Date.now,
 }: {
   api: WorkflowsApi;
-  floorId: string;
+  operationId: string;
   canEdit: boolean;
   pollMs?: number;
   now?: () => number;
@@ -29,10 +29,10 @@ export function RunHistory({
   const [error, setError] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
-    const r = await api.runs(floorId);
+    const r = await api.runs(operationId);
     if (r.ok) setRuns(r.data.runs);
     else setError(describeWorkflowError(r));
-  }, [api, floorId]);
+  }, [api, operationId]);
 
   useEffect(() => {
     void reload();
@@ -98,7 +98,7 @@ export function RunHistory({
                   )}
                 </td>
                 <td>
-                  {r.robot}
+                  {r.henchman}
                   <div className="rg-field__hint">{r.model ?? r.provider}</div>
                 </td>
                 <td>{formatDuration(r, now())}</td>

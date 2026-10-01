@@ -8,7 +8,7 @@
 import type { TaskKind } from "@regulus/protocol";
 import { and, eq } from "drizzle-orm";
 import type { Db } from "../db/index.ts";
-import { floorRepos, githubIssues, githubPulls } from "../db/schema/index.ts";
+import { githubIssues, githubPulls, operationRepos } from "../db/schema/index.ts";
 
 const MAX_TITLE = 200;
 
@@ -47,7 +47,7 @@ function htmlUrl(raw: string): string {
 }
 
 export interface TaskContentInput {
-  floorId: string;
+  operationId: string;
   repoId: string;
   kind: TaskKind;
   refNumber?: number;
@@ -55,7 +55,7 @@ export interface TaskContentInput {
   prompt: string;
 }
 
-/** The title and prompt to store; the repo must be one of the floor's. */
+/** The title and prompt to store; the repo must be one of the operation's. */
 export function taskContent(db: Db, input: TaskContentInput): { title: string; prompt: string } {
   const typed = input.title?.trim() ?? "";
   if (input.kind === "freeform" || input.refNumber === undefined) {
@@ -65,9 +65,11 @@ export function taskContent(db: Db, input: TaskContentInput): { title: string; p
   const n = input.refNumber;
   const card = cardInfo(db, input.kind, input.repoId, n);
   const repo = db
-    .select({ owner: floorRepos.owner, name: floorRepos.name })
-    .from(floorRepos)
-    .where(and(eq(floorRepos.id, input.repoId), eq(floorRepos.floorId, input.floorId)))
+    .select({ owner: operationRepos.owner, name: operationRepos.name })
+    .from(operationRepos)
+    .where(
+      and(eq(operationRepos.id, input.repoId), eq(operationRepos.operationId, input.operationId)),
+    )
     .get();
   const name = card?.title ?? "";
   const where = repo ? ` in ${repo.owner}/${repo.name}` : "";

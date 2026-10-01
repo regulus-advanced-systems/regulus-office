@@ -1,5 +1,5 @@
 /**
- * The `--settings` file and the two forwarder scripts a Claude Code robot
+ * The `--settings` file and the two forwarder scripts a Claude Code henchman
  * uses to reach the office (SPEC §7 "hooks + statusline forwarder", §8).
  *
  * Hooks are `type: "command"` hooks running `hook.sh`, not `type: "http"`

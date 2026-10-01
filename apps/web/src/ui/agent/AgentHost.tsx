@@ -1,10 +1,10 @@
 /**
- * Mounted once in the HUD: the robot panel, the permission prompt, the
- * send-home and PR dialogs, the changes window (#38), and the sync of the FloorRoom's robot messages
- * into the agent store (a robot sent home starts its walk to the elevator).
+ * Mounted once in the HUD: the henchman panel, the permission prompt, the
+ * send-home and PR dialogs, the changes window (#38), and the sync of the OperationRoom's henchman messages
+ * into the agent store (a henchman sent home starts its walk to the elevator).
  */
 import { getOfficeClient } from "../../net/index.ts";
-import { startSendHome } from "../../scene/robots/sendHome/controller.ts";
+import { startSendHome } from "../../scene/henchmen/sendHome/controller.ts";
 import { selectReducedMotion, useUiStore } from "../../state/ui.ts";
 import { ChangesWindowHost } from "../changes/ChangesWindow.tsx";
 import { AgentPanel } from "./AgentPanel.tsx";

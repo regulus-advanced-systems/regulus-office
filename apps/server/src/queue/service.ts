@@ -1,16 +1,16 @@
 /**
  * The room task queue (SPEC §5 `tasks`, §9.4 clipboard; issue #37).
  *
- * `enqueueTask` is the server API: the FloorRoom's `queue.add` calls it, and
+ * `enqueueTask` is the server API: the OperationRoom's `queue.add` calls it, and
  * so can the workflows follow-up (#155). Reorder, cancel, retry and the
  * concurrency settings follow the protocol ACL (queue-api.ts): reorder and
  * cancel by the task's owner or a room manager, retry by the owner only
  * (it spends their credentials again), settings by room managers.
  *
- * The human who queues a task owns the robot it spawns (SPEC §8): the task
+ * The human who queues a task owns the henchman it spawns (SPEC §8): the task
  * stores their id and credential profile reference, and the scheduler
  * starts it as them, only while they may still spawn in the room.
- * Cancelling a running task lets go of it (its slot frees); its robot keeps
+ * Cancelling a running task lets go of it (its slot frees); its henchman keeps
  * running, because only its owner may stop it (D12).
  */
 import {
@@ -29,10 +29,10 @@ import { and, eq } from "drizzle-orm";
 import { AgentManagerError } from "../agents/manager/errors.ts";
 import type { AgentObserver } from "../agents/manager/runtime.ts";
 import type { Db } from "../db/index.ts";
-import { floorRepos } from "../db/schema/index.ts";
-import { type FloorActor, floorAccessFor } from "../floors/access.ts";
+import { operationRepos } from "../db/schema/index.ts";
 import type { GitHubEventBus } from "../github/events.ts";
 import type { Logger } from "../logging.ts";
+import { type OperationActor, operationAccessFor } from "../operations/access.ts";
 import { taskContent } from "./content.ts";
 import { agentsOnBranch, cachedPrFor, pullFromEvent } from "./pr-link.ts";
 import { toQueueTask } from "./publish.ts";
@@ -58,7 +58,7 @@ export class QueueError extends Error {
 }
 
 export interface EnqueueInput {
-  floorId: string;
+  operationId: string;
   repoId: string;
   kind: TaskKind;
   refNumber?: number;
@@ -74,9 +74,9 @@ export interface EnqueueInput {
   autoWorktree?: boolean;
 }
 
-/** Where the queue is shown (FloorRooms). */
+/** Where the queue is shown (OperationRooms). */
 export interface QueuePublisher {
-  publishQueue(floorId: string, tasks: readonly QueueTask[], settings: QueueSettings): void;
+  publishQueue(operationId: string, tasks: readonly QueueTask[], settings: QueueSettings): void;
 }
 
 export interface TaskQueueOptions {
@@ -104,22 +104,24 @@ export class TaskQueue {
       store: this.store,
       spawner: opts.spawner,
       logger: this.#logger,
-      changed: (floorId) => this.publish(floorId),
+      changed: (operationId) => this.publish(operationId),
     });
   }
 
   // ---- Server API ------------------------------------------------------------
 
   /** Queue a task owned by `actor` (their credentials, their runner). */
-  enqueueTask(actor: FloorActor, input: EnqueueInput): TaskRow {
-    const access = floorAccessFor(this.#opts.db, actor, input.floorId);
+  enqueueTask(actor: OperationActor, input: EnqueueInput): TaskRow {
+    const access = operationAccessFor(this.#opts.db, actor, input.operationId);
     if (!mayQueueTask(access)) {
       throw new QueueError("forbidden", "you may not queue tasks in this room");
     }
     const repo = this.#opts.db
-      .select({ id: floorRepos.id })
-      .from(floorRepos)
-      .where(and(eq(floorRepos.id, input.repoId), eq(floorRepos.floorId, input.floorId)))
+      .select({ id: operationRepos.id })
+      .from(operationRepos)
+      .where(
+        and(eq(operationRepos.id, input.repoId), eq(operationRepos.operationId, input.operationId)),
+      )
       .get();
     if (!repo) throw new QueueError("bad_request", "no such repo in this room");
     if ((input.kind === "freeform") === (input.refNumber !== undefined)) {
@@ -135,7 +137,7 @@ export class TaskQueue {
         `${input.provider} has no permission mode ${input.permissionMode}`,
       );
     }
-    if (this.store.queued(input.floorId).length >= MAX_QUEUED_PER_ROOM) {
+    if (this.store.queued(input.operationId).length >= MAX_QUEUED_PER_ROOM) {
       throw new QueueError("conflict", "this room's queue is full");
     }
     const content = taskContent(this.#opts.db, { ...input, prompt });
@@ -143,7 +145,7 @@ export class TaskQueue {
     // What could never start is refused now, not when its turn comes.
     try {
       this.#opts.spawner.check(actor, {
-        floorId: input.floorId,
+        operationId: input.operationId,
         repoId: input.repoId,
         provider: input.provider,
         model: input.model,
@@ -157,7 +159,7 @@ export class TaskQueue {
       throw err;
     }
     const row = this.store.insert({
-      floorId: input.floorId,
+      operationId: input.operationId,
       repoId: input.repoId,
       kind: input.kind,
       refNumber: input.refNumber ?? null,
@@ -171,65 +173,73 @@ export class TaskQueue {
       autoWorktree,
       createdBy: actor.id,
     });
-    this.#logger.info({ taskId: row.id, floorId: row.floorId, kind: row.kind }, "task queued");
-    this.publish(row.floorId);
-    void this.scheduler.kick(row.floorId);
+    this.#logger.info(
+      { taskId: row.id, operationId: row.operationId, kind: row.kind },
+      "task queued",
+    );
+    this.publish(row.operationId);
+    void this.scheduler.kick(row.operationId);
     return row;
   }
 
-  reorder(actor: FloorActor, floorId: string, taskId: string, position: number): void {
-    const task = this.#authorized(actor, floorId, taskId, mayManageQueuedTask);
+  reorder(actor: OperationActor, operationId: string, taskId: string, position: number): void {
+    const task = this.#authorized(actor, operationId, taskId, mayManageQueuedTask);
     if (task.state !== "queued") throw new QueueError("conflict", "only queued tasks move");
-    this.store.reorder(floorId, taskId, position);
-    this.publish(floorId);
-    void this.scheduler.kick(floorId);
+    this.store.reorder(operationId, taskId, position);
+    this.publish(operationId);
+    void this.scheduler.kick(operationId);
   }
 
-  cancel(actor: FloorActor, floorId: string, taskId: string): void {
-    const task = this.#authorized(actor, floorId, taskId, mayManageQueuedTask);
+  cancel(actor: OperationActor, operationId: string, taskId: string): void {
+    const task = this.#authorized(actor, operationId, taskId, mayManageQueuedTask);
     if (!this.store.finish(task.id, "cancelled", cancelledBy(actor, task))) {
       throw new QueueError("conflict", "that task has already finished");
     }
-    this.publish(floorId);
-    void this.scheduler.kick(floorId);
+    this.publish(operationId);
+    void this.scheduler.kick(operationId);
   }
 
-  retry(actor: FloorActor, floorId: string, taskId: string): void {
-    const task = this.#authorized(actor, floorId, taskId, mayRetryTask);
+  retry(actor: OperationActor, operationId: string, taskId: string): void {
+    const task = this.#authorized(actor, operationId, taskId, mayRetryTask);
     if (task.state !== "failed" && task.state !== "cancelled") {
       throw new QueueError("conflict", "only failed or cancelled tasks can be retried");
     }
     this.store.requeue(task.id);
-    this.publish(floorId);
-    void this.scheduler.kick(floorId);
+    this.publish(operationId);
+    void this.scheduler.kick(operationId);
   }
 
-  configure(actor: FloorActor, floorId: string, settings: QueueSettings): void {
-    if (!mayConfigureQueue(floorAccessFor(this.#opts.db, actor, floorId))) {
+  configure(actor: OperationActor, operationId: string, settings: QueueSettings): void {
+    if (!mayConfigureQueue(operationAccessFor(this.#opts.db, actor, operationId))) {
       throw new QueueError("forbidden", "only room managers change the queue settings");
     }
-    this.store.saveSettings(floorId, settings);
-    this.publish(floorId);
-    void this.scheduler.kick(floorId);
+    this.store.saveSettings(operationId, settings);
+    this.publish(operationId);
+    void this.scheduler.kick(operationId);
   }
 
   #authorized(
-    actor: FloorActor,
-    floorId: string,
+    actor: OperationActor,
+    operationId: string,
     taskId: string,
-    allowed: (a: FloorActor, access: ReturnType<typeof floorAccessFor>, t: TaskRow) => boolean,
+    allowed: (
+      a: OperationActor,
+      access: ReturnType<typeof operationAccessFor>,
+      t: TaskRow,
+    ) => boolean,
   ): TaskRow {
     const task = this.store.get(taskId);
-    if (!task || task.floorId !== floorId) throw new QueueError("not_found", "no such task here");
-    if (!allowed(actor, floorAccessFor(this.#opts.db, actor, floorId), task)) {
+    if (!task || task.operationId !== operationId)
+      throw new QueueError("not_found", "no such task here");
+    if (!allowed(actor, operationAccessFor(this.#opts.db, actor, operationId), task)) {
       throw new QueueError("forbidden", "only the task's owner or a room manager may do that");
     }
     return task;
   }
 
-  // ---- Robots and pull requests ------------------------------------------------
+  // ---- Henchmen and pull requests ------------------------------------------------
 
-  /** Pass to the AgentManager (with the other observers): robot status and office PRs. */
+  /** Pass to the AgentManager (with the other observers): henchman status and office PRs. */
   readonly observer: AgentObserver = {
     statusChanged: (view, previous) => {
       this.scheduler.agentStatus(view.agentId, view.status, previous, view.statusReason);
@@ -238,11 +248,11 @@ export class TaskQueue {
     pullRequestOpened: (view, pr) => this.linkPullRequest(view.agentId, pr.number),
   };
 
-  /** The PR a robot opened: shown on its (latest) task. */
+  /** The PR a henchman opened: shown on its (latest) task. */
   linkPullRequest(agentId: string, prNumber: number): void {
     const task = this.store.latestFor(agentId);
     if (!task || (task.state !== "running" && task.state !== "done")) return;
-    if (this.store.linkPr(task.id, prNumber)) this.publish(task.floorId);
+    if (this.store.linkPr(task.id, prNumber)) this.publish(task.operationId);
   }
 
   /** Link PRs as they appear on the GitHub event bus (#35). */
@@ -266,7 +276,7 @@ export class TaskQueue {
   // ---- Lifecycle -------------------------------------------------------------
 
   /**
-   * After the AgentManager re-adopted its robots: settle what happened while
+   * After the AgentManager re-adopted its henchmen: settle what happened while
    * the office was down, publish every room with tasks, and start ticking.
    */
   async boot(): Promise<void> {
@@ -274,7 +284,7 @@ export class TaskQueue {
     for (const task of this.store.running()) {
       if (task.agentId && !task.prNumber) this.#linkFromCache(task.agentId);
     }
-    for (const floorId of this.store.floorsWithQueue()) this.publish(floorId);
+    for (const operationId of this.store.operationsWithQueue()) this.publish(operationId);
     await this.scheduler.kickAll();
     const every = this.#opts.tickIntervalMs ?? QUEUE_TICK_MS;
     this.#timer ??= setInterval(() => void this.scheduler.kickAll(), every);
@@ -282,21 +292,21 @@ export class TaskQueue {
   }
 
   /** What a room shows. */
-  snapshot(floorId: string): { tasks: QueueTask[]; settings: QueueSettings } {
-    const rows = this.store.visible(floorId);
+  snapshot(operationId: string): { tasks: QueueTask[]; settings: QueueSettings } {
+    const rows = this.store.visible(operationId);
     const names = this.store.ownerNames(rows.map((r) => r.createdBy));
     return {
       tasks: rows.map((row, i) => toQueueTask(row, i, names.get(row.createdBy) ?? "")),
-      settings: this.store.settings(floorId),
+      settings: this.store.settings(operationId),
     };
   }
 
-  publish(floorId: string): void {
+  publish(operationId: string): void {
     try {
-      const { tasks, settings } = this.snapshot(floorId);
-      this.#opts.publisher.publishQueue(floorId, tasks, settings);
+      const { tasks, settings } = this.snapshot(operationId);
+      this.#opts.publisher.publishQueue(operationId, tasks, settings);
     } catch (err) {
-      this.#logger.error({ floorId, err: String(err) }, "publishing the queue failed");
+      this.#logger.error({ operationId, err: String(err) }, "publishing the queue failed");
     }
   }
 
@@ -308,6 +318,6 @@ export class TaskQueue {
   }
 }
 
-function cancelledBy(actor: FloorActor, task: TaskRow): string {
+function cancelledBy(actor: OperationActor, task: TaskRow): string {
   return actor.id === task.createdBy ? "" : "cancelled by a room manager";
 }

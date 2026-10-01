@@ -9,14 +9,14 @@
  * text.ts strips ANSI and scrubs credentials, chunks.ts cuts scrollback into
  * diffable chunks, indexer.ts keeps the FTS5 index (schema.ts) in step with
  * chat and the snapshots, query.ts turns user input into a safe MATCH
- * expression, searcher.ts applies the floor / terminal ACL, routes.ts serves it.
+ * expression, searcher.ts applies the operation / terminal ACL, routes.ts serves it.
  */
 import { join } from "node:path";
 import type { OfficeAuth } from "../auth/auth.ts";
 import type { Db } from "../db/index.ts";
 import type { Router } from "../http/router.ts";
 import type { Logger } from "../logging.ts";
-import { dbFloorVisibility, type FloorVisibility } from "../terminals/acl.ts";
+import { dbOperationVisibility, type OperationVisibility } from "../terminals/acl.ts";
 import { SearchIndexer } from "./indexer.ts";
 import { mountSearchRoutes } from "./routes.ts";
 import { Searcher } from "./searcher.ts";
@@ -33,7 +33,7 @@ export interface SearchOptions {
   logger: Logger;
   /** OFFICE_DATA_DIR; snapshots are read from `<dataDir>/terminals/scrollback`. */
   dataDir: string;
-  canViewFloor?: FloorVisibility;
+  canViewOperation?: OperationVisibility;
   intervalMs?: number;
 }
 
@@ -55,7 +55,7 @@ export function createSearch(options: SearchOptions): Search {
   });
   const searcher = new Searcher({
     db: options.db,
-    canViewFloor: options.canViewFloor ?? dbFloorVisibility(options.db),
+    canViewOperation: options.canViewOperation ?? dbOperationVisibility(options.db),
   });
   return {
     indexer,

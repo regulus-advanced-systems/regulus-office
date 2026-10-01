@@ -3,7 +3,7 @@
  * main-thread time and publishes `window.__regulusPerf` (only with `?stats`):
  * `reset()` starts a fresh window, `sample()` returns frame-time
  * percentiles, draw calls, triangles, texture memory, the detail tier and
- * the recent FloorRoom join times. The perf script (scripts/perf/) and the
+ * the recent OperationRoom join times. The perf script (scripts/perf/) and the
  * e2e perf report read it.
  */
 import { useFrame, useThree } from "@react-three/fiber";

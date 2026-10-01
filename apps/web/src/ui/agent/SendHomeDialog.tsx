@@ -1,12 +1,12 @@
 /**
- * "Send home" (#33): confirm, choose whether to keep the robot's branch, and
+ * "Send home" (#33): confirm, choose whether to keep the henchman's branch, and
  * see which uncommitted changes would be lost (the worktree is removed
  * either way). On confirm the server stops the agent, releases the worktree
- * and frees the desk; everyone then sees the robot carry its box to the
- * elevator (scene/robots/sendHome).
+ * and frees the desk; everyone then sees the henchman carry its box to the
+ * elevator (scene/henchmen/sendHome).
  */
 import { useEffect, useId, useState } from "react";
-import { useFloorStore } from "../../state/floor.ts";
+import { useOperationStore } from "../../state/operation.ts";
 import { Button } from "../components/Button.tsx";
 import { Modal } from "../components/Modal.tsx";
 import { useAgentSender } from "./agentCommands.ts";
@@ -25,7 +25,7 @@ export function SendHomeDialog() {
   const busy = useAgentStore((s) =>
     agentId ? Boolean(s.inFlight[flightKey(agentId, "agent.sendHome")]) : false,
   );
-  const robot = useFloorStore((s) => (agentId ? s.state?.robots[agentId] : undefined));
+  const henchman = useOperationStore((s) => (agentId ? s.state?.henchmen[agentId] : undefined));
   const send = useAgentSender();
   const [keepBranch, setKeepBranch] = useState(true);
   const name = useId();
@@ -38,7 +38,7 @@ export function SendHomeDialog() {
   }, [agentId, send]);
 
   if (!agentId) return null;
-  const branch = worktree?.branch || robot?.worktreeBranch || "";
+  const branch = worktree?.branch || henchman?.worktreeBranch || "";
   const dirty = worktree?.uncommitted ?? [];
   const worktreeError = refusal?.type === "agent.worktree" ? refusal.reason : null;
 
@@ -65,7 +65,7 @@ export function SendHomeDialog() {
     >
       <p>
         The henchman stops, packs up and leaves its desk
-        {robot?.taskTitle ? ` (“${robot.taskTitle}”)` : ""}. Its worktree is removed.
+        {henchman?.taskTitle ? ` (“${henchman.taskTitle}”)` : ""}. Its worktree is removed.
       </p>
       <fieldset className="rg-field rg-agent-choice">
         <legend className="rg-field__label">Branch{branch ? ` ${branch}` : ""}</legend>

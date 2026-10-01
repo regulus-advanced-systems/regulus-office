@@ -10,7 +10,7 @@ import {
   type Palette,
   type Rect,
   type Wall,
-} from "@regulus/floor-layout";
+} from "@regulus/room-layout";
 import { useMemo } from "react";
 import type { MeshToonMaterial } from "three";
 import { createToonMaterial, darken } from "../materials/toon.ts";

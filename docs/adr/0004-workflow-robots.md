@@ -1,5 +1,7 @@
 # ADR 0004: GitHub workflow robots
 
+> Since #226, floors are called operations and robots henchmen.
+
 Date: 2026-09-30. Status: accepted (owner decisions on #155; implemented in #155).
 
 ## Context

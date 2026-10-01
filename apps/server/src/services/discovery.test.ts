@@ -73,7 +73,7 @@ describe("listeners", () => {
     const table =
       "  sl  local_address rem_address   st\n   0: 00000000:1F90 00000000:0000 0A 0:0 0:0 0 1001 0 555 1\n";
     expect(parseProcNetTcp(table)).toEqual([{ inode: 555, address: "0.0.0.0", port: 8080 }]);
-    // Not in any process table: nothing is attributed to the robot.
+    // Not in any process table: nothing is attributed to the henchman.
     expect(await listeningPorts("/nonexistent", new Map())).toEqual([]);
   });
 });

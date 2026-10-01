@@ -1,6 +1,6 @@
 /**
- * Client of the laptop screen feed `/ws/screens/<floorId>` (server
- * `terminals/screens.ts`): plain-text screens of every robot on the floor,
+ * Client of the laptop screen feed `/ws/screens/<operationId>` (server
+ * `terminals/screens.ts`): plain-text screens of every henchman in the operation,
  * pushed on change at ≤ 2 Hz. Reconnects with backoff; after a reconnect the
  * server sends every current screen again.
  */
@@ -18,7 +18,7 @@ export const SCREEN_FEED_BACKOFF: BackoffOptions = {
 export interface ScreenFeedClientOptions {
   /** Base ws(s) URL of the office server. */
   wsBase: string;
-  floorId: string;
+  operationId: string;
   onScreen: (agentId: string, text: string) => void;
   onRemoved: (agentId: string) => void;
   socket?: SocketFactory;
@@ -40,7 +40,7 @@ export class ScreenFeedClient {
 
   start(): void {
     if (this.#stopped) return;
-    const url = `${this.#opts.wsBase}${screensWsPath(this.#opts.floorId)}`;
+    const url = `${this.#opts.wsBase}${screensWsPath(this.#opts.operationId)}`;
     const ws = (this.#opts.socket ?? ((u: string) => new WebSocket(u) as unknown as SocketLike))(
       url,
     );

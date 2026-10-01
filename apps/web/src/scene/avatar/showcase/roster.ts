@@ -1,4 +1,4 @@
-/** Deterministic roster of showcase robots cycling through every look, status and animation. */
+/** Deterministic roster of showcase henchmen cycling through every look, status and animation. */
 import {
   AGENT_STATUSES,
   type AgentStatus,
@@ -22,14 +22,17 @@ const NAMES = [
   "Hedy",
 ];
 
-export type ShowcaseRobot = { key: string; props: RobotAvatarProps };
+export type ShowcaseHenchman = { key: string; props: RobotAvatarProps };
 
 export type RosterOverrides = { animation?: AvatarAnimation; status?: AgentStatus };
 
-export function showcaseRobots(count: number, overrides: RosterOverrides = {}): ShowcaseRobot[] {
+export function showcaseHenchmen(
+  count: number,
+  overrides: RosterOverrides = {},
+): ShowcaseHenchman[] {
   const columns = Math.ceil(Math.sqrt(count));
   const spacing = 2.4;
-  const robots: ShowcaseRobot[] = [];
+  const henchmen: ShowcaseHenchman[] = [];
   for (let i = 0; i < count; i++) {
     const col = i % columns;
     const row = Math.floor(i / columns);
@@ -49,8 +52,8 @@ export function showcaseRobots(count: number, overrides: RosterOverrides = {}): 
       // Heading that faces the iso camera (+x, +z).
       rotation: [0, (-3 * Math.PI) / 4, 0],
     };
-    robots.push({
-      key: `robot-${i}`,
+    henchmen.push({
+      key: `henchman-${i}`,
       props: human
         ? { ...base, name: NAMES[i % NAMES.length] ?? "Human", badge: true }
         : {
@@ -60,5 +63,5 @@ export function showcaseRobots(count: number, overrides: RosterOverrides = {}): 
           },
     });
   }
-  return robots;
+  return henchmen;
 }

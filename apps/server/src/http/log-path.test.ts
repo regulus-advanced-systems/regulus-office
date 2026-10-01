@@ -19,7 +19,7 @@ describe("redactPath", () => {
   test("leaves ordinary paths alone", () => {
     expect(redactPath("/")).toBe("/");
     expect(redactPath("/join")).toBe("/join");
-    expect(redactPath("/office/floor-2")).toBe("/office/floor-2");
+    expect(redactPath("/office/operation-2")).toBe("/office/operation-2");
     expect(redactPath("/assets/joinery.png")).toBe("/assets/joinery.png");
   });
 

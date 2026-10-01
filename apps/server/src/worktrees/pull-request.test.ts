@@ -14,7 +14,7 @@ import {
   filesContaining,
   git,
   type RecordedRequest,
-  setupFloor,
+  setupOperation,
 } from "./test-helpers.ts";
 import { WorkspaceError } from "./types.ts";
 
@@ -50,7 +50,7 @@ async function agentWithWork(
   } = {},
 ) {
   github = fakeGitHub(respond);
-  const f = await setupFloor(root, {
+  const f = await setupOperation(root, {
     apiBase: github.url,
     token: fields.token,
     connection: fields.connection,
@@ -58,7 +58,7 @@ async function agentWithWork(
   const agentId = f.addAgent(`agent-${crypto.randomUUID().slice(0, 6)}`, fields);
   const ws = await f.worktrees.workspaces.prepare({
     agentId,
-    floorId: f.floorId,
+    operationId: f.operationId,
     repoId: f.repo.repoId,
     slug: "login fix",
     ownerUserId: f.owner.id,
@@ -229,7 +229,7 @@ describe("openPullRequest", () => {
   });
 
   test("unknown agents and agents without a worktree", async () => {
-    const f = await setupFloor(root);
+    const f = await setupOperation(root);
     expect((await errorOf(f.worktrees.openPullRequest("nope"))).code).toBe("agent_not_found");
     const id = f.addAgent("bare-agent");
     expect((await errorOf(f.worktrees.openPullRequest(id))).code).toBe("no_worktree");

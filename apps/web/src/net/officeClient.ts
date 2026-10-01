@@ -1,8 +1,8 @@
 /**
  * Client-side session with the office: always in the BuildingRoom, and in
- * the FloorRooms of the room the player is in plus up to three nearby
- * visible rooms (SPEC §6, §9.1; #186, floorLinks.ts). Patches room state
- * into the zustand stores (the room the player is in also into the floor
+ * the OperationRooms of the room the player is in plus up to three nearby
+ * visible rooms (SPEC §6, §9.1; #186, operationLinks.ts). Patches room state
+ * into the zustand stores (the room the player is in also into the operation
  * store the HUD reads) and re-joins with exponential backoff when a room is
  * lost for a reason we did not consent to. Talks to the server only
  * through `RoomTransport`.
@@ -12,15 +12,15 @@ import {
   type ClientCommandPayload,
   type ClientCommandType,
   type CommandRejected,
-  LOBBY_FLOOR_ID,
+  LOBBY_OPERATION_ID,
 } from "@regulus/protocol";
 import { useBuildingStore } from "../state/building.ts";
 import { useConnectionStore } from "../state/connection.ts";
-import { useFloorStore } from "../state/floor.ts";
+import { useOperationStore } from "../state/operation.ts";
 import { useRoomsStore } from "../state/rooms.ts";
 import { type BackoffOptions, backoffDelay, DEFAULT_BACKOFF } from "./backoff.ts";
 import { roomForCommand } from "./commandRouting.ts";
-import { FloorLinks } from "./floorLinks.ts";
+import { OperationLinks } from "./operationLinks.ts";
 import {
   isConsentedClose,
   type RoomHandle,
@@ -42,7 +42,7 @@ export interface OfficeClientOptions {
   transport: RoomTransport;
   stores?: {
     building: typeof useBuildingStore;
-    floor: typeof useFloorStore;
+    operation: typeof useOperationStore;
     connection: typeof useConnectionStore;
     rooms?: typeof useRoomsStore;
   };
@@ -62,10 +62,10 @@ export class OfficeClient {
   private readonly random: () => number;
 
   private building: RoomHandle<BuildingState> | null = null;
-  private readonly floors: FloorLinks;
+  private readonly operations: OperationLinks;
   private readonly rooms: typeof useRoomsStore;
-  /** The room the player is in, as last told to the building (`floor.go`). */
-  private announcedFloor: string | null = null;
+  /** The room the player is in, as last told to the building (`operation.go`). */
+  private announcedOperation: string | null = null;
   private closed = false;
   private attempt = 0;
   private cancelBuildingRetry: (() => void) | null = null;
@@ -82,7 +82,7 @@ export class OfficeClient {
     this.transport = options.transport;
     this.stores = options.stores ?? {
       building: useBuildingStore,
-      floor: useFloorStore,
+      operation: useOperationStore,
       connection: useConnectionStore,
     };
     this.backoff = options.backoff ?? DEFAULT_BACKOFF;
@@ -90,28 +90,28 @@ export class OfficeClient {
     this.schedule = options.schedule ?? defaultScheduler;
     this.random = options.random ?? Math.random;
     this.rooms = this.stores.rooms ?? useRoomsStore;
-    this.floors = new FloorLinks({
+    this.operations = new OperationLinks({
       transport: this.transport,
       backoff: this.backoff,
       maxAttempts: this.maxAttempts,
       schedule: this.schedule,
       random: this.random,
       connected: () => this.building !== null,
-      onState: (floorId, state) => {
-        this.rooms.getState().apply(floorId, state);
-        if (floorId === this.floors.primary) this.stores.floor.getState().apply(state);
+      onState: (operationId, state) => {
+        this.rooms.getState().apply(operationId, state);
+        if (operationId === this.operations.primary) this.stores.operation.getState().apply(state);
       },
-      onGone: (floorId) => {
-        this.rooms.getState().drop(floorId);
-        if (floorId === this.floors.primary) {
-          const floor = this.stores.floor.getState();
-          floor.clear();
-          floor.setFloorId(floorId);
+      onGone: (operationId) => {
+        this.rooms.getState().drop(operationId);
+        if (operationId === this.operations.primary) {
+          const operation = this.stores.operation.getState();
+          operation.clear();
+          operation.setOperationId(operationId);
         }
       },
       onError: (message) => this.stores.connection.getState().set({ lastError: message }),
-      onDenied: (floorId) => {
-        if (floorId === this.floors.primary) this.stores.floor.getState().clear();
+      onDenied: (operationId) => {
+        if (operationId === this.operations.primary) this.stores.operation.getState().clear();
       },
       onRejected: this.emitRejected,
     });
@@ -121,17 +121,17 @@ export class OfficeClient {
     return this.stores.connection.getState().status;
   }
 
-  /** The room the player is in, once its FloorRoom is joined. */
-  get currentFloorId(): string | null {
-    return this.floors.primaryHandle() ? this.floors.primary : null;
+  /** The room the player is in, once its OperationRoom is joined. */
+  get currentOperationId(): string | null {
+    return this.operations.primaryHandle() ? this.operations.primary : null;
   }
 
-  /** Floor ids whose FloorRooms are joined now. */
-  get joinedFloorIds(): string[] {
-    return this.floors.joined();
+  /** Operation ids whose OperationRooms are joined now. */
+  get joinedOperationIds(): string[] {
+    return this.operations.joined();
   }
 
-  /** Join the BuildingRoom (and the wanted FloorRooms). Safe to call again after `failed`. */
+  /** Join the BuildingRoom (and the wanted OperationRooms). Safe to call again after `failed`. */
   async connect(): Promise<void> {
     this.closed = false;
     if (this.building) return;
@@ -153,9 +153,9 @@ export class OfficeClient {
     }
     this.bindBuilding(handle);
     // A new building session starts in the lobby; tell it if we are in a room.
-    this.announcedFloor = LOBBY_FLOOR_ID;
-    if (this.floors.primary) this.announce(this.floors.primary, true);
-    await this.floors.rejoin();
+    this.announcedOperation = LOBBY_OPERATION_ID;
+    if (this.operations.primary) this.announce(this.operations.primary, true);
+    await this.operations.rejoin();
   }
 
   /** Leave everything on purpose; no reconnect is attempted. */
@@ -164,10 +164,10 @@ export class OfficeClient {
     this.cancelBuildingRetry?.();
     this.cancelBuildingRetry = null;
     this.attempt = 0;
-    this.floors.close();
-    await this.floors.dropAll(true);
+    this.operations.close();
+    await this.operations.dropAll(true);
     this.rooms.getState().clear();
-    this.stores.floor.getState().clear();
+    this.stores.operation.getState().clear();
     const building = this.building;
     this.unbindBuilding();
     await building?.leave(true).catch(() => undefined);
@@ -175,44 +175,44 @@ export class OfficeClient {
   }
 
   /**
-   * Be in the FloorRooms of `current` (the room the player is in; null in
+   * Be in the OperationRooms of `current` (the room the player is in; null in
    * the lobby, the corridors and the other special rooms) and of up to
-   * three `nearby` rooms (SPEC §9.1); leave every other FloorRoom. The
-   * building hears where the player is (`floor.go`) whenever `current` changes.
+   * three `nearby` rooms (SPEC §9.1); leave every other OperationRoom. The
+   * building hears where the player is (`operation.go`) whenever `current` changes.
    */
   async setRooms(current: string | null, nearby: readonly string[] = []): Promise<void> {
-    const before = this.floors.primary;
-    const floor = this.stores.floor.getState();
-    const promise = this.floors.set(current, nearby);
+    const before = this.operations.primary;
+    const operation = this.stores.operation.getState();
+    const promise = this.operations.set(current, nearby);
     if (before !== current) {
       // Already joined as a nearby room: the HUD switches at once.
-      const joined = current ? this.floors.snapshot(current) : null;
-      if (joined) floor.apply(joined);
+      const joined = current ? this.operations.snapshot(current) : null;
+      if (joined) operation.apply(joined);
       else {
-        floor.clear();
-        floor.setFloorId(current);
+        operation.clear();
+        operation.setOperationId(current);
       }
       this.announce(current, false);
     }
     await promise;
   }
 
-  /** Be in exactly one FloorRoom (tests and tools); `setRooms` is the general form. */
-  async goToFloor(floorId: string): Promise<void> {
-    await this.setRooms(floorId, []);
+  /** Be in exactly one OperationRoom (tests and tools); `setRooms` is the general form. */
+  async goToOperation(operationId: string): Promise<void> {
+    await this.setRooms(operationId, []);
   }
 
-  private announce(floorId: string | null, force: boolean): void {
-    const id = floorId ?? LOBBY_FLOOR_ID;
-    if (!this.building || (!force && id === this.announcedFloor)) return;
-    this.announcedFloor = id;
-    this.building.send("floor.go", { floorId: id, mode: "teleport" });
+  private announce(operationId: string | null, force: boolean): void {
+    const id = operationId ?? LOBBY_OPERATION_ID;
+    if (!this.building || (!force && id === this.announcedOperation)) return;
+    this.announcedOperation = id;
+    this.building.send("operation.go", { operationId: id, mode: "teleport" });
   }
 
   /** Send a typed command to the room that owns it. Throws when that room is not joined. */
   send<T extends ClientCommandType>(type: T, payload: ClientCommandPayload<T>): void {
     const target =
-      roomForCommand(type) === "building" ? this.building : this.floors.primaryHandle();
+      roomForCommand(type) === "building" ? this.building : this.operations.primaryHandle();
     if (!target) throw new Error(`Cannot send "${type}": ${roomForCommand(type)} room not joined`);
     target.send(type, payload);
   }
@@ -224,11 +224,11 @@ export class OfficeClient {
   }
 
   /**
-   * Listen for a server→client FloorRoom message (e.g. `agent.permissions`)
+   * Listen for a server→client OperationRoom message (e.g. `agent.permissions`)
    * from the room the player is in, now or later. Payloads are unvalidated.
    */
-  onFloorMessage(type: string, listener: MessageListener): Unsubscribe {
-    return this.floors.onMessage(type, listener);
+  onOperationMessage(type: string, listener: MessageListener): Unsubscribe {
+    return this.operations.onMessage(type, listener);
   }
 
   /**
@@ -290,9 +290,9 @@ export class OfficeClient {
 
   private onBuildingLeft(code: number, reason?: string) {
     this.unbindBuilding();
-    this.announcedFloor = null;
-    // The floor seats die with the building session; rejoin them after backoff.
-    void this.floors.dropAll(false);
+    this.announcedOperation = null;
+    // The operation seats die with the building session; rejoin them after backoff.
+    void this.operations.dropAll(false);
     if (this.closed || isConsentedClose(code)) {
       this.stores.connection.getState().set({ status: "disconnected", lastError: reason ?? null });
       return;

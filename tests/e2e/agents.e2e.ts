@@ -1,13 +1,13 @@
 /**
  * M1 exit criteria, automated half (docs/SPEC.md §10 M1, issue #120): an owner spawns a
- * Claude Code robot at a desk on a floor cloned from a (local, file://) repo; the robot
+ * Claude Code henchman at a desk on an operation cloned from a (local, file://) repo; the henchman
  * animates by action and raises its hand; the permission prompt reaches the owner but not a
  * second member's browser, nor an office admin's, who gets only the emergency stop (#138); approving lets the agent commit; the one-click PR reaches a fake
  * GitHub with `Closes #n`; restarting office-server re-adopts the same tmux session, whose
  * terminal still opens, copies, expands and reflows (#156); copying works in every terminal
  * surface while the fake turns on mouse tracking like Claude Code (#164); a member finds the
- * robot's output with search and jumps from the lobby to its desk (#41); a bang on the merge
- * gong makes the robot cheer in its chair and sit back exactly as it was (#43); sending the robot
+ * henchman's output with search and jumps from the lobby to its desk (#41); a bang on the merge
+ * gong makes the henchman cheer in its chair and sit back exactly as it was (#43); sending the henchman
  * home frees the desk and deletes the branch as chosen.
  *
  * The agent is the fake `claude` in tests/e2e/runner (never the real CLI, no account, no
@@ -29,9 +29,9 @@ import {
 } from "./agentOffice.ts";
 import {
   collectTerminalOutput,
+  henchmen,
   history,
-  recordRobots,
-  robots,
+  recordHenchmen,
   scenePoint,
   statuses,
 } from "./agentProbes.ts";
@@ -39,13 +39,17 @@ import { type BoneSegment, boneSegments, recordBones, sampleBones } from "./bone
 import { settledVerdict } from "./buildChecks.ts";
 import { checkChangesWindow } from "./changesChecks.ts";
 import { walkInto, walkToLobby } from "./compoundProbes.ts";
-import { checkLaptopCopy, checkLoginTerminalCopy, checkRobotTerminalCopy } from "./copyChecks.ts";
+import {
+  checkHenchmanTerminalCopy,
+  checkLaptopCopy,
+  checkLoginTerminalCopy,
+} from "./copyChecks.ts";
 import { type FakeGitHub, startFakeGitHub } from "./fakeGitHub.ts";
 import { pickGenius } from "./geniusChecks.ts";
 import { createRemoteRepo } from "./gitRemote.ts";
-import { checkRobotCheers } from "./gongChecks.ts";
+import { checkHenchmanCheers } from "./gongChecks.ts";
 import { freeDeskPoint, OFFICE_PROBE_PATH, waitForScene } from "./probes.ts";
-import { checkRobotTerminal } from "./terminalChecks.ts";
+import { checkHenchmanTerminal } from "./terminalChecks.ts";
 
 const run = Date.now().toString(36);
 const owner = { name: "Ada Owner", email: `owner-${run}@example.com`, password: `owner-pw-${run}` };
@@ -55,12 +59,12 @@ const member = {
   password: `member-pw-${run}`,
 };
 const admin = { name: "Cy Admin", email: `admin-${run}@example.com`, password: `admin-pw-${run}` };
-const REPO = { owner: "octo", name: "robots", branch: "trunk" };
-const FLOOR = "Hangar";
+const REPO = { owner: "octo", name: "henchmen", branch: "trunk" };
+const OPERATION = "Hangar";
 const ISSUE = 42;
 const TASK = "Say hello in a file";
 /**
- * The office GitHub connection's org token (#141), the floor repo's project credential; only
+ * The office GitHub connection's org token (#141), the operation repo's project credential; only
  * ever sent to the fake GitHub.
  */
 const REPO_TOKEN = `github_pat_e2eFakeOrgToken${run}`;
@@ -81,7 +85,7 @@ let ownerTerminal: { text(): string };
 let ownerId = "";
 let agentId = "";
 let seatId = "";
-/** The human's clone of the floor repo that holds the agent's branch (its git common dir). */
+/** The human's clone of the operation repo that holds the agent's branch (its git common dir). */
 let cloneGitDir = "";
 /** A test failed: afterAll keeps the run's diagnostics too. */
 let failed = false;
@@ -160,23 +164,23 @@ test.afterAll(async ({}, testInfo) => {
 
 const bare = () => join(dataDir, "remotes", REPO.owner, `${REPO.name}.git`);
 const tmuxSocket = () => `/run/office/tmux/${ownerId}.sock`;
-/** The robot's own sandbox container (#169); its tmux server has the robot's session. */
+/** The henchman's own sandbox container (#169); its tmux server has the henchman's session. */
 const sandboxName = () => `${prefix}-sbx-${agentId}`;
 
-/** `tmux` inside the robot's sandbox, as the runner user. */
-function robotTmux(args: string[]): string {
+/** `tmux` inside the henchman's sandbox, as the runner user. */
+function henchmanTmux(args: string[]): string {
   return sh("docker", ["exec", sandboxName(), "tmux", "-S", tmuxSocket(), ...args]);
 }
 
 /**
- * This agent's worktree as the office sees it: `<worktrees>/<floor>/<runner id>/<agentId>`
+ * This agent's worktree as the office sees it: `<worktrees>/<operation>/<runner id>/<agentId>`
  * (the human's own area, #114), or null once it is gone.
  */
 function worktreePath(): string | null {
   const root = office.worktreesDir;
-  for (const floor of readdirSync(root)) {
-    for (const area of readdirSync(join(root, floor))) {
-      const dir = join(root, floor, area, agentId);
+  for (const operation of readdirSync(root)) {
+    for (const area of readdirSync(join(root, operation))) {
+      const dir = join(root, operation, area, agentId);
       if (existsSync(dir)) return dir;
     }
   }
@@ -213,23 +217,23 @@ async function api(page: Page, method: string, path: string, data?: unknown): Pr
   return text ? JSON.parse(text) : null;
 }
 
-/** Opens the robot panel by clicking its desk (occupied desks open the panel). */
-async function openRobotPanel(page: Page): Promise<void> {
+/** Opens the henchman panel by clicking its desk (occupied desks open the panel). */
+async function openHenchmanPanel(page: Page): Promise<void> {
   await page.bringToFront();
   const panel = page.locator("section.rg-agent-panel");
   if (await panel.isVisible()) return;
   await expect(async () => {
     const point = await scenePoint(page, `desk-hotspot-${seatId}`);
-    if (!point) throw new Error("robot desk not in view");
+    if (!point) throw new Error("henchman desk not in view");
     await page.mouse.click(point.x, point.y);
     await expect(panel).toBeVisible({ timeout: 2_000 });
   }).toPass({ timeout: 20_000 });
   await expect(panel.locator('[data-key="task"] dd')).toHaveText(TASK);
 }
 
-const robotOn = async (page: Page) => (await robots(page))[agentId];
+const henchmanOn = async (page: Page) => (await henchmen(page))[agentId];
 
-/** Runs of the recording in which the robot sat typing at its laptop long enough to judge. */
+/** Runs of the recording in which the henchman sat typing at its laptop long enough to judge. */
 const typing = (segments: BoneSegment[]) =>
   segments.filter((s) => /^working\/\w+\/sit_type\//.test(s.key) && s.ms >= 500);
 
@@ -262,7 +266,7 @@ test("the owner, an invited member and an invited admin sign in", async () => {
   expect(await api(adminPage, "GET", "/api/me")).toMatchObject({ role: "admin" });
 });
 
-test("1. the owner connects GitHub, picks the repo in Add floor and walks into its room", async () => {
+test("1. the owner connects GitHub, picks the repo in Add operation and walks into its room", async () => {
   await ownerPage.goto(OFFICE_PROBE_PATH);
   await waitForScene(ownerPage);
   // Settings → GitHub: connect the office with an org token (#141; the App flow needs github.com).
@@ -280,7 +284,7 @@ test("1. the owner connects GitHub, picks the repo in Add floor and walks into i
   const rooms = ownerPage.getByRole("navigation", { name: "Rooms" });
   await rooms.getByRole("button", { name: "New operation…" }).click();
   const dialog = ownerPage.getByRole("dialog", { name: "New operation" });
-  await dialog.getByLabel("Operation name").fill(FLOOR);
+  await dialog.getByLabel("Operation name").fill(OPERATION);
   const picker = dialog.getByRole("list", { name: "Repos from GitHub" });
   await dialog.getByLabel("Search repos").fill(REPO.name);
   await expect(picker.getByRole("checkbox")).toHaveCount(1);
@@ -293,7 +297,7 @@ test("1. the owner connects GitHub, picks the repo in Add floor and walks into i
   const added = ownerPage.getByRole("dialog", { name: "Operation set up" });
   await expect(added.getByText(`Ready on ${REPO.branch}`)).toBeVisible();
 
-  // A new floor offers "Add people" straight away: the owner lets the member watch (#131).
+  // A new operation offers "Add people" straight away: the owner lets the member watch (#131).
   await added.getByRole("button", { name: "Add people…" }).click();
   const settings = ownerPage.getByRole("dialog", { name: "Operation settings" });
   await settings.getByLabel("Search people").fill("ben");
@@ -303,17 +307,17 @@ test("1. the owner connects GitHub, picks the repo in Add floor and walks into i
   await expect(settings.getByLabel(`Access for ${member.name}`)).toHaveValue("view");
   await settings.getByRole("button", { name: "Done" }).click();
   await expect(settings).toHaveCount(0);
-  await walkInto(ownerPage, FLOOR);
+  await walkInto(ownerPage, OPERATION);
 
   await memberPage.goto(OFFICE_PROBE_PATH);
   await waitForScene(memberPage);
-  await walkInto(memberPage, FLOOR);
+  await walkInto(memberPage, OPERATION);
 });
 
 test("2. the owner spawns Claude Code at a free desk with their login and a prompt", async () => {
   await ownerPage.bringToFront();
-  await recordRobots(ownerPage);
-  await recordRobots(memberPage);
+  await recordHenchmen(ownerPage);
+  await recordHenchmen(memberPage);
   await recordBones(ownerPage);
   await expect.poll(() => freeDeskPoint(ownerPage)).not.toBeNull();
   const desk = await freeDeskPoint(ownerPage);
@@ -321,7 +325,7 @@ test("2. the owner spawns Claude Code at a free desk with their login and a prom
   seatId = desk.seatId;
   // The dialog asks the runner whether the CLI is logged in (`claude auth status`, a piped
   // process the fake answers after a pause). The spec spawns without waiting for it, so the
-  // spawn's first mount of the floor recreates the runner while the check is still running:
+  // spawn's first mount of the operation recreates the runner while the check is still running:
   // the mount waits for the check (#126) instead of failing with RunnerBusyError.
   const loginChecked = ownerPage.waitForResponse(
     (r) => new URL(r.url()).pathname === "/api/provider-logins",
@@ -329,7 +333,7 @@ test("2. the owner spawns Claude Code at a free desk with their login and a prom
   await ownerPage.mouse.click(desk.x, desk.y);
   const dialog = ownerPage.getByRole("dialog", { name: "Spawn a henchman" });
   await expect(dialog).toBeVisible();
-  // The floor's only repo is preselected and named next to the desk, not asked for (#142).
+  // The operation's only repo is preselected and named next to the desk, not asked for (#142).
   await expect(dialog.getByText(`Desk ${seatId} · ${REPO.owner}/${REPO.name}`)).toBeVisible();
   // The main form: model (focused, grouped by provider) and effort, with defaults.
   const opus = dialog.getByRole("group", { name: "Claude Code" }).getByRole("radio", {
@@ -348,10 +352,10 @@ test("2. the owner spawns Claude Code at a free desk with their login and a prom
   );
   await dialog.getByLabel("Task title").fill(TASK);
   await dialog.getByLabel("Issue").fill(String(ISSUE));
-  // The fake holds the edit until step 3 has seen the robot type (tests/e2e/runner/claude, #179).
+  // The fake holds the edit until step 3 has seen the henchman type (tests/e2e/runner/claude, #179).
   await dialog.getByLabel(/^Prompt/).fill("Add a FAKE_CLAUDE.md that says hello [hold the edit]");
   await dialog.getByRole("button", { name: "Spawn henchman" }).click();
-  // The dialog stays pending until our robot sits down at that desk, then closes.
+  // The dialog stays pending until our henchman sits down at that desk, then closes.
   await expect(dialog).toHaveCount(0, { timeout: 60_000 });
   // The login check ran to completion (the recreate did not kill it): Claude Code connected.
   const logins = await loginChecked;
@@ -360,16 +364,16 @@ test("2. the owner spawns Claude Code at a free desk with their login and a prom
     expect.objectContaining({ provider: "claude-code", connected: true }),
   );
 
-  await expect.poll(async () => Object.values(await robots(ownerPage)).length).toBe(1);
-  const [robot] = Object.values(await robots(ownerPage));
-  if (!robot) throw new Error("robot missing");
-  agentId = robot.agentId;
-  expect(robot).toMatchObject({ seatId, seated: true });
-  // The member sees the same robot at the same desk.
-  await expect.poll(async () => (await robotOn(memberPage))?.seatId).toBe(seatId);
+  await expect.poll(async () => Object.values(await henchmen(ownerPage)).length).toBe(1);
+  const [henchman] = Object.values(await henchmen(ownerPage));
+  if (!henchman) throw new Error("henchman missing");
+  agentId = henchman.agentId;
+  expect(henchman).toMatchObject({ seatId, seated: true });
+  // The member sees the same henchman at the same desk.
+  await expect.poll(async () => (await henchmanOn(memberPage))?.seatId).toBe(seatId);
 });
 
-test("3. the robot's status and action change (editing) and it raises its hand", async () => {
+test("3. the henchman's status and action change (editing) and it raises its hand", async () => {
   // The fake posts UserPromptSubmit (thinking), PreToolUse(Edit) (editing), then
   // PermissionRequest (waiting_permission, hand up).
   // The order the page received them in (#179): a software-rendered CI page can get thinking and
@@ -380,7 +384,7 @@ test("3. the robot's status and action change (editing) and it raises its hand",
   const seen = await statuses(ownerPage, agentId);
   expect(seen).toContain("working/thinking");
   expect(seen.indexOf("working/thinking")).toBeLessThan(seen.indexOf("working/editing"));
-  // The fake keeps editing until told (#179). The robot starts typing once the action has held
+  // The fake keeps editing until told (#179). The henchman starts typing once the action has held
   // for 1.5 s, and a software-rendered CI page gets the status late and draws a few frames a
   // second: wait until this page has drawn the typing clip moving the bones (3b), then go on.
   const typed = async () =>
@@ -390,7 +394,7 @@ test("3. the robot's status and action change (editing) and it raises its hand",
   for (const page of [ownerPage, memberPage]) {
     await expect
       .poll(async () => {
-        const r = await robotOn(page);
+        const r = await henchmanOn(page);
         return r && { status: r.status, handRaised: r.handRaised, seated: r.seated };
       })
       .toEqual({ status: "waiting_permission", handRaised: true, seated: true });
@@ -400,8 +404,8 @@ test("3. the robot's status and action change (editing) and it raises its hand",
     .toContainEqual(expect.stringMatching(/^waiting_permission\/.*\/hand$/));
 });
 
-test("3b. the robot's bones move while it works and hold still while it waits (#159)", async () => {
-  // The recorder has watched the robot since before the spawn: starting, working, then
+test("3b. the henchman's bones move while it works and hold still while it waits (#159)", async () => {
+  // The recorder has watched the henchman since before the spawn: starting, working, then
   // waiting_permission with its hand up. Wait until the calm, hand-up pose has had a while.
   await expect
     .poll(
@@ -433,15 +437,15 @@ test("3b. the robot's bones move while it works and hold still while it waits (#
 });
 
 test("4. the permission prompt reaches the owner, not the member nor an admin", async () => {
-  // A fresh request opens the prompt for the robot's owner by itself.
+  // A fresh request opens the prompt for the henchman's owner by itself.
   const prompt = ownerPage.getByRole("dialog", { name: "Permission needed" });
   await expect(prompt).toBeVisible();
   await expect(prompt).toContainText(`“${TASK}” wants to use`);
   await expect(prompt.getByText("Edit", { exact: true })).toBeVisible();
   await expect(prompt.getByLabel("What would run")).toContainText("FAKE_CLAUDE.md");
 
-  // The member watches the same robot: hand up, but no request, no prompt, no controls.
-  await openRobotPanel(memberPage);
+  // The member watches the same henchman: hand up, but no request, no prompt, no controls.
+  await openHenchmanPanel(memberPage);
   const memberPanel = memberPage.locator("section.rg-agent-panel");
   await expect(memberPanel.locator('[data-key="status"] dd')).toHaveText("Waiting for approval");
   await expect(memberPanel.getByRole("button", { name: "Watch terminal" })).toBeVisible();
@@ -450,14 +454,14 @@ test("4. the permission prompt reaches the owner, not the member nor an admin", 
   await expect(memberPanel.getByRole("button", { name: "Emergency stop" })).toHaveCount(0);
   await expect(memberPage.getByRole("dialog", { name: "Permission needed" })).toHaveCount(0);
   await expect(memberPage.getByText("FAKE_CLAUDE.md")).toHaveCount(0);
-  expect((await robotOn(memberPage))?.handRaised).toBe(true);
+  expect((await henchmanOn(memberPage))?.handRaised).toBe(true);
 
   // An office admin (#138) watches too: no request, no prompt, no controls; only the
   // emergency stop (not pressed here; the server tests cover it).
   await adminPage.goto(OFFICE_PROBE_PATH);
   await waitForScene(adminPage);
-  await walkInto(adminPage, FLOOR);
-  await openRobotPanel(adminPage);
+  await walkInto(adminPage, OPERATION);
+  await openHenchmanPanel(adminPage);
   const adminPanel = adminPage.locator("section.rg-agent-panel");
   await expect(adminPanel.locator('[data-key="status"] dd')).toHaveText("Waiting for approval");
   await expect(adminPanel.getByRole("button", { name: "Watch terminal" })).toBeVisible();
@@ -470,16 +474,16 @@ test("4. the permission prompt reaches the owner, not the member nor an admin", 
   await adminCtx.close();
 });
 
-test("5. the owner approves; the robot commits and finishes", async () => {
+test("5. the owner approves; the henchman commits and finishes", async () => {
   await ownerPage.bringToFront();
   const prompt = ownerPage.getByRole("dialog", { name: "Permission needed" });
   await prompt.getByRole("button", { name: "Allow once" }).click();
   await expect(prompt).toHaveCount(0);
-  await openRobotPanel(ownerPage);
+  await openHenchmanPanel(ownerPage);
   for (const page of [ownerPage, memberPage]) {
     await expect
       .poll(async () => {
-        const r = await robotOn(page);
+        const r = await henchmanOn(page);
         return r && { status: r.status, handRaised: r.handRaised };
       })
       .toEqual({ status: "done", handRaised: false });
@@ -494,7 +498,7 @@ test("5. the owner approves; the robot commits and finishes", async () => {
   await expect(ownerPanel.locator('[data-key="status"] dd')).toHaveText("Done");
   const branch = await ownerPanel.locator('[data-key="branch"] dd').innerText();
   expect(branch).toMatch(/^office\//);
-  // The fake agent's commit is on the robot's branch in its worktree, on top of origin/trunk.
+  // The fake agent's commit is on the henchman's branch in its worktree, on top of origin/trunk.
   expect(worktreeGit(["rev-parse", "--abbrev-ref", "HEAD"])).toBe(branch);
   expect(worktreeGit(["log", "-1", "--format=%s"])).toBe("Add FAKE_CLAUDE.md");
   expect(worktreeGit(["rev-list", "--count", `origin/${REPO.branch}..HEAD`])).toBe("1");
@@ -502,9 +506,9 @@ test("5. the owner approves; the robot commits and finishes", async () => {
   cloneGitDir = worktreeGit(["rev-parse", "--path-format=absolute", "--git-common-dir"]);
 });
 
-test("5b. once the celebration is over the done robot sits still (#159)", async () => {
+test("5b. once the celebration is over the done henchman sits still (#159)", async () => {
   await expect
-    .poll(async () => (await robotOn(ownerPage))?.animation, { timeout: 20_000 })
+    .poll(async () => (await henchmanOn(ownerPage))?.animation, { timeout: 20_000 })
     .toBe("sit_idle");
   // Past the crossfade back into the chair.
   await ownerPage.waitForTimeout(500);
@@ -557,8 +561,8 @@ test("6b. the changes window: the owner commits and discards, a member watches (
     memberPage,
     agentId,
     task: TASK,
-    openPanel: openRobotPanel,
-    // As the runner user in the robot's sandbox, like the robot's own edits.
+    openPanel: openHenchmanPanel,
+    // As the runner user in the henchman's sandbox, like the henchman's own edits.
     writeInWorktree: (name, content) =>
       void sh("docker", [
         "exec",
@@ -577,9 +581,9 @@ test("6b. the changes window: the owner commits and discards, a member watches (
   });
 });
 
-test("7. after an office-server restart the robot and its tmux session are still there", async () => {
+test("7. after an office-server restart the henchman and its tmux session are still there", async () => {
   const session = `=agent-${agentId}:`;
-  const before = robotTmux([
+  const before = henchmanTmux([
     "display-message",
     "-p",
     "-t",
@@ -593,22 +597,22 @@ test("7. after an office-server restart the robot and its tmux session are still
 
   // Same pane process, same session: re-adopted, not re-run.
   expect(
-    robotTmux(["display-message", "-p", "-t", session, "#{pane_pid} #{session_created}"]),
+    henchmanTmux(["display-message", "-p", "-t", session, "#{pane_pid} #{session_created}"]),
   ).toBe(before);
   for (const page of [ownerPage, memberPage]) {
     await page.goto(OFFICE_PROBE_PATH);
     await waitForScene(page);
-    await walkInto(page, FLOOR);
+    await walkInto(page, OPERATION);
     await expect
       .poll(async () => {
-        const r = await robotOn(page);
+        const r = await henchmanOn(page);
         return r && { status: r.status, seatId: r.seatId, seated: r.seated };
       })
       .toEqual({ status: "done", seatId, seated: true });
   }
 
   // Its terminal still opens and shows the agent's screen (scrollback over the socket).
-  await openRobotPanel(ownerPage);
+  await openHenchmanPanel(ownerPage);
   const seenBefore = ownerTerminal.text().length;
   await ownerPage
     .locator("section.rg-agent-panel")
@@ -624,17 +628,17 @@ test("7. after an office-server restart the robot and its tmux session are still
   await expect(terminal).toHaveCount(0);
 });
 
-test("7b. the robot's terminal expands, copies a selection and reflows tmux in control (#156)", async () => {
+test("7b. the henchman's terminal expands, copies a selection and reflows tmux in control (#156)", async () => {
   const windowSize = () =>
-    robotTmux([
+    henchmanTmux([
       "display-message",
       "-p",
       "-t",
       `=agent-${agentId}:`,
       "#{window_width}x#{window_height}",
     ]);
-  await checkRobotTerminal(ownerPage, windowSize, async () => {
-    await openRobotPanel(ownerPage);
+  await checkHenchmanTerminal(ownerPage, windowSize, async () => {
+    await openHenchmanPanel(ownerPage);
     await ownerPage
       .locator("section.rg-agent-panel")
       .getByRole("button", { name: "Open terminal" })
@@ -642,12 +646,12 @@ test("7b. the robot's terminal expands, copies a selection and reflows tmux in c
   });
 });
 
-test("7c. copying works in the robot's terminal, on the laptop and in the login terminal (#164)", async () => {
-  await checkRobotTerminalCopy(
+test("7c. copying works in the henchman's terminal, on the laptop and in the login terminal (#164)", async () => {
+  await checkHenchmanTerminalCopy(
     ownerPage,
     ownerCtx,
     async () => {
-      await openRobotPanel(ownerPage);
+      await openHenchmanPanel(ownerPage);
       await ownerPage
         .locator("section.rg-agent-panel")
         .getByRole("button", { name: "Open terminal" })
@@ -659,7 +663,7 @@ test("7c. copying works in the robot's terminal, on the laptop and in the login 
   await checkLoginTerminalCopy(ownerPage);
 });
 
-test("7d. a member searches the robot's terminal from the lobby and jumps to its desk (#41)", async () => {
+test("7d. a member searches the henchman's terminal from the lobby and jumps to its desk (#41)", async () => {
   const page = memberPage;
   await page.bringToFront();
   await walkToLobby(page);
@@ -667,19 +671,19 @@ test("7d. a member searches the robot's terminal from the lobby and jumps to its
   await page.keyboard.press("/");
   const box = page.getByTestId("search-input");
   await expect(box).toBeFocused();
-  const group = page.locator(`[data-group="robot:${agentId}"]`);
+  const group = page.locator(`[data-group="henchman:${agentId}"]`);
   // Scrollback is snapshotted every 15 s and indexed every 15 s: search again until it is in.
   await expect(async () => {
     await box.fill("");
     await box.fill('"FAKE CLAUDE DONE"');
     await expect(group.getByTestId("search-hit").first()).toBeVisible({ timeout: 3_000 });
   }).toPass({ timeout: 90_000, intervals: [3_000] });
-  await expect(group).toContainText(FLOOR);
+  await expect(group).toContainText(OPERATION);
   await expect(group.locator("mark").first()).toHaveText(/FAKE/);
   await group.getByTestId("search-hit").first().click();
 
-  // Quick travel to the robot's floor, a walk to its desk, then its terminal at the match.
-  await expect(page.locator(".rg-topbar__floor")).toHaveText(FLOOR, { timeout: 20_000 });
+  // Quick travel to the henchman's operation, a walk to its desk, then its terminal at the match.
+  await expect(page.locator(".rg-topbar__operation")).toHaveText(OPERATION, { timeout: 20_000 });
   const terminal = page.getByTestId("terminal-modal");
   await expect(terminal).toBeVisible({ timeout: 40_000 });
   const reveal = terminal.getByTestId("search-reveal");
@@ -693,7 +697,7 @@ test("7d. a member searches the robot's terminal from the lobby and jumps to its
       }
     ).__regulusR3F;
     const me = r3f?.scene.getObjectByName("local-human");
-    const bot = r3f?.scene.getObjectByName(`robot-${id}`);
+    const bot = r3f?.scene.getObjectByName(`henchman-${id}`);
     if (!me || !bot) return null;
     const Vec = me.position.constructor as new () => V;
     const a = me.getWorldPosition(new Vec());
@@ -709,13 +713,13 @@ test("7d. a member searches the robot's terminal from the lobby and jumps to its
   await expect(terminal).toHaveCount(0);
 });
 
-test("7e. the merge gong: the robot cheers in its chair and sits back exactly as it was (#43)", async () => {
-  await checkRobotCheers(ownerPage, agentId);
+test("7e. the merge gong: the henchman cheers in its chair and sits back exactly as it was (#43)", async () => {
+  await checkHenchmanCheers(ownerPage, agentId);
 });
 
 test("8. send home frees the desk and deletes the branch as chosen", async () => {
   const ownerPanel = ownerPage.locator("section.rg-agent-panel");
-  await openRobotPanel(ownerPage);
+  await openHenchmanPanel(ownerPage);
   const branch = await ownerPanel.locator('[data-key="branch"] dd').innerText();
   await ownerPanel.getByRole("button", { name: "Send home" }).click();
   const dialog = ownerPage.getByRole("dialog", { name: "Send henchman home" });
@@ -725,11 +729,11 @@ test("8. send home frees the desk and deletes the branch as chosen", async () =>
   await expect(dialog).toHaveCount(0);
 
   for (const page of [ownerPage, memberPage]) {
-    await expect.poll(() => robotOn(page), { timeout: 30_000 }).toBeUndefined();
+    await expect.poll(() => henchmanOn(page), { timeout: 30_000 }).toBeUndefined();
   }
   // The sandbox and its tmux session are gone, the worktree removed, the branch deleted here
   // and on the remote.
-  expect(() => robotTmux(["has-session", "-t", `=agent-${agentId}`])).toThrow();
+  expect(() => henchmanTmux(["has-session", "-t", `=agent-${agentId}`])).toThrow();
   expect(sh("docker", ["ps", "-aq", "--filter", `name=^${sandboxName()}$`])).toBe("");
   expect(worktreePath()).toBeNull();
   expect(sh("git", ["--git-dir", cloneGitDir, "branch", "--list", branch])).toBe("");
@@ -779,7 +783,7 @@ test("9. two queued tasks with concurrency 1 run one after the other, as their o
   await ownerPage.keyboard.press("Escape");
   await expect(panel).toHaveCount(0);
 
-  // Each robot is the owner's (their login, their runner): the owner answers its request.
+  // Each henchman is the owner's (their login, their runner): the owner answers its request.
   for (const title of titles) {
     const prompt = ownerPage.getByRole("dialog", { name: "Permission needed" });
     await expect(prompt).toContainText(`“${title}” wants to use`, { timeout: 60_000 });
@@ -787,7 +791,7 @@ test("9. two queued tasks with concurrency 1 run one after the other, as their o
     await expect(prompt).toHaveCount(0);
   }
   await expect
-    .poll(async () => Object.values(await robots(ownerPage)).filter((r) => r.status === "done"))
+    .poll(async () => Object.values(await henchmen(ownerPage)).filter((r) => r.status === "done"))
     .toHaveLength(2);
   const point = await scenePoint(ownerPage, "queue-hotspot-queue-clipboard");
   if (!point) throw new Error("queue clipboard not in view");

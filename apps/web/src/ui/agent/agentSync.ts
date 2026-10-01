@@ -1,10 +1,10 @@
 /**
- * Folds the FloorRoom's robot messages into the agent store (#33):
- * `agent.permissions` (sent to us only if we may control the robot),
+ * Folds the OperationRoom's henchman messages into the agent store (#33):
+ * `agent.permissions` (sent to us only if we may control the henchman),
  * `agent.result` and `command.rejected` for our own commands, and
- * `agent.leaving` (a robot was sent home: play the walk to the elevator).
+ * `agent.leaving` (a henchman was sent home: play the walk to the elevator).
  * Everything is validated with the protocol schemas before it is used.
- * Changing floors forgets the previous floor's robots.
+ * Changing operations forgets the previous operation's henchmen.
  */
 import {
   AGENT_LEAVING_MESSAGE,
@@ -17,16 +17,16 @@ import {
 } from "@regulus/protocol";
 import { useEffect } from "react";
 import type { OfficeClient } from "../../net/officeClient.ts";
-import { useFloorStore } from "../../state/floor.ts";
+import { useOperationStore } from "../../state/operation.ts";
 import { useUiStore } from "../../state/ui.ts";
 import { useAgentStore } from "./agentStore.ts";
 
 export interface AgentSyncDeps {
-  client: Pick<OfficeClient, "onFloorMessage" | "onRejected">;
+  client: Pick<OfficeClient, "onOperationMessage" | "onRejected">;
   store?: typeof useAgentStore;
-  floor?: typeof useFloorStore;
+  operation?: typeof useOperationStore;
   toast?: (input: { kind: "success" | "error" | "info"; title?: string; message: string }) => void;
-  /** A robot was sent home; start its walk to the elevator. */
+  /** A henchman was sent home; start its walk to the elevator. */
   onLeaving?: (agentId: string) => void;
 }
 
@@ -40,22 +40,22 @@ const DONE: Partial<Record<AgentCommandResult["type"], string>> = {
 /** Subscribe; returns the unsubscribe function. */
 export function syncAgentMessages(deps: AgentSyncDeps): () => void {
   const store = deps.store ?? useAgentStore;
-  const floor = deps.floor ?? useFloorStore;
+  const operation = deps.operation ?? useOperationStore;
   const toast = deps.toast ?? ((input) => useUiStore.getState().toast(input));
   const offs = [
-    deps.client.onFloorMessage(AGENT_PERMISSIONS_MESSAGE, (payload) => {
+    deps.client.onOperationMessage(AGENT_PERMISSIONS_MESSAGE, (payload) => {
       const parsed = AgentPermissions.safeParse(payload);
       if (parsed.success)
         store.getState().setPermissions(parsed.data.agentId, parsed.data.requests);
     }),
-    deps.client.onFloorMessage(AGENT_RESULT_MESSAGE, (payload) => {
+    deps.client.onOperationMessage(AGENT_RESULT_MESSAGE, (payload) => {
       const parsed = AgentCommandResult.safeParse(payload);
       if (!parsed.success) return;
       store.getState().succeeded(parsed.data);
       const done = DONE[parsed.data.type];
       if (done) toast({ kind: "info", message: done });
     }),
-    deps.client.onFloorMessage(AGENT_LEAVING_MESSAGE, (payload) => {
+    deps.client.onOperationMessage(AGENT_LEAVING_MESSAGE, (payload) => {
       const parsed = AgentLeaving.safeParse(payload);
       if (!parsed.success) return;
       deps.onLeaving?.(parsed.data.agentId);
@@ -74,11 +74,11 @@ export function syncAgentMessages(deps: AgentSyncDeps): () => void {
       }
     }),
   ];
-  let floorId = floor.getState().floorId;
+  let operationId = operation.getState().operationId;
   offs.push(
-    floor.subscribe((s) => {
-      if (s.floorId === floorId) return;
-      floorId = s.floorId;
+    operation.subscribe((s) => {
+      if (s.operationId === operationId) return;
+      operationId = s.operationId;
       store.getState().reset();
     }),
   );

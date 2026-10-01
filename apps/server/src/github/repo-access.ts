@@ -1,5 +1,5 @@
 /**
- * The seam for server-side git on floor repos (#31 worktrees, push, PR):
+ * The seam for server-side git on operation repos (#31 worktrees, push, PR):
  * where a repo lives on disk, its default branch, and — for the duration of
  * one callback — its decrypted project credential.
  *
@@ -17,7 +17,7 @@
 import type { RepoCloneStatus } from "@regulus/protocol";
 import { eq } from "drizzle-orm";
 import type { Db } from "../db/index.ts";
-import { floorRepos } from "../db/schema/index.ts";
+import { operationRepos } from "../db/schema/index.ts";
 import { RepoCredentialError, type RepoCredentialVault } from "./credentials.ts";
 import { gitAuthEnv, redactGitOutput } from "./git.ts";
 import { GitHubApiError } from "./pulls.ts";
@@ -25,10 +25,10 @@ import { repoRemoteUrl } from "./repo-ref.ts";
 
 export interface RepoCheckout {
   repoId: string;
-  floorId: string;
+  operationId: string;
   owner: string;
   name: string;
-  /** Absolute clone path, `<projectsDir>/<floor-slug>/<repo>`. */
+  /** Absolute clone path, `<projectsDir>/<operation-slug>/<repo>`. */
   workdir: string;
   defaultBranch: string;
   /** Credential-free clone remote. */
@@ -51,7 +51,7 @@ export interface RepoCredential {
 
 export interface RepoAccess {
   getRepo(repoId: string): RepoCheckout | undefined;
-  listFloorRepos(floorId: string): RepoCheckout[];
+  listOperationRepos(operationId: string): RepoCheckout[];
   /** Run `fn` with the repo's decrypted credential. Throws when the repo is unknown. */
   withRepoCredential<T>(
     repoId: string,
@@ -63,7 +63,7 @@ export class RepoNotFoundError extends Error {
   override name = "RepoNotFoundError";
 }
 
-type RepoRow = typeof floorRepos.$inferSelect;
+type RepoRow = typeof operationRepos.$inferSelect;
 
 /** The slice of the office GitHub connection that repo access needs. */
 export interface ConnectionTokens {
@@ -106,7 +106,7 @@ export function createRepoAccess(deps: {
 
   const toCheckout = (row: RepoRow): RepoCheckout => ({
     repoId: row.id,
-    floorId: row.floorId,
+    operationId: row.operationId,
     owner: row.owner,
     name: row.name,
     workdir: row.workdir,
@@ -117,18 +117,18 @@ export function createRepoAccess(deps: {
   });
 
   const row = (repoId: string) =>
-    db.select().from(floorRepos).where(eq(floorRepos.id, repoId)).get();
+    db.select().from(operationRepos).where(eq(operationRepos.id, repoId)).get();
 
   return {
     getRepo(repoId) {
       const found = row(repoId);
       return found ? toCheckout(found) : undefined;
     },
-    listFloorRepos(floorId) {
+    listOperationRepos(operationId) {
       return db
         .select()
-        .from(floorRepos)
-        .where(eq(floorRepos.floorId, floorId))
+        .from(operationRepos)
+        .where(eq(operationRepos.operationId, operationId))
         .all()
         .map(toCheckout);
     },

@@ -9,7 +9,7 @@
 #
 # It stops `office` and `backup`, puts the backup in place with scripts/restore-db.sh inside the
 # `backup` service (as the office's user, uid 1000; the current database is kept in the volume as
-# office.db.before-restore-<time>), then starts the stack again. Runners and robots keep running.
+# office.db.before-restore-<time>), then starts the stack again. Runners and henchmen keep running.
 # Same as, by hand, from deploy/:
 #   docker compose stop office backup
 #   docker compose run --rm --no-deps backup scripts/restore-db.sh /backups/<name>

@@ -1,6 +1,6 @@
 /**
  * The changes window routes over HTTP with real sessions: who may view
- * (everyone who sees the floor), who may commit and discard (the robot's
+ * (everyone who sees the operation), who may commit and discard (the henchman's
  * owner only, D12), same-origin writes, audit entries, error shapes and the
  * image response headers. The service is a double; changes.integration.test.ts
  * runs the real one against a worktree.
@@ -13,9 +13,9 @@ import { type Office, startOffice } from "../auth/test-helpers.ts";
 import {
   agents,
   auditLog,
-  floorMembers,
-  floorRepos,
-  floors,
+  operationMembers,
+  operationRepos,
+  operations,
   userProfiles,
 } from "../db/schema/index.ts";
 import { createLogger } from "../logging.ts";
@@ -27,7 +27,7 @@ type User = { id: string; cookie: string };
 let office: Office;
 let officeOwner: User;
 let admin: User;
-let robotOwner: User;
+let henchmanOwner: User;
 let member: User;
 let viewer: User;
 let outsider: User;
@@ -102,19 +102,19 @@ beforeAll(async () => {
   });
   officeOwner = await user("Olga"); // first sign-up: office owner
   admin = await user("Ada", "admin");
-  robotOwner = await user("Rob", "member");
+  henchmanOwner = await user("Rob", "member");
   member = await user("Mia", "member");
   viewer = await user("Vic", "viewer");
   outsider = await user("Otto", "member");
   viewerOwner = await user("Val", "viewer");
   const db = office.db;
-  db.insert(floors)
+  db.insert(operations)
     .values({ id: "f1", name: "F1", slug: "f1", index: 1, paletteId: "p", layoutTemplateId: "t" })
     .run();
-  db.insert(floorRepos)
+  db.insert(operationRepos)
     .values({
       id: "r1",
-      floorId: "f1",
+      operationId: "f1",
       owner: "o",
       name: "r",
       url: "https://example.invalid",
@@ -122,21 +122,21 @@ beforeAll(async () => {
     })
     .run();
   for (const [u, access] of [
-    [robotOwner, "spawn"],
+    [henchmanOwner, "spawn"],
     [member, "spawn"],
     [viewer, "view"],
     [viewerOwner, "view"],
   ] as const) {
-    db.insert(floorMembers).values({ floorId: "f1", userId: u.id, access }).run();
+    db.insert(operationMembers).values({ operationId: "f1", userId: u.id, access }).run();
   }
   for (const [id, owner] of [
-    ["a1", robotOwner],
+    ["a1", henchmanOwner],
     ["a2", viewerOwner],
   ] as const) {
     db.insert(agents)
       .values({
         id,
-        floorId: "f1",
+        operationId: "f1",
         repoId: "r1",
         deskSeatId: `s-${id}`,
         ownerUserId: owner.id,
@@ -160,9 +160,9 @@ const post = (path: string, body: unknown, u?: User, origin?: string) =>
 const commitBody = { message: "Fix it", files: [{ path: "a.txt", sig: "1:2:3:4" }] };
 
 describe("viewing", () => {
-  test("everyone who sees the floor views; only the robot's owner gets canWrite", async () => {
+  test("everyone who sees the operation views; only the henchman's owner gets canWrite", async () => {
     for (const [u, canWrite] of [
-      [robotOwner, true],
+      [henchmanOwner, true],
       [member, false],
       [viewer, false],
       [admin, false],
@@ -177,14 +177,14 @@ describe("viewing", () => {
     }
   });
 
-  test("outside the floor the robot does not exist; anonymous is 401", async () => {
+  test("outside the operation the henchman does not exist; anonymous is 401", async () => {
     expect((await get(changesPath("a1"), outsider)).status).toBe(404);
     expect((await get(`${changesPath("a1", "file")}?path=a.txt`, outsider)).status).toBe(404);
-    expect((await get(changesPath("nope"), robotOwner)).status).toBe(404);
+    expect((await get(changesPath("nope"), henchmanOwner)).status).toBe(404);
     expect((await get(changesPath("a1"))).status).toBe(401);
   });
 
-  test("a file diff for any floor viewer", async () => {
+  test("a file diff for any operation viewer", async () => {
     const res = await get(
       `${changesPath("a1", "file")}?path=${encodeURIComponent("a b.txt")}`,
       viewer,
@@ -206,8 +206,8 @@ describe("viewing", () => {
   });
 });
 
-describe("writing (D12: the robot's owner only)", () => {
-  test("office owner, admin, other members, viewers and a viewer who owns the robot are refused", async () => {
+describe("writing (D12: the henchman's owner only)", () => {
+  test("office owner, admin, other members, viewers and a viewer who owns the henchman are refused", async () => {
     for (const [u, agentId, status] of [
       [officeOwner, "a1", 403],
       [admin, "a1", 403],
@@ -230,7 +230,7 @@ describe("writing (D12: the robot's owner only)", () => {
     const res = await post(
       changesPath("a1", "commit"),
       commitBody,
-      robotOwner,
+      henchmanOwner,
       "https://evil.example",
     );
     expect(res.status).toBe(403);
@@ -240,19 +240,21 @@ describe("writing (D12: the robot's owner only)", () => {
 
   test("invalid bodies are 400", async () => {
     expect(
-      (await post(changesPath("a1", "commit"), { message: "", files: [] }, robotOwner)).status,
+      (await post(changesPath("a1", "commit"), { message: "", files: [] }, henchmanOwner)).status,
     ).toBe(400);
-    expect((await post(changesPath("a1", "discard"), { sig: null }, robotOwner)).status).toBe(400);
+    expect((await post(changesPath("a1", "discard"), { sig: null }, henchmanOwner)).status).toBe(
+      400,
+    );
   });
 
   test("the owner commits and discards; both are audited without contents", async () => {
-    const c = await post(changesPath("a1", "commit"), commitBody, robotOwner);
+    const c = await post(changesPath("a1", "commit"), commitBody, henchmanOwner);
     expect(c.status).toBe(200);
     expect(await c.json()).toEqual({ sha: "c".repeat(40), files: 2 });
     const d = await post(
       changesPath("a1", "discard"),
       { path: "a.txt", sig: "1:2:3:4" },
-      robotOwner,
+      henchmanOwner,
     );
     expect(d.status).toBe(200);
     expect(await d.json()).toEqual({ discarded: "a.txt" });
@@ -260,7 +262,7 @@ describe("writing (D12: the robot's owner only)", () => {
     const audit = office.db.select().from(auditLog).all();
     const commit = audit.find((a) => a.action === "agent.changes_commit");
     const discard = audit.find((a) => a.action === "agent.changes_discard");
-    expect(commit?.userId).toBe(robotOwner.id);
+    expect(commit?.userId).toBe(henchmanOwner.id);
     expect(commit?.targetId).toBe("a1");
     expect(commit?.metaJson).not.toContain("Fix it");
     expect(JSON.parse(discard?.metaJson ?? "{}")).toEqual({ path: "a.txt" });
@@ -268,7 +270,7 @@ describe("writing (D12: the robot's owner only)", () => {
 
   test("a conflict is reported with its files, not forced", async () => {
     failNext = new ChangesHttpError(409, "changed_since_viewed", "changed", ["a.txt"]);
-    const res = await post(changesPath("a1", "commit"), commitBody, robotOwner);
+    const res = await post(changesPath("a1", "commit"), commitBody, henchmanOwner);
     expect(res.status).toBe(409);
     expect(await res.json()).toEqual({
       error: "changed_since_viewed",

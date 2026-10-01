@@ -18,7 +18,7 @@
  * - Until the first hook of this run arrives, the pane is checked for the
  *   screens that wait for the human before hooks can fire (sign-in,
  *   onboarding, workspace trust; sign-in-screen.ts). One of them turns the
- *   robot to `waiting_input` with a fixed reason (#158).
+ *   henchman to `waiting_input` with a fixed reason (#158).
  */
 import type { AgentEvent, PermissionDecision } from "@regulus/protocol";
 import { AsyncQueue } from "../async-queue.ts";

@@ -15,7 +15,7 @@ import {
   WALL_ANCHOR_KINDS,
   WALL_DECOR_KINDS,
   type WallAnchorKind,
-} from "@regulus/floor-layout";
+} from "@regulus/room-layout";
 import { LEATHER_SEAT, STOOL_SEAT } from "./geometry/styleProps.ts";
 import type { PieceId } from "./kit.ts";
 import { LAIR_CHAIR, LAIR_MODELS, type LairModel } from "./models.ts";
@@ -55,7 +55,7 @@ const CLUTTER: Readonly<Record<string, PieceId>> = {
   books: "desk_books",
 };
 
-/** The decor styles' own pieces (styles.ts in floor-layout), by model id. */
+/** The decor styles' own pieces (styles.ts in room-layout), by model id. */
 export const STYLE_MODELS: Readonly<Record<string, LairBinding>> = {
   // Ops room: console desks and teal glow.
   "lair/ops_room/console-desk": piece("pod_desk", { surface: 0.76 }),

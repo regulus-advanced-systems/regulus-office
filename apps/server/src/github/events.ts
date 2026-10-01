@@ -113,9 +113,9 @@ export interface GitHubEvent<N extends GitHubEventName = GitHubEventName> {
   source: "webhook" | "poll";
   receivedAt: number;
   repo: GitHubRepoName | null;
-  /** Floor repo rows (and their floors) that follow this GitHub repo. */
+  /** Operation repo rows (and their operations) that follow this GitHub repo. */
   repoIds: string[];
-  floorIds: string[];
+  operationIds: string[];
   installationId: number | null;
   sender: GitHubAccount | null;
   /**

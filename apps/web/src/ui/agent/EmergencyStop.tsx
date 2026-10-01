@@ -1,23 +1,23 @@
 /**
  * Emergency stop (SPEC §14 D12, #138): office owners/admins watching someone
- * else's robot get one lever, behind a confirm. It kills the robot's session
+ * else's henchman get one lever, behind a confirm. It kills the henchman's session
  * and keeps its branch, worktree and desk; the server audits who stopped
- * whose robot and why. The robot's owner uses the ordinary Stop instead.
+ * whose henchman and why. The henchman's owner uses the ordinary Stop instead.
  */
-import type { RobotState } from "@regulus/protocol";
+import type { HenchmanState } from "@regulus/protocol";
 import { useId, useRef, useState } from "react";
 import { Button } from "../components/Button.tsx";
 import { useAgentSender } from "./agentCommands.ts";
 import { flightKey, useAgentStore } from "./agentStore.ts";
 
-export function EmergencyStop({ robot }: { robot: RobotState }) {
-  const agentId = robot.agentId;
+export function EmergencyStop({ henchman }: { henchman: HenchmanState }) {
+  const agentId = henchman.agentId;
   const send = useAgentSender();
   const [confirming, setConfirming] = useState(false);
   const reasonId = useId();
   const reasonBox = useRef<HTMLInputElement>(null);
   const busy = useAgentStore((s) => Boolean(s.inFlight[flightKey(agentId, "agent.emergencyStop")]));
-  const owner = robot.ownerName || "its owner";
+  const owner = henchman.ownerName || "its owner";
 
   if (!confirming) {
     return (

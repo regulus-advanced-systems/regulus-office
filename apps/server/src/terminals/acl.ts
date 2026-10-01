@@ -1,19 +1,19 @@
 /**
  * Terminal ACL (SPEC §8 rule 4, §14 D12), checked on every connection:
  *
- * - Anyone who can view the robot's floor may watch its terminal.
- * - Control (typing, approving in the TUI, resizing) is the robot's owner's
- *   alone (#138); office `admin`s/`owner`s watch other people's robots like
- *   everyone else (their only lever is the FloorRoom `agent.emergencyStop`).
- * - `viewer`s watch only, even their own robots.
+ * - Anyone who can view the henchman's operation may watch its terminal.
+ * - Control (typing, approving in the TUI, resizing) is the henchman's owner's
+ *   alone (#138); office `admin`s/`owner`s watch other people's henchmen like
+ *   everyone else (their only lever is the OperationRoom `agent.emergencyStop`).
+ * - `viewer`s watch only, even their own henchmen.
  *
- * "Can view the floor" is any access from floors/access.ts (owners/admins see
- * every live floor, others need a `floor_members` row, archived floors are
- * invisible), so the terminal and the FloorRoom agree on who sees a robot.
+ * "Can view the operation" is any access from operations/access.ts (owners/admins see
+ * every live operation, others need an `operation_members` row, archived operations are
+ * invisible), so the terminal and the OperationRoom agree on who sees a henchman.
  */
-import { mayControlRobot, type TerminalMode, type UserRole } from "@regulus/protocol";
+import { mayControlHenchman, type TerminalMode, type UserRole } from "@regulus/protocol";
 import type { Db } from "../db/index.ts";
-import { floorAccessFor } from "../floors/access.ts";
+import { operationAccessFor } from "../operations/access.ts";
 
 export interface TerminalUser {
   id: string;
@@ -22,37 +22,37 @@ export interface TerminalUser {
   displayName?: string;
 }
 
-/** Whether `user` may see floor `floorId` at all. */
-export type FloorVisibility = (user: TerminalUser, floorId: string) => boolean;
+/** Whether `user` may see operation `operationId` at all. */
+export type OperationVisibility = (user: TerminalUser, operationId: string) => boolean;
 
 export type TerminalDecision =
   | { ok: true }
-  /** `not_found`: the floor is invisible to the user, so the robot's existence is not revealed. */
+  /** `not_found`: the operation is invisible to the user, so the henchman's existence is not revealed. */
   | { ok: false; reason: "not_found" | "forbidden" };
 
-/** Whether `user` may take `mode` on a robot owned by `ownerUserId` on a floor they can see. */
+/** Whether `user` may take `mode` on a henchman owned by `ownerUserId` on an operation they can see. */
 export function mayUseTerminal(
   user: TerminalUser,
   ownerUserId: string,
   mode: TerminalMode,
 ): boolean {
   if (mode === "watch") return true;
-  return mayControlRobot(user, ownerUserId);
+  return mayControlHenchman(user, ownerUserId);
 }
 
 export function decideTerminalAccess(
   user: TerminalUser,
-  target: { ownerUserId: string; floorId: string },
+  target: { ownerUserId: string; operationId: string },
   mode: TerminalMode,
-  canViewFloor: FloorVisibility,
+  canViewOperation: OperationVisibility,
 ): TerminalDecision {
-  if (!canViewFloor(user, target.floorId)) return { ok: false, reason: "not_found" };
+  if (!canViewOperation(user, target.operationId)) return { ok: false, reason: "not_found" };
   return mayUseTerminal(user, target.ownerUserId, mode)
     ? { ok: true }
     : { ok: false, reason: "forbidden" };
 }
 
-/** Floor visibility from `floors` + `floor_members` via floors/access.ts. */
-export function dbFloorVisibility(db: Db): FloorVisibility {
-  return (user, floorId) => floorAccessFor(db, user, floorId) !== null;
+/** Operation visibility from `operations` + `operation_members` via operations/access.ts. */
+export function dbOperationVisibility(db: Db): OperationVisibility {
+  return (user, operationId) => operationAccessFor(db, user, operationId) !== null;
 }

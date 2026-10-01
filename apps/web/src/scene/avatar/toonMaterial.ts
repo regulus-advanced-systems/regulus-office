@@ -1,6 +1,6 @@
 /**
  * Toon shading for avatars (SPEC §12: MeshToonMaterial with a 3-4 step ramp,
- * no specular). Materials are cached per colour so the 20 robots on a floor
+ * no specular). Materials are cached per colour so the 20 henchmen in an operation
  * share programs and material objects whenever they share a colour.
  */
 import {

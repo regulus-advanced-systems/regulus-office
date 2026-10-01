@@ -1,10 +1,10 @@
 /**
  * Which queued tasks of a room start now (#37). Pure, so the rules are
- * tested without a database or robots.
+ * tested without a database or henchmen.
  *
  * Tasks are taken in queue order. A task starts when the room has a free
  * slot (`maxRunning`), its owner has one (`maxPerOwner`), a desk is free and
- * its owner may still spawn robots in the room. A task held back only by its
+ * its owner may still spawn henchmen in the room. A task held back only by its
  * owner (their slot, or their access) does not hold up the tasks behind it;
  * a full room or no free desk holds up everything.
  */
@@ -22,7 +22,7 @@ export interface PlanInput {
   running: readonly PlanTask[];
   settings: QueueSettings;
   freeDesks: number;
-  /** The owner may still spawn in this room (floor `spawn` / `manage`). */
+  /** The owner may still spawn in this room (operation `spawn` / `manage`). */
   ownerMaySpawn: (userId: string) => boolean;
 }
 

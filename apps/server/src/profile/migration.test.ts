@@ -1,6 +1,6 @@
 /**
  * The genius-avatar migration (#185): profiles from before it become the
- * default archetype, keep their robot colour as the outfit where one maps,
+ * default archetype, keep their henchman colour as the outfit where one maps,
  * and have not chosen yet, so the picker shows once.
  */
 import { afterAll, describe, expect, test } from "bun:test";

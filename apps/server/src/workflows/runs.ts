@@ -24,7 +24,7 @@ export const utcDay = (ms: number): string => new Date(ms).toISOString().slice(0
 
 export interface NewRun {
   workflowId: string;
-  floorId: string;
+  operationId: string;
   deliveryId: string;
   trigger: string;
   target: WorkflowTarget | null;
@@ -46,7 +46,7 @@ export interface RunUsage {
 }
 
 const FINISHED: WorkflowRunStatus[] = ["succeeded", "failed", "refused", "skipped", "cancelled"];
-/** Runs that count toward the daily run limit: everything that got (or will get) a robot. */
+/** Runs that count toward the daily run limit: everything that got (or will get) a henchman. */
 const COUNTED: WorkflowRunStatus[] = ["queued", "running", "succeeded", "failed", "cancelled"];
 
 function parseJson<T>(text: string | null, fallback: T): T {
@@ -58,14 +58,15 @@ function parseJson<T>(text: string | null, fallback: T): T {
   }
 }
 
-export const robotName = (runId: string): string => `Reviewer ${runId.slice(0, 4).toUpperCase()}`;
+export const henchmanName = (runId: string): string =>
+  `Reviewer ${runId.slice(0, 4).toUpperCase()}`;
 
 export function toRunView(row: RunRow, workflowName: string): WorkflowRunView {
   return {
     id: row.id,
     workflowId: row.workflowId,
     workflowName: workflowName.slice(0, 80) || "workflow",
-    floorId: row.floorId,
+    operationId: row.operationId,
     trigger: row.trigger.slice(0, 80),
     deliveryId: row.deliveryId.slice(0, 200),
     target: parseJson<WorkflowTarget | null>(row.targetJson, null),
@@ -73,7 +74,7 @@ export function toRunView(row: RunRow, workflowName: string): WorkflowRunView {
     reason: row.reason,
     provider: row.provider,
     model: row.model,
-    robot: robotName(row.id),
+    henchman: henchmanName(row.id),
     queuedAt: row.queuedAt.getTime(),
     startedAt: row.startedAt?.getTime() ?? null,
     finishedAt: row.finishedAt?.getTime() ?? null,
@@ -94,7 +95,7 @@ export class RunStore {
       .insert(workflowRuns)
       .values({
         workflowId: run.workflowId,
-        floorId: run.floorId,
+        operationId: run.operationId,
         deliveryId: run.deliveryId.slice(0, 200),
         trigger: run.trigger.slice(0, 80),
         targetKey: run.targetKey,
@@ -137,10 +138,13 @@ export class RunStore {
     };
   }
 
-  list(opts: { floorId: string; workflowId?: string; limit?: number }): WorkflowRunView[] {
+  list(opts: { operationId: string; workflowId?: string; limit?: number }): WorkflowRunView[] {
     const where = opts.workflowId
-      ? and(eq(workflowRuns.floorId, opts.floorId), eq(workflowRuns.workflowId, opts.workflowId))
-      : eq(workflowRuns.floorId, opts.floorId);
+      ? and(
+          eq(workflowRuns.operationId, opts.operationId),
+          eq(workflowRuns.workflowId, opts.workflowId),
+        )
+      : eq(workflowRuns.operationId, opts.operationId);
     return this.db
       .select({ run: workflowRuns, name: workflows.name })
       .from(workflowRuns)

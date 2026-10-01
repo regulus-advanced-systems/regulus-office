@@ -1,12 +1,12 @@
 import { describe, expect, test } from "bun:test";
+import { DECOR_STYLES, ROOM_MAX_TILES, ROOM_MIN_TILES } from "@regulus/protocol";
 import {
   COMPASS_DIRECTIONS,
   DECOR_STYLE_SPECS,
   generateRoom,
   maxDeskCount,
   type RoomLayout,
-} from "@regulus/floor-layout";
-import { DECOR_STYLES, ROOM_MAX_TILES, ROOM_MIN_TILES } from "@regulus/protocol";
+} from "@regulus/room-layout";
 import {
   COMMON_MODEL_IDS,
   floorPieceFor,
@@ -80,7 +80,7 @@ describe("generator model ids (#182) → lair art", () => {
       if (!b || !("model" in b)) throw new Error(`${id} has no model`);
       const spec = lairSitSpec(b.model);
       expect(spec, id).toBeDefined();
-      // Cushions within 3 cm of 0.33 m, so the seated robot fits every style's chair.
+      // Cushions within 3 cm of 0.33 m, so the seated henchman fits every style's chair.
       expect(Math.abs((spec?.seatTop ?? 0) * (spec?.size.h ?? 0) - 0.33), id).toBeLessThan(0.03);
       expect((spec?.backTop ?? 0) * (spec?.size.h ?? 0), id).toBeLessThanOrEqual(0.83);
     }

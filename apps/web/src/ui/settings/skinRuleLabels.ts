@@ -1,4 +1,4 @@
-/** Plain-language names for skin rule matches (#184): "Every Codex robot", "The PM". */
+/** Plain-language names for skin rule matches (#184): "Every Codex henchman", "The PM". */
 import { PROVIDER_IDS, type ProviderId, parseSkinMatch } from "@regulus/protocol";
 
 export const PROVIDER_LABELS: Readonly<Record<ProviderId, string>> = {

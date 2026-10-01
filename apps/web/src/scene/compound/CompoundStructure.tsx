@@ -29,8 +29,8 @@ export interface CompoundStructureProps {
   visibleRooms: ReadonlySet<string>;
   visibleChunks: ReadonlySet<string>;
   /**
-   * Rooms whose FloorRoom is joined, with their occupied desk seats: their
-   * layers draw the robots' laptops and the wall looks; free desks keep kit laptops.
+   * Rooms whose OperationRoom is joined, with their occupied desk seats: their
+   * layers draw the henchmen's laptops and the wall looks; free desks keep kit laptops.
    */
   joined: ReadonlyMap<string, ReadonlySet<string>>;
 }

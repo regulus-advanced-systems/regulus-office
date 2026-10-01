@@ -1,10 +1,10 @@
 /**
- * Boot-time migration from the shared floor clone (before #114) to one clone
+ * Boot-time migration from the shared operation clone (before #114) to one clone
  * per human. Runs after the AgentManager re-adopted agents: agents whose
  * workspace is still in the old layout are stopped and marked offline there
  * (adopt.ts), so nothing runs in the old layout any more.
  *
- * - docker: runner containers created with whole-floor mounts are recreated
+ * - docker: runner containers created with whole-operation mounts are recreated
  *   with only their human's own areas once idle (every boot; cheap). A busy
  *   runner keeps them until its next `mountProject`, which refuses to start
  *   anything in it while they are there.
@@ -55,12 +55,12 @@ async function subdirs(path: string): Promise<string[]> {
   }
 }
 
-/** Pre-#114 per-agent worktrees: `<worktrees>/<floor>/<agentId>`, not a human's area. */
+/** Pre-#114 per-agent worktrees: `<worktrees>/<operation>/<agentId>`, not a human's area. */
 export async function legacyWorktreeDirs(worktreesDir: string): Promise<string[]> {
   const found: string[] = [];
-  for (const floor of await subdirs(worktreesDir)) {
-    for (const name of await subdirs(join(worktreesDir, floor))) {
-      const path = join(worktreesDir, floor, name);
+  for (const operation of await subdirs(worktreesDir)) {
+    for (const name of await subdirs(join(worktreesDir, operation))) {
+      const path = join(worktreesDir, operation, name);
       // Agent ids are UUIDs; a runner id is a human's own area (the helper refuses those too).
       if (!RUNNER_ID.test(name)) found.push(path);
     }
@@ -79,7 +79,7 @@ export async function migrateLegacyLayout(deps: LegacyLayoutDeps): Promise<void>
       if (!done) {
         log.warn(
           { userId: handle.userId },
-          "runner still has whole-floor mounts from before per-human clones and is busy; " +
+          "runner still has whole-operation mounts from before per-human clones and is busy; " +
             "it gets no new agents until they stop",
         );
       }
@@ -98,11 +98,11 @@ export async function migrateLegacyLayout(deps: LegacyLayoutDeps): Promise<void>
   } catch (err) {
     log.error(
       { err: err instanceof Error ? err.message : String(err) },
-      "could not take the shared floor clones back from runner accounts; install the current " +
+      "could not take the shared operation clones back from runner accounts; install the current " +
         "office-runner-helper and sudoers rules (docs/deploy/linux-user-runner.md). Retrying next boot",
     );
     return;
   }
   if (await exists(deps.projectsDir)) await writeFile(marker, LAYOUT);
-  log.info({ dirs: dirs.length }, "shared floor clones reclaimed from runner accounts");
+  log.info({ dirs: dirs.length }, "shared operation clones reclaimed from runner accounts");
 }

@@ -1,8 +1,8 @@
 /** The office GitHub connection against a fake GitHub (#141): repo lists and token selection. */
 import { afterAll, describe, expect, test } from "bun:test";
 import { randomBytes } from "node:crypto";
-import { testDb } from "../floors/test-helpers.ts";
 import { createLogger } from "../logging.ts";
+import { testDb } from "../operations/test-helpers.ts";
 import { GitHubConnection, LIST_CACHE_MS } from "./connection.ts";
 import { ConnectionStore } from "./connection-store.ts";
 import { startFakeGitHub, testAppKey } from "./fake-github.ts";

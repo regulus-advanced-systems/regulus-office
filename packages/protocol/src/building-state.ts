@@ -1,6 +1,6 @@
 /**
  * BuildingRoom state (SPEC §6 channel 1): humans, chat, jukebox, usage
- * summary, PM robot, floor list. Shapes are zod objects; the Colyseus
+ * summary, PM henchman, operation list. Shapes are zod objects; the Colyseus
  * classes in ./schema mirror them field-for-field (see schema/lockstep.test.ts).
  */
 import { z } from "zod";
@@ -26,7 +26,7 @@ import {
 import { DECOR_STYLES } from "./room-settings-api.ts";
 
 /**
- * Robot colour set and accessory, derived on the client (scene/robots); not
+ * Henchman colour set and accessory, derived on the client (scene/henchmen); not
  * part of room state. Humans are geniuses since #185 (`GeniusLook`).
  */
 export interface AvatarLook {
@@ -63,11 +63,11 @@ export const HumanPresence = z.object({
   displayName: z.string().max(64),
   role: z.enum(USER_ROLES),
   avatar: GeniusLook,
-  /** Floor the human is currently on; the lobby has index 0. */
-  floorId: Id,
+  /** Operation the human is currently on; the lobby has index 0. */
+  operationId: Id,
   position: WorldPos,
   animation: z.enum(AVATAR_ANIMATIONS),
-  /** Free-text status such as "watching robot Ada" or "at the whiteboard". */
+  /** Free-text status such as "watching henchman Ada" or "at the whiteboard". */
   doing: z.string().max(80),
   /** Seat id when sitting (desk chair, couch), empty when standing. */
   seatId: z.string().max(128),
@@ -76,7 +76,7 @@ export const HumanPresence = z.object({
 });
 export type HumanPresence = z.infer<typeof HumanPresence>;
 
-/** Tile coordinate of a room; -1 only for a floor not yet placed (briefly, at boot). */
+/** Tile coordinate of a room; -1 only for an operation not yet placed (briefly, at boot). */
 const RoomTile = z.number().int().min(-1);
 
 /**
@@ -84,15 +84,15 @@ const RoomTile = z.number().int().min(-1);
  * the elevator/quick-travel entry, counters for its closed door, and its
  * placement (compound.ts has the grid conventions).
  */
-export const FloorSummary = z.object({
-  floorId: Id,
+export const OperationSummary = z.object({
+  operationId: Id,
   name: z.string().max(80),
   slug: z.string().max(80),
   index: Count,
   paletteId: z.string().max(32),
-  robotsWorking: Count,
-  robotsWaiting: Count,
-  robotsTotal: Count,
+  henchmenWorking: Count,
+  henchmenWaiting: Count,
+  henchmenTotal: Count,
   humansPresent: Count,
   gridX: RoomTile,
   gridY: RoomTile,
@@ -106,16 +106,16 @@ export const FloorSummary = z.object({
   buildEndsAt: TimestampMs,
   /**
    * Room settings (#182), so every client can draw a room's generated
-   * interior (#186) without joining its FloorRoom; 0 desks for the lobby.
+   * interior (#186) without joining its OperationRoom; 0 desks for the lobby.
    */
   deskCount: Count,
   decorStyle: z.enum(DECOR_STYLES),
 });
-export type FloorSummary = z.infer<typeof FloorSummary>;
+export type OperationSummary = z.infer<typeof OperationSummary>;
 
-/** The placement and build fields of a `FloorSummary`. */
+/** The placement and build fields of a `OperationSummary`. */
 export type RoomSummaryFields = Pick<
-  FloorSummary,
+  OperationSummary,
   | "gridX"
   | "gridY"
   | "width"
@@ -141,7 +141,7 @@ export const UNPLACED_ROOM: RoomSummaryFields = {
 };
 
 /** Room settings of a room summary before its settings are read (a vanilla room, #182). */
-export const DEFAULT_ROOM_SETTINGS: Pick<FloorSummary, "deskCount" | "decorStyle"> = {
+export const DEFAULT_ROOM_SETTINGS: Pick<OperationSummary, "deskCount" | "decorStyle"> = {
   deskCount: 1,
   decorStyle: "ops_room",
 };
@@ -150,8 +150,8 @@ export const ChatMessage = z.object({
   id: Id,
   userId: Id,
   displayName: z.string().max(64),
-  /** Floor the sender was on; empty for building-wide messages. */
-  floorId: z.string().max(128),
+  /** Operation the sender was on; empty for building-wide messages. */
+  operationId: z.string().max(128),
   text: z.string().max(2000),
   ts: TimestampMs,
 });
@@ -181,8 +181,8 @@ export const JukeboxState = z.object({
 });
 export type JukeboxState = z.infer<typeof JukeboxState>;
 
-/** A robot on the usage wall's leaderboard: its display name and owner only (#40). */
-export const TopRobotUsage = z.object({
+/** A henchman on the usage wall's leaderboard: its display name and owner only (#40). */
+export const TopHenchmanUsage = z.object({
   agentId: Id,
   name: z.string().max(120),
   ownerName: z.string().max(64),
@@ -190,7 +190,7 @@ export const TopRobotUsage = z.object({
   /** All tokens today: input, output, cache reads and cache writes. */
   tokens: Count,
 });
-export type TopRobotUsage = z.infer<typeof TopRobotUsage>;
+export type TopHenchmanUsage = z.infer<typeof TopHenchmanUsage>;
 
 /**
  * Office-wide usage totals shown on the tracker wall, for the office's day
@@ -208,7 +208,7 @@ export const UsageSummary = z.object({
   officeKeysCostUsdEstimate: z.number().nonnegative(),
   /** Humans with any usage today. */
   activeHumans: Count,
-  topRobots: z.array(TopRobotUsage),
+  topHenchmen: z.array(TopHenchmanUsage),
   /** Start of the office's day the totals count from; 0 until first published. */
   dayStart: TimestampMs,
   observedAt: TimestampMs,
@@ -219,11 +219,11 @@ export const PmState = z.object({
   enabled: z.boolean(),
   privilege: z.enum(PM_PRIVILEGES),
   activity: z.enum(PM_ACTIVITIES),
-  floorId: Id,
+  operationId: Id,
   position: WorldPos,
   animation: z.enum(AVATAR_ANIMATIONS),
   doing: z.string().max(80),
-  /** Robot being visited, empty otherwise. */
+  /** Henchman being visited, empty otherwise. */
   targetAgentId: z.string().max(128),
   /** 0 when no brief has been delivered yet. */
   lastBriefAt: TimestampMs,
@@ -233,14 +233,14 @@ export type PmState = z.infer<typeof PmState>;
 export const BuildingState = z.object({
   /** Keyed by Colyseus session id. */
   humans: z.record(Id, HumanPresence),
-  /** Keyed by floor id. */
-  floors: z.record(Id, FloorSummary),
+  /** Keyed by operation id. */
+  operations: z.record(Id, OperationSummary),
   /** Recent messages, oldest first; the server trims to a fixed window. */
   chat: z.array(ChatMessage),
   jukebox: JukeboxState,
   usage: UsageSummary,
   pm: PmState,
-  /** Compound grid, special rooms and corridors (SPEC §9.1); rooms are in `floors`. */
+  /** Compound grid, special rooms and corridors (SPEC §9.1); rooms are in `operations`. */
   compound: CompoundState,
   /** The lobby's blast door (#188): shared, opened by a button, shuts on a timer. */
   blastDoor: BlastDoorState,

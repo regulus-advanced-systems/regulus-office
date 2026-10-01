@@ -3,10 +3,10 @@
  * placements, so a whole room shell or corridor network draws as a handful
  * of instanced meshes. Pure functions; #186 builds the compound from these.
  *
- * Coordinates follow floor-layout: metres, a room's origin at its north-west
+ * Coordinates follow room-layout: metres, a room's origin at its north-west
  * corner, x east, z south, y up; a wall's room side faces into the room.
  */
-import type { CompassDirection } from "@regulus/floor-layout";
+import type { CompassDirection } from "@regulus/room-layout";
 import { CORRIDOR_WIDTH, TILE, WALL_THICKNESS } from "./dimensions.ts";
 import type { Vec3 } from "./geometry/builder.ts";
 import { DOOR_BEACON_POS } from "./geometry/doors.ts";

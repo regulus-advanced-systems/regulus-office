@@ -1,7 +1,7 @@
 /**
  * One card in the board panel (#36): title, state, repo, labels, people and
  * (PRs) branch, CI and review state; the markdown body and comments,
- * rendered sanitised (Markdown.tsx); "Carry to a desk"; and, for floor
+ * rendered sanitised (Markdown.tsx); "Carry to a desk"; and, for operation
  * managers, the write actions (CardActions).
  */
 import type { BoardCardDetail } from "@regulus/protocol";
@@ -51,15 +51,15 @@ export function CardDetail({
   const toast = useUiStore((s) => s.toast);
   const [detail, setDetail] = useState<BoardCardDetail | null>(null);
   const [failure, setFailure] = useState<BoardFailure | null>(null);
-  const { floorId, kind, repoId, number } = cardRef;
+  const { operationId, kind, repoId, number } = cardRef;
 
   const load = useCallback(async () => {
-    const res = await api.detail({ floorId, kind, repoId, number });
+    const res = await api.detail({ operationId, kind, repoId, number });
     if (res.ok) {
       setDetail(res.data);
       setFailure(null);
     } else setFailure(res);
-  }, [api, floorId, kind, repoId, number]);
+  }, [api, operationId, kind, repoId, number]);
 
   useEffect(() => {
     void load();

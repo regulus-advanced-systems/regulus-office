@@ -3,7 +3,7 @@
  * which own the keyboard while open. Leaving the room closes both.
  */
 import { useEffect } from "react";
-import { useFloorStore } from "../../state/floor.ts";
+import { useOperationStore } from "../../state/operation.ts";
 import { useUiStore } from "../../state/ui.ts";
 import { QueuePanel } from "./QueuePanel.tsx";
 import { QueueTaskDialog } from "./QueueTaskDialog.tsx";
@@ -15,7 +15,7 @@ export function QueueHost() {
   const add = useQueueStore((s) => s.add);
   const openOverlay = useUiStore((s) => s.openOverlay);
   const closeOverlay = useUiStore((s) => s.closeOverlay);
-  const floorId = useFloorStore((s) => s.floorId);
+  const operationId = useOperationStore((s) => s.operationId);
   const open = panelOpen || add !== null;
   useEffect(() => {
     if (!open) return;
@@ -24,10 +24,10 @@ export function QueueHost() {
   }, [open, openOverlay, closeOverlay]);
   useEffect(() => {
     // A new room: its queue UI starts closed.
-    void floorId;
+    void operationId;
     useQueueStore.getState().closePanel();
     useQueueStore.getState().closeAdd();
-  }, [floorId]);
+  }, [operationId]);
   return (
     <>
       {panelOpen && add === null && <QueuePanel />}

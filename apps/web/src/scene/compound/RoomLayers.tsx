@@ -1,26 +1,26 @@
 /**
- * The live contents of every joined room (#186, SPEC §9.1): robots at their
+ * The live contents of every joined room (#186, SPEC §9.1): henchmen at their
  * desks, laptops with their screens, the issue and PR boards, the queue
  * clipboard, the gong and the room's usage screen, drawn in the room's own
- * frame from its FloorRoom state (roomScope.ts). The room the player is in
- * is interactive and reads the floor store the HUD reads; the nearby rooms
+ * frame from its OperationRoom state (roomScope.ts). The room the player is in
+ * is interactive and reads the operation store the HUD reads; the nearby rooms
  * are view-only. Rooms are drawn in the lair looks (#183).
  */
-import { type RoomLayout, wallById } from "@regulus/floor-layout";
+import { type RoomLayout, wallById } from "@regulus/room-layout";
 import { memo, Suspense, useMemo } from "react";
 import { useShallow } from "zustand/react/shallow";
-import { useFloorStore } from "../../state/floor.ts";
-import { roomFloorStore, useRoomsStore } from "../../state/rooms.ts";
+import { useOperationStore } from "../../state/operation.ts";
+import { roomOperationStore, useRoomsStore } from "../../state/rooms.ts";
 import { BoardLayer } from "../boards/BoardLayer.tsx";
 import { anchorPlacement } from "../furniture/placement.ts";
 import { GongLayer } from "../gong/GongLayer.tsx";
+import { HenchmanLayer } from "../henchmen/HenchmanLayer.tsx";
+import { DepartingHenchmen } from "../henchmen/sendHome/DepartingHenchmen.tsx";
 import { wallPieceFor } from "../lair/generatorModels.ts";
 import { WALL_RELIEF } from "../lair/geometry/walls.ts";
 import { LairBoardLook, LairClipboardLook, LairGongLook } from "../lair/looks/LairLooks.tsx";
 import { LaptopLayer } from "../laptops/LaptopLayer.tsx";
 import { QueueLayer } from "../queue/QueueClipboard.tsx";
-import { RobotLayer } from "../robots/RobotLayer.tsx";
-import { DepartingRobots } from "../robots/sendHome/DepartingRobots.tsx";
 import { type RoomScope, RoomScopeContext } from "../roomScope.ts";
 import { UsageScreen } from "../usage/UsageScreen.tsx";
 import { lairAnchors } from "./lairAnchors.ts";
@@ -67,10 +67,10 @@ const JoinedRoom = memo(function JoinedRoom({
     () =>
       layout
         ? {
-            floorId: id,
+            operationId: id,
             origin: placed.room.origin,
             interactive,
-            store: interactive ? useFloorStore : roomFloorStore(id),
+            store: interactive ? useOperationStore : roomOperationStore(id),
             wallDepth: wallDepth(layout),
           }
         : null,
@@ -81,13 +81,13 @@ const JoinedRoom = memo(function JoinedRoom({
     <RoomScopeContext.Provider value={scope}>
       <group name={`room-${id}`} position={[placed.room.origin.x, 0, placed.room.origin.z]}>
         <Suspense fallback={null}>
-          <RobotLayer template={layout} anchorsFor={lairAnchors} />
+          <HenchmanLayer template={layout} anchorsFor={lairAnchors} />
           <LaptopLayer template={layout} freeDesks={false} />
           <BoardLayer template={layout} look={LairBoardLook} carried={false} />
           <QueueLayer template={layout} look={LairClipboardLook} />
           <GongLayer template={layout} look={LairGongLook} />
           <UsageScreens layout={layout} depth={scope.wallDepth} />
-          {interactive && <DepartingRobots template={layout} />}
+          {interactive && <DepartingHenchmen template={layout} />}
         </Suspense>
       </group>
     </RoomScopeContext.Provider>
@@ -96,7 +96,7 @@ const JoinedRoom = memo(function JoinedRoom({
 
 export function RoomLayers({ rooms }: { rooms: readonly PlacedRoom[] }) {
   const joined = useRoomsStore(useShallow((s) => Object.keys(s.states).sort()));
-  const current = useFloorStore((s) => s.floorId);
+  const current = useOperationStore((s) => s.operationId);
   const byId = useMemo(() => new Map(rooms.map((r) => [r.room.id, r])), [rooms]);
   return (
     <group name="room-layers">

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, test } from "bun:test";
 import { act } from "react";
 import { MemoryRouter } from "react-router";
-import { useFloorsStore } from "../../state/floors.ts";
+import { useOperationsStore } from "../../state/operations.ts";
 import { useUiStore } from "../../state/ui.ts";
 import { click, mount, useDom } from "../a11y/dom.ts";
 import { UiKitPage } from "./UiKitPage.tsx";
@@ -9,11 +9,11 @@ import { UiKitPage } from "./UiKitPage.tsx";
 useDom();
 
 describe("/ui-kit", () => {
-  // The elevator filters by the REST floor list; start without one. The page mounts the live
+  // The elevator filters by the REST operation list; start without one. The page mounts the live
   // Toaster, which shows the shared store's queue: drop toasts an earlier test left (#229).
   beforeEach(() =>
     act(() => {
-      useFloorsStore.getState().clear();
+      useOperationsStore.getState().clear();
       useUiStore.getState().clearToasts();
     }),
   );

@@ -4,11 +4,11 @@
  * `template.wallDecor`, hung like anchors (`anchorPlacement`).
  */
 import {
-  type FloorTemplate,
   type Palette,
+  type RoomTemplate,
   type WallDecor as WallDecorItem,
   wallById,
-} from "@regulus/floor-layout";
+} from "@regulus/room-layout";
 import { useEffect, useMemo } from "react";
 import type { MeshToonMaterial } from "three";
 import { createToonMaterial, darken } from "../materials/toon.ts";
@@ -118,7 +118,7 @@ function Piece({ item, m }: { item: WallDecorItem; m: Mats }) {
   }
 }
 
-export function WallDecor({ template, palette }: { template: FloorTemplate; palette: Palette }) {
+export function WallDecor({ template, palette }: { template: RoomTemplate; palette: Palette }) {
   const m = useMemo(() => {
     const out = {} as Mats;
     for (const k of Object.keys(DECOR_COLORS) as (keyof typeof DECOR_COLORS)[])

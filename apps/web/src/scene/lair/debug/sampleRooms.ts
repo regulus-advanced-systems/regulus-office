@@ -6,8 +6,9 @@
  * (a console bank, a tape mainframe, lockers and some clutter) in its free
  * wall space, and a laptop at every desk seat. Pure data.
  */
-import { generateRoom, HEADING, type RoomLayout } from "@regulus/floor-layout";
+
 import { DECOR_STYLES, type DecorStyle } from "@regulus/protocol";
+import { generateRoom, HEADING, type RoomLayout } from "@regulus/room-layout";
 import { lairModelScene } from "../components/LairModels.tsx";
 import { TILE } from "../dimensions.ts";
 import type { Vec3 } from "../geometry/builder.ts";

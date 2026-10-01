@@ -3,15 +3,15 @@
  * picks a genius by keyboard in the first-login picker (#185), mints an invite in the UI, a second browser joins through the link, both
  * reach /office and see each other's genius (and a genius changed in Settings at once), one walks and the other sees it move,
  * chat crosses between them and `/` search finds it (#41), the first-person view toggles on V and back,
- * the owner's robot turns to follow the mouse and walks face-first to a click,
- * the owner adds a floor bound to a (local) repo and rides to it, Floor
- * settings and Add floor fit a 1280×720 window with the round X in view
+ * the owner turns to follow the mouse and walks face-first to a click,
+ * the owner adds an operation bound to a (local) repo and rides to it, Operation
+ * settings and Add operation fit a 1280×720 window with the round X in view
  * (#149), clicking a free desk there opens the spawn dialog, whose agent.spawn gets
- * an answer from the server (no agent CLI runs in e2e), and a second floor
+ * an answer from the server (no agent CLI runs in e2e), and a second operation
  * is archived, restored and deleted for good, files included (#150). Last, with a (fake) org
  * token connected, the issue board fills from GitHub, a card is opened and carried to a free
  * desk, and the spawn dialog opens prefilled from it (#36). And merging a PR on the PR board
- * rings the merge gong, with confetti and any robots cheering and sitting back as they were;
+ * rings the merge gong, with confetti and any henchmen cheering and sitting back as they were;
  * the gong can be banged by hand, rate-limited (#43). Then the owner presses the lobby's
  * blast door button: it opens for the member's browser too, the owner walks out onto the dock,
  * the door shuts by itself after the (shortened) open time and the beach is cut off again (#188).
@@ -380,18 +380,18 @@ test("Z, C and a right-drag turn the camera, E does not; the wheel zooms out to 
   await cameraSettled(ownerPage);
 });
 
-test("the robot turns to follow the cursor and walks face-first to a click", async () => {
+test("the player turns to follow the cursor and walks face-first to a click", async () => {
   await ownerPage.bringToFront();
   const start = await localPose(ownerPage);
   const at = start && (await screenPointOf(ownerPage, start));
-  if (!start || !at) throw new Error("local robot missing");
+  if (!start || !at) throw new Error("local player missing");
 
-  /** Point the mouse at a viewport spot; the standing robot ends up facing the floor under it. */
+  /** Point the mouse at a viewport spot; the standing player ends up facing the floor under it. */
   const faceCursorAt = async (x: number, y: number) => {
     await ownerPage.mouse.move(x, y, { steps: 4 });
     const ground = await groundUnder(ownerPage, x, y);
     const self = await localPose(ownerPage);
-    if (!ground || !self) throw new Error("cursor ground point or robot missing");
+    if (!ground || !self) throw new Error("cursor ground point or player missing");
     const want = headingToward(self, ground);
     await expect
       .poll(async () => angleBetween((await localPose(ownerPage))?.heading ?? Number.NaN, want))
@@ -399,7 +399,7 @@ test("the robot turns to follow the cursor and walks face-first to a click", asy
     return want;
   };
 
-  // Sweep the cursor around the robot: the heading follows it.
+  // Sweep the cursor around the player: the heading follows it.
   const right = await faceCursorAt(at.x + 180, at.y + 60);
   const left = await faceCursorAt(at.x - 180, at.y + 60);
   expect(angleBetween(right, left)).toBeGreaterThan(0.5);
@@ -412,7 +412,7 @@ test("the robot turns to follow the cursor and walks face-first to a click", asy
   await ownerPage.waitForTimeout(400);
   expect((await localPose(ownerPage))?.heading).toBeCloseTo(settled, 5);
 
-  // Click open floor in the lobby: the robot walks there, facing where it goes.
+  // Click open floor in the lobby: the player walks there, facing where it goes.
   const lobby = (await navRooms(ownerPage)).find((r) => r.kind === "lobby");
   if (!lobby) throw new Error("lobby missing");
   const target = { x: lobby.x + lobby.w / 2 - 4, z: lobby.z + lobby.d / 2 + 2 };
@@ -438,15 +438,15 @@ test("the robot turns to follow the cursor and walks face-first to a click", asy
 
   // Standing again, it turns back toward the cursor.
   const there = await screenPointOf(ownerPage, target);
-  if (!there) throw new Error("robot not on screen");
+  if (!there) throw new Error("player not on screen");
   await faceCursorAt(there.x, there.y - 160);
 });
 
-test("the owner adds a floor in build mode: a refused spot, then placed, built and walked into (#186, #187)", async () => {
+test("the owner adds an operation in build mode: a refused spot, then placed, built and walked into (#186, #187)", async () => {
   test.skip(!process.env.E2E_DATA_DIR, "needs the locally started server (local git remotes)");
   createRemoteRepo(process.env.E2E_DATA_DIR ?? "", "octo", "hello");
   await ownerPage.bringToFront();
-  // Add floor continues into build mode (#187): the ghost starts on a free spot.
+  // Add operation continues into build mode (#187): the ghost starts on a free spot.
   const first = await openBuildMode(ownerPage, "Apollo", "octo/hello");
   expect(first).toMatchObject({ kind: "create", server: { ok: true } });
   const status = ownerPage.getByTestId("build-status");
@@ -536,7 +536,7 @@ test("the owner adds a floor in build mode: a refused spot, then placed, built a
     }
     throw new Error("walking to Apollo");
   }).toPass({ timeout: 90_000, intervals: [700] });
-  await expect(ownerPage.locator(".rg-topbar__floor")).toHaveText("Apollo");
+  await expect(ownerPage.locator(".rg-topbar__operation")).toHaveText("Apollo");
   await expect(ownerPage.getByRole("list", { name: "Work in this operation" })).toBeVisible();
   await wheelZoomTo(ownerPage, zoom);
   // The perf probe (#190): frame times in a room, report only (tests/e2e/perfProbe.ts).
@@ -562,8 +562,8 @@ test("the owner adds a floor in build mode: a refused spot, then placed, built a
   await expect.poll(() => remoteHumans(memberPage)).toHaveLength(1);
 });
 
-test("Floor settings and Add floor fit a 1280×720 window with the X in view", async () => {
-  test.skip(!process.env.E2E_DATA_DIR, "needs the floor from the previous step");
+test("Operation settings and Add operation fit a 1280×720 window with the X in view", async () => {
+  test.skip(!process.env.E2E_DATA_DIR, "needs the operation from the previous step");
   await ownerPage.bringToFront();
   await ownerPage.setViewportSize({ width: 1280, height: 720 });
   const rooms = ownerPage.getByRole("navigation", { name: "Rooms" });
@@ -598,15 +598,15 @@ test("Floor settings and Add floor fit a 1280×720 window with the X in view", a
 });
 
 test("clicking a free desk opens the spawn dialog and the server answers agent.spawn", async () => {
-  test.skip(!process.env.E2E_DATA_DIR, "needs the floor from the previous step");
+  test.skip(!process.env.E2E_DATA_DIR, "needs the operation from the previous step");
   await ownerPage.bringToFront();
-  // Quick travel to Apollo's door and walk in; the HUD counters appear once its FloorRoom is in.
+  // Quick travel to Apollo's door and walk in; the HUD counters appear once its OperationRoom is in.
   await travelInto(ownerPage, "Apollo");
 
   await expect.poll(() => freeDeskPoint(ownerPage)).not.toBeNull();
   const desk = await freeDeskPoint(ownerPage);
   if (!desk) throw new Error("no free desk in the scene");
-  // A runner may take the spawn (the robot then sits there); the board step picks another desk.
+  // A runner may take the spawn (the henchman then sits there); the board step picks another desk.
   spawnSeat = desk.seatId;
   await ownerPage.mouse.click(desk.x, desk.y);
   const dialog = ownerPage.getByRole("dialog", { name: "Spawn a henchman" });
@@ -617,7 +617,7 @@ test("clicking a free desk opens the spawn dialog and the server answers agent.s
   await expect(dialog.locator('input[type="password"]')).toHaveCount(0);
   await dialog.getByRole("button", { name: "Spawn henchman" }).click();
   // Without an agent CLI in the e2e server the spawn is refused (shown in the
-  // dialog), unless a runner took it, in which case the robot sits down.
+  // dialog), unless a runner took it, in which case the henchman sits down.
   await expect(dialog.getByRole("alert").or(ownerPage.getByText("Henchman spawned"))).toBeVisible({
     timeout: 30_000,
   });
@@ -627,13 +627,13 @@ test("clicking a free desk opens the spawn dialog and the server answers agent.s
 });
 
 test("a room manager adds a desk in room settings; the room shows it live (#187)", async () => {
-  test.skip(!process.env.E2E_DATA_DIR, "needs the floor from the previous step");
+  test.skip(!process.env.E2E_DATA_DIR, "needs the operation from the previous step");
   await ownerPage.bringToFront();
   const apollo = await walkInto(ownerPage, "Apollo");
   await addDeskInRoomSettings(ownerPage, apollo.id, "Apollo");
 });
 
-test("the owner archives, restores and deletes a floor; its files go with it", async () => {
+test("the owner archives, restores and deletes an operation; its files go with it", async () => {
   test.skip(!process.env.E2E_DATA_DIR, "needs the locally started server (local git remotes)");
   const dataDir = process.env.E2E_DATA_DIR ?? "";
   await ownerPage.bringToFront();
@@ -668,12 +668,12 @@ test("the owner archives, restores and deletes a floor; its files go with it", a
   await inQuickTravel(1);
   const mirror = join(dataDir, "projects", "hermes");
   expect(existsSync(join(mirror, "hello", ".git"))).toBe(true);
-  // A human's area on the floor, as a spawn would leave it.
+  // A human's area on the operation, as a spawn would leave it.
   const area = join(dataDir, "worktrees", "hermes", "u1", "_clones", "hello");
   mkdirSync(area, { recursive: true });
   writeFileSync(join(area, "work.txt"), "work\n");
 
-  // Archive from the Danger zone of Floor settings: its room goes from the compound, files kept.
+  // Archive from the Danger zone of Operation settings: its room goes from the compound, files kept.
   const settings = ownerPage.getByRole("dialog", { name: "Operation settings" });
   await openSettings();
   await settings.getByRole("button", { name: "Archive operation" }).click();
@@ -709,10 +709,10 @@ test("the owner archives, restores and deletes a floor; its files go with it", a
   await expect
     .poll(async () => (await navRooms(ownerPage)).some((r) => r.name === "Hermes"))
     .toBe(false);
-  // The dialog closes as soon as the floor is archived (step one of the delete).
+  // The dialog closes as soon as the operation is archived (step one of the delete).
   await expect.poll(() => existsSync(mirror)).toBe(false);
   await expect.poll(() => existsSync(join(dataDir, "worktrees", "hermes"))).toBe(false);
-  // The other floor is untouched.
+  // The other operation is untouched.
   expect(existsSync(join(dataDir, "projects", "apollo", "hello", ".git"))).toBe(true);
   expect((await navRooms(ownerPage)).some((r) => r.name === "Apollo")).toBe(true);
 });
@@ -807,11 +807,11 @@ test("a card from the issue board carried to a free desk opens the spawn dialog 
   }
 });
 
-test("a PR merged on the board rings the gong; robots cheer and sit back as they were (#43)", async () => {
+test("a PR merged on the board rings the gong; henchmen cheer and sit back as they were (#43)", async () => {
   test.skip(!process.env.E2E_DATA_DIR, "needs the locally started server and its fake GitHub");
   await checkMergeGong(ownerPage, {
     githubPort: Number(process.env.E2E_GITHUB_PORT),
-    floor: "Apollo",
+    operation: "Apollo",
   });
 });
 

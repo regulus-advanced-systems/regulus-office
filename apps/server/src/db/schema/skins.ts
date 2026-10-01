@@ -1,6 +1,6 @@
 /**
  * Admin-set henchman skins (SPEC §5 `skin_rules`, §9.3 D22; #184): a rule
- * matches robots by `role:pm`, `office_agent:<id>` or `provider:<id>` and
+ * matches henchmen by `role:pm`, `office_agent:<id>` or `provider:<id>` and
  * gives them a skin from the built-in set; the best rule wins by priority
  * (protocol `resolveSkin`).
  */

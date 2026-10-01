@@ -1,9 +1,9 @@
 /** The merge gong's client side (#43): where it hangs, its timing, its synth and its messages. */
 import { describe, expect, test } from "bun:test";
-import { FLOOR_TIERS, interactables, lobbyTemplate, templateForTier } from "@regulus/floor-layout";
 import type { CommandRejected } from "@regulus/protocol";
+import { interactables, lobbyTemplate, ROOM_TIERS, templateForTier } from "@regulus/room-layout";
 import { create } from "zustand";
-import { CONFETTI_CAPACITY, ConfettiField } from "../robots/confetti.ts";
+import { CONFETTI_CAPACITY, ConfettiField } from "../henchmen/confetti.ts";
 import { GONG_INTERACT_RADIUS, gongAnchors, gongInReach } from "./gongAnchor.ts";
 
 const BOARD_LIKE = new Set(["issue_board", "pr_board", "queue_clipboard"]);
@@ -27,21 +27,18 @@ import {
 } from "./timing.ts";
 
 describe("gong anchor", () => {
-  test.each([...FLOOR_TIERS])(
-    "the %s room has one gong, reachable from its stand point",
-    (tier) => {
-      const [gong, ...rest] = gongAnchors(templateForTier(tier));
-      expect(rest).toEqual([]);
-      if (!gong) throw new Error("no gong");
-      expect(gongInReach([gong], gong.stand)).toBe(gong);
-      expect(gongInReach([gong], { x: gong.stand.x + 2, z: gong.stand.z })).toBeNull();
-      // The confetti point is between the wall and the stand point.
-      const toWall = Math.hypot(gong.front.x - gong.stand.x, gong.front.z - gong.stand.z);
-      expect(toWall).toBeCloseTo(gong.anchor.approach - 0.3, 6);
-    },
-  );
+  test.each([...ROOM_TIERS])("the %s room has one gong, reachable from its stand point", (tier) => {
+    const [gong, ...rest] = gongAnchors(templateForTier(tier));
+    expect(rest).toEqual([]);
+    if (!gong) throw new Error("no gong");
+    expect(gongInReach([gong], gong.stand)).toBe(gong);
+    expect(gongInReach([gong], { x: gong.stand.x + 2, z: gong.stand.z })).toBeNull();
+    // The confetti point is between the wall and the stand point.
+    const toWall = Math.hypot(gong.front.x - gong.stand.x, gong.front.z - gong.stand.z);
+    expect(toWall).toBeCloseTo(gong.anchor.approach - 0.3, 6);
+  });
 
-  test.each([...FLOOR_TIERS])(
+  test.each([...ROOM_TIERS])(
     "in the %s room no other E target reaches the gong's stand",
     (tier) => {
       const t = templateForTier(tier);
@@ -75,7 +72,7 @@ describe("timing", () => {
   const ring = { at: 1000, strikes: 1 };
   const triple = { at: 1000, strikes: 3 };
 
-  test("robots cheer for 3 s from the ring, not with reduced motion", () => {
+  test("henchmen cheer for 3 s from the ring, not with reduced motion", () => {
     expect(cheerActive(ring, 999, false)).toBe(false);
     expect(cheerActive(ring, 1000, false)).toBe(true);
     expect(cheerActive(ring, 1000 + CHEER_MS - 1, false)).toBe(true);
@@ -181,7 +178,7 @@ function fakeAudio() {
 describe("confetti", () => {
   test("a ring's bursts are gone within 3 s, in a fixed pool", () => {
     const field = new ConfettiField(CONFETTI_CAPACITY, () => 0.5);
-    // The gong's burst plus one over each of ten robots: more than the pool holds.
+    // The gong's burst plus one over each of ten henchmen: more than the pool holds.
     field.burst({ x: 0, y: 2, z: 0 }, GONG_CONFETTI);
     for (let i = 0; i < 10; i++) field.burst({ x: i, y: 1.9, z: 0 }, 30);
     expect(field.particles).toHaveLength(CONFETTI_CAPACITY);
@@ -236,11 +233,11 @@ describe("synth", () => {
 
 describe("messages", () => {
   function setup() {
-    const floor = create<{ floorId: string | null }>()(() => ({ floorId: "f1" }));
+    const operation = create<{ operationId: string | null }>()(() => ({ operationId: "f1" }));
     const listeners = new Map<string, (payload: unknown) => void>();
     let rejected: ((n: CommandRejected) => void) | null = null;
     const client = {
-      onFloorMessage(type: string, fn: (payload: unknown) => void) {
+      onOperationMessage(type: string, fn: (payload: unknown) => void) {
         listeners.set(type, fn);
         return () => listeners.delete(type);
       },
@@ -256,45 +253,45 @@ describe("messages", () => {
     useGongStore.setState({ ring: null, strikes: 0 });
     const off = syncGong({
       client,
-      floor: floor as never,
+      operation: operation as never,
       play: (n) => played.push(n),
       toast: (t) => toasts.push(t),
     });
     const send = (type: string, payload: unknown) => listeners.get(type)?.(payload);
-    return { floor, send, played, toasts, off, reject: (n: CommandRejected) => rejected?.(n) };
+    return { operation, send, played, toasts, off, reject: (n: CommandRejected) => rejected?.(n) };
   }
-  const merged = { floorId: "f1", repoId: "r1", number: 8, title: "Oil", url: "", at: 1 };
+  const merged = { operationId: "f1", repoId: "r1", number: 8, title: "Oil", url: "", at: 1 };
 
   test("a merge rings once and toasts; a queue triple-rings; a bang just rings", () => {
     const s = setup();
     s.send("pr.merged", merged);
-    expect(useGongStore.getState().ring).toMatchObject({ floorId: "f1", cause: "merge" });
+    expect(useGongStore.getState().ring).toMatchObject({ operationId: "f1", cause: "merge" });
     expect(s.toasts).toEqual([
       { kind: "success", title: "Pull request merged", message: "#8 Oil" },
     ]);
-    s.send("gong.ring", { floorId: "f1", cause: "queue_empty", strikes: 3, at: 2 });
-    s.send("gong.ring", { floorId: "f1", cause: "bang", strikes: 1, by: "Mia", at: 3 });
+    s.send("gong.ring", { operationId: "f1", cause: "queue_empty", strikes: 3, at: 2 });
+    s.send("gong.ring", { operationId: "f1", cause: "bang", strikes: 1, by: "Mia", at: 3 });
     expect(s.played).toEqual([1, 3, 1]);
     expect(useGongStore.getState().strikes).toBe(5);
     expect(s.toasts).toHaveLength(2);
     s.off();
   });
 
-  test("malformed messages and other floors' messages are ignored", () => {
+  test("malformed messages and other operations' messages are ignored", () => {
     const s = setup();
     s.send("pr.merged", { ...merged, number: -1 });
-    s.send("pr.merged", { ...merged, floorId: "f2" });
-    s.send("gong.ring", { floorId: "f1", cause: "party", strikes: 1, at: 1 });
-    s.send("gong.ring", { floorId: "f1", cause: "bang", strikes: 9, at: 1 });
+    s.send("pr.merged", { ...merged, operationId: "f2" });
+    s.send("gong.ring", { operationId: "f1", cause: "party", strikes: 1, at: 1 });
+    s.send("gong.ring", { operationId: "f1", cause: "bang", strikes: 9, at: 1 });
     expect(s.played).toEqual([]);
     expect(useGongStore.getState().ring).toBeNull();
     s.off();
   });
 
-  test("changing floors forgets the ring; a refused bang says why", () => {
+  test("changing operations forgets the ring; a refused bang says why", () => {
     const s = setup();
     s.send("pr.merged", merged);
-    s.floor.setState({ floorId: "f2" });
+    s.operation.setState({ operationId: "f2" });
     expect(useGongStore.getState().ring).toBeNull();
     s.reject({ type: "gong.bang", reason: "The gong is still ringing." });
     s.reject({ type: "agent.stop", reason: "nope" });
@@ -303,7 +300,7 @@ describe("messages", () => {
     s.off();
   });
 
-  test("bangGong sends gong.bang, and survives not being on a floor", () => {
+  test("bangGong sends gong.bang, and survives not being in an operation", () => {
     const sent: string[] = [];
     expect(bangGong((type) => sent.push(type))).toBe(true);
     expect(sent).toEqual(["gong.bang"]);

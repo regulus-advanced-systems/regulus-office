@@ -16,7 +16,7 @@ import {
   legacyDeskCount,
   ROOM_LAYOUT_ID,
   roomDeskSeatIds,
-} from "@regulus/floor-layout";
+} from "@regulus/room-layout";
 
 const q = (v: string) => `'${v.replaceAll("'", "''")}'`;
 const BREAK = "--> statement-breakpoint";

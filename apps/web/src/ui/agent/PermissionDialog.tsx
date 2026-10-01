@@ -1,13 +1,13 @@
 /**
  * Permission prompt (#33, SPEC §7 `permission_request`): a GDT modal that
- * shows exactly what the robot wants to do (the tool and the full command or
+ * shows exactly what the henchman wants to do (the tool and the full command or
  * file summary) with the options the agent offers: allow once, allow always,
- * reject. It pops up for the robot's controller when a request arrives and
+ * reject. It pops up for the henchman's controller when a request arrives and
  * from the raised hand in the panel. Only controllers ever receive the
  * requests (SPEC §8 rule 4), so nothing here is shown to watchers.
  */
 import type { PendingPermission, PermissionDecision } from "@regulus/protocol";
-import { useFloorStore } from "../../state/floor.ts";
+import { useOperationStore } from "../../state/operation.ts";
 import { Button, type ButtonVariant } from "../components/Button.tsx";
 import { Modal } from "../components/Modal.tsx";
 import { useAgentSender } from "./agentCommands.ts";
@@ -40,14 +40,14 @@ export function PermissionDialog({ now = Date.now }: { now?: () => number }) {
   );
   const refusal = useAgentStore((s) => (agentId ? s.refusal[agentId] : undefined));
   const close = useAgentStore((s) => s.closePermissionPrompt);
-  const robot = useFloorStore((s) => (agentId ? s.state?.robots[agentId] : undefined));
+  const henchman = useOperationStore((s) => (agentId ? s.state?.henchmen[agentId] : undefined));
   const send = useAgentSender();
   const request = requests[0];
   const open = Boolean(agentId && request);
   useAgentOverlay(open, "agent-permission");
   if (!agentId || !request) return null;
 
-  const who = robot?.taskTitle ? `“${robot.taskTitle}”` : "This henchman";
+  const who = henchman?.taskTitle ? `“${henchman.taskTitle}”` : "This henchman";
   const expiry = expiresIn(request, now());
   const answer = (decision: PermissionDecision) =>
     send("agent.approve", { agentId, requestId: request.requestId, decision });

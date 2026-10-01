@@ -1,6 +1,6 @@
 /**
  * BuildingRoom (SPEC §6 channel 1): one per office. Human presence, chat,
- * the floor list with counters, the office usage summary (#40). Jukebox and
+ * the operation list with counters, the office usage summary (#40). Jukebox and
  * PM state are part of the schema but stay at their defaults until their
  * milestones.
  *
@@ -15,10 +15,10 @@ import {
   type ClientCommand,
   COMMAND_REJECTED_MESSAGE,
   type CommandRejected,
-  FloorSummarySchema,
   type GeniusLookValue,
   HumanPresenceSchema,
-  LOBBY_FLOOR_ID,
+  LOBBY_OPERATION_ID,
+  OperationSummarySchema,
   type UsageSummary,
 } from "@regulus/protocol";
 import {
@@ -33,7 +33,7 @@ import { CHAT_REPLAY, type ChatStore } from "../chat/store.ts";
 import type { RoomClient, RoomDefinition, RoomHandle } from "../transport.ts";
 import { type BlastDoorOptions, createBlastDoor } from "./blast-door.ts";
 import { checkCommand, wrapHeading } from "./commands.ts";
-import { type FloorRecord, type FloorSource, isKnownFloor } from "./floors.ts";
+import { isKnownOperation, type OperationRecord, type OperationSource } from "./operations.ts";
 import { RateLimiter } from "./rate-limiter.ts";
 
 export type BuildingState = InstanceType<typeof BuildingStateSchema>;
@@ -52,18 +52,18 @@ const SWEEP_MS = 100;
 
 export interface BuildingRoomDeps {
   chat: ChatStore;
-  floors: FloorSource;
+  operations: OperationSource;
   logger: Logger;
   now?: () => number;
-  /** May this user go to this floor (lobby excluded)? Default: yes. */
-  canVisit?(user: RoomAuthUser, floorId: string): boolean;
+  /** May this user go to this operation (lobby excluded)? Default: yes. */
+  canVisit?(user: RoomAuthUser, operationId: string): boolean;
   /** The lobby's blast door (#188): open time and the audit of presses. */
   blastDoor?: BlastDoorOptions;
 }
 
 export interface BuildingRoom extends RoomDefinition<BuildingState, BuildingJoinOptions> {
-  /** Re-read floors and robot counters from the source into room state. */
-  refreshFloors(): Promise<void>;
+  /** Re-read operations and henchman counters from the source into room state. */
+  refreshOperations(): Promise<void>;
   /** Send a message to every connected client of one human (notifications, #42). */
   sendToUser(userId: string, type: string, payload: unknown): void;
   /** Office usage totals and leaderboard for the usage wall (#40); never per-human data. */
@@ -91,11 +91,11 @@ interface ClientBookkeeping {
 }
 
 export function createBuildingRoom(deps: BuildingRoomDeps): BuildingRoom {
-  const { chat, floors: floorSource, logger } = deps;
+  const { chat, operations: operationSource, logger } = deps;
   const now = deps.now ?? (() => Date.now());
   const moveLimiter = new RateLimiter({ maxHz: MOVE_MAX_HZ, now: () => performance.now() });
   const books = new Map<string, ClientBookkeeping>();
-  let known: FloorRecord[] = [];
+  let known: OperationRecord[] = [];
   let usage: UsageSummary | undefined;
   let compound: CompoundSnapshot | undefined;
   let handle: RoomHandle<BuildingState> | undefined;
@@ -112,35 +112,38 @@ export function createBuildingRoom(deps: BuildingRoomDeps): BuildingRoom {
   const recountHumans = () => {
     if (!handle) return;
     const counts = new Map<string, number>();
-    handle.state.humans.forEach((h) => counts.set(h.floorId, (counts.get(h.floorId) ?? 0) + 1));
-    handle.state.floors.forEach((f) => {
-      const n = counts.get(f.floorId) ?? 0;
+    handle.state.humans.forEach((h) =>
+      counts.set(h.operationId, (counts.get(h.operationId) ?? 0) + 1),
+    );
+    handle.state.operations.forEach((f) => {
+      const n = counts.get(f.operationId) ?? 0;
       if (f.humansPresent !== n) f.humansPresent = n;
     });
   };
 
-  const refreshFloors = async () => {
-    known = await floorSource.listFloors();
+  const refreshOperations = async () => {
+    known = await operationSource.listOperations();
     if (!handle) return;
     const seen = new Set<string>();
     for (const f of known) {
-      seen.add(f.floorId);
-      const entry = handle.state.floors.get(f.floorId) ?? new FloorSummarySchema();
-      entry.floorId = f.floorId;
+      seen.add(f.operationId);
+      const entry = handle.state.operations.get(f.operationId) ?? new OperationSummarySchema();
+      entry.operationId = f.operationId;
       entry.name = f.name;
       entry.slug = f.slug;
       entry.index = f.index;
       entry.paletteId = f.paletteId;
-      entry.robotsWorking = f.robotsWorking;
-      entry.robotsWaiting = f.robotsWaiting;
-      entry.robotsTotal = f.robotsTotal;
+      entry.henchmenWorking = f.henchmenWorking;
+      entry.henchmenWaiting = f.henchmenWaiting;
+      entry.henchmenTotal = f.henchmenTotal;
       if (entry.deskCount !== f.deskCount) entry.deskCount = f.deskCount;
       if (entry.decorStyle !== f.decorStyle) entry.decorStyle = f.decorStyle;
-      applyRoomFields(entry, compound?.rooms.get(f.floorId));
-      if (!handle.state.floors.has(f.floorId)) handle.state.floors.set(f.floorId, entry);
+      applyRoomFields(entry, compound?.rooms.get(f.operationId));
+      if (!handle.state.operations.has(f.operationId))
+        handle.state.operations.set(f.operationId, entry);
     }
-    for (const id of [...handle.state.floors.keys()])
-      if (!seen.has(id)) handle.state.floors.delete(id);
+    for (const id of [...handle.state.operations.keys()])
+      if (!seen.has(id)) handle.state.operations.delete(id);
     recountHumans();
   };
 
@@ -149,7 +152,7 @@ export function createBuildingRoom(deps: BuildingRoomDeps): BuildingRoom {
     line.id = m.id;
     line.userId = m.userId;
     line.displayName = m.displayName;
-    line.floorId = m.floorId;
+    line.operationId = m.operationId;
     line.text = m.text;
     line.ts = m.ts;
     return line;
@@ -213,7 +216,7 @@ export function createBuildingRoom(deps: BuildingRoomDeps): BuildingRoom {
           id: crypto.randomUUID(),
           userId: human.userId,
           displayName: human.displayName,
-          floorId: human.floorId,
+          operationId: human.operationId,
           text: command.text,
           ts: now(),
         };
@@ -222,21 +225,21 @@ export function createBuildingRoom(deps: BuildingRoomDeps): BuildingRoom {
         chat.append(line).catch((err) => logger.error({ err }, "chat persistence failed"));
         return;
       }
-      case "floor.go": {
-        if (!isKnownFloor(command.floorId, known)) {
-          reject(client, command.type, `unknown operation ${command.floorId}`);
+      case "operation.go": {
+        if (!isKnownOperation(command.operationId, known)) {
+          reject(client, command.type, `unknown operation ${command.operationId}`);
           return;
         }
         if (
-          command.floorId !== LOBBY_FLOOR_ID &&
+          command.operationId !== LOBBY_OPERATION_ID &&
           deps.canVisit &&
-          !deps.canVisit(client.user, command.floorId)
+          !deps.canVisit(client.user, command.operationId)
         ) {
-          reject(client, command.type, `no access to operation ${command.floorId}`);
+          reject(client, command.type, `no access to operation ${command.operationId}`);
           return;
         }
-        if (human.floorId !== command.floorId) {
-          human.floorId = command.floorId;
+        if (human.operationId !== command.operationId) {
+          human.operationId = command.operationId;
           human.seatId = "";
           setAnimation(human, "idle");
           recountHumans();
@@ -266,12 +269,12 @@ export function createBuildingRoom(deps: BuildingRoomDeps): BuildingRoom {
 
     async onCreate(room) {
       handle = room;
-      await refreshFloors();
+      await refreshOperations();
       for (const line of await chat.recent(CHAT_REPLAY)) room.state.chat.push(toSchema(line));
       if (usage) applyUsageSummary(room.state.usage, usage);
       if (compound) applyCompoundState(room.state.compound, compound.state);
       room.setInterval(sweep, SWEEP_MS);
-      logger.info({ roomId: room.roomId, floors: known.length }, "building room created");
+      logger.info({ roomId: room.roomId, operations: known.length }, "building room created");
     },
 
     onJoin(room, client) {
@@ -281,7 +284,7 @@ export function createBuildingRoom(deps: BuildingRoomDeps): BuildingRoom {
       human.displayName = client.user.displayName;
       human.role = client.user.role;
       applyLook(human, client.user.avatar);
-      human.floorId = LOBBY_FLOOR_ID;
+      human.operationId = LOBBY_OPERATION_ID;
       human.animation = "idle";
       human.joinedAt = now();
       room.state.humans.set(client.sessionId, human);
@@ -312,7 +315,7 @@ export function createBuildingRoom(deps: BuildingRoomDeps): BuildingRoom {
       books.clear();
     },
 
-    refreshFloors,
+    refreshOperations,
 
     sendToUser(userId, type, payload) {
       for (const client of handle?.clients ?? []) {
@@ -339,8 +342,8 @@ export function createBuildingRoom(deps: BuildingRoomDeps): BuildingRoom {
       compound = snapshot;
       if (!handle) return;
       applyCompoundState(handle.state.compound, snapshot.state);
-      handle.state.floors.forEach((entry, floorId) =>
-        applyRoomFields(entry, snapshot.rooms.get(floorId)),
+      handle.state.operations.forEach((entry, operationId) =>
+        applyRoomFields(entry, snapshot.rooms.get(operationId)),
       );
     },
   };

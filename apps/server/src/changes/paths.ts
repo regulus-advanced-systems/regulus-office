@@ -1,14 +1,14 @@
 /**
  * Path checks for the changes window (#38). A path from a client must be a
- * plain relative path inside the robot's worktree:
+ * plain relative path inside the henchman's worktree:
  *
  * - lexically: not empty, no NUL, not absolute, no empty, `.` or `..`
- *   segment, nothing under `.git` (the robot's repository metadata);
+ *   segment, nothing under `.git` (the henchman's repository metadata);
  * - and, for commit, discard and diff, one of the files git itself reported
  *   in the current snapshot (checked by the caller), so git has already
  *   refused anything beyond a symlinked directory;
  * - before the office reads a working-tree file's bytes (image previews,
- *   untracked diffs), `realpath` in the robot's runner must resolve it to
+ *   untracked diffs), `realpath` in the henchman's runner must resolve it to
  *   exactly `<worktree>/<path>`: no component is a symlink, so a link to the
  *   owner's HOME (their CLI logins) can never be shown to watchers.
  */

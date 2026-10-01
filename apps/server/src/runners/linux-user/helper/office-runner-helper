@@ -27,7 +27,7 @@ readonly RID_RE='^[a-z0-9]{1,23}$'
 readonly AID_RE='^[A-Za-z0-9_-]{1,64}$'
 readonly SESSION_RE='^agent-[A-Za-z0-9_-]{1,64}$'
 readonly CONF_PATH_RE='^(/[A-Za-z0-9._-]+)+$'
-# Floor slugs (apps/server/src/floors/naming.ts): no dots, slashes or leading/trailing dash.
+# Operation slugs (apps/server/src/operations/naming.ts): no dots, slashes or leading/trailing dash.
 readonly SLUG_RE='^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$'
 TMUX_DIR=/run/office/tmux
 PROJECTS_ROOT=/srv/office/projects
@@ -70,9 +70,9 @@ usage() {
 usage: office-runner-helper <verb> <args>
   provision <rid>                         create office-u-<rid>, HOME 0700, tmux server
   deprovision <rid>                       kill everything of office-u-<rid>, delete it
-  mount-project <rid> <workdir>           ACL a dir inside <worktrees>/<floor>/<rid> for office-u-<rid>
+  mount-project <rid> <workdir>           ACL a dir inside <worktrees>/<operation>/<rid> for office-u-<rid>
   reclaim <dir>                           give a pre-#114 shared dir back to the office only
-  remove-floor <slug>                     delete <projects>/<slug> and <worktrees>/<slug> (floor deleted)
+  remove-operation <slug>                 delete <projects>/<slug> and <worktrees>/<slug> (operation deleted)
   exec <rid> <agentId> <cwd> -- <argv..>  tmux session agent-<agentId> in scope agent-<agentId>
                                           (stdin: env script, NUL-terminated); in the agent's
                                           sandbox when it has one
@@ -114,8 +114,8 @@ check_user_path() {
 check_canonical() {
   [[ $1 =~ ^(/[A-Za-z0-9_][A-Za-z0-9._-]*)+$ && ${#1} -le 1024 ]] || bad "$2"
 }
-# A dir root puts ACLs on for office-u-$1: inside that human's own area on a floor,
-# <worktrees>/<floor>/<rid> (#114). Mirrors, floor dirs and other humans' areas never qualify.
+# A dir root puts ACLs on for office-u-$1: inside that human's own area on an operation,
+# <worktrees>/<operation>/<rid> (#114). Mirrors, operation dirs and other humans' areas never qualify.
 check_workdir() {
   local rid=$1 p=$2 rest
   check_canonical "$p" "workdir"
@@ -126,14 +126,14 @@ check_workdir() {
   [[ ${rest%%/*} == "$rid" ]] || bad "workdir (not inside office-u-$rid's own dir)"
 }
 # A dir shared with runners before #114: the projects root or anything in it (mirrors),
-# or a per-agent worktree directly in a floor dir, <worktrees>/<floor>/<agent>.
+# or a per-agent worktree directly in an operation dir, <worktrees>/<operation>/<agent>.
 check_reclaim_dir() {
   local p=$1 rest
   check_canonical "$p" "dir"
   [[ $p == "$PROJECTS_ROOT" || $p == "$PROJECTS_ROOT"/* ]] && return 0
   [[ $p == "$WORKTREES_ROOT"/* ]] || bad "dir (not under $PROJECTS_ROOT or $WORKTREES_ROOT)"
   rest=${p#"$WORKTREES_ROOT"/}
-  [[ $rest == */* && ${rest#*/} != */* ]] || bad "dir (not <worktrees>/<floor>/<agent>)"
+  [[ $rest == */* && ${rest#*/} != */* ]] || bad "dir (not <worktrees>/<operation>/<agent>)"
   # Agent ids are UUIDs; a runner id there is a human's own area, never reclaimed.
   [[ ! ${rest#*/} =~ $RID_RE ]] || bad "dir (a runner's own area)"
 }
@@ -275,9 +275,9 @@ unit_owned() {
 }
 
 # ---- Per-agent sandboxes (SPEC §8, D18, #169) --------------------------------
-# A robot's sandbox is a root-only record $SANDBOX_DIR/<agentId> (its runner,
+# A henchman's sandbox is a root-only record $SANDBOX_DIR/<agentId> (its runner,
 # slot, limits and office owner), a network namespace office-sbx<slot> whose
-# eth0 is a veth on the bridge $BRIDGE, and, while the robot runs, its own tmux
+# eth0 is a veth on the bridge $BRIDGE, and, while the henchman runs, its own tmux
 # server: pid 1 of a fresh pid namespace (with its own /proc) inside that
 # network namespace, in scope agent-<agentId>.scope with the record's limits.
 # Slot n has the address $SANDBOX_NET.<(n+2)/256>.<(n+2)%256>/16; the bridge is
@@ -515,7 +515,7 @@ exec_in_sandbox() {
     rm -f -- "$envfile" "$SOCK"
     die "could not start the sandbox of agent $AID"
   fi
-  # From now on the server, and with it the scope, ends with the robot's session.
+  # From now on the server, and with it the scope, ends with the henchman's session.
   as_user tmux -S "$SOCK" set-option -g exit-empty on >/dev/null 2>&1 || true
   printf 'unit=%s\nsandbox=%s\n' "$unit.scope" "$(sandbox_addr "$S_SLOT")"
 }
@@ -565,7 +565,7 @@ cmd_mount_project() {
   [[ -d $w && ! -L $w ]] || die "workdir $w is not a directory" 3
   [[ $(realpath -e -- "$w") == "$w" ]] || die "workdir must be canonical, without symlinks"
   [[ -d $area && ! -L $area ]] || die "$area is not a directory"
-  # Other humans get traverse on the floor dir, so the area itself must not
+  # Other humans get traverse on the operation dir, so the area itself must not
   # be open to "other": only the office (owner) and this human's ACL get in.
   chmod o-rwx -- "$area"
   # Traverse-only on the root and every ancestor below it.
@@ -585,7 +585,7 @@ cmd_mount_project() {
   printf 'workdir=%s\n' "$w"
 }
 
-# Before #114 floor mirrors and per-agent worktrees carried runner ACLs and
+# Before #114 operation mirrors and per-agent worktrees carried runner ACLs and
 # files owned by runner accounts. Hand them back to the office alone: owner
 # and group become the server user's, every extended ACL entry goes, and
 # "other" loses access to the top dir. -P/-h: never follow symlinks.
@@ -600,14 +600,14 @@ cmd_reclaim() {
   printf 'reclaimed=%s\n' "$d"
 }
 
-# A deleted floor (#150): its mirror dir <projects>/<slug> and its floor dir
+# A deleted operation (#150): its mirror dir <projects>/<slug> and its operation dir
 # <worktrees>/<slug> (every human's area: clones and agent worktrees, files
 # owned by runner accounts). The slug grammar keeps the target exactly one
 # level below a configured root; the roots must be canonical; the target must
 # be a real directory. GNU rm -r walks with openat/O_NOFOLLOW, so it never
 # follows a symlink, even one swapped in while it runs, and
 # --one-file-system keeps it off other mounts.
-cmd_remove_floor() {
+cmd_remove_operation() {
   local root d
   for root in "$PROJECTS_ROOT" "$WORKTREES_ROOT"; do
     [[ -d $root && ! -L $root ]] || continue
@@ -668,7 +668,7 @@ cmd_spawn_piped() {
   cd -- "$R_HOME"
   user_env_args
   if ((sandboxed)); then
-    # In the robot's sandbox (#169): its network namespace and limits, a pid namespace of its own.
+    # In the henchman's sandbox (#169): its network namespace and limits, a pid namespace of its own.
     exec systemd-run --quiet --collect --scope --slice=system.slice --unit="$unit" \
       --description="Regulus Office agent $AID of $U (piped, sandboxed)" "${LIMITS[@]}" -- \
       nsenter --net="/run/netns/office-sbx$S_SLOT" -- \
@@ -801,9 +801,9 @@ main() {
       check_reclaim_dir "$1"
       RDIR=$1
       ;;
-    remove-floor)
+    remove-operation | remove-floor)
       [[ $# -eq 1 ]] || usage
-      [[ $1 =~ $SLUG_RE ]] || bad "floor slug"
+      [[ $1 =~ $SLUG_RE ]] || bad "operation slug"
       SLUG=$1
       ;;
     exec | spawn-piped)
@@ -886,7 +886,8 @@ main() {
     deprovision) cmd_deprovision ;;
     mount-project) cmd_mount_project ;;
     reclaim) cmd_reclaim ;;
-    remove-floor) cmd_remove_floor ;;
+    # remove-floor: the verb before #226, for an office that predates the rename.
+    remove-operation | remove-floor) cmd_remove_operation ;;
     exec) cmd_exec ;;
     spawn-piped) cmd_spawn_piped ;;
     kill) cmd_kill ;;

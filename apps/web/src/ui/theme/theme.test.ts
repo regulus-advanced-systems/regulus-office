@@ -74,7 +74,7 @@ describe("schemes", () => {
 });
 
 describe("lamps", () => {
-  test("each robot status lights the lamp of the henchman's status light", () => {
+  test("each henchman status lights the lamp of the henchman's status light", () => {
     for (const status of AGENT_STATUSES) {
       expect(lampColors[AGENT_LAMPS[status]].toUpperCase()).toBe(BULB_COLORS[status].toUpperCase());
     }

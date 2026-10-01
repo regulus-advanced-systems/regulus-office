@@ -33,7 +33,7 @@ const HIT_GEOMETRY = new BoxGeometry(0.7, HENCHMAN_HEIGHT, 0.7).translate(
 const HIT_MATERIAL = new MeshBasicMaterial();
 
 export type HenchmanAvatarProps = Omit<ThreeElements["group"], "ref" | "children"> & {
-  /** Skin id (`RobotState.skin`); unknown ids wear the standard jumpsuit. */
+  /** Skin id (`HenchmanState.skin`); unknown ids wear the standard jumpsuit. */
   skin?: string;
   /** Provider trim colour; omit for the skin's own. */
   trim?: string;

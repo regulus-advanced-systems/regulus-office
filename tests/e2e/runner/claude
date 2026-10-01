@@ -48,7 +48,7 @@ if [ "$1" = auth ]; then
   trace "auth status answered"
   exit 0
 fi
-# Print mode (#155 workflow robots: `claude -p ... <prompt>`): no hooks, no session. It records
+# Print mode (#155 workflow henchmen: `claude -p ... <prompt>`): no hooks, no session. It records
 # the flags it got (never the prompt), probes what the sandbox allows (writing to the checkout,
 # git remotes to push to, GitHub tokens in its env), and answers with a result object whose
 # structured_output is a review with one inline comment on the first changed line of the diff
@@ -81,7 +81,7 @@ case " $* " in
   trace "print mode: write=$write push=$push remotes=$remotes"
   summary="Fake review (not Claude Code). write: $write, push: $push, remotes: $remotes, github tokens in env: $tokens, model key: $key. cc @octocat"
   # A prompt-injection stand-in: "LEAK_KEY:<form>" in the prompt (e.g. in the PR body) makes
-  # the fake put its model key into the review, as a robot tricked into reading
+  # the fake put its model key into the review, as a henchman tricked into reading
   # /proc/self/environ would. The office must never post it (#155).
   leak=$(printf '%s\n' "$last" | sed -n 's/.*LEAK_KEY:\([a-z0-9]*\).*/\1/p' | head -n 1)
   environ_key=$(cat /proc/self/environ 2>/dev/null | tr '\0' '\n' | sed -n 's/^ANTHROPIC_API_KEY=//p' | head -n 1)
@@ -140,7 +140,7 @@ hook "{$base,\"hook_event_name\":\"UserPromptSubmit\",\"prompt\":\"$(json_escape
 sleep 1
 echo "FAKE CLAUDE editing $file"
 hook "{$base,\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"Edit\",\"tool_use_id\":\"toolu_fake_1\",\"tool_input\":$edit}" > /dev/null
-# With "[hold the edit]" in the prompt, keep editing until the spec has seen the robot type
+# With "[hold the edit]" in the prompt, keep editing until the spec has seen the henchman type
 # (#159): it follows a new action only once it has held for 1.5 s, and a slow CI browser sees
 # the status late and draws few frames, so a fixed pause was sometimes over before the typing
 # clip had moved a bone (#179). The spec says when by creating $ask; after two minutes without

@@ -49,7 +49,7 @@ export interface UseTerminalOptions {
   /** Called when the server refused control and the view fell back to watch. */
   onDowngrade?: () => void;
   /**
-   * Largest grid this controller asks tmux for. A robot's terminal stays within the
+   * Largest grid this controller asks tmux for. A henchman's terminal stays within the
    * agent's default size, so watchers see it letterboxed rather than cut off.
    */
   maxGrid?: TerminalGrid;

@@ -104,7 +104,7 @@ function modelArgs(model?: string, effort?: string): string[] {
 }
 
 /**
- * The robot's approval policy (#166): the stored one, else Codex's recommended
+ * The henchman's approval policy (#166): the stored one, else Codex's recommended
  * `on-request` (https://learn.chatgpt.com/docs/agent-approvals-security).
  */
 export function codexApprovalPolicy(mode: string | undefined): string {

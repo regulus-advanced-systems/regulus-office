@@ -19,7 +19,7 @@
     "@colyseus/bun-websockets": "0.18.3",
     "@colyseus/core": "0.18.17",
     "@regulus/agent-adapters": "workspace:*",
-    "@regulus/floor-layout": "workspace:*",
+    "@regulus/room-layout": "workspace:*",
     "@regulus/protocol": "workspace:*",
     "better-auth": "^1.7.6",
     "drizzle-orm": "0.45.3",

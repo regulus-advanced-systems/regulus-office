@@ -2,7 +2,7 @@
  * Boot wiring for notifications (#42): the channel store, delivery queue,
  * NotificationCenter and REST routes. The center is handed to the
  * AgentManager as its observer (status changes, PRs opened); the BuildingRoom
- * delivers personal messages; merged robot PRs come from the GitHub event
+ * delivers personal messages; merged henchman PRs come from the GitHub event
  * bus (#35 webhooks and polling).
  */
 import type { OfficeAuth } from "../auth/auth.ts";
@@ -34,7 +34,7 @@ export interface Notifications {
     router: Router,
     auth: Pick<OfficeAuth, "getSessionFromRequest" | "publicUrl" | "allowedOrigins">,
   ): void;
-  /** Notify robots' owners when their PRs are merged (GitHub event bus, #35). */
+  /** Notify henchmen's owners when their PRs are merged (GitHub event bus, #35). */
   followGitHub(events: Pick<GitHubEventBus, "on">): void;
   close(): void;
 }

@@ -1,21 +1,27 @@
-/** Fixtures for the search tests: an office with floors, members, robots and chat. */
+/** Fixtures for the search tests: an office with operations, members, henchmen and chat. */
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { FloorAccess, UserRole } from "@regulus/protocol";
+import type { OperationAccess, UserRole } from "@regulus/protocol";
 import { eq } from "drizzle-orm";
 import type { Db } from "../db/index.ts";
-import { agents, chatMessages, floorMembers, floorRepos, floors } from "../db/schema/index.ts";
+import {
+  agents,
+  chatMessages,
+  operationMembers,
+  operationRepos,
+  operations,
+} from "../db/schema/index.ts";
 import { createLogger } from "../logging.ts";
 import { SearchIndexer } from "./indexer.ts";
 
 export const silent = createLogger({ level: "silent" });
 
-export function addFloor(db: Db, id: string, archived = false): void {
-  db.insert(floors)
+export function addOperation(db: Db, id: string, archived = false): void {
+  db.insert(operations)
     .values({
       id,
-      name: `Floor ${id}`,
+      name: `Operation ${id}`,
       slug: id,
       index: Number(id.replace(/\D/g, "") || 1),
       paletteId: "teal",
@@ -23,10 +29,10 @@ export function addFloor(db: Db, id: string, archived = false): void {
       archivedAt: archived ? new Date() : null,
     })
     .run();
-  db.insert(floorRepos)
+  db.insert(operationRepos)
     .values({
       id: `r-${id}`,
-      floorId: id,
+      operationId: id,
       owner: "o",
       name: id,
       url: "https://x.invalid",
@@ -35,16 +41,21 @@ export function addFloor(db: Db, id: string, archived = false): void {
     .run();
 }
 
-export function addMember(db: Db, floorId: string, userId: string, access: FloorAccess): void {
-  db.insert(floorMembers).values({ floorId, userId, access }).run();
+export function addMember(
+  db: Db,
+  operationId: string,
+  userId: string,
+  access: OperationAccess,
+): void {
+  db.insert(operationMembers).values({ operationId, userId, access }).run();
 }
 
-export function addRobot(db: Db, id: string, floorId: string, ownerUserId: string): void {
+export function addHenchman(db: Db, id: string, operationId: string, ownerUserId: string): void {
   db.insert(agents)
     .values({
       id,
-      floorId,
-      repoId: `r-${floorId}`,
+      operationId,
+      repoId: `r-${operationId}`,
       deskSeatId: `desk-${id}`,
       ownerUserId,
       provider: "custom",
@@ -56,16 +67,16 @@ export function addRobot(db: Db, id: string, floorId: string, ownerUserId: strin
     .run();
 }
 
-export function exitRobot(db: Db, id: string): void {
+export function exitHenchman(db: Db, id: string): void {
   db.update(agents).set({ exitedAt: new Date() }).where(eq(agents.id, id)).run();
 }
 
 let chatSeq = 0;
-export function addChat(db: Db, text: string, floorId = "", ts = Date.now()): string {
+export function addChat(db: Db, text: string, operationId = "", ts = Date.now()): string {
   chatSeq += 1;
   const id = `chat-${chatSeq}`;
   db.insert(chatMessages)
-    .values({ id, userId: "u", displayName: "Ada", floorId, text, ts: new Date(ts) })
+    .values({ id, userId: "u", displayName: "Ada", operationId, text, ts: new Date(ts) })
     .run();
   return id;
 }

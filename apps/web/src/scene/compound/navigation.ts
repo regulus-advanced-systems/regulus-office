@@ -10,6 +10,8 @@
  * which runs the grid a few rows past the published strip for the dock.
  * Built once per layout, access, furniture and door state change.
  */
+
+import { DOOR_WIDTH_TILES } from "@regulus/protocol";
 import {
   buildCompoundNavGrid,
   type CompoundNavInput,
@@ -17,14 +19,13 @@ import {
   type NavGrid,
   type Pose,
   type Rect,
-} from "@regulus/floor-layout";
-import { DOOR_WIDTH_TILES } from "@regulus/protocol";
+} from "@regulus/room-layout";
 import { WALL_THICKNESS } from "../lair/dimensions.ts";
 import { type RoomArt, roomArt } from "./interiors.ts";
 import { type OutsideLayout, outsideLayout, outsideObstacles } from "./outside/layout.ts";
 import { type CompoundWorld, isOpenRoom, lobbyOf, roomCentre, type WorldRoom } from "./world.ts";
 
-/** Fine cells, like the old floor grids (#15), while the grid stays small enough. */
+/** Fine cells, like the old per-operation grids (#15), while the grid stays small enough. */
 export const FINE_CELL = 0.25;
 export const COARSE_CELL = 0.5;
 const MAX_FINE_CELLS = 1_200_000;

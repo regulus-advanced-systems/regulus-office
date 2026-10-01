@@ -17,7 +17,7 @@ import {
 import type { PipedTracker } from "./piped-tracker.ts";
 
 export interface RemountDeps {
-  floorRoots: readonly string[];
+  operationRoots: readonly string[];
   volumeMap: readonly VolumeMapping[];
   piped: PipedTracker;
   listSessions: (user: RunnerUser) => Promise<string[]>;
@@ -35,10 +35,10 @@ export async function remount(
   missing: readonly string[],
   opts: { running: boolean; strict: boolean },
 ): Promise<boolean> {
-  const own = current.filter((m) => isOwnArea(m, deps.floorRoots, user.userId));
-  // An area whose floor was deleted (#150): harmless while mounted, dropped when idle
+  const own = current.filter((m) => isOwnArea(m, deps.operationRoots, user.userId));
+  // An area whose operation was deleted (#150): harmless while mounted, dropped when idle
   // (Docker cannot recreate a container whose mount source is gone).
-  const keep = own.filter((m) => !areaGone(m.Target, deps.floorRoots));
+  const keep = own.filter((m) => !areaGone(m.Target, deps.operationRoots));
   const stale = current.filter((m) => !own.includes(m)).map((m) => m.Target);
   const needed = missing.length > 0 || stale.length > 0;
   if (!needed && keep.length === own.length) return true;

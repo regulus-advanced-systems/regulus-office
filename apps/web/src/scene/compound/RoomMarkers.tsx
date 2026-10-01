@@ -1,6 +1,6 @@
 /**
  * What a room shows from the corridor (#186, SPEC §9.1): a plaque over the
- * door with its name and robot counts (every project room, so locked doors
+ * door with its name and henchman counts (every project room, so locked doors
  * still say what is behind them), and a rock cap over rooms this viewer may
  * not enter, so the 3/4 camera never looks into them. One plaque mesh per
  * visible room, one instanced draw for all caps.
@@ -35,8 +35,8 @@ const OUTWARD: Readonly<Record<WorldRoom["doorSide"], { x: number; z: number; ya
 function Plaque({ room, tileMetres }: { room: WorldRoom; tileMetres: number }) {
   const text: SignText = {
     name: room.name,
-    working: room.robotsWorking,
-    waiting: room.robotsWaiting,
+    working: room.henchmenWorking,
+    waiting: room.henchmenWaiting,
     building: room.buildState === "building",
     locked: !room.enterable,
   };

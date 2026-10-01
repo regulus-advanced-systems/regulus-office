@@ -5,22 +5,22 @@
  *
  * A refused spot keeps build mode open with the server's reason. Any other
  * refusal of a new room (a bad repo, a missing token) sends the owner back
- * to the Add floor dialog with what they typed, tokens excepted.
+ * to the Add operation dialog with what they typed, tokens excepted.
  */
 import { useCallback, useEffect, useMemo } from "react";
 import { roomAt } from "../../scene/compound/world.ts";
 import { statsEnabled } from "../../scene/perf/stats.ts";
 import { useCompoundStore } from "../../state/compound.ts";
-import { useFloorsStore } from "../../state/floors.ts";
+import { useOperationsStore } from "../../state/operations.ts";
 import { usePlayerStore } from "../../state/player.ts";
 import { useUiStore } from "../../state/ui.ts";
-import { describeFloorError } from "../floors/api.ts";
+import { describeOperationError } from "../operations/api.ts";
 import { type CompoundApi, createCompoundApi } from "./api.ts";
 import { BuildModePanel } from "./BuildModePanel.tsx";
-import { FloorAddedPanel } from "./FloorAddedPanel.tsx";
 import { useBuildFollowers, useBuildModeKeys, useGhostCheck } from "./hooks.ts";
 import { describeRefusal, placementKey } from "./logic.ts";
-import { returnToAddFloor } from "./returnDraft.ts";
+import { OperationAddedPanel } from "./OperationAddedPanel.tsx";
+import { returnToAddOperation } from "./returnDraft.ts";
 import { buildProbe, useBuildModeStore } from "./store.ts";
 
 declare global {
@@ -43,8 +43,8 @@ export async function confirmBuild(api: CompoundApi): Promise<void> {
   if (intent.kind === "create") {
     const res = await api.place({ ...intent.request, placement });
     if (res.ok) {
-      useFloorsStore.getState().upsert(res.data.floor);
-      useBuildModeStore.getState().finish({ placed: res.data.floor.floorId });
+      useOperationsStore.getState().upsert(res.data.operation);
+      useBuildModeStore.getState().finish({ placed: res.data.operation.operationId });
       return;
     }
     if (res.placement) {
@@ -55,33 +55,33 @@ export async function confirmBuild(api: CompoundApi): Promise<void> {
     }
     if (res.status === 400) {
       useBuildModeStore.getState().finish();
-      returnToAddFloor(intent.request, describeFloorError(res));
+      returnToAddOperation(intent.request, describeOperationError(res));
       return;
     }
-    s.setBusy(false, describeFloorError(res));
+    s.setBusy(false, describeOperationError(res));
     return;
   }
   // Move: whoever stands in the room goes with it, to its new door.
   const player = usePlayerStore.getState();
-  const inside = roomAt(world, player.x, player.z)?.id === intent.floorId;
-  const res = await api.move(intent.floorId, placement);
+  const inside = roomAt(world, player.x, player.z)?.id === intent.operationId;
+  const res = await api.move(intent.operationId, placement);
   if (res.ok) {
     useBuildModeStore
       .getState()
-      .finish(inside ? { moved: { floorId: intent.floorId, placement } } : {});
+      .finish(inside ? { moved: { operationId: intent.operationId, placement } } : {});
     return;
   }
   if (res.placement) {
     const { reason, conflicts } = res.placement;
     s.setServer({ key: placementKey(placement), ok: false, reason, conflicts });
     s.setBusy(false, describeRefusal(world, reason, conflicts));
-  } else if (res.code === "room_has_running_robots") {
-    const n = res.robots?.length ?? 0;
+  } else if (res.code === "room_has_running_henchmen") {
+    const n = res.henchmen?.length ?? 0;
     s.setBusy(
       false,
       `${n === 1 ? "A henchman is" : `${n || "Some"} henchmen are`} running in this room. Send them home first, then move it.`,
     );
-  } else s.setBusy(false, describeFloorError(res));
+  } else s.setBusy(false, describeOperationError(res));
 }
 
 export function BuildModeHost({ api = defaultApi }: { api?: CompoundApi }) {
@@ -108,6 +108,6 @@ export function BuildModeHost({ api = defaultApi }: { api?: CompoundApi }) {
   }, [probe]);
 
   if (active) return <BuildModePanel onConfirm={confirm} />;
-  if (added) return <FloorAddedPanel floorId={added} />;
+  if (added) return <OperationAddedPanel operationId={added} />;
   return null;
 }

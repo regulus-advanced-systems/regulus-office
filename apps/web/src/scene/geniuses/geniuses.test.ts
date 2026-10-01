@@ -2,7 +2,7 @@
  * The genius models (#185): every archetype and accessory builds one skinned
  * geometry within the triangle budget, stands on the floor at its stated
  * height, faces +z (so MODEL_YAW turns it to the heading, face-first like
- * the robots), and every animation has a clip that drives every bone.
+ * the henchmen), and every animation has a clip that drives every bone.
  */
 import { describe, expect, test } from "bun:test";
 import {
@@ -22,7 +22,7 @@ import { createGenius, geniusGeometry } from "./model.ts";
 import { SLOT, slotU } from "./palette.ts";
 import { BONES, type BoneName, boneNodeName } from "./rig.ts";
 
-/** Most triangles one genius may have (SPEC §11: a few humans next to 20 robots on an iGPU). */
+/** Most triangles one genius may have (SPEC §11: a few humans next to 20 henchmen on an iGPU). */
 export const GENIUS_TRIANGLE_BUDGET = 2000;
 
 describe("genius geometry", () => {
@@ -154,7 +154,7 @@ describe("genius clips", () => {
     }
   });
 
-  test("seated hips sit where a seated robot's do, so seats fit (avatar/seatedFit.ts)", () => {
+  test("seated hips sit where a seated henchman's do, so seats fit (avatar/seatedFit.ts)", () => {
     for (const archetype of GENIUS_ARCHETYPES) {
       const body = ARCHETYPE_MODELS[archetype].body;
       const [, y, z] = seatedHips(body);

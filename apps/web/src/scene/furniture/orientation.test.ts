@@ -8,18 +8,18 @@
 import { describe, expect, test } from "bun:test";
 import {
   DIRECTION,
-  type FloorTemplate,
   HEADING,
   MAX_FACING_ERROR,
   type ObstacleKind,
   type Rect,
+  type RoomTemplate,
   seatFocus,
   TEMPLATES,
   tableFocus,
   type Vec2,
   type Wall,
   wallById,
-} from "@regulus/floor-layout";
+} from "@regulus/room-layout";
 import { CHAIR_MODEL, chairForSeat, FURNITURE_MODELS, TV_MODEL } from "./catalog.ts";
 import {
   anchorPlacement,
@@ -55,7 +55,7 @@ function pieceForward(kind: ObstacleKind, rect: Rect, heading: number): Vec2 {
 }
 
 /** Nearest perimeter wall to a rect's centre. */
-function nearestWall(t: FloorTemplate, rect: Rect): { wall: Wall; distance: number } {
+function nearestWall(t: RoomTemplate, rect: Rect): { wall: Wall; distance: number } {
   const c = { x: rect.x + rect.w / 2, z: rect.z + rect.d / 2 };
   const ranked = t.walls
     .map((wall) => ({

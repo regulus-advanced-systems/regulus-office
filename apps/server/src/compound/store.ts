@@ -1,13 +1,14 @@
 /**
  * Compound rows (SPEC §5): the single `compound` row and the placement
- * columns of live floors. Everything that reads or writes placements goes
+ * columns of live operations. Everything that reads or writes placements goes
  * through here so the column ↔ {@link RoomPlacement} mapping lives in one place.
  */
-import { type CompoundSpec, legacyRoomSize } from "@regulus/floor-layout";
+
 import type { RoomBuildState, RoomPlacement } from "@regulus/protocol";
+import { type CompoundSpec, legacyRoomSize } from "@regulus/room-layout";
 import { asc, count, eq, isNull } from "drizzle-orm";
 import type { DbOrTx } from "../auth/audit.ts";
-import { compound, desks, floors } from "../db/schema/index.ts";
+import { compound, desks, operations } from "../db/schema/index.ts";
 
 export const COMPOUND_ROW_ID = "main";
 
@@ -48,25 +49,25 @@ export function writeSpec(db: DbOrTx, spec: CompoundSpec): void {
     .run();
 }
 
-/** Live (non-archived) floors with their placement, oldest first (placement priority). */
+/** Live (non-archived) operations with their placement, oldest first (placement priority). */
 export function liveRooms(db: DbOrTx): RoomRow[] {
   return db
     .select({
-      id: floors.id,
-      name: floors.name,
-      gridX: floors.gridX,
-      gridY: floors.gridY,
-      width: floors.width,
-      depth: floors.depth,
-      doorSide: floors.doorSide,
-      buildState: floors.buildState,
-      buildStartedAt: floors.buildStartedAt,
-      createdAt: floors.createdAt,
-      index: floors.index,
+      id: operations.id,
+      name: operations.name,
+      gridX: operations.gridX,
+      gridY: operations.gridY,
+      width: operations.width,
+      depth: operations.depth,
+      doorSide: operations.doorSide,
+      buildState: operations.buildState,
+      buildStartedAt: operations.buildStartedAt,
+      createdAt: operations.createdAt,
+      index: operations.index,
     })
-    .from(floors)
-    .where(isNull(floors.archivedAt))
-    .orderBy(asc(floors.createdAt), asc(floors.index), asc(floors.id))
+    .from(operations)
+    .where(isNull(operations.archivedAt))
+    .orderBy(asc(operations.createdAt), asc(operations.index), asc(operations.id))
     .all()
     .map((r) => ({
       id: r.id,
@@ -90,19 +91,19 @@ export function liveRooms(db: DbOrTx): RoomRow[] {
     }));
 }
 
-export function writePlacement(db: DbOrTx, floorId: string, p: RoomPlacement): void {
-  db.update(floors)
+export function writePlacement(db: DbOrTx, operationId: string, p: RoomPlacement): void {
+  db.update(operations)
     .set({ gridX: p.gridX, gridY: p.gridY, width: p.width, depth: p.depth, doorSide: p.doorSide })
-    .where(eq(floors.id, floorId))
+    .where(eq(operations.id, operationId))
     .run();
 }
 
 /**
  * The size a room gets when it has to be placed anew: its stored size if it
- * was ever placed, else (a pre-compound floor) one that fits its desk seats.
+ * was ever placed, else (a pre-compound operation) one that fits its desk seats.
  */
 export function sizeForUnplaced(db: DbOrTx, room: RoomRow): { width: number; depth: number } {
   if (room.placement) return { width: room.width, depth: room.depth };
-  const [row] = db.select({ n: count() }).from(desks).where(eq(desks.floorId, room.id)).all();
+  const [row] = db.select({ n: count() }).from(desks).where(eq(desks.operationId, room.id)).all();
   return legacyRoomSize(row?.n ?? 0);
 }

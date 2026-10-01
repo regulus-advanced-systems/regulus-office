@@ -13,7 +13,7 @@ const line = (id: string, userId = "u1"): ChatMessage => ({
   id,
   userId,
   displayName: userId,
-  floorId: "lobby",
+  operationId: "lobby",
   text: `line ${id}`,
   ts: 1_700_000_000_000,
 });
