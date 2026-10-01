@@ -6,19 +6,24 @@
  * visible room, one instanced draw for all caps.
  */
 import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
-import { BoxGeometry, type InstancedMesh, Matrix4, MeshLambertMaterial } from "three";
+import { BoxGeometry, Euler, type InstancedMesh, Matrix4, MeshLambertMaterial } from "three";
 import { WALL_HEIGHT, WALL_THICKNESS } from "../lair/dimensions.ts";
 import { LAIR } from "../lair/palette.ts";
 import { createSignTexture, SIGN_PX, type SignText } from "./signTexture.ts";
 import { type CompoundWorld, doorCentre, type WorldRoom } from "./world.ts";
 
-const SIGN_W = 2.2;
+const SIGN_W = 2.6;
 const SIGN_H = (SIGN_W * SIGN_PX.h) / SIGN_PX.w;
 /** The plaque hangs beside the door at eye height, on the corridor side of the wall. */
 const SIGN_Y = 2.05;
 /** From the door's centre along the wall: past the frame (a 2-tile door is 4 m wide). */
 const SIGN_ALONG = 3.3;
 const OUT = WALL_THICKNESS + 0.03;
+/**
+ * The plate leans out at the top (#190), so the 3/4 camera, which looks down
+ * at about 50°, sees it nearly face-on rather than squashed to a sliver.
+ */
+const SIGN_TILT = 0.6;
 
 const OUTWARD: Readonly<Record<WorldRoom["doorSide"], { x: number; z: number; yaw: number }>> = {
   north: { x: 0, z: -1, yaw: Math.PI },
@@ -42,15 +47,18 @@ function Plaque({ room, tileMetres }: { room: WorldRoom; tileMetres: number }) {
   const o = OUTWARD[room.doorSide];
   // Along the wall, to the left as you face the door from the corridor.
   const along = { x: o.z, z: -o.x };
+  // Hung from its bottom edge against the wall; the middle sits out by half the lean.
+  const out = OUT + (SIGN_H / 2) * Math.sin(SIGN_TILT);
+  const rotation = useMemo(() => new Euler(-SIGN_TILT, o.yaw, 0, "YXZ"), [o.yaw]);
   return (
     <mesh
       name={`room-sign-${room.id}`}
       position={[
-        c.x + o.x * OUT + along.x * SIGN_ALONG,
+        c.x + o.x * out + along.x * SIGN_ALONG,
         SIGN_Y,
-        c.z + o.z * OUT + along.z * SIGN_ALONG,
+        c.z + o.z * out + along.z * SIGN_ALONG,
       ]}
-      rotation-y={o.yaw}
+      rotation={rotation}
       raycast={() => null}
     >
       <planeGeometry args={[SIGN_W, SIGN_H]} />

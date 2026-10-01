@@ -33,6 +33,7 @@ describe("settings storage", () => {
       hour12: false,
       fpvFov: DEFAULT_SETTINGS.fpvFov,
       mouseSensitivity: DEFAULT_SETTINGS.mouseSensitivity,
+      graphics: "auto",
     });
     expect(parseSettings('{"reducedMotion":"no","volume":-1}')).toEqual({
       reducedMotion: null,
@@ -40,6 +41,7 @@ describe("settings storage", () => {
       hour12: false,
       fpvFov: DEFAULT_SETTINGS.fpvFov,
       mouseSensitivity: DEFAULT_SETTINGS.mouseSensitivity,
+      graphics: "auto",
     });
   });
 
@@ -62,6 +64,13 @@ describe("settings storage", () => {
     });
   });
 
+  test("graphics quality defaults to auto and keeps only known presets (#190)", () => {
+    expect(DEFAULT_SETTINGS.graphics).toBe("auto");
+    expect(parseSettings('{"graphics":"low"}').graphics).toBe("low");
+    expect(parseSettings('{"graphics":"ultra"}').graphics).toBe("auto");
+    expect(parseSettings('{"volume":0.5}').graphics).toBe("auto");
+  });
+
   test("round-trips through a storage", () => {
     const storage = memoryStorage();
     const settings = {
@@ -70,6 +79,7 @@ describe("settings storage", () => {
       hour12: true,
       fpvFov: 68,
       mouseSensitivity: 1.5,
+      graphics: "medium" as const,
     };
     saveSettings(storage, settings);
     expect(storage.map.get(SETTINGS_STORAGE_KEY)).toBe(serializeSettings(settings));

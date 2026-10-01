@@ -38,6 +38,7 @@ floors migrated from the old templates must stay on their seats.
 - **Keys.** SPEC §9.2 binds both "rotate with Q/E" and "E interacts". `Q`
   turns the camera left; `E` interacts when something is in reach (a desk,
   laptop, board, clipboard, gong) and otherwise turns the camera right.
+  *Superseded by 0007 (#190): `E` only interacts; `Z` and `C` turn the camera.*
 
 ## Consequences
 

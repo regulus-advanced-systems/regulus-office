@@ -58,6 +58,7 @@ describe("ui store", () => {
       hour12: false,
       fpvFov: 60,
       mouseSensitivity: 1,
+      graphics: "auto",
     });
     store.getState().updateSettings({ volume: 0.1 });
     expect(createUiStore({ storage }).getState().settings.volume).toBe(0.1);

@@ -3,14 +3,18 @@ import { inputVector } from "../movement/wasd.ts";
 import {
   CLOSE_PITCH_DEG,
   clipPlanes,
+  DEFAULT_DISTANCE,
   DEFAULT_ZOOM,
   dampYaw,
+  defaultZoom,
   MIN_DISTANCE,
   ORBIT_PITCH_DEG,
   orbitPose,
+  overviewBlend,
   overviewDistance,
   wrapYaw,
   zoomDistance,
+  zoomForDistance,
   zoomPitchDeg,
 } from "./orbit.ts";
 
@@ -61,5 +65,29 @@ describe("the compound camera (#186, SPEC §9.2)", () => {
     expect(wrapYaw(3 * Math.PI)).toBeCloseTo(-Math.PI, 5);
     const next = dampYaw(Math.PI - 0.1, -Math.PI + 0.1, 0.05);
     expect(Math.abs(wrapYaw(next - Math.PI))).toBeLessThan(0.1);
+  });
+});
+
+describe("the starting framing (#190)", () => {
+  test("zoomForDistance inverts zoomDistance", () => {
+    for (const extent of [60, 128, 200])
+      for (const d of [6, 18, 30, 50]) {
+        const z = zoomForDistance(d, extent);
+        expect(zoomDistance(z, overviewDistance(extent))).toBeCloseTo(d, 6);
+      }
+  });
+
+  test("a full-size compound starts a room-level 30 m out, centred on the player", () => {
+    const z = defaultZoom(128);
+    expect(zoomDistance(z, overviewDistance(128))).toBeCloseTo(DEFAULT_DISTANCE, 6);
+    expect(zoomPitchDeg(z)).toBe(ORBIT_PITCH_DEG);
+    expect(overviewBlend(z)).toBe(0);
+  });
+
+  test("a small compound starts as far out as it can without drifting off the player", () => {
+    const z = defaultZoom(40);
+    expect(overviewBlend(z)).toBe(0);
+    expect(zoomDistance(z, overviewDistance(40))).toBeGreaterThan(15);
+    expect(zoomDistance(z, overviewDistance(40))).toBeLessThanOrEqual(DEFAULT_DISTANCE);
   });
 });

@@ -4,7 +4,7 @@
  * readable from the corridor even when the door stays shut. A plate under
  * construction says so. Canvas 2D, painted only when the text changes.
  */
-import { CanvasTexture, LinearFilter, SRGBColorSpace } from "three";
+import { CanvasTexture, LinearMipmapLinearFilter, SRGBColorSpace } from "three";
 import { LAIR } from "../lair/palette.ts";
 
 export const SIGN_PX = { w: 512, h: 160 } as const;
@@ -62,11 +62,14 @@ export function paintSign(ctx: Ctx, t: SignText): void {
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillStyle = t.building ? LAIR.yellow : "#F2E6C8";
-  ctx.font = "bold 52px 'Courier New', monospace";
-  ctx.fillText(title.toUpperCase(), w / 2, h * 0.38);
-  ctx.font = "bold 21px 'Courier New', monospace";
+  // Long lines are squeezed to fit inside the frame rather than cut off.
+  const inside = w - 48;
+  ctx.font = "bold 56px 'Courier New', monospace";
+  ctx.fillText(title.toUpperCase(), w / 2, h * 0.37, inside);
+  // Big enough to read from the default 3/4 view (#190).
+  ctx.font = "bold 28px 'Courier New', monospace";
   ctx.fillStyle = t.building ? LAIR.yellow : t.waiting > 0 ? "#F28C28" : "#2EC4B6";
-  ctx.fillText(status, w / 2, h * 0.74);
+  ctx.fillText(status, w / 2, h * 0.74, inside);
 }
 
 export function createSignTexture(t: SignText): CanvasTexture | null {
@@ -79,7 +82,9 @@ export function createSignTexture(t: SignText): CanvasTexture | null {
   paintSign(ctx, t);
   const texture = new CanvasTexture(canvas);
   texture.colorSpace = SRGBColorSpace;
-  texture.minFilter = LinearFilter;
-  texture.generateMipmaps = false;
+  // Mipmaps and anisotropy keep the lettering steady seen from afar and at a slant (#190).
+  texture.minFilter = LinearMipmapLinearFilter;
+  texture.generateMipmaps = true;
+  texture.anisotropy = 8;
   return texture;
 }

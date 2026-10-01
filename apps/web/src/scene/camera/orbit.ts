@@ -1,7 +1,7 @@
 /**
  * The compound camera (SPEC §9.2, #186): a perspective camera at a 3/4
  * overhead angle (pitch about 50°) that follows the player, rotates about
- * them (Q/E in 45° steps, or right-drag) and zooms with the wheel from a
+ * them (Z/C in 45° steps, or right-drag) and zooms with the wheel from a
  * close third-person view down to an overview of the whole compound. Pure
  * maths, so the framing is unit-testable; `CompoundCamera.tsx` applies it.
  *
@@ -19,9 +19,16 @@ export const CLOSE_PITCH_DEG = 30;
 export const MIN_DISTANCE = 5;
 /** Never zoom out less far than this, even in a tiny compound. */
 export const MIN_OVERVIEW_DISTANCE = 45;
-/** Default zoom: one room and its corridor junction fill the view. */
-export const DEFAULT_ZOOM = 0.42;
-/** Q/E turn this much per press. */
+/** Zoom before the compound's size is known (the rig then frames a room: `defaultZoom`). */
+export const DEFAULT_ZOOM = 0.5;
+/**
+ * The first view, metres from the player (#190): a room-level framing, the
+ * whole of a large room and its door in view; the wheel zooms in from there.
+ */
+export const DEFAULT_DISTANCE = 30;
+/** The default framing never reaches the zoom where the view starts drifting off the player. */
+const DEFAULT_ZOOM_MAX = 0.58;
+/** Z/C turn this much per press. */
 export const YAW_STEP_DEG = 45;
 /** Start at the old iso yaw, so the first view matches what people know. */
 export const DEFAULT_YAW_DEG = 45;
@@ -66,6 +73,17 @@ export function zoomPitchDeg(zoom: number): number {
 /** How far the look-at point has moved from the player to the compound's centre (0..1). */
 export function overviewBlend(zoom: number): number {
   return smooth(0.6, 1, zoom);
+}
+
+/** The zoom that puts the camera `distance` metres away, for a compound of `extent` metres. */
+export function zoomForDistance(distance: number, extent: number): number {
+  const max = overviewDistance(extent);
+  return clamp01(Math.log(distance / MIN_DISTANCE) / Math.log(max / MIN_DISTANCE));
+}
+
+/** The starting zoom: a room-level framing (DEFAULT_DISTANCE), short of the overview's drift. */
+export function defaultZoom(extent: number): number {
+  return Math.min(DEFAULT_ZOOM_MAX, zoomForDistance(DEFAULT_DISTANCE, extent));
 }
 
 export function clampZoom(zoom: number): number {

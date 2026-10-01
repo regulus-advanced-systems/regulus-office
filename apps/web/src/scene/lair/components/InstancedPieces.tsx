@@ -7,7 +7,7 @@
  */
 import { useLayoutEffect, useMemo, useRef } from "react";
 import { InstancedBufferAttribute, type InstancedMesh, Matrix4 } from "three";
-import { type PieceId, pieceGeometry } from "../kit.ts";
+import { drawnGeometry, type PieceId } from "../kit.ts";
 import {
   groupByPiece,
   instanceTints,
@@ -46,6 +46,8 @@ export interface InstancedPieceProps {
   /** Draw the glow layer (off when a component animates it itself). */
   glow?: boolean;
   name?: string;
+  /** Low tier: floors as flat stand-ins (lite.ts). */
+  lite?: boolean;
 }
 
 export function InstancedPiece({
@@ -54,9 +56,10 @@ export function InstancedPiece({
   cutaway,
   glow = true,
   name,
+  lite = false,
 }: InstancedPieceProps) {
   const mats = useLairMaterials();
-  const geo = pieceGeometry(piece);
+  const geo = drawnGeometry(piece, lite);
   const cut = cutaway ?? isCutaway(piece);
   const bodyRef = useRef<InstancedMesh>(null);
   const glowRef = useRef<InstancedMesh>(null);
@@ -67,7 +70,7 @@ export function InstancedPiece({
   return (
     <group name={name ?? `lair:${piece}`}>
       <instancedMesh
-        key={`b${count}`}
+        key={`b${count}${lite ? "l" : ""}`}
         ref={bodyRef}
         args={[geo.body, cut ? mats.cutBody : mats.body, count]}
         raycast={() => null}
@@ -85,12 +88,19 @@ export function InstancedPiece({
 }
 
 /** Any mix of placements: one instanced draw (or two, with glow) per piece type. */
-export function PieceSet({ items }: { items: readonly PiecePlacement[] }) {
+export function PieceSet({
+  items,
+  lite = false,
+}: {
+  items: readonly PiecePlacement[];
+  /** Low tier: floors as flat stand-ins (lite.ts). */
+  lite?: boolean;
+}) {
   const groups = useMemo(() => [...groupByPiece(items)], [items]);
   return (
     <>
       {groups.map(([piece, placements]) => (
-        <InstancedPiece key={piece} piece={piece} placements={placements} />
+        <InstancedPiece key={piece} piece={piece} placements={placements} lite={lite} />
       ))}
     </>
   );

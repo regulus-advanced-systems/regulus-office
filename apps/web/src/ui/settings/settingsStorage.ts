@@ -11,6 +11,10 @@ import {
   DEFAULT_MOUSE_SENSITIVITY,
 } from "../../scene/camera/perspective.ts";
 
+/** Graphics quality (#190): a preset, or "auto" (picked from the GPU; scene/compound/quality.ts). */
+export const GRAPHICS_SETTINGS = ["auto", "low", "medium", "high"] as const;
+export type GraphicsSetting = (typeof GRAPHICS_SETTINGS)[number];
+
 export interface UiSettings {
   /** null = follow prefers-reduced-motion. */
   reducedMotion: boolean | null;
@@ -22,6 +26,8 @@ export interface UiSettings {
   fpvFov: number;
   /** First-person mouse-look sensitivity multiplier (1 = default). */
   mouseSensitivity: number;
+  /** Graphics quality preset. */
+  graphics: GraphicsSetting;
 }
 
 export const SETTINGS_STORAGE_KEY = "regulus.ui.settings.v1";
@@ -32,6 +38,7 @@ export const DEFAULT_SETTINGS: Readonly<UiSettings> = {
   hour12: false,
   fpvFov: DEFAULT_FPV_FOV,
   mouseSensitivity: DEFAULT_MOUSE_SENSITIVITY,
+  graphics: "auto",
 };
 
 export interface StorageLike {
@@ -62,6 +69,9 @@ export function parseSettings(raw: string | null | undefined): UiSettings {
     fpvFov: fpvFov === null ? DEFAULT_SETTINGS.fpvFov : clampFovSetting(fpvFov),
     mouseSensitivity:
       sensitivity === null ? DEFAULT_SETTINGS.mouseSensitivity : clampMouseSensitivity(sensitivity),
+    graphics: (GRAPHICS_SETTINGS as readonly unknown[]).includes(o.graphics)
+      ? (o.graphics as GraphicsSetting)
+      : DEFAULT_SETTINGS.graphics,
   };
 }
 

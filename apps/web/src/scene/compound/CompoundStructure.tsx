@@ -17,7 +17,7 @@ import { Dust, Sparks } from "../lair/particles/BuildParticles.tsx";
 import type { PiecePlacement } from "../lair/placements.ts";
 import type { CorridorChunk } from "./corridors.ts";
 import type { PlacedRoom } from "./placed.ts";
-import { forQuality, useQualityStore } from "./quality.ts";
+import { forQuality, presetOf, useQualityStore } from "./quality.ts";
 import { LockedCaps, RoomSigns } from "./RoomMarkers.tsx";
 import { useVisibleStore } from "./visibility.ts";
 import type { CompoundWorld } from "./world.ts";
@@ -79,13 +79,13 @@ export function CompoundStructure({
   visibleChunks,
   joined,
 }: CompoundStructureProps) {
-  const quality = useQualityStore((s) => s.quality);
+  const preset = presetOf(useQualityStore((s) => s.quality));
   const far = useVisibleStore((s) => s.far);
   const lists = useMemo(() => {
     const all = structureLists(rooms, chunks, visibleRooms, visibleChunks, joined);
-    const pieces = forQuality(all.pieces, far ? "low" : quality);
+    const pieces = forQuality(all.pieces, far || preset.dropDecor);
     return { ...all, pieces, shadows: pieces };
-  }, [rooms, chunks, visibleRooms, visibleChunks, joined, quality, far]);
+  }, [rooms, chunks, visibleRooms, visibleChunks, joined, preset, far]);
   const locked = useMemo(
     () =>
       rooms
@@ -100,8 +100,8 @@ export function CompoundStructure({
     : rooms.find((r) => r.art.look === "building" && visibleRooms.has(r.room.id));
   return (
     <group name="compound-structure">
-      <PieceSet items={lists.pieces} />
-      {quality === "high" && <BlobShadows items={lists.shadows} />}
+      <PieceSet items={lists.pieces} lite={preset.flatFloors} />
+      {preset.blobShadows && <BlobShadows items={lists.shadows} />}
       <BlinkingLamps lamps={lists.consoleLamps} />
       <RoomLooks looks={lists.looks} />
       <LockedCaps rooms={locked} />

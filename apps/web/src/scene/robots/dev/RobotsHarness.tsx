@@ -7,10 +7,12 @@
  * Query: n=<robots> (default 12), mode=working|mixed|waiting|idle|flap, rate=<ticks/s>,
  * reduced=1, seats=all, skins=mixed, providers=all, zoom=<0..1 camera zoom>,
  * yaw=<degrees>, nearby=<0..3 nearby rooms with robots too>, locked=<room ids the viewer may
- * not enter>, building=<room ids still being built>. Not part of the production build.
+ * not enter>, building=<room ids still being built>, rooms=<project rooms, 4..12>,
+ * humans=<humans on screen, the local player included>. Not part of the production build.
  */
 import type { FloorState, RobotState } from "@regulus/protocol";
 import { Suspense, useEffect, useMemo, useState } from "react";
+import { useBuildingStore } from "../../../state/building.ts";
 import { useCameraStore } from "../../../state/camera.ts";
 import { useFloorStore } from "../../../state/floor.ts";
 import { usePlayerStore } from "../../../state/player.ts";
@@ -23,55 +25,16 @@ import { CompoundCanvas } from "../../compound/CompoundCanvas.tsx";
 import { roomLayout } from "../../compound/interiors.ts";
 import { useDoorOverride } from "../../compound/outside/doorState.ts";
 import { dockPoint, type OutsideLayout, outsideLayout } from "../../compound/outside/layout.ts";
-import { type TestRoom, testWorld } from "../../compound/testing.ts";
 import { roomById } from "../../compound/world.ts";
 import { useGongStore } from "../../gong/gongStore.ts";
 import { playGong } from "../../gong/gongSynth.ts";
 import { fakeRobots, harnessMode } from "./fakeRobots.ts";
+import { DEV_ROOM as DEV, fakeHumans, harnessBuilding, harnessWorld } from "./harnessWorld.ts";
 import "../../../ui/globals.css";
 import "../../../ui/hud.css";
 
 const noSend = () => {};
 const noPresence = { setRooms: async () => {} };
-const DEV = "dev";
-
-/** A 64-tile compound: the 12 × 12 Dev room with every desk, and three ordinary rooms. */
-function harnessWorld(locked: readonly string[], building: readonly string[]) {
-  const rooms: TestRoom[] = [
-    {
-      id: DEV,
-      name: "Dev",
-      placement: { gridX: 26, gridY: 42, width: 12, depth: 12, doorSide: "south" },
-      deskCount: 13,
-    },
-    {
-      id: "apollo",
-      name: "Apollo",
-      placement: { gridX: 42, gridY: 46, width: 8, depth: 8, doorSide: "south" },
-      deskCount: 2,
-      decorStyle: "lab",
-    },
-    {
-      id: "hermes",
-      name: "Hermes",
-      placement: { gridX: 12, gridY: 44, width: 10, depth: 10, doorSide: "south" },
-      deskCount: 3,
-      decorStyle: "workshop",
-    },
-    {
-      id: "zeus",
-      name: "Zeus",
-      placement: { gridX: 54, gridY: 44, width: 8, depth: 10, doorSide: "south" },
-      deskCount: 3,
-      decorStyle: "war_room",
-    },
-  ];
-  return testWorld(
-    rooms.map((r) => ({ ...r, building: building.includes(r.id) })),
-    rooms.map((r) => r.id).filter((id) => !locked.includes(id)),
-    64,
-  );
-}
 
 function floorState(
   floorId: string,
@@ -130,9 +93,11 @@ export function RobotsHarness({ search }: { search: string }) {
   const nearby = Math.min(3, Number(params.get("nearby") ?? 0));
   const locked = params.get("locked") ?? "";
   const building = params.get("building") ?? "";
+  const roomCount = Math.min(12, Number(params.get("rooms") ?? 4));
+  const humanCount = Math.max(1, Number(params.get("humans") ?? 1));
   const world = useMemo(
-    () => harnessWorld(locked.split(","), building.split(",")),
-    [locked, building],
+    () => harnessWorld(locked.split(","), building.split(","), roomCount),
+    [locked, building, roomCount],
   );
   const [tick, setTick] = useState(0);
 
@@ -188,7 +153,14 @@ export function RobotsHarness({ search }: { search: string }) {
       // The HUD counters and the interactive room read the floor store.
       if (id === DEV) useFloorStore.setState({ floorId: DEV, state });
     }
-  }, [tick, n, mode, allSeats, skins, providers, nearby, world]);
+    // Other humans (#190 perf gate: 4 humans on screen), walking round the Dev room.
+    const dev = roomById(world, DEV);
+    if (humanCount > 1 && dev) {
+      const centre = { x: dev.origin.x + dev.size.w / 2, z: dev.origin.z + dev.size.d / 2 };
+      const humans = fakeHumans(humanCount, centre, tick / Math.max(0.1, rate));
+      useBuildingStore.setState({ state: harnessBuilding(roomCount, humans), sessionId: "me" });
+    }
+  }, [tick, n, mode, allSeats, skins, providers, nearby, world, humanCount, roomCount, rate]);
 
   return (
     <div style={{ position: "fixed", inset: 0 }}>

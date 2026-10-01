@@ -2,7 +2,7 @@
  * Build mode's effects (#187): asking the server about the ghost's spot
  * (debounced, answers cached per spot), its keyboard (arrows move the
  * ghost relative to the camera, R / Shift+R turn the door, Enter builds,
- * Escape cancels, Q/E still turn the camera), and following a placed room
+ * Escape cancels, Z/C still turn the camera), and following a placed room
  * until it is built, then a moved room to its new door.
  */
 import { useEffect, useMemo } from "react";
@@ -96,8 +96,8 @@ export function useBuildModeKeys(confirm: () => void): void {
       else if (key === "r") s.rotate(e.shiftKey ? -1 : 1);
       else if (key === "Enter") {
         if (!e.repeat) confirm();
-      } else if (key === "q") useCameraStore.getState().rotateStep(-1);
-      else if (key === "e") useCameraStore.getState().rotateStep(1);
+      } else if (key === "z") useCameraStore.getState().rotateStep(-1);
+      else if (key === "c") useCameraStore.getState().rotateStep(1);
       else handled = false;
       if (handled) {
         e.preventDefault();

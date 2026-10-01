@@ -75,6 +75,7 @@ import {
   wallPillar,
   wallTrim,
 } from "./geometry/walls.ts";
+import { flatTile, LITE_FLOORS } from "./lite.ts";
 import { LAIR } from "./palette.ts";
 
 export const PIECE_CATEGORIES = [
@@ -212,6 +213,19 @@ export function pieceGeometry(id: PieceId): PieceGeometry {
   if (!g) {
     g = PIECES[id].build();
     built.set(id, g);
+  }
+  return g;
+}
+
+const flat = new Map<PieceId, PieceGeometry>();
+
+/** The geometry to draw: the floors' flat stand-ins when `lite` (low tier, lite.ts), else the piece's own. */
+export function drawnGeometry(id: PieceId, lite: boolean): PieceGeometry {
+  if (!lite || !LITE_FLOORS.has(id)) return pieceGeometry(id);
+  let g = flat.get(id);
+  if (!g) {
+    g = flatTile(pieceGeometry(id));
+    flat.set(id, g);
   }
   return g;
 }

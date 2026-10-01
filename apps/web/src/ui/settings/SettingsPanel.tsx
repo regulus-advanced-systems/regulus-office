@@ -14,6 +14,7 @@ import { openProvidersPanel } from "../providers/providersStore.ts";
 import { FirstPersonSettings } from "./FirstPersonSettings.tsx";
 import { FloorsSection } from "./FloorsSection.tsx";
 import { GitHubSection } from "./GitHubSection.tsx";
+import { GraphicsSettings } from "./GraphicsSettings.tsx";
 import { NotificationsSection } from "./NotificationsSection.tsx";
 import { SkinRulesSection } from "./SkinRulesSection.tsx";
 import { DEFAULT_SETTINGS } from "./settingsStorage.ts";
@@ -98,6 +99,8 @@ export function SettingsForm() {
           hint="Top bar clock format."
         />
       </div>
+
+      <GraphicsSettings />
 
       <FirstPersonSettings />
 
