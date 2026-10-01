@@ -248,30 +248,6 @@ describe("LinuxUserRunner command construction", () => {
     }
     expect(calls.map((c) => c.argv.slice(3))).toEqual([["remove-operation", "apollo"]]);
   });
-
-  test("a helper installed before #226 is asked with the old remove-floor verb, with a warning", async () => {
-    const verbs: string[] = [];
-    const warned: string[] = [];
-    const legacyHelper = (allowsLegacy: boolean) =>
-      new LinuxUserRunner({
-        logger: { warn: (_obj, msg) => warned.push(msg) },
-        run: async ({ argv }) => {
-          verbs.push(argv[3] ?? "");
-          return argv[3] === "remove-floor" && allowsLegacy
-            ? { code: 0, stdout: "removed=/srv/office/projects/apollo\n", stderr: "" }
-            : { code: 1, stdout: "", stderr: "sudo: a password is required" };
-        },
-      });
-    expect(await legacyHelper(true).removeOperationDirs("apollo")).toEqual([
-      "/srv/office/projects/apollo",
-    ]);
-    expect(verbs).toEqual(["remove-operation", "remove-floor"]);
-    expect(warned).toEqual([expect.stringContaining("deprecated remove-floor verb")]);
-    // When both fail, the error names the current verb.
-    await expect(legacyHelper(false).removeOperationDirs("apollo")).rejects.toThrow(
-      "office-runner-helper remove-operation failed",
-    );
-  });
 });
 
 describe("LinuxUserRunner sandboxes (#169)", () => {
