@@ -30,6 +30,7 @@ const column = (id: string, n: number): BoardColumnView => ({
     repoChip: "",
     assignees: [],
     labels: [],
+    queued: id === "open" && i === 1,
     checks: i === 0 ? { label: "Checks failing", tone: "red" as const, glyph: "x" } : null,
     review: null,
     updatedAt: 0,
@@ -86,6 +87,8 @@ describe("board texture", () => {
     expect(a?.cards).toHaveLength(2);
     expect(a?.hidden).toBe(0);
     expect(a?.cards[0]?.tab).toBe("red");
+    // A queued issue (#237) gets an amber tab.
+    expect(a?.cards[1]?.tab).toBe("amber");
     expect((b?.cards.length ?? 0) + (b?.hidden ?? 0)).toBe(30);
     expect(b?.hidden).toBeGreaterThan(0);
     const last = b?.cards.at(-1);

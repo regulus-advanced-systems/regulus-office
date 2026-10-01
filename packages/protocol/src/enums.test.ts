@@ -2,11 +2,13 @@ import { describe, expect, test } from "bun:test";
 import { z } from "zod";
 import {
   AGENT_ACTIONS,
+  AGENT_ACTIVE_STATUSES,
   AGENT_STATUSES,
   AVATAR_ANIMATIONS,
   BACKEND_IDS,
   CREDENTIAL_AUTH_KINDS,
   EMOTES,
+  isActiveAgentStatus,
   isAgentStatus,
   isOneOf,
   isProviderId,
@@ -17,6 +19,19 @@ import {
 } from "./enums.ts";
 
 describe("enums", () => {
+  test("active agent statuses (#237): mid-task only", () => {
+    expect([...AGENT_ACTIVE_STATUSES]).toEqual([
+      "starting",
+      "working",
+      "waiting_permission",
+      "waiting_input",
+    ]);
+    expect(AGENT_STATUSES.filter(isActiveAgentStatus)).toEqual([...AGENT_ACTIVE_STATUSES]);
+    for (const s of ["idle", "done", "error", "exited", "offline"] as const) {
+      expect(isActiveAgentStatus(s)).toBe(false);
+    }
+  });
+
   test("match SPEC §6 agent status and action lists exactly", () => {
     expect(AGENT_STATUSES).toEqual([
       "starting",

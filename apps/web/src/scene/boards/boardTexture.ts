@@ -90,7 +90,7 @@ export function layoutBoard(
           h: CARD_H,
           label: `#${c.number}`,
           title: c.title,
-          tab: c.checks?.tone ?? (c.column === "merged" ? "blue" : null),
+          tab: c.checks?.tone ?? (c.column === "merged" ? "blue" : c.queued ? "amber" : null),
         })),
       };
     }),

@@ -21,6 +21,23 @@ export const AGENT_STATUSES = [
 ] as const;
 export type AgentStatus = (typeof AGENT_STATUSES)[number];
 
+/**
+ * Statuses in which a henchman is still on its task (#237): booting, working,
+ * or blocked on its human mid-task. A bound issue is In progress only then.
+ * Not `idle` (its turn ended; the queue counts working → idle as finished),
+ * `done`, `error` (stopped until a human acts), `exited` or `offline`.
+ */
+export const AGENT_ACTIVE_STATUSES = [
+  "starting",
+  "working",
+  "waiting_permission",
+  "waiting_input",
+] as const satisfies readonly AgentStatus[];
+
+export function isActiveAgentStatus(status: AgentStatus): boolean {
+  return (AGENT_ACTIVE_STATUSES as readonly AgentStatus[]).includes(status);
+}
+
 export const AGENT_ACTIONS = [
   "none",
   "typing",
