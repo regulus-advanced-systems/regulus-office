@@ -6,7 +6,7 @@
 import type { OperationAccess } from "@regulus/protocol";
 import { and, asc, eq, isNull } from "drizzle-orm";
 import type { Db } from "../../db/index.ts";
-import { desks, operationRepos, operations } from "../../db/schema/index.ts";
+import { desks, operationRepos, operations, whiteboards } from "../../db/schema/index.ts";
 import { operationAccessFor } from "../../operations/access.ts";
 import type { RoomAuthUser } from "../auth.ts";
 import type { OperationSnapshot } from "./state.ts";
@@ -47,6 +47,11 @@ export class DrizzleOperationRoomSource implements OperationRoomSource {
       .where(eq(desks.operationId, operationId))
       .orderBy(asc(desks.seatId))
       .all();
+    const board = this.#db
+      .select({ version: whiteboards.version })
+      .from(whiteboards)
+      .where(eq(whiteboards.operationId, operationId))
+      .get();
     return {
       operationId: operation.id,
       name: operation.name,
@@ -63,6 +68,7 @@ export class DrizzleOperationRoomSource implements OperationRoomSource {
         isPrimary: r.isPrimary,
       })),
       desks: deskRows.map((d) => ({ seatId: d.seatId, agentId: d.agentId ?? "" })),
+      whiteboardVersion: board?.version ?? 0,
     };
   }
 

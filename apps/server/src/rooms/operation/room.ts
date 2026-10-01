@@ -121,6 +121,8 @@ export interface OperationRooms {
   setGong(gong: OperationGong | undefined): void;
   /** Resolve every henchman's skin with this (rules changed); undefined keeps what was published. */
   setSkins(resolver: SkinResolver | undefined): void;
+  /** The operation's whiteboard has a new wall snapshot (#45). */
+  publishWhiteboard(operationId: string, version: number): void;
 }
 
 export interface OperationRoomsDeps {
@@ -355,6 +357,11 @@ export function createOperationRooms(deps: OperationRoomsDeps): OperationRooms {
 
     setGong(next) {
       gong = next;
+    },
+
+    publishWhiteboard(operationId, version) {
+      const room = live.get(operationId);
+      if (room && room.state.whiteboardVersion !== version) room.state.whiteboardVersion = version;
     },
 
     setSkins(resolver) {

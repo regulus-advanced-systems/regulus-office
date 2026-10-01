@@ -61,6 +61,7 @@ const emptyBuilding = (): BuildingState => ({
   },
   compound: EMPTY_COMPOUND,
   blastDoor: BLAST_DOOR_CLOSED,
+  lobbyWhiteboardVersion: 0,
 });
 
 const emptyOperation = (operationId: string): OperationState => ({
