@@ -9,8 +9,14 @@ import { UiKitPage } from "./UiKitPage.tsx";
 useDom();
 
 describe("/ui-kit", () => {
-  // The elevator filters by the REST floor list; start without one.
-  beforeEach(() => act(() => useFloorsStore.getState().clear()));
+  // The elevator filters by the REST floor list; start without one. The page mounts the live
+  // Toaster, which shows the shared store's queue: drop toasts an earlier test left (#229).
+  beforeEach(() =>
+    act(() => {
+      useFloorsStore.getState().clear();
+      useUiStore.getState().clearToasts();
+    }),
+  );
 
   test("renders every section and the live toast/dialog plumbing works", async () => {
     const m = await mount(
