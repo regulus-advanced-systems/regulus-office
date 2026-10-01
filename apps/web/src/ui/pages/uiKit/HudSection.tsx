@@ -1,4 +1,5 @@
 import {
+  BLAST_DOOR_CLOSED,
   DEFAULT_ROOM_SETTINGS,
   EMPTY_COMPOUND,
   UNPLACED_ROOM,
@@ -80,6 +81,7 @@ function seedFloors() {
       lastBriefAt: 0,
     },
     compound: current?.compound ?? EMPTY_COMPOUND,
+    blastDoor: current?.blastDoor ?? BLAST_DOOR_CLOSED,
     floors: {
       "kit-0": floor(0, "Lobby", 0, 0),
       "kit-1": floor(1, "Regulus Web", 2, 3),

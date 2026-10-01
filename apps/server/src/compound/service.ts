@@ -67,7 +67,7 @@ export interface RoomPlacer {
 export interface CompoundServiceDeps {
   db: Db;
   logger: Logger;
-  config: CompoundConfig;
+  config: Pick<CompoundConfig, "buildMs" | "sizeTiles">;
   now?: () => number;
   /** The layout or a room's placement/build state changed: publish it. */
   publish?(snapshot: CompoundSnapshot): void;

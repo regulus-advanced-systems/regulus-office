@@ -6,8 +6,10 @@
  * the cutaway fading walls between the camera and the player. The player
  * walks the compound nav grid; the client joins the FloorRooms of the room
  * it is in and up to three nearby visible rooms, whose robots, boards and
- * screens are drawn live (RoomLayers). Pixel ratio 1, render loop paused
- * while the tab is hidden; `V` still swaps in the first-person rig.
+ * screens are drawn live (RoomLayers). The compound sits in its mountain,
+ * and the lobby's blast door opens onto the beach, the dock and the sea
+ * (outside/, #188); the nav grid follows the door. Pixel ratio 1, render
+ * loop paused while the tab is hidden; `V` still swaps in the first-person rig.
  */
 import { Canvas } from "@react-three/fiber";
 import type { Pose } from "@regulus/floor-layout";
@@ -34,16 +36,23 @@ import { CompoundStructure } from "./CompoundStructure.tsx";
 import { corridorChunks } from "./corridors.ts";
 import { CompoundDoors } from "./Doors.tsx";
 import { Culling, type PresenceTarget, RoomPresence } from "./Drivers.tsx";
-import { compoundNavGrid, lobbySpawn, navKey } from "./navigation.ts";
+import { compoundNavGrid, lobbySpawn, navKey, outsideRows } from "./navigation.ts";
 import { createNavProbe } from "./navProbe.ts";
-import { blastDoors, placeRoom } from "./placed.ts";
+import { useDoorPassable } from "./outside/doorState.ts";
+import { useDoorwayGuard } from "./outside/guard.ts";
+import { outsideLayout } from "./outside/layout.ts";
+import { Mountain } from "./outside/Mountain.tsx";
+import { Outside } from "./outside/Outside.tsx";
+import { createOutsideProbe } from "./outside/probe.ts";
+import { placeRoom } from "./placed.ts";
 import { detectQuality, useQualityStore } from "./quality.ts";
 import { RoomLayers } from "./RoomLayers.tsx";
 import { useVisibleStore } from "./visibility.ts";
 import { builtBounds, type CompoundWorld, lobbyOf, worldExtent } from "./world.ts";
 
 const BACKGROUND = "#141312";
-const BEDROCK = "#221E1A";
+/** The blast door is not a sliding room door: outside/BlastDoor.tsx draws it. */
+const NO_EXTRA_DOORS: never[] = [];
 
 const playerBinding = createPlayerBinding(usePlayerStore);
 
@@ -82,13 +91,18 @@ function Scene({ world, avatars, presence, send, children }: CompoundCanvasProps
     [world],
   );
   const key = navKey(world);
-  const grid = useMemo(() => compoundNavGrid(world), [key]);
+  // The blast door is shared state (#188): the doorway onto the beach is walkable while it is open.
+  const doorOpen = useDoorPassable();
+  const grid = useMemo(() => compoundNavGrid(world, { blastDoorOpen: doorOpen }), [key, doorOpen]);
+  useDoorwayGuard(grid);
   const spawn = useMemo(() => lobbySpawn(world), [world]);
-  const plane = useMemo(() => ({ x: 0, z: 0, w: extent.w, d: extent.d }), [extent.w, extent.d]);
+  // The clickable ground runs past the beach strip to the end of the dock.
+  const groundD = (world.depth + outsideRows(world)) * world.tileMetres;
+  const plane = useMemo(() => ({ x: 0, z: 0, w: extent.w, d: groundD }), [extent.w, groundD]);
   const lobby = lobbyOf(world);
-  const blast = useMemo(
-    () => (lobby ? blastDoors(lobby, world.tileMetres, world.blastDoor) : []),
-    [lobby, world.tileMetres, world.blastDoor],
+  const outside = useMemo(
+    () => outsideLayout(world),
+    [world.width, world.depth, world.outsideDepth, world.tileMetres, world.blastDoor],
   );
   const lobbyUsage = useMemo(() => {
     const art = rooms.find((r) => r.room.kind === "lobby")?.art.dressing?.usage;
@@ -146,17 +160,9 @@ function Scene({ world, avatars, presence, send, children }: CompoundCanvasProps
         intensity={1.4}
         color="#FFE6C4"
       />
-      {quality === "high" && (
-        <mesh
-          rotation-x={-Math.PI / 2}
-          position={[extent.w / 2, -0.03, extent.d / 2]}
-          raycast={() => null}
-        >
-          <planeGeometry args={[extent.w + 40, extent.d + 40]} />
-          <meshBasicMaterial color={BEDROCK} />
-        </mesh>
-      )}
       <LairKit>
+        <Mountain world={world} layout={outside} />
+        {outside && <Outside layout={outside} />}
         <CutawayDriver focus={focus} enabled={!firstPerson} />
         {quality === "high" && (
           <LampLights lamps={lamps} focus={focus} count={6} intensity={4} distance={8} />
@@ -169,7 +175,7 @@ function Scene({ world, avatars, presence, send, children }: CompoundCanvasProps
           visibleChunks={visibleChunks}
           joined={joined}
         />
-        <CompoundDoors rooms={rooms} extra={blast} />
+        <CompoundDoors rooms={rooms} extra={NO_EXTRA_DOORS} />
       </LairKit>
       <Culling rooms={rooms} chunks={chunks} />
       <MovementController grid={grid} spawn={spawn} spawnKey="compound" plane={plane} send={send} />
@@ -204,9 +210,12 @@ export function CompoundCanvas(props: CompoundCanvasProps) {
   }, []);
   useEffect(() => {
     if (!showStats) return;
-    window.__regulusNav = createNavProbe(() => useCompoundStore.getState().world ?? props.world);
+    const world = () => useCompoundStore.getState().world ?? props.world;
+    window.__regulusNav = createNavProbe(world);
+    window.__regulusOutside = createOutsideProbe(() => outsideLayout(world()));
     return () => {
       window.__regulusNav = undefined;
+      window.__regulusOutside = undefined;
     };
   }, [showStats, props.world]);
   return (

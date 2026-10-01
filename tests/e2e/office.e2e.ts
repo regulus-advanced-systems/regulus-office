@@ -12,7 +12,9 @@
  * token connected, the issue board fills from GitHub, a card is opened and carried to a free
  * desk, and the spawn dialog opens prefilled from it (#36). And merging a PR on the PR board
  * rings the merge gong, with confetti and any robots cheering and sitting back as they were;
- * the gong can be banged by hand, rate-limited (#43).
+ * the gong can be banged by hand, rate-limited (#43). Then the owner presses the lobby's
+ * blast door button: it opens for the member's browser too, the owner walks out onto the dock,
+ * the door shuts by itself after the (shortened) open time and the beach is cut off again (#188).
  *
  * Runs against office-server in production mode (see playwright.config.ts),
  * so room joins are authorised by the Better Auth session cookie only.
@@ -20,6 +22,7 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { type BrowserContext, expect, type Page, test } from "@playwright/test";
+import { checkBlastDoor } from "./blastDoorChecks.ts";
 import {
   cameraSettled,
   cameraState,
@@ -739,4 +742,9 @@ test("a PR merged on the board rings the gong; robots cheer and sit back as they
     githubPort: Number(process.env.E2E_GITHUB_PORT),
     floor: "Apollo",
   });
+});
+
+test("the blast door opens for everyone, the owner walks out onto the dock, it shuts by itself (#188)", async () => {
+  test.setTimeout(240_000);
+  await checkBlastDoor(ownerPage, memberPage, owner.name);
 });

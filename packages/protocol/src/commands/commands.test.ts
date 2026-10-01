@@ -44,7 +44,8 @@ const SPEC_COMMANDS = [
  * are the send-home and PR dialogs of issue #33; `agent.emergencyStop` is the
  * office owner/admin stop of D12 (#138); `queue.retry` and `queue.settings`
  * are the task queue's retry and concurrency settings (#37);
- * `gong.bang` is the manual bang of the merge gong (#43, D9).
+ * `gong.bang` is the manual bang of the merge gong (#43, D9);
+ * `blast_door.press` is the lobby's blast door button (SPEC §9.4, #188).
  */
 const EXTENSION_COMMANDS = [
   "agent.interrupt",
@@ -54,6 +55,7 @@ const EXTENSION_COMMANDS = [
   "queue.retry",
   "queue.settings",
   "gong.bang",
+  "blast_door.press",
 ] as const;
 
 const valid: Record<ClientCommandType, Record<string, unknown>> = {
@@ -106,6 +108,7 @@ const valid: Record<ClientCommandType, Record<string, unknown>> = {
   "screen.share.start": {},
   "screen.share.stop": {},
   "pm.ask": { text: "what is everyone doing?" },
+  "blast_door.press": {},
 };
 
 describe("ClientCommand", () => {

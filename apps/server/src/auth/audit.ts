@@ -30,6 +30,8 @@ export const AUDIT_ACTIONS = {
   /** An owner/admin placed a new room, or moved/resized one (#181). */
   compoundRoomPlace: "compound.room_place",
   compoundRoomMove: "compound.room_move",
+  /** Someone pressed the lobby's blast door button: opened it, or held it open (#188). */
+  compoundBlastDoorOpen: "compound.blast_door_open",
   agentPullRequest: "agent.pull_request",
   worktreesPrune: "worktrees.prune",
   agentSpawn: "agent.spawn",

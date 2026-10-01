@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, test } from "bun:test";
 import {
+  BLAST_DOOR_CLOSED,
   type BuildingState,
   type CommandRejected,
   DEFAULT_ROOM_SETTINGS,
@@ -65,6 +66,7 @@ const emptyBuilding = (): BuildingState => ({
     lastBriefAt: 0,
   },
   compound: EMPTY_COMPOUND,
+  blastDoor: BLAST_DOOR_CLOSED,
 });
 
 const emptyFloor = (floorId: string): FloorState => ({

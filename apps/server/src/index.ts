@@ -139,6 +139,7 @@ async function main(): Promise<void> {
     auth: selectRoomAuth(production, logger, auth),
     publicUrl: config.publicUrl,
     production,
+    blastDoorMs: compoundConfig.blastDoorMs,
   });
   // Terminal bridge (#24). The AgentManager registers its runner below.
   const terminals = createTerminals({

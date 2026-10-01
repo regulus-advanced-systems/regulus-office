@@ -1,4 +1,4 @@
-/** Lobby commands: jukebox.*, screen.share.*, pm.ask (SPEC §6). */
+/** Lobby commands: jukebox.*, screen.share.*, pm.ask (SPEC §6), blast_door.press (#188). */
 import { z } from "zod";
 import { ChatText, Count, Id } from "../common.ts";
 import { SCREEN_SHARE_TARGETS } from "../enums.ts";
@@ -37,6 +37,9 @@ export const PmAskCommand = z.object({
   text: ChatText,
 });
 
+/** Press the blast door button (lobby wall or the outside keypad): open it, or hold it open. */
+export const BlastDoorPressCommand = z.object({ type: z.literal("blast_door.press") });
+
 export const lobbyCommands = [
   JukeboxPlayCommand,
   JukeboxPauseCommand,
@@ -46,4 +49,5 @@ export const lobbyCommands = [
   ScreenShareStartCommand,
   ScreenShareStopCommand,
   PmAskCommand,
+  BlastDoorPressCommand,
 ] as const;

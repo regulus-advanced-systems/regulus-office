@@ -6,6 +6,7 @@
 import { describe, expect, test } from "bun:test";
 import { ArraySchema, Decoder, Encoder, MapSchema, Schema } from "@colyseus/schema";
 import type { z } from "zod";
+import * as blastDoor from "../blast-door.ts";
 import * as building from "../building-state.ts";
 import { WorldPos } from "../common.ts";
 import * as compound from "../compound.ts";
@@ -29,6 +30,7 @@ const pairs: Array<[string, z.ZodObject, SchemaClass]> = [
   ["TileRect", compound.TileRect, schemas.TileRectSchema],
   ["SpecialRoomState", compound.SpecialRoomState, schemas.SpecialRoomStateSchema],
   ["CompoundState", compound.CompoundState, schemas.CompoundStateSchema],
+  ["BlastDoorState", blastDoor.BlastDoorState, schemas.BlastDoorStateSchema],
   ["BuildingState", building.BuildingState, schemas.BuildingStateSchema],
   ["BubbleEmits", floor.BubbleEmits, schemas.BubbleEmitsSchema],
   ["RobotState", floor.RobotState, schemas.RobotStateSchema],

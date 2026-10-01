@@ -5,7 +5,10 @@
  * enter, and of rooms still being built, stay shut. Room walls stand just
  * outside each room's footprint (the lair kit's walls are 0.36 m thick), so
  * a thin band outside each wall is blocked too, except at the doorway.
- * Built once per layout, access and furniture change.
+ * The lobby's blast door (#188) opens the grid onto the beach while it is
+ * open; the beach, the dock and its props come from the outside layout,
+ * which runs the grid a few rows past the published strip for the dock.
+ * Built once per layout, access, furniture and door state change.
  */
 import {
   buildCompoundNavGrid,
@@ -18,6 +21,7 @@ import {
 import { DOOR_WIDTH_TILES } from "@regulus/protocol";
 import { WALL_THICKNESS } from "../lair/dimensions.ts";
 import { type RoomArt, roomArt } from "./interiors.ts";
+import { type OutsideLayout, outsideLayout, outsideObstacles } from "./outside/layout.ts";
 import { type CompoundWorld, isOpenRoom, lobbyOf, roomCentre, type WorldRoom } from "./world.ts";
 
 /** Fine cells, like the old floor grids (#15), while the grid stays small enough. */
@@ -25,9 +29,14 @@ export const FINE_CELL = 0.25;
 export const COARSE_CELL = 0.5;
 const MAX_FINE_CELLS = 1_200_000;
 
+/** Rows of nav grid south of the compound: the published strip plus the dock's extra rows. */
+export function outsideRows(world: CompoundWorld): number {
+  return world.outsideDepth + (outsideLayout(world)?.extraTiles ?? 0);
+}
+
 export function cellSizeFor(world: CompoundWorld): number {
   const w = world.width * world.tileMetres;
-  const d = (world.depth + world.outsideDepth) * world.tileMetres;
+  const d = (world.depth + outsideRows(world)) * world.tileMetres;
   return (w / FINE_CELL) * (d / FINE_CELL) <= MAX_FINE_CELLS ? FINE_CELL : COARSE_CELL;
 }
 
@@ -35,7 +44,7 @@ export function navInput(world: CompoundWorld): CompoundNavInput {
   return {
     width: world.width,
     depth: world.depth,
-    outsideDepth: world.outsideDepth,
+    outsideDepth: outsideRows(world),
     rooms: world.rooms.map((r) => ({ id: r.id, rect: r.rect, doorSide: r.doorSide, door: r.door })),
     corridors: world.corridors,
     blastDoor: world.blastDoor,
@@ -52,8 +61,16 @@ export function roomObstacles(room: WorldRoom, art: RoomArt = roomArt(room)): Re
   }));
 }
 
-/** Bands just outside a room's walls (where the wall meshes stand), the doorway left open. */
-export function wallBands(room: WorldRoom, tileMetres: number): Rect[] {
+/**
+ * Bands just outside a room's walls (where the wall meshes stand), the doorway
+ * left open; `southGap` also leaves a span of the south wall open (the
+ * lobby's blast door while it is open).
+ */
+export function wallBands(
+  room: WorldRoom,
+  tileMetres: number,
+  southGap?: { x0: number; x1: number },
+): Rect[] {
   const t = WALL_THICKNESS;
   const { x, z } = room.origin;
   const { w, d } = room.size;
@@ -77,7 +94,10 @@ export function wallBands(room: WorldRoom, tileMetres: number): Rect[] {
     }
   };
   run("north", { x: x - t, z: z - t, w: w + 2 * t, d: t });
-  run("south", { x: x - t, z: z + d, w: w + 2 * t, d: t });
+  if (southGap) {
+    out.push({ x: x - t, z: z + d, w: southGap.x0 - (x - t), d: t });
+    out.push({ x: southGap.x1, z: z + d, w: x + w + t - southGap.x1, d: t });
+  } else run("south", { x: x - t, z: z + d, w: w + 2 * t, d: t });
   run("west", { x: x - t, z: z - t, w: t, d: d + 2 * t });
   run("east", { x: x + w, z: z - t, w: t, d: d + 2 * t });
   return out.filter((r) => r.w > 0 && r.d > 0);
@@ -98,15 +118,25 @@ export function navKey(world: CompoundWorld): string {
   ].join("|");
 }
 
-export function compoundNavGrid(world: CompoundWorld): NavGrid {
+export interface CompoundNavState {
+  /** The blast door is open (shared state, #188): the doorway onto the beach is walkable. */
+  blastDoorOpen?: boolean;
+}
+
+export function compoundNavGrid(world: CompoundWorld, state: CompoundNavState = {}): NavGrid {
+  const outside: OutsideLayout | null = outsideLayout(world);
+  const open = Boolean(state.blastDoorOpen && outside);
   const obstacles: Rect[] = [];
   for (const room of world.rooms) {
     obstacles.push(...roomObstacles(room));
-    obstacles.push(...wallBands(room, world.tileMetres));
+    const gap = open && room.kind === "lobby" && outside ? outside.door : undefined;
+    obstacles.push(...wallBands(room, world.tileMetres, gap));
   }
+  if (outside) obstacles.push(...outsideObstacles(outside));
   return buildCompoundNavGrid(navInput(world), {
     cellSize: cellSizeFor(world),
     closedDoors: closedDoors(world),
+    blastDoorOpen: open,
     obstacles,
   });
 }

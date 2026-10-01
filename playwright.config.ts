@@ -97,6 +97,8 @@ export default defineConfig({
           OFFICE_LOG_LEVEL: process.env.OFFICE_LOG_LEVEL ?? "warn",
           // A new room's build phase (#181), short so tests see it finish.
           OFFICE_ROOM_BUILD_SECONDS: "1",
+          // The blast door's open time (#188), short so the flow sees it shut by itself.
+          OFFICE_BLAST_DOOR_SECONDS: "30",
           BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET ?? secret(),
           OFFICE_MASTER_KEY: process.env.OFFICE_MASTER_KEY ?? secret(),
         },
