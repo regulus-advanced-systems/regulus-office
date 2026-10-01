@@ -95,6 +95,8 @@ export default defineConfig({
           // Only reached once the board step connects a (fake) org token; see tests/e2e/fakeGitHub.ts.
           OFFICE_GITHUB_API_BASE: `http://127.0.0.1:${githubPort}`,
           OFFICE_LOG_LEVEL: process.env.OFFICE_LOG_LEVEL ?? "warn",
+          // A new room's build phase (#181), short so tests see it finish.
+          OFFICE_ROOM_BUILD_SECONDS: "1",
           BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET ?? secret(),
           OFFICE_MASTER_KEY: process.env.OFFICE_MASTER_KEY ?? secret(),
         },

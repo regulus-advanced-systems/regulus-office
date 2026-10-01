@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { FloorInfo, FloorSummary } from "@regulus/protocol";
+import { type FloorInfo, type FloorSummary, UNPLACED_ROOM } from "@regulus/protocol";
 import { anyCloning, cloneBadge } from "../../state/floors.ts";
 import { visibleFloors } from "./ElevatorPanel.tsx";
 
@@ -13,6 +13,7 @@ const summary = (floorId: string, index: number): FloorSummary => ({
   robotsWaiting: 0,
   robotsTotal: 0,
   humansPresent: 0,
+  ...UNPLACED_ROOM,
 });
 
 const directory = {

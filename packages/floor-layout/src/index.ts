@@ -11,8 +11,10 @@
  * - astar.ts        small A* over the grid
  * - validate.ts     parse + structural + navigation checks (`loadTemplate`)
  * - templates/      lobby, small, office-l2 (medium), large, tier registry
+ * - compound/       the compound: placement rules, corridor routing, nav grid (#181)
  */
 export * from "./astar.ts";
+export * from "./compound/index.ts";
 export * from "./facing.ts";
 export * from "./geometry.ts";
 export * from "./nav-grid.ts";

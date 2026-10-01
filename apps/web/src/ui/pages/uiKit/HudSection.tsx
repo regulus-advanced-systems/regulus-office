@@ -1,4 +1,4 @@
-import type { UsageSummary } from "@regulus/protocol";
+import { EMPTY_COMPOUND, UNPLACED_ROOM, type UsageSummary } from "@regulus/protocol";
 import { useCallback, useState } from "react";
 import { useBuildingStore } from "../../../state/building.ts";
 import type { ConnectionStatus } from "../../../state/connection.ts";
@@ -44,6 +44,7 @@ const floor = (index: number, name: string, working: number, total: number) => (
   robotsWaiting: 0,
   robotsTotal: total,
   humansPresent: 0,
+  ...UNPLACED_ROOM,
 });
 
 /** Seed the building/floor stores with fake floors so the elevator has rows. */
@@ -72,6 +73,7 @@ function seedFloors() {
       targetAgentId: "",
       lastBriefAt: 0,
     },
+    compound: current?.compound ?? EMPTY_COMPOUND,
     floors: {
       "kit-0": floor(0, "Lobby", 0, 0),
       "kit-1": floor(1, "Regulus Web", 2, 3),

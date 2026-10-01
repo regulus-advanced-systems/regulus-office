@@ -1,0 +1,55 @@
+/**
+ * Compound settings from the environment (SPEC §9.1):
+ *
+ * - OFFICE_ROOM_BUILD_SECONDS: length of a new room's build phase (0..600, default 20).
+ * - OFFICE_COMPOUND_SIZE: tiles a side of a new compound (48..256, default 64). Only
+ *   read when the compound row is first created; the row is authoritative after that.
+ */
+import {
+  DEFAULT_COMPOUND_SIZE_TILES,
+  DEFAULT_ROOM_BUILD_SECONDS,
+  MAX_COMPOUND_SIZE_TILES,
+  MIN_COMPOUND_SIZE_TILES,
+} from "@regulus/protocol";
+import { z } from "zod";
+
+export interface CompoundConfig {
+  buildMs: number;
+  sizeTiles: number;
+}
+
+const blankToUndefined = (v: unknown) => (typeof v === "string" && v.trim() === "" ? undefined : v);
+
+const schema = z.object({
+  OFFICE_ROOM_BUILD_SECONDS: z.preprocess(
+    blankToUndefined,
+    z.coerce.number().min(0).max(600).default(DEFAULT_ROOM_BUILD_SECONDS),
+  ),
+  OFFICE_COMPOUND_SIZE: z.preprocess(
+    blankToUndefined,
+    z.coerce
+      .number()
+      .int()
+      .min(MIN_COMPOUND_SIZE_TILES)
+      .max(MAX_COMPOUND_SIZE_TILES)
+      .default(DEFAULT_COMPOUND_SIZE_TILES),
+  ),
+});
+
+export class CompoundConfigError extends Error {
+  override name = "CompoundConfigError";
+}
+
+export function loadCompoundConfig(
+  env: Record<string, string | undefined> = process.env,
+): CompoundConfig {
+  const parsed = schema.safeParse(env);
+  if (!parsed.success) {
+    const fields = parsed.error.issues.map((i) => `  ${i.path.join(".")}: ${i.message}`);
+    throw new CompoundConfigError(`Invalid environment:\n${fields.join("\n")}`);
+  }
+  return {
+    buildMs: Math.round(parsed.data.OFFICE_ROOM_BUILD_SECONDS * 1000),
+    sizeTiles: parsed.data.OFFICE_COMPOUND_SIZE,
+  };
+}
