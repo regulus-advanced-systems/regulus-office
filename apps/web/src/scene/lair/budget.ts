@@ -8,21 +8,22 @@
  * the compound: a corridor network of 200 cells costs the same draws as one
  * cell. The ceiling for the whole kit on screen at once is
  *
- *   sum over piece types (1 + glow)        ≈ 70 (checked in budget.test.ts)
+ *   sum over piece types (1 + glow)        ≈ 100 (checked in budget.test.ts)
  *   + 1 instanced mesh for all console lamps
  *   + 1 for all beacon domes, 2 for all sliding door leaves
  *   + 1 per particle emitter (sparks, dust) while a room is building
  *
- * against LAIR_DRAW_CALL_BUDGET (100); the debug scene, with every piece
- * on screen, measures about 80 for the kit (its overview shows ~100 because
- * it also draws the restyled board, gong and clipboard Looks, which are
- * plain meshes like the objects they restyle). A richly furnished room with its door, lamps and
- * corridor junction (the debug sample) needs about 50
- * (ROOM_DRAW_CALL_BUDGET 60), and further rooms add almost nothing because
- * they reuse the same instanced meshes, leaving most of a ~250-draw frame
- * for robots, laptop screens and boards. Lights: a fixed pool of 6 tungsten point lights (LampLights) plus
- * 2 red beacon lights, never more, because changing the light count
- * recompiles every lit shader.
+ * against LAIR_DRAW_CALL_BUDGET (130). No real view shows all of that: a
+ * room is dressed in one decor style and uses a third of the style pieces.
+ * The debug scene's overview measures about 100 (it also draws the
+ * restyled board, gong and clipboard Looks, plain meshes like the objects
+ * they restyle). A richly furnished room with its door, lamps and corridor
+ * junction needs about 50 (ROOM_DRAW_CALL_BUDGET 60), and further rooms add
+ * almost nothing because they reuse the same instanced meshes, leaving most
+ * of a ~250-draw frame for robots, laptop screens and boards. Lights: a
+ * fixed pool of 6 tungsten point lights (LampLights) plus 2 red beacon
+ * lights, never more, because changing the light count recompiles every
+ * lit shader.
  *
  * Triangles. Each piece has a triangle budget in kit.ts (walls 100-260,
  * props 100-600, the console 900, build-phase stacks up to 1.5k); a 12 x 12
@@ -35,7 +36,7 @@ import { PIECE_IDS, type PieceId, pieceGeometry } from "./kit.ts";
 import { drawCalls, type PiecePlacement } from "./placements.ts";
 
 /** Draws for every lair piece type on screen at once, plus the animated layers. */
-export const LAIR_DRAW_CALL_BUDGET = 100;
+export const LAIR_DRAW_CALL_BUDGET = 130;
 /** Draws for one richly furnished room with its door, lamps and corridor junction. */
 export const ROOM_DRAW_CALL_BUDGET = 60;
 /** Triangles for the largest room (12 x 12 tiles) shell plus its furniture. */

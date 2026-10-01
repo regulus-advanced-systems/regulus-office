@@ -29,10 +29,12 @@ export interface RoomShellOptions {
   /** Size in tiles. */
   w: number;
   d: number;
-  door?: { side: CompassDirection; tile: number };
+  /** The door: its side, first tile and how many tiles it spans (one frame per tile). */
+  door?: { side: CompassDirection; tile: number; span?: number };
   /** Finish per wall; rock alternates its two variants so a run does not repeat. */
   finish?: Partial<Record<CompassDirection, WallFinishId>>;
-  floor?: "floor_concrete" | "floor_steel";
+  /** Floor piece; concrete goes worn on some tiles. */
+  floor?: PieceId;
   /** Wall lamp on every n-th segment (0: none). */
   lampEvery?: number;
   /** Walls that carry the pipe run and cable tray. */
@@ -95,20 +97,26 @@ export function roomShell(opts: RoomShellOptions): RoomShell {
     const finish = opts.finish?.[side] ?? "wall_rock";
     for (let i = 0; i < n; i++) {
       const at = wallSegment(side, i, w, d);
-      const isDoor = opts.door?.side === side && opts.door.tile === i;
+      const door = opts.door?.side === side ? opts.door : undefined;
+      const span = door?.span ?? 1;
+      const isDoor = door !== undefined && i >= door.tile && i < door.tile + span;
       if (isDoor) {
         doors.push({ position: at, rotationY: yaw });
-        const c = Math.cos(yaw);
-        const s = Math.sin(yaw);
-        const [bx, by, bz] = DOOR_BEACON_POS;
-        // A beacon over each face of the door (room and corridor side), frame-local to world.
-        for (const face of [1, -1]) {
-          const lx = bx * face;
-          const lz = bz * face;
-          beacons.push({
-            position: [at[0] + lx * c + lz * s, by - 0.02, at[2] - lx * s + lz * c],
-            rotationY: face > 0 ? yaw : yaw + Math.PI,
-          });
+        if (i === door.tile + span - 1) {
+          // One beacon over each face, centred on the whole doorway, frame-local to world.
+          const first = wallSegment(side, door.tile, w, d);
+          const mid: Vec3 = [(first[0] + at[0]) / 2, 0, (first[2] + at[2]) / 2];
+          const c = Math.cos(yaw);
+          const s = Math.sin(yaw);
+          const [bx, by, bz] = DOOR_BEACON_POS;
+          for (const face of [1, -1]) {
+            const lx = bx * face;
+            const lz = bz * face;
+            beacons.push({
+              position: [mid[0] + lx * c + lz * s, by - 0.02, mid[2] - lx * s + lz * c],
+              rotationY: face > 0 ? yaw : yaw + Math.PI,
+            });
+          }
         }
         pieces.push({
           piece: "hazard_strip",
@@ -162,7 +170,7 @@ export function roomShell(opts: RoomShellOptions): RoomShell {
 }
 
 /** Concrete floors go worn (stained) on about one tile in four, scattered. */
-export function floorPiece(floor: "floor_concrete" | "floor_steel", i: number, j: number): PieceId {
+export function floorPiece(floor: PieceId, i: number, j: number): PieceId {
   if (floor !== "floor_concrete") return floor;
   return (i * 7 + j * 13 + ((i * j) % 3)) % 4 === 1 ? "floor_concrete_worn" : "floor_concrete";
 }

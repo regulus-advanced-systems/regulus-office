@@ -43,6 +43,31 @@ import { concreteFloor, hazardStrip, steelFloor } from "./geometry/floors.ts";
 import { bench, loungeChair, sofa, swivelChair } from "./geometry/seating.ts";
 import { barrel, crate, lockers, planter, pottedFern, pottedPalm } from "./geometry/storage.ts";
 import {
+  cactusTin,
+  carpetFloor,
+  deskBooks,
+  deskMugs,
+  deskPlant,
+  drumPlanter,
+  fruitBowl,
+  leatherChair,
+  mapChest,
+  seedlingTray,
+  stoolChair,
+  tileFloor,
+  toolChest,
+  workbench,
+} from "./geometry/styleProps.ts";
+import {
+  pictureFrame,
+  pinboard,
+  poster,
+  usagePanel,
+  wallClock,
+  wallShelf,
+  whiteboard,
+} from "./geometry/wallDecor.ts";
+import {
   concreteWall,
   rockPile,
   rockWall,
@@ -50,9 +75,11 @@ import {
   wallPillar,
   wallTrim,
 } from "./geometry/walls.ts";
+import { LAIR } from "./palette.ts";
 
 export const PIECE_CATEGORIES = [
   "structure",
+  "wall_decor",
   "fixture",
   "furniture",
   "clutter",
@@ -139,6 +166,34 @@ export const PIECES = {
   work_light: def("Work light", "construction", 100, workLight),
   crate_stack: def("Crate stack", "construction", 1560, crateStack),
   cable_drum: def("Cable drum", "construction", 240, cableDrum),
+  // Generated-room dressings (#182 model ids): wall decor, desk clutter, style pieces.
+  wall_clock: def("Wall clock", "wall_decor", 400, wallClock, true),
+  pinboard: def("Pinboard", "wall_decor", 220, pinboard, true),
+  poster: def("Lair poster", "wall_decor", 120, () => poster("propaganda"), true),
+  poster_world_map: def("World map", "wall_decor", 120, () => poster("world_map"), true),
+  poster_elements: def("Element chart", "wall_decor", 160, () => poster("element_chart"), true),
+  poster_blueprint: def("Blueprint", "wall_decor", 280, () => poster("blueprint"), true),
+  poster_campaign: def("Campaign map", "wall_decor", 120, () => poster("campaign_map"), true),
+  wall_shelf: def("Wall shelf", "wall_decor", 200, wallShelf, true),
+  whiteboard: def("Whiteboard", "wall_decor", 160, whiteboard, true),
+  usage_panel: def("Usage panel", "wall_decor", 160, usagePanel, true),
+  picture_frame: def("Picture frame", "wall_decor", 80, pictureFrame, true),
+  desk_plant: def("Desk plant", "clutter", 120, deskPlant),
+  desk_mugs: def("Mugs", "clutter", 180, deskMugs),
+  fruit_bowl: def("Fruit bowl", "clutter", 240, fruitBowl),
+  desk_books: def("Book stack", "clutter", 60, deskBooks),
+  workbench: def("Workbench", "furniture", 300, () => workbench(0.9)),
+  workbench_desk: def("Workbench desk", "furniture", 300, () => workbench(0.76)),
+  stool_chair: def("Stool chair", "furniture", 200, stoolChair),
+  leather_chair: def("Leather chair", "furniture", 280, leatherChair),
+  map_chest: def("Map chest", "furniture", 120, mapChest),
+  tool_chest: def("Tool chest", "furniture", 300, toolChest),
+  fern_brass: def("Fern in brass", "clutter", 300, () => pottedFern(57, LAIR.brass)),
+  seedling_tray: def("Seedling tray", "clutter", 300, seedlingTray),
+  cactus_tin: def("Cactus tin", "clutter", 200, cactusTin),
+  drum_planter: def("Drum planter", "clutter", 440, drumPlanter),
+  floor_tile: def("Lab tile", "structure", 60, tileFloor),
+  floor_carpet: def("War carpet", "structure", 30, carpetFloor),
 } as const satisfies Record<string, PieceDef>;
 
 export type PieceId = keyof typeof PIECES;

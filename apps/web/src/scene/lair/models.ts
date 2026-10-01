@@ -62,22 +62,24 @@ export interface LairModel {
   readonly lamps?: readonly LampSocket[];
   /** Instance tint over the vertex colours. */
   readonly tint?: string;
+  /** Height of the top surface desk clutter stands on (default: the piece's height). */
+  readonly surface?: number;
 }
 
 export const LAIR_MODELS: Readonly<Record<LairModelId, LairModel>> = {
-  desk: { piece: "pod_desk" },
-  shared_table: { piece: "lab_bench" },
-  ceo_desk: { piece: "command_desk" },
-  meeting_table: { piece: "map_table" },
-  reception_desk: { piece: "reception_counter" },
-  cabinet: { piece: "filing_cabinet", uniform: true },
+  desk: { piece: "pod_desk", surface: 0.76 },
+  shared_table: { piece: "lab_bench", surface: 0.76 },
+  ceo_desk: { piece: "command_desk", surface: 0.76 },
+  meeting_table: { piece: "map_table", surface: 0.78 },
+  reception_desk: { piece: "reception_counter", surface: 1.05 },
+  cabinet: { piece: "filing_cabinet", surface: 1.3, uniform: true },
   bookshelf: { piece: "shelving" },
-  counter: { piece: "counter" },
+  counter: { piece: "counter", surface: 0.9 },
   fridge: { piece: "fridge" },
   coffee_machine: { piece: "espresso_machine", uniform: true },
   water_cooler: { piece: "water_cooler", uniform: true },
-  bistro_table: { piece: "tulip_table" },
-  coffee_table: { piece: "oval_table" },
+  bistro_table: { piece: "tulip_table", surface: 0.76 },
+  coffee_table: { piece: "oval_table", surface: 0.43 },
   couch: { piece: "sofa", sit: SOFA_SEAT },
   jukebox: { piece: "jukebox", uniform: true },
   plant: { piece: "palm", uniform: true },
@@ -128,8 +130,7 @@ export function lairSitSpec(model: LairModel): SitSpec | undefined {
  * `fitToFootprint` the Kenney furniture uses, with the piece's bounds
  * centred on the footprint.
  */
-export function lairModelPlacement(id: LairModelId, rect: Rect, heading: number): PiecePlacement {
-  const model = LAIR_MODELS[id];
+export function fitModel(model: LairModel, rect: Rect, heading: number): PiecePlacement {
   const { body } = pieceGeometry(model.piece);
   body.computeBoundingBox();
   const box = body.boundingBox;
@@ -146,4 +147,15 @@ export function lairModelPlacement(id: LairModelId, rect: Rect, heading: number)
     pivot: box ? centreBottomOffset(box) : undefined,
     tint: model.tint,
   };
+}
+
+/** `fitModel` for a model id from LAIR_MODEL_IDS. */
+export function lairModelPlacement(id: LairModelId, rect: Rect, heading: number): PiecePlacement {
+  return fitModel(LAIR_MODELS[id], rect, heading);
+}
+
+/** Top surface height of a placed model, where clutter stands. */
+export function surfaceHeight(model: LairModel, placement: PiecePlacement): number {
+  const natural = model.surface ?? pieceSize(model.piece).h;
+  return natural * (placement.scale?.[1] ?? 1);
 }

@@ -25,6 +25,17 @@ const PLINTH_PROUD = 0.07;
 export type WallFinish = "rock" | "concrete" | "steel";
 
 /**
+ * How far each finish's face stands proud of its wall line, metres: the
+ * rock relief bulges up to this far, so anything hung on a rock wall (boards,
+ * posters, clocks) must stand off by it or it sinks into the rock.
+ */
+export const WALL_RELIEF: Readonly<Record<WallFinish, number>> = {
+  rock: 0.24,
+  concrete: 0.01,
+  steel: 0.06,
+};
+
+/**
  * Plinth, rail, back face, end faces and the dark section cap common to
  * every finish; `endFront` is how far the face stands out at the ends.
  */

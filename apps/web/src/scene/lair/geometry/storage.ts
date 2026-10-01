@@ -74,7 +74,7 @@ export function barrel(): PieceGeometry {
   return { body: b.build() };
 }
 
-function frond(
+export function frond(
   b: PartBuilder,
   base: [number, number, number],
   yaw: number,
@@ -140,9 +140,9 @@ export function pottedPalm(seed = 54): PieceGeometry {
 }
 
 /** A fern bush in a squat concrete pot, about 0.7 m. */
-export function pottedFern(seed = 55): PieceGeometry {
+export function pottedFern(seed = 55, pot: string = LAIR.concrete): PieceGeometry {
   const b = new PartBuilder(seed);
-  b.cylinder(0.24, 0.2, 0.3, 8, [0, 0.15, 0], LAIR.concrete, { jitter: 0.1 });
+  b.cylinder(0.24, 0.2, 0.3, 8, [0, 0.15, 0], pot, { jitter: 0.1 });
   b.cylinder(0.21, 0.21, 0.02, 8, [0, 0.3, 0], LAIR.soil);
   for (let k = 0; k < 11; k++) {
     const yaw = (k / 11) * Math.PI * 2 + b.random() * 0.4;

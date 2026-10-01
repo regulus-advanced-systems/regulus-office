@@ -9,13 +9,9 @@ import {
   sceneCost,
 } from "./budget.ts";
 import { lairModelScene } from "./components/LairModels.tsx";
-import {
-  SAMPLE_CHAIRS,
-  SAMPLE_FURNITURE,
-  SAMPLE_LAPTOPS,
-  sampleCorridors,
-  sampleRoomShell,
-} from "./debug/sampleScene.ts";
+import { corridorOrigin, mainRoom } from "./debug/sampleRooms.ts";
+import { sampleCorridors } from "./debug/sampleScene.ts";
+import { CORRIDOR_WIDTH, WALL_THICKNESS } from "./dimensions.ts";
 import { LAIR_MODEL_IDS } from "./models.ts";
 import {
   instanceTints,
@@ -29,17 +25,13 @@ describe("draw-call budget (budget.ts)", () => {
     expect(kitDrawCalls()).toBeLessThanOrEqual(LAIR_DRAW_CALL_BUDGET);
   });
 
-  test("the sample room with its corridor junction stays inside the room budget", () => {
-    const furniture = lairModelScene(SAMPLE_FURNITURE).pieces;
-    const items = [
-      ...sampleRoomShell().pieces,
-      ...sampleCorridors().pieces,
-      ...furniture,
-      ...SAMPLE_CHAIRS,
-      ...SAMPLE_LAPTOPS,
-    ];
+  test("the generated sample room with its corridor junction stays inside the room budget", () => {
+    const room = mainRoom("ops_room");
+    const corridors = sampleCorridors(corridorOrigin(room, CORRIDOR_WIDTH, WALL_THICKNESS));
     // + lamps, beacon domes, door leaves (body and glow) and the shadow layer.
-    expect(sceneCost(items).drawCalls + 5).toBeLessThanOrEqual(ROOM_DRAW_CALL_BUDGET);
+    expect(sceneCost([...room.pieces, ...corridors.pieces]).drawCalls + 5).toBeLessThanOrEqual(
+      ROOM_DRAW_CALL_BUDGET,
+    );
   });
 
   test("instancing: two hundred corridor cells cost the same draws as one", () => {

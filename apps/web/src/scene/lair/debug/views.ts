@@ -1,10 +1,14 @@
 /**
  * Debug-scene options from the query string (#183) and the camera presets
  * the PR screenshots use: `?view=overview|corner|junction|door|console|
- * scaffold|pieces`, `door=open|closed`, `alarm=1`, `cut=0` (no cutaway),
+ * scaffold|pieces|lounge|styles`, `style=ops_room|lab|workshop|war_room`
+ * (the main room's decor), `door=open|closed`, `alarm=1`, `cut=0` (no cutaway),
  * `labels=0` (no catalogue labels), `stats=0` (no draw-call panel).
  */
+import { DECOR_STYLES, type DecorStyle, isOneOf } from "@regulus/protocol";
 import type { Vec3 } from "../geometry/builder.ts";
+
+const isDecorStyle = isOneOf(DECOR_STYLES);
 
 export interface CameraView {
   position: Vec3;
@@ -14,20 +18,23 @@ export interface CameraView {
 }
 
 export const VIEWS = {
-  overview: { position: [22, 24, 36], target: [5, 0, 11] },
-  corner: { position: [9.5, 6.5, 9.5], target: [2.6, 1, 2.2] },
-  junction: { position: [16, 13, 30], target: [7, 0, 18.5] },
-  door: { position: [10.5, 3.6, 19.5], target: [7, 1.3, 12.2], focus: [7, 0, 14.6] },
-  console: { position: [5.6, 2.3, 3.6], target: [4.4, 1.0, 0.7] },
+  overview: { position: [28, 27, 44], target: [8, 0, 14] },
+  corner: { position: [10, 6.2, 10.5], target: [2.8, 1, 2.6] },
+  junction: { position: [19, 13, 36], target: [10, 0, 22.5] },
+  door: { position: [13.5, 3.6, 23.5], target: [10, 1.3, 16.2], focus: [10, 0, 18.6] },
+  console: { position: [13.6, 2.3, 3.9], target: [12.2, 1.0, 0.7] },
   scaffold: { position: [-1.5, 8, 16], target: [-6.5, 1.2, 6] },
-  pieces: { position: [35, 22, 33], target: [35, 0, 9.5] },
-  lounge: { position: [9, 5.5, 8.5], target: [13.6, 0.8, 3.6] },
+  pieces: { position: [45.5, 33, 42], target: [45.5, 0, 10] },
+  lounge: { position: [11.5, 5.5, 16.5], target: [15.6, 0.8, 10.6] },
+  styles: { position: [21, 30, 14], target: [21, 0, -9] },
 } as const satisfies Record<string, CameraView>;
 
 export type ViewId = keyof typeof VIEWS;
 
 export interface ShowcaseOptions {
   view: ViewId;
+  /** Decor style of the main room. */
+  style: DecorStyle;
   doorOpen: boolean;
   alarm: boolean;
   cutaway: boolean;
@@ -38,8 +45,10 @@ export interface ShowcaseOptions {
 export function showcaseOptions(search: string): ShowcaseOptions {
   const q = new URLSearchParams(search);
   const view = q.get("view") ?? "overview";
+  const style = q.get("style") ?? "ops_room";
   return {
     view: (Object.hasOwn(VIEWS, view) ? view : "overview") as ViewId,
+    style: isDecorStyle(style) ? style : "ops_room",
     doorOpen: q.get("door") !== "closed",
     alarm: q.get("alarm") === "1",
     cutaway: q.get("cut") !== "0",

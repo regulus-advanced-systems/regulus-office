@@ -1,9 +1,11 @@
 /**
  * Dev-only lair art kit showcase (#183), served by Vite at
- * `/dev/lair.html` and never part of the production build: a furnished ops
- * room, the corridor junction outside its door, a room under construction
- * (scaffolding, crates, sparks, dust) and a catalogue apron with every
- * piece, under the lair lighting, with an orbit camera. The cutaway follows
+ * `/dev/lair.html` and never part of the production build: an ops room
+ * made by the room generator (#182) and dressed from its model ids, a
+ * gallery of the other decor styles, the corridor junction outside its
+ * door, a room under construction (scaffolding, crates, sparks, dust) and
+ * a catalogue apron with every piece, under the lair lighting, with an
+ * orbit camera. The cutaway follows
  * the orbit target as a stand-in for the player. See views.ts for the
  * query options; `O` toggles the doors and `A` the alarm.
  */
@@ -12,28 +14,19 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Vector3 } from "three";
 import { Beacons } from "../components/Beacons.tsx";
+import { BlinkingLamps } from "../components/BlinkingLamps.tsx";
 import { BlobShadows } from "../components/BlobShadows.tsx";
 import { PieceSet } from "../components/InstancedPieces.tsx";
 import { CutawayDriver, LairKit } from "../components/LairKit.tsx";
-import { LairModels } from "../components/LairModels.tsx";
 import { LampLights } from "../components/LampLights.tsx";
 import { SlidingDoors } from "../components/SlidingDoors.tsx";
-import { TILE } from "../dimensions.ts";
+import { CORRIDOR_WIDTH, WALL_THICKNESS } from "../dimensions.ts";
 import { PIECES } from "../kit.ts";
 import { LAIR } from "../palette.ts";
 import { Dust, Sparks } from "../particles/BuildParticles.tsx";
-import { LooksWall } from "./LooksWall.tsx";
-import {
-  BUILD_SITE,
-  catalogue,
-  ROOM,
-  SAMPLE_CHAIRS,
-  SAMPLE_FURNITURE,
-  SAMPLE_LAPTOPS,
-  sampleBuildSite,
-  sampleCorridors,
-  sampleRoomShell,
-} from "./sampleScene.ts";
+import { RoomLooks } from "./RoomLooks.tsx";
+import { corridorOrigin, mainRoom, styleGallery } from "./sampleRooms.ts";
+import { BUILD_SITE, catalogue, sampleBuildSite, sampleCorridors } from "./sampleScene.ts";
 import { type ShowcaseOptions, VIEWS } from "./views.ts";
 
 declare global {
@@ -72,33 +65,48 @@ function Scene({
   doorsOpen: boolean;
   alarm: boolean;
 }) {
-  const room = useMemo(sampleRoomShell, []);
-  const corridors = useMemo(sampleCorridors, []);
+  const main = useMemo(() => mainRoom(options.style), [options.style]);
+  const rooms = useMemo(() => [main, ...styleGallery()], [main]);
+  const corridors = useMemo(
+    () => sampleCorridors(corridorOrigin(main, CORRIDOR_WIDTH, WALL_THICKNESS)),
+    [main],
+  );
   const site = useMemo(sampleBuildSite, []);
   const cat = useMemo(catalogue, []);
   const view = VIEWS[options.view];
   const target = useMemo(() => new Vector3(...view.target), [view]);
   const pieces = useMemo(
     () => [
-      ...room.pieces,
+      ...rooms.flatMap((r) => r.pieces),
       ...corridors.pieces,
       ...site.pieces,
-      ...SAMPLE_CHAIRS,
-      ...SAMPLE_LAPTOPS,
       ...cat.placements,
     ],
-    [room, corridors, site, cat],
+    [rooms, corridors, site, cat],
   );
   const doors = useMemo(
     () => [
-      ...room.doors.map((d, i) => ({ ...d, id: `room-${i}`, open: doorsOpen })),
+      ...rooms.flatMap((r, k) =>
+        r.doors.map((d, i) => ({ ...d, id: `room-${k}-${i}`, open: doorsOpen })),
+      ),
       ...site.doors.map((d, i) => ({ ...d, id: `site-${i}`, open: !doorsOpen })),
     ],
-    [room, site, doorsOpen],
+    [rooms, site, doorsOpen],
   );
   const lamps = useMemo(
-    () => [...room.lamps, ...corridors.lamps, ...site.lamps],
-    [room, corridors, site],
+    () => [...rooms.flatMap((r) => r.lamps), ...corridors.lamps, ...site.lamps],
+    [rooms, corridors, site],
+  );
+  const consoleLamps = useMemo(() => rooms.flatMap((r) => r.consoleLamps), [rooms]);
+  const looks = useMemo(() => rooms.flatMap((r) => r.looks), [rooms]);
+  // One accent light per room from the generator's lighting (a fixed count).
+  const accents = useMemo(
+    () => rooms.flatMap((r) => r.lights.filter((l) => l.kind === "accent")),
+    [rooms],
+  );
+  const beacons = useMemo(
+    () => [...rooms.flatMap((r) => r.beacons), ...site.beacons],
+    [rooms, site],
   );
   const focusAt = useMemo(() => {
     const f: readonly [number, number, number] = "focus" in view ? view.focus : view.target;
@@ -111,18 +119,28 @@ function Scene({
       <hemisphereLight args={["#B4C2D4", "#5A4A3A", 1.8]} />
       <directionalLight position={[-10, 22, 8]} intensity={1.5} color="#FFE6C4" />
       <LampLights lamps={lamps} focus={focus} count={6} intensity={4} distance={8} />
+      {accents.map((l) => (
+        <pointLight
+          key={`${l.id}@${l.x},${l.z}`}
+          position={[l.x, l.y, l.z]}
+          color={l.color}
+          intensity={l.intensity * 3}
+          distance={l.range * 1.5}
+          decay={1.4}
+        />
+      ))}
       <CutawayDriver focus={focus} enabled={options.cutaway} />
       {/* Bedrock under everything, so cut walls show the mountain around the rooms. */}
-      <mesh rotation-x={-Math.PI / 2} position={[10, -0.1, 12]}>
-        <planeGeometry args={[120, 120]} />
+      <mesh rotation-x={-Math.PI / 2} position={[25, -0.1, 10]}>
+        <planeGeometry args={[200, 200]} />
         <meshBasicMaterial color="#201D1A" />
       </mesh>
       <PieceSet items={pieces} />
       <BlobShadows items={pieces} />
-      <LairModels items={SAMPLE_FURNITURE} />
-      <LooksWall east={ROOM.w * TILE} north={0} />
+      <BlinkingLamps lamps={consoleLamps} />
+      <RoomLooks looks={looks} />
       <SlidingDoors doors={doors} />
-      <Beacons items={[...room.beacons, ...site.beacons]} active={alarm} lights={2} />
+      <Beacons items={beacons} active={alarm} lights={2} />
       <Sparks origin={[BUILD_SITE.x + 7, 2.5, BUILD_SITE.z + 3]} />
       <Sparks origin={[BUILD_SITE.x + 3, 1.3, BUILD_SITE.z + 6.4]} seed={5} count={60} />
       <Dust
