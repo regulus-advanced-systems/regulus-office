@@ -6,7 +6,11 @@
  * - the desk the local player is at shows the live terminal (drei Html),
  *   when the ≤ 2 live DOM panel budget allows it;
  * - clicking a laptop with a robot, or `E` at an occupied desk, opens the
- *   terminal modal (free desks are the spawn dialog's job, #29).
+ *   terminal modal (free desks are the spawn dialog's job, #29). The live
+ *   panel and `E` use one rule (`terminalDeskAt`, #205), so wherever the
+ *   panel shows, `E` reaches it.
+ * In the compound (#186) only the room the player is in is interactive;
+ * nearby rooms show their screens' textures (roomScope.ts).
  */
 import { useFrame } from "@react-three/fiber";
 import type { FloorTemplate } from "@regulus/floor-layout";
@@ -14,13 +18,14 @@ import { LOBBY_FLOOR_ID } from "@regulus/protocol";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { officeServerUrl, toWebSocketUrl } from "../../net/serverUrl.ts";
-import { useFloorStore } from "../../state/floor.ts";
-import { usePlayerStore } from "../../state/player.ts";
+import type { useFloorStore } from "../../state/floor.ts";
+import type { HotkeyEventDetail } from "../../ui/hotkeys/registry.ts";
 import { useHotkeyEvents } from "../../ui/hotkeys/useHotkeys.ts";
 import { PANEL_PRIORITY, usePanelBudget } from "../../ui/terminal/panelBudget.ts";
 import { useTerminalModal } from "../../ui/terminal/terminalStore.ts";
+import { playerInRoom, scopedName, useRoomScope } from "../roomScope.ts";
 import { fakeAgentId, fakeScreensCount, fakeScreenText } from "./fakeScreens.ts";
-import { DESK_FOCUS_RADIUS, DESK_INTERACT_RADIUS, nearestSeat } from "./focus.ts";
+import { terminalDeskAt } from "./focus.ts";
 import { Laptop } from "./Laptop.tsx";
 import { LiveLaptopScreen } from "./LiveLaptopScreen.tsx";
 import { laptopPlacements } from "./placement.ts";
@@ -42,14 +47,20 @@ function selectSeatAgents(
 
 export interface LaptopLayerProps {
   template: FloorTemplate;
+  /**
+   * Draw laptops on free desks too (default). The compound (#186) draws free
+   * desks' laptops as instanced kit pieces and only robots' desks here.
+   */
+  freeDesks?: boolean;
 }
 
-export function LaptopLayer({ template }: LaptopLayerProps) {
+export function LaptopLayer({ template, freeDesks = true }: LaptopLayerProps) {
   const placements = useMemo(() => laptopPlacements(template), [template]);
   const deskSeats = useMemo(() => template.seats.filter((s) => s.kind === "desk"), [template]);
   const fake = useMemo(() => fakeScreensCount(window.location.search), []);
-  const floorId = useFloorStore((s) => s.floorId);
-  const liveAgents = useFloorStore(useShallow(selectSeatAgents));
+  const scope = useRoomScope();
+  const floorId = scope.store((s) => s.floorId);
+  const liveAgents = scope.store(useShallow(selectSeatAgents));
   const seatAgents = useMemo(() => {
     if (fake === null) return liveAgents;
     const out: Record<string, string> = {};
@@ -96,17 +107,18 @@ export function LaptopLayer({ template }: LaptopLayerProps) {
   useFrame(() => {
     const now = performance.now();
     textures.flush(now);
-    if (now - lastCheck.current < FOCUS_CHECK_MS) return;
+    if (now - lastCheck.current < FOCUS_CHECK_MS || !scope.interactive) return;
     lastCheck.current = now;
-    const player = usePlayerStore.getState();
+    const player = playerInRoom(scope);
     const seat = player.spawned
-      ? nearestSeat(deskSeats, player, DESK_FOCUS_RADIUS, (s) => seatAgents[s.id] !== undefined)
+      ? terminalDeskAt(deskSeats, player, (id) => seatAgents[id] !== undefined)
       : null;
     const id = seat?.id ?? null;
     if (id !== focusedSeat) setFocusedSeat(id);
   });
 
-  const focusedAgent = focusedSeat && fake === null ? seatAgents[focusedSeat] : undefined;
+  const focusedAgent =
+    focusedSeat && fake === null && scope.interactive ? seatAgents[focusedSeat] : undefined;
   const request = usePanelBudget((s) => s.request);
   const release = usePanelBudget((s) => s.release);
   const liveGranted = usePanelBudget((s) => s.granted.has(LAPTOP_PANEL_ID));
@@ -119,22 +131,25 @@ export function LaptopLayer({ template }: LaptopLayerProps) {
   const openTerminal = useTerminalModal((s) => s.openTerminal);
   const modalAgent = useTerminalModal((s) => s.agentId);
   const onHotkey = useCallback(
-    (detail: { id: string }) => {
-      if (detail.id !== "interact") return;
-      const player = usePlayerStore.getState();
+    (detail: HotkeyEventDetail) => {
+      if (detail.id !== "interact" || !scope.interactive) return;
+      const player = playerInRoom(scope);
       if (!player.spawned) return;
-      const seat = nearestSeat(deskSeats, player, DESK_INTERACT_RADIUS);
+      const seat = terminalDeskAt(deskSeats, player, (id) => seatAgents[id] !== undefined);
       const agentId = seat ? seatAgents[seat.id] : undefined;
-      if (agentId) openTerminal(agentId);
+      if (!agentId) return;
+      detail.handled = true;
+      openTerminal(agentId);
     },
-    [deskSeats, seatAgents, openTerminal],
+    [deskSeats, seatAgents, openTerminal, scope],
   );
   useHotkeyEvents(onHotkey);
 
   return (
-    <group name="laptops">
+    <group name={scopedName(scope, "laptops")}>
       {placements.map((p) => {
         const agentId = seatAgents[p.seatId];
+        if (!agentId && !freeDesks) return null;
         // The modal already shows this robot live: keep the laptop on its texture.
         const live =
           agentId && agentId === focusedAgent && liveGranted && modalAgent !== agentId ? (
@@ -146,7 +161,8 @@ export function LaptopLayer({ template }: LaptopLayerProps) {
             placement={p}
             texture={agentId ? textures.texture(agentId) : null}
             live={live}
-            onSelect={agentId ? () => openTerminal(agentId) : undefined}
+            name={scopedName(scope, `laptop-${p.seatId}`)}
+            onSelect={agentId && scope.interactive ? () => openTerminal(agentId) : undefined}
           />
         );
       })}

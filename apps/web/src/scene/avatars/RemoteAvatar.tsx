@@ -7,15 +7,16 @@
  * human sits on its seat's sit anchor like a robot does (#163).
  */
 import { useFrame } from "@react-three/fiber";
-import { templateById } from "@regulus/floor-layout";
 import type { AvatarAnimation } from "@regulus/protocol";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Group } from "three";
 import { useShallow } from "zustand/react/shallow";
 import { type BuildingStore, useBuildingStore } from "../../state/building.ts";
-import { useFloorStore } from "../../state/floor.ts";
+import { useCompoundStore } from "../../state/compound.ts";
 import { presenceAnimation } from "../avatar/index.ts";
-import { sitAnchors } from "../furniture/sitAnchor.ts";
+import { roomArt } from "../compound/interiors.ts";
+import { lairAnchors } from "../compound/lairAnchors.ts";
+import { roomAt } from "../compound/world.ts";
 import { GeniusAvatar } from "../geniuses/GeniusAvatar.tsx";
 import { createPoseBuffer } from "../movement/remoteInterpolation.ts";
 import { robotPlacement } from "../robots/seatPlacement.ts";
@@ -49,13 +50,23 @@ export function RemoteAvatar({ sessionId }: RemoteAvatarProps) {
     }),
   );
 
-  const templateId = useFloorStore((s) => s.state?.layoutTemplateId ?? "");
+  const world = useCompoundStore((s) => s.world);
   const seatId = info?.seatId ?? "";
+  // A seat belongs to the room the human stands in (#186): its generated interior, in compound metres.
   const seated = useMemo(() => {
-    const template = seatId ? templateById(templateId) : undefined;
-    const seat = template?.seats.find((s) => s.id === seatId);
-    return template && seat ? robotPlacement(seat, true, sitAnchors(template).get(seat.id)) : null;
-  }, [templateId, seatId]);
+    if (!seatId || !world) return null;
+    const at = useBuildingStore.getState().state?.humans[sessionId]?.position;
+    const room = at ? roomAt(world, at.x, at.z) : null;
+    const layout = room ? roomArt(room).layout : null;
+    const seat = layout?.seats.find((s) => s.id === seatId);
+    if (!room || !layout || !seat) return null;
+    const place = robotPlacement(seat, true, lairAnchors(layout).get(seat.id));
+    const [x, y, z] = place.position;
+    return {
+      ...place,
+      position: [x + room.origin.x, y, z + room.origin.z] as typeof place.position,
+    };
+  }, [world, seatId, sessionId]);
 
   useEffect(() => {
     const push = (state: BuildingStore) => {

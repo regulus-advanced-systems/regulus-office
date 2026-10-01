@@ -1,8 +1,10 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { officeL2Template } from "@regulus/floor-layout";
 import type { FloorState, SearchContextResponse, SearchResponse } from "@regulus/protocol";
 import { floorFixture, robotFixture } from "@regulus/protocol/src/fixtures.ts";
 import { act } from "react";
+import { roomLayout } from "../../scene/compound/interiors.ts";
+import { rowPlacement, testWorld } from "../../scene/compound/testing.ts";
+import { useCompoundStore } from "../../state/compound.ts";
 import { useFloorStore } from "../../state/floor.ts";
 import { usePlayerStore } from "../../state/player.ts";
 import { useUiStore } from "../../state/ui.ts";
@@ -176,8 +178,16 @@ describe("SearchReveal", () => {
 });
 
 describe("tickJump", () => {
-  const desk = officeL2Template.seats.find((s) => s.kind === "desk");
-  if (!desk) throw new Error("template has no desk");
+  // The robot's room in a small compound (#186): seats are in compound metres.
+  const world = testWorld([{ id: "f1", placement: rowPlacement(4), deskCount: 2 }]);
+  const room = world.rooms.find((r) => r.id === "f1");
+  const layout = room ? roomLayout(room) : null;
+  const seat = layout?.seats.find((s) => s.kind === "desk");
+  if (!room || !seat) throw new Error("room has no desk");
+  const desk = {
+    id: seat.id,
+    pose: { x: room.origin.x + seat.pose.x, z: room.origin.z + seat.pose.z },
+  };
   const target = { agentId: "a1", floorId: "f1", docId: 11, query: "needle", startedAt: 0 };
   const recorder = () => {
     const log: string[] = [];
@@ -201,9 +211,11 @@ describe("tickJump", () => {
   test("walks to the desk, opens the terminal there with the match to reveal", () => {
     const state = {
       ...floorFixture,
-      layoutTemplateId: officeL2Template.id,
+      floorId: "f1",
+      layoutTemplateId: "room",
       robots: { a1: { ...robotFixture, seatId: desk.id } },
     } as FloorState;
+    useCompoundStore.setState({ world });
     useFloorStore.getState().apply(state);
     usePlayerStore.setState({
       spawned: true,

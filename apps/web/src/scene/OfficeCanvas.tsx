@@ -1,5 +1,7 @@
 /**
- * The office scene (SPEC §9.2, §12): true-isometric orthographic camera over
+ * One floor template's scene, for the dev harness (`scene.html`); the office
+ * itself draws the whole compound (compound/CompoundCanvas.tsx, #186).
+ * True-isometric orthographic camera over
  * a dollhouse room rendered from a floor template with toon shading, on a
  * cream vignette, with baked blob shadows under the furniture. Pixel ratio
  * 1, no tone mapping, render loop paused while the tab is hidden (SPEC §11).
@@ -36,6 +38,7 @@ import { WallAnchors } from "./furniture/WallAnchors.tsx";
 import { useDocumentHidden } from "./hooks/useDocumentHidden.ts";
 import { LaptopLayer } from "./laptops/LaptopLayer.tsx";
 import { Lighting } from "./lights/Lighting.tsx";
+import { navGridFor } from "./movement/navigation.ts";
 import { StatsOverlay } from "./perf/StatsOverlay.tsx";
 import { statsEnabled } from "./perf/stats.ts";
 import { Room } from "./room/Room.tsx";
@@ -120,7 +123,9 @@ export function OfficeCanvas({
         <IsoCamera room={room} enabled={!firstPerson} />
         {rigMounted && (
           <FirstPersonRig
-            template={template}
+            grid={navGridFor(template)}
+            spawn={template.spawn}
+            spawnKey={template.id}
             active={firstPerson}
             getPose={spawned ? playerBinding.getPose : undefined}
             onMove={spawned ? playerBinding.onMove : undefined}

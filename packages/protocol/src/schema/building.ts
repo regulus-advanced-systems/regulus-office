@@ -55,6 +55,8 @@ export const FloorSummarySchema = schema(
     doorY: t.int16().default(-1),
     buildState: t.string().default("ready"),
     buildEndsAt: t.number().default(0),
+    deskCount: t.uint16().default(0),
+    decorStyle: t.string().default("ops_room"),
   },
   "FloorSummary",
 );

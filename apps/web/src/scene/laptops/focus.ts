@@ -26,3 +26,20 @@ export function nearestSeat(
   }
   return best;
 }
+
+/**
+ * The occupied desk the player is "at" (#205): its laptop shows the live
+ * terminal, and `E` opens that terminal; one rule for both, so wherever the
+ * live panel shows, `E` reaches it. The nearest desk within
+ * `DESK_INTERACT_RADIUS` decides first: a free one is the spawn dialog's
+ * (robots/deskInteraction.ts), so neither shows nor opens a terminal.
+ */
+export function terminalDeskAt(
+  seats: readonly Seat[],
+  at: { x: number; z: number },
+  occupied: (seatId: string) => boolean,
+): Seat | null {
+  const near = nearestSeat(seats, at, DESK_INTERACT_RADIUS);
+  if (near && !occupied(near.id)) return null;
+  return nearestSeat(seats, at, DESK_FOCUS_RADIUS, (s) => occupied(s.id));
+}

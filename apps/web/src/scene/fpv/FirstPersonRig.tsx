@@ -21,7 +21,7 @@
  * at aspect 1 and the view was stretched sideways by the screen's aspect.
  */
 import { useFrame, useThree } from "@react-three/fiber";
-import { buildNavGrid, type FloorTemplate } from "@regulus/floor-layout";
+import type { NavGrid } from "@regulus/floor-layout";
 import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { Euler, type Object3D, OrthographicCamera, PerspectiveCamera } from "three";
 import { PointerLockControls } from "three/examples/jsm/controls/PointerLockControls.js";
@@ -38,13 +38,7 @@ import {
   safeAspect,
 } from "../camera/perspective.ts";
 import { WALK_SPEED } from "../movement/kinematics.ts";
-import {
-  clampDt,
-  EYE_HEIGHT_RATIO,
-  moveVector,
-  NAV_CELL_SIZE,
-  stepWithCollision,
-} from "./fpvMove.ts";
+import { clampDt, EYE_HEIGHT_RATIO, moveVector, stepWithCollision } from "./fpvMove.ts";
 import { exitPointerLock, requestPointerLock } from "./pointerLock.ts";
 import { useHeldKeys } from "./useHeldKeys.ts";
 
@@ -63,7 +57,12 @@ export interface PlayerPose {
 }
 
 export interface FirstPersonRigProps {
-  template: FloorTemplate;
+  /** Collision grid (the compound's, or one floor template's in the dev harnesses). */
+  grid: NavGrid;
+  /** Where the rig's own pose starts when it has no player store to drive. */
+  spawn: PlayerPose;
+  /** Identity of `spawn`'s world, keying the rig's own fallback pose. */
+  spawnKey: string;
   /** Render through this camera (true after the crossfade midpoint). */
   active: boolean;
   /** Live player pose (read every frame); omit to use the rig's local pose. */
@@ -73,20 +72,22 @@ export interface FirstPersonRigProps {
   eyeHeight?: number;
 }
 
-/** Local fallback poses, one per template, so toggling in and out resumes in place. */
+/** Local fallback poses, one per world, so toggling in and out resumes in place. */
 const localPoses = new Map<string, PlayerPose>();
 
-function localPose(template: FloorTemplate): PlayerPose {
-  let p = localPoses.get(template.id);
+function localPose(key: string, spawn: PlayerPose): PlayerPose {
+  let p = localPoses.get(key);
   if (!p) {
-    p = { ...template.spawn };
-    localPoses.set(template.id, p);
+    p = { ...spawn };
+    localPoses.set(key, p);
   }
   return p;
 }
 
 export function FirstPersonRig({
-  template,
+  grid,
+  spawn,
+  spawnKey,
   active,
   getPose,
   onMove,
@@ -127,14 +128,13 @@ export function FirstPersonRig({
   useEffect(() => {
     controls.pointerSpeed = pointerSpeed(sensitivity);
   }, [controls, sensitivity]);
-  const grid = useMemo(() => buildNavGrid(template, { cellSize: NAV_CELL_SIZE }), [template]);
   const euler = useMemo(() => new Euler(0, 0, 0, "YXZ"), []);
 
   const binding = useRef({ getPose, onMove });
   useEffect(() => {
     binding.current = { getPose, onMove };
   }, [getPose, onMove]);
-  const currentPose = () => binding.current.getPose?.() ?? localPose(template);
+  const currentPose = () => binding.current.getPose?.() ?? localPose(spawnKey, spawn);
   const held = useHeldKeys(active);
 
   // Start where the avatar stands, facing the way it faces.
@@ -236,7 +236,7 @@ export function FirstPersonRig({
       const s = stepWithCollision(grid, p.x, p.z, dir.x * step, dir.z * step);
       const move = binding.current.onMove;
       if (move) move(s.dx, s.dz, frame, yaw);
-      else localPoses.set(template.id, { x: s.x, z: s.z, heading: yaw });
+      else localPoses.set(spawnKey, { x: s.x, z: s.z, heading: yaw });
     }
     const p = currentPose();
     camera.position.set(p.x, eyeHeight, p.z);

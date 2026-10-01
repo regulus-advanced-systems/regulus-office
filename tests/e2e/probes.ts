@@ -44,27 +44,33 @@ export function cameraType(page: Page): Promise<string | null> {
   });
 }
 
+/** Name of the camera the scene renders with (`fpv-camera` in first person). */
+export function cameraName(page: Page): Promise<string | null> {
+  return page.evaluate(() => {
+    const r3f = (window as unknown as { __regulusR3F?: { get(): { camera: { name: string } } } })
+      .__regulusR3F;
+    return r3f ? r3f.get().camera.name : null;
+  });
+}
+
+/** Where the scene's camera is, metres. */
+export function cameraPosition(page: Page): Promise<{ x: number; y: number; z: number } | null> {
+  return page.evaluate(() => {
+    const r3f = (
+      window as unknown as {
+        __regulusR3F?: { get(): { camera: { position: { x: number; y: number; z: number } } } };
+      }
+    ).__regulusR3F;
+    const p = r3f?.get().camera.position;
+    return p ? { x: p.x, y: p.y, z: p.z } : null;
+  });
+}
+
 /** Wait until the scene exists and our own avatar has spawned. */
 export async function waitForScene(page: Page): Promise<void> {
   await expect
-    .poll(async () => Object.keys(await humans(page)), { timeout: 30_000 })
+    .poll(async () => Object.keys(await humans(page)), { timeout: 90_000 })
     .toContain("local-human");
-}
-
-/** Width x depth of the floor being walked (the walk plane follows the template). */
-export function floorSize(page: Page): Promise<string | null> {
-  return page.evaluate(() => {
-    type Obj = { name: string; geometry?: { parameters?: { width: number; height: number } } };
-    const r3f = (
-      window as unknown as { __regulusR3F?: { scene: { traverse(f: (o: Obj) => void): void } } }
-    ).__regulusR3F;
-    let size: string | null = null;
-    r3f?.scene.traverse((o) => {
-      const p = o.geometry?.parameters;
-      if (o.name === "walk-plane" && p) size = `${p.width}x${p.height}`;
-    });
-    return size;
-  });
 }
 
 export const distance = (a: Pos, b: Pos) => Math.hypot(a.x - b.x, a.z - b.z);

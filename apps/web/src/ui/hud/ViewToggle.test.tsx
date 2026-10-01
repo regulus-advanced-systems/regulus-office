@@ -45,9 +45,9 @@ describe("ViewToggle", () => {
     await reset();
     const m = await mount(<HotkeyHost />);
     const toggleView = DEFAULT_HOTKEYS.find((b) => b.id === "toggleView");
-    const floorMenu = DEFAULT_HOTKEYS.find((b) => b.id === "floorMenu");
-    if (!toggleView || !floorMenu) throw new Error("default hotkeys missing");
-    await act(async () => dispatchHotkey(floorMenu));
+    const quickTravel = DEFAULT_HOTKEYS.find((b) => b.id === "quickTravel");
+    if (!toggleView || !quickTravel) throw new Error("default hotkeys missing");
+    await act(async () => dispatchHotkey(quickTravel));
     expect(useViewStore.getState().mode).toBe("third_person");
     await act(async () => dispatchHotkey(toggleView));
     expect(useViewStore.getState().mode).toBe("first_person");

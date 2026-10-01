@@ -2,7 +2,7 @@
  * Jump-to-desk from a search result (#41), as a pure step function: given
  * where the player is and what the scene has loaded, what to do next.
  *
- *   another floor  → quick travel (the elevator's teleport) once, then wait
+ *   another floor  → quick travel into its room (#186) once, then wait
  *   floor loading  → wait for the floor state and the respawn on it
  *   on the floor   → walk to the robot's desk (click-to-walk pathing)
  *   at the desk    → open the terminal (also when the walk ends or stalls)

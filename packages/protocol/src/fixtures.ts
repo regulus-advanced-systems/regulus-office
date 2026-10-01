@@ -46,6 +46,8 @@ export const buildingFixture: BuildingState = {
       doorY: 56,
       buildState: "ready",
       buildEndsAt: 0,
+      deskCount: 0,
+      decorStyle: "ops_room",
     },
     f1: {
       floorId: "f1",
@@ -66,6 +68,8 @@ export const buildingFixture: BuildingState = {
       doorY: 54,
       buildState: "building",
       buildEndsAt: 1_700_000_020_000,
+      deskCount: 3,
+      decorStyle: "lab",
     },
   },
   chat: [

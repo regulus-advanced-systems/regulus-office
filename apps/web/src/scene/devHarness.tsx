@@ -21,7 +21,7 @@ import { createRoot } from "react-dom/client";
 import { useViewStore } from "../state/view.ts";
 import { useGlobalHotkeys } from "../ui/hotkeys/useHotkeys.ts";
 import { AvatarLayer } from "./avatars/AvatarLayer.tsx";
-import { MovementController } from "./movement/MovementController.tsx";
+import { TemplateMovement } from "./movement/MovementController.tsx";
 import { OfficeCanvas } from "./OfficeCanvas.tsx";
 
 const noSend = () => {};
@@ -40,7 +40,7 @@ function Harness() {
   return (
     <div style={{ position: "fixed", inset: 0 }}>
       <OfficeCanvas template={template} palette={palette} avatars={<AvatarLayer />}>
-        <MovementController template={template} send={noSend} />
+        <TemplateMovement template={template} send={noSend} />
       </OfficeCanvas>
       <button
         type="button"

@@ -181,6 +181,8 @@ export class AgentOffice {
       OFFICE_GITHUB_REMOTE_BASE: `file://${this.remotesDir}`,
       OFFICE_GITHUB_API_BASE: opts.githubApiBase,
       OFFICE_LOG_LEVEL: process.env.OFFICE_LOG_LEVEL ?? "info",
+      // A new room's build phase (#181), short so the flow walks in at once (#186).
+      OFFICE_ROOM_BUILD_SECONDS: "1",
       // Same secrets across restarts: sessions and encrypted rows must survive.
       BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET ?? secret(),
       OFFICE_MASTER_KEY: process.env.OFFICE_MASTER_KEY ?? secret(),

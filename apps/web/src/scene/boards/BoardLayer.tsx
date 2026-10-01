@@ -8,11 +8,12 @@ import type { FloorTemplate } from "@regulus/floor-layout";
 import type { IssueCard, PullCard, RepoSummary, RobotState } from "@regulus/protocol";
 import { useCallback, useMemo } from "react";
 import { useShallow } from "zustand/react/shallow";
-import { useFloorStore } from "../../state/floor.ts";
 import { usePlayerStore } from "../../state/player.ts";
 import { useBoardStore } from "../../ui/boards/boardStore.ts";
 import { buildBoard } from "../../ui/boards/columns.ts";
+import type { HotkeyEventDetail } from "../../ui/hotkeys/registry.ts";
 import { useHotkeyEvents } from "../../ui/hotkeys/useHotkeys.ts";
+import { playerInRoom, scopedName, toRoom, useRoomScope, walkInRoom } from "../roomScope.ts";
 import { BoardObject } from "./BoardObject.tsx";
 import { boardAnchors, boardInReach } from "./boardAnchors.ts";
 import { CarriedCards } from "./CarriedCards.tsx";
@@ -23,10 +24,18 @@ const NO_PULLS: Readonly<Record<string, PullCard>> = {};
 const NO_REPOS: readonly RepoSummary[] = [];
 const NO_ROBOTS: Readonly<Record<string, RobotState>> = {};
 
-export function BoardLayer({ template, look }: { template: FloorTemplate; look?: BoardLook }) {
+export interface BoardLayerProps {
+  template: FloorTemplate;
+  look?: BoardLook;
+  /** Draw carried cards here (the compound draws them once, in world space). */
+  carried?: boolean;
+}
+
+export function BoardLayer({ template, look, carried = true }: BoardLayerProps) {
+  const scope = useRoomScope();
   const boards = useMemo(() => boardAnchors(template), [template]);
   const openBoard = useBoardStore((s) => s.openBoard);
-  const state = useFloorStore(
+  const state = scope.store(
     useShallow((s) => ({
       issues: s.state?.issues ?? NO_ISSUES,
       pulls: s.state?.pulls ?? NO_PULLS,
@@ -39,24 +48,28 @@ export function BoardLayer({ template, look }: { template: FloorTemplate; look?:
     return { issue: buildBoard("issue", input), pr: buildBoard("pr", input) };
   }, [state]);
   const reachId = usePlayerStore((s) =>
-    s.spawned ? (boardInReach(boards, s)?.anchor.id ?? null) : null,
+    s.spawned && scope.interactive
+      ? (boardInReach(boards, toRoom(scope, s))?.anchor.id ?? null)
+      : null,
   );
 
   useHotkeyEvents(
     useCallback(
-      (detail: { id: string }) => {
-        if (detail.id !== "interact") return;
-        const player = usePlayerStore.getState();
+      (detail: HotkeyEventDetail) => {
+        if (detail.id !== "interact" || !scope.interactive) return;
+        const player = playerInRoom(scope);
         if (!player.spawned) return;
         const board = boardInReach(boards, player);
-        if (board) openBoard(board.kind);
+        if (!board) return;
+        detail.handled = true;
+        openBoard(board.kind);
       },
-      [boards, openBoard],
+      [boards, openBoard, scope],
     ),
   );
 
   return (
-    <group name="boards">
+    <group name={scopedName(scope, "boards")}>
       {boards.map((b) => (
         <BoardObject
           key={b.anchor.id}
@@ -66,13 +79,13 @@ export function BoardLayer({ template, look }: { template: FloorTemplate; look?:
           inReach={reachId === b.anchor.id}
           onOpen={() => {
             // Walk over to the board while its panel is up, like a desk click.
-            usePlayerStore.getState().setTarget(b.stand.x, b.stand.z);
+            walkInRoom(scope, b.stand.x, b.stand.z);
             openBoard(b.kind);
           }}
           look={look}
         />
       ))}
-      <CarriedCards />
+      {carried && <CarriedCards />}
     </group>
   );
 }

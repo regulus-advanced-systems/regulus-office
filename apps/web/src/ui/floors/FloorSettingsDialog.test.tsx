@@ -8,7 +8,9 @@ import type {
   UserRole,
 } from "@regulus/protocol";
 import { act } from "react";
+import { rowPlacement, testWorld } from "../../scene/compound/testing.ts";
 import { useBuildingStore } from "../../state/building.ts";
+import { useCompoundStore } from "../../state/compound.ts";
 import { useFloorStore } from "../../state/floor.ts";
 import { useFloorsStore } from "../../state/floors.ts";
 import { useSessionStore } from "../../state/session.ts";
@@ -16,7 +18,7 @@ import { useUiStore } from "../../state/ui.ts";
 import { click, type Mounted, mount as mountNode, useDom } from "../a11y/dom.ts";
 import { type FakeCall, fakeFetch } from "../auth/fakeFetch.ts";
 import { button, settle, text } from "../auth/testDom.tsx";
-import { ElevatorPanel } from "../hud/ElevatorPanel.tsx";
+import { QUICK_TRAVEL_OVERLAY, QuickTravelDialog } from "../hud/QuickTravel.tsx";
 import { TopBar } from "../hud/TopBar.tsx";
 import { ADD_FLOOR_OVERLAY, AddFloorDialogHost } from "./AddFloorDialog.tsx";
 import { createFloorsApi } from "./api.ts";
@@ -119,6 +121,7 @@ describe("floor settings panel", () => {
       useFloorsStore.getState().clear();
       useFloorStore.getState().clear();
       useBuildingStore.getState().clear();
+      useCompoundStore.setState({ world: null });
       useSessionStore.setState({ status: "unknown", user: null, error: null });
     });
     for (const el of document.querySelectorAll(".rg-backdrop")) el.remove();
@@ -142,23 +145,27 @@ describe("floor settings panel", () => {
     expect(useUiStore.getState().overlay).toBeNull();
   });
 
-  test("a floor manager opens it from the top bar and the elevator", async () => {
+  test("a floor manager opens it from the top bar and from quick travel", async () => {
     useFloorsStore.setState({ floors: [floorInfo("manage")] });
     useFloorStore.setState({ floorId: FLOOR_ID });
     const summary = { floorId: FLOOR_ID, name: "Hangar", index: 1, paletteId: "oak-sky" };
     useBuildingStore.setState({
       state: { floors: { [FLOOR_ID]: summary as FloorSummary } } as unknown as BuildingState,
     });
+    useCompoundStore.setState({
+      world: testWorld([{ id: FLOOR_ID, name: "Hangar", placement: rowPlacement(4) }]),
+    });
+    useUiStore.getState().openOverlay(QUICK_TRAVEL_OVERLAY);
     const f = fakeServer([]);
     await mount(
       <>
         <TopBar />
-        <ElevatorPanel />
+        <QuickTravelDialog />
         <FloorSettingsDialogHost api={createFloorsApi({ fetch: f.fetch })} />
       </>,
     );
     const gear = labelled<HTMLButtonElement>("Floor settings: Hangar");
-    if (!gear) throw new Error("no elevator gear");
+    if (!gear) throw new Error("no quick travel gear");
     await click(gear);
     await settle();
     expect(dialog()?.textContent).toContain("Who can use Hangar");

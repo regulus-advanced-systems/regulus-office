@@ -39,7 +39,7 @@ export function anyCloning(floors: readonly FloorInfo[] | null): boolean {
   return (floors ?? []).some((f) => f.repos.some((r) => r.cloneStatus === "cloning"));
 }
 
-/** Summary chip for the elevator: `cloning` / `error` / null when all repos are ready. */
+/** Summary chip for quick travel: `cloning` / `error` / null when all repos are ready. */
 export function cloneBadge(floor: FloorInfo | undefined): "cloning" | "error" | null {
   if (!floor) return null;
   if (floor.repos.some((r) => r.cloneStatus === "error")) return "error";

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, test } from "bun:test";
 import {
   type BuildingState,
   type CommandRejected,
+  DEFAULT_ROOM_SETTINGS,
   EMPTY_COMPOUND,
   type FloorState,
   UNPLACED_ROOM,
@@ -9,6 +10,7 @@ import {
 import { useBuildingStore } from "../state/building.ts";
 import { useConnectionStore } from "../state/connection.ts";
 import { useFloorStore } from "../state/floor.ts";
+import { useRoomsStore } from "../state/rooms.ts";
 import { OfficeClient, type Scheduler } from "./officeClient.ts";
 import type { FloorJoinOptions, RoomHandle, RoomTransport } from "./transport.ts";
 
@@ -28,6 +30,7 @@ const emptyBuilding = (): BuildingState => ({
       robotsTotal: 0,
       humansPresent: 0,
       ...UNPLACED_ROOM,
+      ...DEFAULT_ROOM_SETTINGS,
     },
   },
   chat: [],
@@ -258,6 +261,7 @@ function setup(overrides: Partial<ConstructorParameters<typeof OfficeClient>[0]>
 beforeEach(() => {
   useBuildingStore.getState().clear();
   useFloorStore.getState().clear();
+  useRoomsStore.getState().clear();
   useConnectionStore.setState({ status: "idle", attempt: 0, lastError: null });
 });
 
@@ -298,16 +302,16 @@ describe("OfficeClient", () => {
     expect(transport.floorRooms).toHaveLength(2);
   });
 
-  test("rideTo tells the building and switches floor; the lobby has no floor room", async () => {
+  test("setRooms tells the building where we are; the lobby has no floor room", async () => {
     const { transport, client } = setup();
     await client.connect();
-    await client.rideTo("f1");
+    await client.setRooms("f1");
     expect(transport.building.sent).toEqual([
-      { type: "floor.go", payload: { floorId: "f1", mode: "ride" } },
+      { type: "floor.go", payload: { floorId: "f1", mode: "teleport" } },
     ]);
     expect(client.currentFloorId).toBe("f1");
     const floorRoom = transport.floor;
-    await client.rideTo("lobby", "teleport");
+    await client.setRooms(null);
     expect(floorRoom.left).toEqual([true]);
     expect(client.currentFloorId).toBeNull();
     expect(useFloorStore.getState().floorId).toBeNull();
@@ -315,6 +319,58 @@ describe("OfficeClient", () => {
       type: "floor.go",
       payload: { floorId: "lobby", mode: "teleport" },
     });
+  });
+
+  test("joins the current room and up to three nearby rooms, leaving the rest (#186)", async () => {
+    const { transport, client } = setup();
+    await client.connect();
+    await client.setRooms("f1", ["f2", "f3", "f4", "f5"]);
+    expect(transport.floorJoins.map((j) => j.floorId)).toEqual(["f1", "f2", "f3", "f4"]);
+    expect(client.joinedFloorIds.sort()).toEqual(["f1", "f2", "f3", "f4"]);
+    expect(Object.keys(useRoomsStore.getState().states).sort()).toEqual(["f1", "f2", "f3", "f4"]);
+    // The HUD's floor store mirrors only the room we are in.
+    expect(useFloorStore.getState().state?.floorId).toBe("f1");
+    const [r1, r2, r3, r4] = transport.floorRooms;
+    r2?.patch((s) => {
+      s.whiteboardVersion = 3;
+    });
+    expect(useRoomsStore.getState().states.f2?.whiteboardVersion).toBe(3);
+    expect(useFloorStore.getState().state?.whiteboardVersion).toBe(0);
+
+    // Walking into f2: no new join, the HUD switches at once; f4 drops out of view.
+    await client.setRooms("f2", ["f1", "f3"]);
+    expect(transport.floorJoins).toHaveLength(4);
+    expect(useFloorStore.getState().state?.floorId).toBe("f2");
+    expect(useFloorStore.getState().state?.whiteboardVersion).toBe(3);
+    expect(r4?.left).toEqual([true]);
+    expect(useRoomsStore.getState().states.f4).toBeUndefined();
+    expect([r1, r2, r3].map((r) => r?.left)).toEqual([[], [], []]);
+    expect(transport.building.sent.map((m) => (m.payload as { floorId: string }).floorId)).toEqual([
+      "f1",
+      "f2",
+    ]);
+  });
+
+  test("commands and messages follow the room we are in, not the nearby ones", async () => {
+    const { transport, client } = setup();
+    const seen: unknown[] = [];
+    const rejected: string[] = [];
+    client.onFloorMessage("agent.permissions", (p) => seen.push(p));
+    client.onRejected((n) => rejected.push(n.type));
+    await client.connect();
+    await client.setRooms("f1", ["f2"]);
+    const [r1, r2] = transport.floorRooms;
+    client.send("agent.stop", { agentId: "a1" });
+    expect(r1?.sent).toHaveLength(1);
+    expect(r2?.sent).toHaveLength(0);
+    r2?.message("agent.permissions", { from: "f2" });
+    r2?.reject({ type: "agent.spawn", reason: "nearby" });
+    r1?.message("agent.permissions", { from: "f1" });
+    await client.setRooms("f2", ["f1"]);
+    r2?.message("agent.permissions", { from: "f2 now" });
+    r1?.message("agent.permissions", { from: "f1 now nearby" });
+    expect(seen).toEqual([{ from: "f1" }, { from: "f2 now" }]);
+    expect(rejected).toEqual([]);
   });
 
   test("a denied floor join is not retried", async () => {
@@ -459,7 +515,7 @@ describe("OfficeClient", () => {
     expect(useFloorStore.getState().state?.floorId).toBe("f1");
   });
 
-  test("a floor join superseded by another goToFloor is left immediately", async () => {
+  test("a floor join superseded by another room change is left immediately", async () => {
     const { transport, client } = setup();
     await client.connect();
     transport.holdFloorJoins = true;

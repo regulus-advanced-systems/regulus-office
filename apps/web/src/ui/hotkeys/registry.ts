@@ -7,7 +7,7 @@
  */
 
 export interface HotkeyBinding {
-  /** Stable id consumers switch on, e.g. "floorMenu". */
+  /** Stable id consumers switch on, e.g. "quickTravel". */
   id: string;
   /** `KeyboardEvent.key` value, matched case-insensitively for letters. */
   key: string;
@@ -27,17 +27,34 @@ export const HOTKEY_EVENT = "regulus:hotkey";
 export interface HotkeyEventDetail {
   id: string;
   key: string;
+  /**
+   * Set by a listener that acted on the press (an `interact` that found
+   * something in reach), so a fallback listener can tell (#186: `E` turns
+   * the camera when there is nothing to interact with).
+   */
+  handled?: boolean;
 }
 
 export const DEFAULT_HOTKEYS: readonly HotkeyBinding[] = [
-  { id: "floorMenu", key: "f", description: "Floor quick menu (teleport)", group: "Navigation" },
+  {
+    id: "quickTravel",
+    key: "f",
+    description: "Quick travel to a room you may enter",
+    group: "Navigation",
+  },
+  { id: "turnLeft", key: "q", description: "Turn the camera left", group: "Camera" },
   {
     id: "toggleView",
     key: "v",
     description: "Toggle third-person / first-person",
     group: "Camera",
   },
-  { id: "interact", key: "e", description: "Interact with the nearest object", group: "World" },
+  {
+    id: "interact",
+    key: "e",
+    description: "Interact with the nearest object; with nothing in reach, turn the camera right",
+    group: "World",
+  },
   { id: "focusChat", key: "t", description: "Focus the chat input", group: "Chat" },
   {
     id: "focusChatEnter",

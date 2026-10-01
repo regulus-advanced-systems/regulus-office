@@ -200,7 +200,7 @@ describe("Settings → Floors", () => {
     expect(list?.textContent).toContain("Hangar");
     await click(document.querySelector('[aria-label="Restore Hangar"]') as HTMLButtonElement);
     await settle();
-    expect(text()).toContain("Hangar is back in the elevator.");
+    expect(text()).toContain("Hangar is back in the compound.");
     expect(text()).toContain("No archived floors.");
     expect(useFloorsStore.getState().floors?.map((fl) => fl.name)).toEqual(["Hangar"]);
   });

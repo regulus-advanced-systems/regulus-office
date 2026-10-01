@@ -1,15 +1,16 @@
 /**
  * Drives a jump-to-desk (#41): samples the floor, player and floor-list
  * stores a few times a second, asks `nextJumpStep` what to do, and does it —
- * quick travel to the robot's floor, click-to-walk to its desk, then open
- * its terminal with the match to reveal. Mount once (SearchHost does).
+ * quick travel into the robot's room (#186), click-to-walk to its desk, then
+ * open its terminal with the match to reveal. Mount once (SearchHost does).
  */
 import { useEffect } from "react";
-import { getOfficeClient } from "../../net/index.ts";
-import { floorViewFor } from "../../scene/floorView.ts";
+import { roomLayout } from "../../scene/compound/layouts.ts";
+import { roomById } from "../../scene/compound/world.ts";
+import { useCompoundStore } from "../../state/compound.ts";
 import { useFloorStore } from "../../state/floor.ts";
-import { useFloorsStore } from "../../state/floors.ts";
 import { usePlayerStore } from "../../state/player.ts";
+import { travelTo } from "../../state/travel.ts";
 import { useUiStore } from "../../state/ui.ts";
 import { useTerminalModal } from "../terminal/terminalStore.ts";
 import { type JumpProgress, type JumpTarget, type JumpWorld, nextJumpStep } from "./jump.ts";
@@ -24,7 +25,7 @@ export interface JumpDeps {
 }
 
 const defaultDeps: JumpDeps = {
-  rideTo: (floorId) => void getOfficeClient().rideTo(floorId, "teleport"),
+  rideTo: (floorId) => void travelTo(floorId, { walkIn: true }),
   openTerminal: (agentId) => useTerminalModal.getState().openTerminal(agentId),
   now: () => Date.now(),
 };
@@ -34,18 +35,20 @@ export function sampleWorld(target: JumpTarget, now: number): JumpWorld {
   const floor = useFloorStore.getState();
   const player = usePlayerStore.getState();
   const state = floor.state?.floorId === target.floorId ? floor.state : null;
-  const info = useFloorsStore.getState().floors?.find((f) => f.floorId === target.floorId);
-  const view = floorViewFor(target.floorId, state, info);
+  const world = useCompoundStore.getState().world;
+  const room = world ? roomById(world, target.floorId) : undefined;
+  const layout = room?.kind === "project" ? roomLayout(room) : null;
   const seatId = state?.robots[target.agentId]?.seatId ?? target.seatId;
-  const seat = state ? view.template.seats.find((s) => s.id === seatId) : undefined;
+  const seat = state ? layout?.seats.find((s) => s.id === seatId) : undefined;
   return {
     now,
     floorId: floor.floorId,
     floorLoaded: state !== null,
-    playerReady: player.spawned && player.spawnKey === view.key && player.navigation !== null,
+    playerReady: player.spawned && player.navigation !== null,
     player: { x: player.x, z: player.z },
     walking: player.target !== null,
-    seat: seat ? { x: seat.pose.x, z: seat.pose.z } : null,
+    // Compound metres: the room's corner plus the seat in the room's frame.
+    seat: seat && room ? { x: room.origin.x + seat.pose.x, z: room.origin.z + seat.pose.z } : null,
   };
 }
 

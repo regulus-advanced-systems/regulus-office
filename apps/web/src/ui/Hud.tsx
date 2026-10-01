@@ -1,5 +1,5 @@
 /**
- * HUD layered over the office canvas: top bar, floor work counters, status box, elevator,
+ * HUD layered over the office canvas: top bar, floor work counters, status box, rooms panel,
  * lobby chat, corner buttons for settings and shortcut help, dialogs and toasts.
  * The container ignores pointer events so the scene stays clickable
  * between panels.
@@ -15,7 +15,8 @@ import { AddFloorDialogHost } from "./floors/AddFloorDialog.tsx";
 import { FloorSettingsDialogHost } from "./floors/FloorSettingsDialog.tsx";
 import { HotkeyList } from "./hotkeys/HotkeyHelp.tsx";
 import { useGlobalHotkeys } from "./hotkeys/useHotkeys.ts";
-import { ElevatorPanel } from "./hud/ElevatorPanel.tsx";
+import { QuickTravelDialog, useQuickTravelHotkey } from "./hud/QuickTravel.tsx";
+import { RoomsPanel } from "./hud/RoomsPanel.tsx";
 import { StatusBox } from "./hud/StatusBox.tsx";
 import { TopBar } from "./hud/TopBar.tsx";
 import { WorkCounters } from "./hud/WorkCounters.tsx";
@@ -64,12 +65,14 @@ export function HudDialogs() {
       <SpawnDialogHost />
       <TerminalModalHost />
       <SearchHost />
+      <QuickTravelDialog />
     </>
   );
 }
 
 export function Hud() {
   useGlobalHotkeys();
+  useQuickTravelHotkey();
   useMyUsagePolling();
   const openOverlay = useUiStore((s) => s.openOverlay);
   return (
@@ -78,7 +81,7 @@ export function Hud() {
       <WorkCounters />
       <StatusBox />
       <div className="rg-hud__left">
-        <ElevatorPanel />
+        <RoomsPanel />
         <RunningApps />
       </div>
       <ChatPanel />

@@ -11,6 +11,8 @@ import {
   legacyDeskCount,
   paletteById,
   paletteForFloor,
+  ROOM_LAYOUT_ID,
+  roomDeskSeatIds,
   templateForTier,
 } from "@regulus/floor-layout";
 import type {
@@ -21,7 +23,7 @@ import type {
   OfficeUserInfo,
   RoomPlacement,
 } from "@regulus/protocol";
-import { CreateFloorRequest, hasFloorAccess } from "@regulus/protocol";
+import { CreateFloorRequest, hasFloorAccess, SEATS_PER_DESK } from "@regulus/protocol";
 import { and, asc, eq, isNull, max } from "drizzle-orm";
 import type { z } from "zod";
 import { AUDIT_ACTIONS, writeAudit } from "../auth/audit.ts";
@@ -104,8 +106,10 @@ export class FloorService {
     if (input.paletteId && !paletteById(input.paletteId)) {
       throw new AuthHttpError(400, "unknown_palette");
     }
+    // Every new floor is a generated room (#182, #186); the tier only picks how many desks.
     const template = templateForTier(input.tier);
-    const deskSeats = template.seats.filter((s) => s.kind === "desk").map((s) => s.id);
+    const deskCount = legacyDeskCount(template.id) ?? 1;
+    const deskSeats = roomDeskSeatIds(deskCount);
     const dirNames = repoDirNames(refs);
 
     const created = this.#db.transaction(
@@ -125,7 +129,13 @@ export class FloorService {
         const slug = uniqueSlug(slugify(input.name), taken);
         const floorId = randomUUID();
         if (placement && !this.#deps.placer) throw new AuthHttpError(503, "compound_unavailable");
-        const room = this.#deps.placer?.claim(tx, actor, floorId, placement, deskSeats.length);
+        const room = this.#deps.placer?.claim(
+          tx,
+          actor,
+          floorId,
+          placement,
+          deskCount * SEATS_PER_DESK,
+        );
         tx.insert(floors)
           .values({
             id: floorId,
@@ -133,10 +143,9 @@ export class FloorService {
             slug,
             index,
             paletteId: input.paletteId ?? paletteForFloor(index).id,
-            layoutTemplateId: template.id,
+            layoutTemplateId: ROOM_LAYOUT_ID,
             ...room,
-            // Enough generated desks for the template's seats (#182).
-            deskCount: legacyDeskCount(template.id) ?? 1,
+            deskCount,
           })
           .run();
         const repoIds = refs.map((ref, i) => {
@@ -171,7 +180,8 @@ export class FloorService {
             name: input.name,
             slug,
             tier: input.tier,
-            layoutTemplateId: template.id,
+            layoutTemplateId: ROOM_LAYOUT_ID,
+            deskCount,
             repos: refs.map((r) => `${r.owner}/${r.name}`),
             reposWithCredential: input.repos.filter((r) => r.token).length,
           },

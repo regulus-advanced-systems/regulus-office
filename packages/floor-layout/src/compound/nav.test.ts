@@ -84,6 +84,8 @@ describe("compound nav grid", () => {
       humansPresent: 0,
       buildState: "ready" as const,
       buildEndsAt: 0,
+      deskCount: 1,
+      decorStyle: "ops_room" as const,
     };
     const lobby = layout.specialRooms[0];
     if (!lobby) throw new Error("no lobby");

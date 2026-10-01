@@ -1,7 +1,8 @@
 /**
- * Drives the local player inside the office canvas (SPEC §9.2): builds the
- * nav grid for the floor template, spawns at its spawn point, turns WASD
- * into camera-relative steps, turns floor clicks into A* paths, follows
+ * Drives the local player inside the office canvas (SPEC §9.2): walks the
+ * given nav grid (the compound's, #186, or one floor template's in the dev
+ * harnesses), spawns at the spawn pose, turns WASD into steps relative to
+ * the camera's yaw, turns floor clicks into A* paths, follows
  * them each frame and relays the pose as `move` at no more than 20 Hz.
  * While standing in third person the robot turns toward the floor point
  * under the mouse (#119); that heading-only change goes out as `move` too.
@@ -9,11 +10,12 @@
  * scene/avatars/AvatarLayer.tsx from the same store.
  */
 import { type ThreeEvent, useFrame } from "@react-three/fiber";
-import type { FloorTemplate } from "@regulus/floor-layout";
+import type { FloorTemplate, NavGrid, Rect } from "@regulus/floor-layout";
 import { useEffect, useMemo } from "react";
 import { Raycaster, Vector2 } from "three";
 import { useFootsteps } from "../../audio/footsteps.ts";
 import { getOfficeClient } from "../../net/index.ts";
+import { cameraView } from "../../state/camera.ts";
 import { useConnectionStore } from "../../state/connection.ts";
 import { usePlayerStore } from "../../state/player.ts";
 import { useUiStore } from "../../state/ui.ts";
@@ -21,7 +23,7 @@ import { useViewStore } from "../../state/view.ts";
 import { groundPointFromRay } from "./cursorFacing.ts";
 import type { Pose } from "./kinematics.ts";
 import { createMoveThrottle } from "./moveThrottle.ts";
-import { navGridFor, planPath } from "./navigation.ts";
+import { navGridFor, nearestWalkable, planPath } from "./navigation.ts";
 import { useCursorGround } from "./useCursorGround.ts";
 import { useWasdInput } from "./useWasdInput.ts";
 import { inputVector } from "./wasd.ts";
@@ -30,12 +32,13 @@ import { inputVector } from "./wasd.ts";
 const MAX_FRAME_SECONDS = 0.1;
 
 export interface MovementControllerProps {
-  template: FloorTemplate;
-  /**
-   * Identity of the floor being walked; when it changes (elevator ride) the
-   * player respawns at the new template's spawn point. Defaults to the template id.
-   */
-  floorKey?: string;
+  grid: NavGrid;
+  /** Where the player appears when first spawned, or when `spawnKey` changes. */
+  spawn: Pose;
+  /** Identity of the world being walked; a new key respawns the player at `spawn`. */
+  spawnKey: string;
+  /** The clickable ground, metres (the whole compound plus its beach). */
+  plane: Rect;
   /** Where poses go; defaults to the shared office client. */
   send?: (pose: Pose) => void;
 }
@@ -48,12 +51,37 @@ function sendMove(pose: Pose): void {
   }
 }
 
-export function MovementController({
+/** One floor template's grid, spawn and floor (the dev harnesses' single-room scenes). */
+export function TemplateMovement({
   template,
-  floorKey = template.id,
+  send,
+}: {
+  template: FloorTemplate;
+  send?: (pose: Pose) => void;
+}) {
+  const grid = useMemo(() => navGridFor(template), [template]);
+  const plane = useMemo(
+    () => ({ x: 0, z: 0, w: template.size.width, d: template.size.depth }),
+    [template],
+  );
+  return (
+    <MovementController
+      grid={grid}
+      spawn={template.spawn}
+      spawnKey={template.id}
+      plane={plane}
+      send={send}
+    />
+  );
+}
+
+export function MovementController({
+  grid,
+  spawn,
+  spawnKey,
+  plane,
   send = sendMove,
 }: MovementControllerProps) {
-  const grid = useMemo(() => navGridFor(template), [template]);
   const keys = useWasdInput();
   const throttle = useMemo(() => createMoveThrottle({ send }), [send]);
   const cursor = useCursorGround();
@@ -66,9 +94,11 @@ export function MovementController({
       walkable: (x, z) => grid.isWalkable(x, z),
       plan: (from, to) => planPath(grid, from, to),
     });
-    if (!store.spawned || store.spawnKey !== floorKey) store.spawnAt(template.spawn, floorKey);
+    if (!store.spawned || store.spawnKey !== spawnKey) store.spawnAt(spawn, spawnKey);
+    // The ground moved under us (our room was archived or moved): back to the spawn point.
+    else if (!nearestWalkable(grid, { x: store.x, z: store.z })) store.spawnAt(spawn, spawnKey);
     return () => usePlayerStore.getState().setNavigation(null);
-  }, [grid, template, floorKey]);
+  }, [grid, spawn, spawnKey]);
 
   // After a (re)connect the server holds no pose for us: re-send the current one.
   useEffect(() => {
@@ -84,7 +114,7 @@ export function MovementController({
     // In first person the FPV rig (scene/fpv) drives the store with camera-relative WASD.
     const firstPerson = useViewStore.getState().mode === "first_person";
     if (!firstPerson) {
-      const input = inputVector(keys.current);
+      const input = inputVector(keys.current, (cameraView.yaw * 180) / Math.PI);
       if (input.x !== 0 || input.z !== 0) store.applyInput(input.x, input.z, dt);
       else {
         store.advance(dt);
@@ -113,11 +143,13 @@ export function MovementController({
   return (
     <mesh
       name="walk-plane"
+      // Hit target only: invisible objects still take pointer events but cost no draw call.
+      visible={false}
       rotation-x={-Math.PI / 2}
-      position={[template.size.width / 2, 0.001, template.size.depth / 2]}
+      position={[plane.x + plane.w / 2, 0.001, plane.z + plane.d / 2]}
       onClick={onClick}
     >
-      <planeGeometry args={[template.size.width, template.size.depth]} />
+      <planeGeometry args={[plane.w, plane.d]} />
       <meshBasicMaterial transparent opacity={0} depthWrite={false} />
     </mesh>
   );

@@ -1,25 +1,11 @@
 /**
- * Read-only probes for walking up to a robot's desk and clicking its laptop (#164, #199),
- * through `window.__regulusR3F` (the page must be opened with `?stats`, see probes.ts).
- *
- * The laptop step used to click fixed screen offsets and hope: on a slow runner the player
- * could stop where the live panel shows (2.2 m from the seat) but `E` does not reach
- * (1.6 m), and the seated robot hides most of the laptop, so the clicks opened the robot's
- * panel or walked the player away. These probes let the test wait for states instead: the
- * player standing within reach of the seat, and a screen point where the laptop is the
- * nearest clickable object, found with the same raycast the scene's pointer events use.
+ * Read-only probe for clicking a robot's laptop (#164, #199), through `window.__regulusR3F`
+ * (the page must be opened with `?stats`, see probes.ts): a screen point where the laptop is
+ * the nearest clickable object, found with the same raycast the scene's pointer events use
+ * (the seated robot hides most of the laptop). Walking up to the desk goes by nav state
+ * (compoundProbes.ts `walkUpToDesk`, #205).
  */
 import type { Page } from "@playwright/test";
-
-/** Where the local player is, relative to the desk's seat. */
-export interface PlayerAtDesk {
-  /** Ground distance from the player to the seat's hotspot (5 cm off the seat), in metres. */
-  dist: number;
-  /** The player did not move over the last two rendered frames. */
-  still: boolean;
-  /** Screen points of the floor around the seat, nearest first, to walk to. */
-  around: { x: number; y: number }[];
-}
 
 type V3 = {
   x: number;
@@ -35,52 +21,6 @@ type Obj = {
   position: V3;
   getWorldPosition(v: V3): V3;
 };
-
-/** The player's distance to `desk-hotspot-<seatId>`, whether they stand still, and where to walk. */
-export function playerAtDesk(page: Page, seatId: string): Promise<PlayerAtDesk | null> {
-  return page.evaluate(async (hotspot) => {
-    const r3f = (
-      window as unknown as {
-        __regulusR3F?: {
-          scene: { getObjectByName(n: string): Obj | undefined };
-          get(): { camera: unknown; gl: { domElement: HTMLCanvasElement } };
-        };
-      }
-    ).__regulusR3F;
-    const human = r3f?.scene.getObjectByName("local-human");
-    const desk = r3f?.scene.getObjectByName(hotspot);
-    if (!r3f || !human || !desk) return null;
-    const at = () => human.getWorldPosition(human.position.clone());
-    const frame = () => new Promise<void>((done) => requestAnimationFrame(() => done()));
-    const before = at();
-    // The scene moves a walking player on every frame it renders.
-    await frame();
-    await frame();
-    const now = at();
-    const seat = desk.getWorldPosition(desk.position.clone());
-    const { camera, gl } = r3f.get();
-    const rect = gl.domElement.getBoundingClientRect();
-    const around: { x: number; y: number }[] = [];
-    for (const r of [0.9, 1.2]) {
-      for (let i = 0; i < 8; i++) {
-        const a = (i * Math.PI) / 4;
-        const p = seat
-          .clone()
-          .set(seat.x + r * Math.cos(a), 0, seat.z + r * Math.sin(a))
-          .project(camera);
-        around.push({
-          x: rect.left + ((p.x + 1) / 2) * rect.width,
-          y: rect.top + ((1 - p.y) / 2) * rect.height,
-        });
-      }
-    }
-    return {
-      dist: Math.hypot(now.x - seat.x, now.z - seat.z),
-      still: now.x === before.x && now.z === before.z,
-      around,
-    };
-  }, `desk-hotspot-${seatId}`);
-}
 
 /**
  * A viewport point where a click reaches `laptop-<seatId>`: the nearest object the scene's

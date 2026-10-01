@@ -1,6 +1,6 @@
 /**
  * "Floors" in Settings, for office owners and admins (#150): archived floors,
- * each with Restore (back in the elevator as it was) and Delete (permanent,
+ * each with Restore (back in the compound as it was) and Delete (permanent,
  * the same typed-name confirmation as in Floor settings).
  */
 import type { FloorInfo } from "@regulus/protocol";
@@ -47,7 +47,7 @@ export function FloorsSection({ api = defaultApi }: { api?: FloorsApi }) {
     const res = await api.restore(floor.floorId);
     setBusy(false);
     if (!res.ok) return setError(describeFloorError(res));
-    setStatus(`${floor.name} is back in the elevator.`);
+    setStatus(`${floor.name} is back in the compound.`);
     await Promise.all([load(), refreshFloors(api)]);
   };
 
@@ -61,7 +61,7 @@ export function FloorsSection({ api = defaultApi }: { api?: FloorsApi }) {
     <section className="rg-field" aria-label="Floors">
       <div className="rg-field__label">Floors</div>
       <div className="rg-field__hint">
-        Archived floors are hidden from the elevator; their data and clones are kept.
+        Archived floors leave the compound; their data and clones are kept.
       </div>
       {archived === null ? (
         !error && <p className="rg-muted">Loading…</p>

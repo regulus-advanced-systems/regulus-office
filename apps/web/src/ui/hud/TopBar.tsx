@@ -1,11 +1,11 @@
 /**
  * Top-centre HUD (research 03 §5): wide white rounded box with the office
- * name in light type, the current floor beneath, and a clock on the right.
- * On a floor the user manages, a "Floor settings" button sits by its name;
- * on any floor, "Workflows" opens its GitHub workflows and run history (#155).
+ * name in light type, where the player is beneath (the room, the corridors;
+ * #186), and a clock on the right. In a room the user manages, a "Floor
+ * settings" button sits by its name; in any project room, "Workflows" opens
+ * its GitHub workflows and run history (#155).
  */
 import { useEffect, useState } from "react";
-import { useBuildingStore } from "../../state/building.ts";
 import { useFloorStore } from "../../state/floor.ts";
 import { useFloorsStore } from "../../state/floors.ts";
 import { useUiStore } from "../../state/ui.ts";
@@ -14,7 +14,7 @@ import { GearIcon } from "../components/icons.tsx";
 import { canManageFloor, floorSettingsOverlay } from "../floors/floorSettings.ts";
 import { Panel } from "../Panel.tsx";
 import { openWorkflowsPanel } from "../workflows/WorkflowsPanel.tsx";
-import { currentFloorName } from "./floorName.ts";
+import { useLocationName } from "./floorName.ts";
 import { formatClock, msUntilNextMinute } from "./format.ts";
 
 /** Office name: server-provided later; until then an env override or the default. */
@@ -47,13 +47,13 @@ export function TopBar({
   floorName?: string;
   date?: Date;
 }) {
-  const floors = useBuildingStore((s) => s.state?.floors ?? null);
   const floorId = useFloorStore((s) => s.floorId);
+  const location = useLocationName();
   const hour12 = useUiStore((s) => s.settings.hour12);
   const clock = useClock();
   const manages = useFloorsStore((s) => canManageFloor(s.floors, floorId));
   const openOverlay = useUiStore((s) => s.openOverlay);
-  const shownFloor = floorName ?? currentFloorName(floors, floorId);
+  const shownFloor = floorName ?? location;
   return (
     <Panel as="header" className="rg-topbar" aria-label="Office">
       <div>
