@@ -182,6 +182,8 @@ export const FloorStateSchema = schema(
     whiteboardVersion: t.uint32().default(0),
     carriedCards: t.map(CarriedCardSchema),
     queueSettings: QueueSettingsSchema,
+    deskCount: t.uint8().default(1),
+    decorStyle: t.string().default("ops_room"),
   },
   "FloorState",
 );

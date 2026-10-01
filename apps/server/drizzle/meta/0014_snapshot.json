@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "c09e433f-d8a6-4525-bd4d-e73e451797ac",
+  "id": "ee48e322-a4b3-4127-82b5-974753494a69",
   "prevId": "5b832dcd-f895-414d-8b4f-22747fe7103e",
   "tables": {
     "agent_events": {
@@ -1547,6 +1547,22 @@
           "notNull": false,
           "autoincrement": false
         },
+        "desk_count": {
+          "name": "desk_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 1
+        },
+        "decor_style": {
+          "name": "decor_style",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'ops_room'"
+        },
         "archived_at": {
           "name": "archived_at",
           "type": "integer",
@@ -2956,20 +2972,21 @@
           "autoincrement": false,
           "default": "'member'"
         },
-        "avatar": {
-          "name": "avatar",
+        "avatar_color_set": {
+          "name": "avatar_color_set",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "'{\"archetype\":\"mastermind\",\"outfit\":\"charcoal\",\"trim\":\"brass\",\"skin\":\"light\",\"hair\":\"black\",\"accessory\":\"none\"}'"
+          "default": "'default'"
         },
-        "avatar_chosen_at": {
-          "name": "avatar_chosen_at",
-          "type": "integer",
+        "avatar_accessory": {
+          "name": "avatar_accessory",
+          "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'none'"
         },
         "runner_id": {
           "name": "runner_id",

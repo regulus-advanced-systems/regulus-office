@@ -56,6 +56,8 @@ const floorState = (queue: QueueTask[]): FloorState => ({
   whiteboardVersion: 0,
   carriedCards: {},
   queueSettings: { maxRunning: 1, maxPerOwner: 1 },
+  deskCount: 1,
+  decorStyle: "ops_room",
 });
 
 const as = (id: string, access: FloorAccess) => {

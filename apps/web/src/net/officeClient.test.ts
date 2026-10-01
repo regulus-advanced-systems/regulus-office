@@ -81,6 +81,8 @@ const emptyFloor = (floorId: string): FloorState => ({
   whiteboardVersion: 0,
   carriedCards: {},
   queueSettings: { maxRunning: 2, maxPerOwner: 2 },
+  deskCount: 1,
+  decorStyle: "ops_room",
 });
 
 // ---- fake transport ---------------------------------------------------------

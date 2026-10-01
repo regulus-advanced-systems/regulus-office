@@ -20,6 +20,8 @@ export const AUDIT_ACTIONS = {
   floorDelete: "floor.delete",
   floorMemberSet: "floor.member_set",
   floorMemberRemove: "floor.member_remove",
+  /** A room manager changed the room's desk count or decor style (#182). */
+  floorRoomSettings: "floor.room_settings",
   floorRepoClone: "floor_repo.clone",
   /** The compound row was created and pre-compound floors laid out as rooms (#181). */
   compoundCreate: "compound.create",

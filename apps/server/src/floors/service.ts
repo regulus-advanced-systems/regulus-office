@@ -7,7 +7,12 @@
  */
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
-import { paletteById, paletteForFloor, templateForTier } from "@regulus/floor-layout";
+import {
+  legacyDeskCount,
+  paletteById,
+  paletteForFloor,
+  templateForTier,
+} from "@regulus/floor-layout";
 import type {
   FloorAccess,
   FloorInfo,
@@ -130,6 +135,8 @@ export class FloorService {
             paletteId: input.paletteId ?? paletteForFloor(index).id,
             layoutTemplateId: template.id,
             ...room,
+            // Enough generated desks for the template's seats (#182).
+            deskCount: legacyDeskCount(template.id) ?? 1,
           })
           .run();
         const repoIds = refs.map((ref, i) => {
