@@ -1,8 +1,7 @@
 /** Settings entry for the genius picker (#185): the current genius and a button to change it. */
-import { ARCHETYPE_INFO } from "../../scene/geniuses/archetypes.ts";
 import { useSessionStore } from "../../state/session.ts";
 import { Button } from "../components/Button.tsx";
-import { describeLook } from "./AvatarPicker.tsx";
+import { ARCHETYPE_INFO, describeLook } from "./labels.ts";
 import { openGeniusPicker } from "./pickerStore.ts";
 
 export function GeniusSettingsSection() {

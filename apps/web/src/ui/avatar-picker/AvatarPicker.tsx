@@ -13,7 +13,6 @@ import {
   type GeniusLookValue,
 } from "@regulus/protocol/src/genius.ts";
 import { useId, useState } from "react";
-import { ACCESSORY_LABELS, ARCHETYPE_INFO } from "../../scene/geniuses/archetypes.ts";
 import { useSessionStore } from "../../state/session.ts";
 import { useUiStore } from "../../state/ui.ts";
 import { FormAlert } from "../auth/AuthCard.tsx";
@@ -21,6 +20,7 @@ import { Button } from "../components/Button.tsx";
 import { Modal } from "../components/Modal.tsx";
 import { saveGeniusLook } from "./api.ts";
 import { initialDraft, sameLook, withAccessory, withArchetype, withColor } from "./draft.ts";
+import { ACCESSORY_LABELS, ARCHETYPE_INFO, describeLook } from "./labels.ts";
 import { closeGeniusPicker, type PickerReason } from "./pickerStore.ts";
 import { TurntablePreview } from "./TurntablePreview.tsx";
 import "./avatarPicker.css";
@@ -33,12 +33,6 @@ const SLOT_LABELS: Record<GeniusColorSlot, string> = {
 };
 
 const titleCase = (id: string) => id.charAt(0).toUpperCase() + id.slice(1);
-
-export function describeLook(look: GeniusLookValue): string {
-  const accessory =
-    look.accessory === "none" ? "" : ` with ${ACCESSORY_LABELS[look.accessory]?.toLowerCase()}`;
-  return `${ARCHETYPE_INFO[look.archetype].label} in ${look.outfit}${accessory}`;
-}
 
 export function AvatarPicker({ open, reason }: { open: boolean; reason: PickerReason }) {
   if (!open) return null;
