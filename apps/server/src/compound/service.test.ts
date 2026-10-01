@@ -34,7 +34,7 @@ afterAll(async () => {
   for (const r of roots) await rm(r, { recursive: true, force: true });
 });
 
-async function office(buildMs: number, remote = true) {
+async function office(buildMs: number, remote = true, now?: () => number) {
   const root = await mkdtemp(join(tmpdir(), "rg181-build-"));
   roots.push(root);
   const remoteBase = remote
@@ -48,6 +48,7 @@ async function office(buildMs: number, remote = true) {
     db,
     logger,
     config: { buildMs, sizeTiles: 64 },
+    now,
     publish: (s) => snapshots.push(s),
     onRoomsChanged: (ids) => ready.push(...ids),
   });
@@ -112,7 +113,12 @@ describe("room build phase", () => {
   });
 
   test("a restart mid-build resumes the timer; a zero build phase is ready at once", async () => {
-    const o = await office(200);
+    // An injected clock: the build phase cannot end on its own while the
+    // clone and the restart run, however slow the machine (#229).
+    let clock = 1_700_000_000_000;
+    const now = () => clock;
+    const buildMs = 60_000;
+    const o = await office(buildMs, true, now);
     const actor = { id: o.owner.id, role: "owner" as const };
     const { floor, cloned } = o.floors.service.create(actor, {
       name: "Apollo",
@@ -121,15 +127,22 @@ describe("room build phase", () => {
     });
     await cloned;
     o.compound.close();
+    expect(buildState(o, floor.floorId)).toBe("building");
+    // Restart with all but 20 ms of the build phase gone: the timer resumes
+    // for what is left, not a fresh build phase.
+    clock += buildMs - 20;
     const again = new CompoundService({
       db: o.db,
       logger,
-      config: { buildMs: 200, sizeTiles: 64 },
+      config: { buildMs, sizeTiles: 64 },
+      now,
     });
     services.push(again);
     again.boot();
     expect(again.pendingBuilds).toBe(1);
+    expect(buildState(o, floor.floorId)).toBe("building");
     await until(() => buildState(o, floor.floorId) === "ready");
+    expect(again.pendingBuilds).toBe(0);
 
     const instant = await office(0);
     const made = instant.floors.service.create(

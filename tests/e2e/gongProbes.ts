@@ -45,9 +45,23 @@ export interface GongSample {
   robots: Record<string, RobotPose>;
 }
 
-/** Samples the gong, its confetti and the robots every frame for `ms`. */
-export function sampleGong(page: Page, ms: number): Promise<GongSample> {
-  return page.evaluate(async (duration) => {
+/**
+ * Samples the gong, its confetti and the robots every frame for `ms`. With `afterStrikes`, the
+ * `ms` window starts once the page has heard more strikes than that (a ring the test caused is
+ * still on its way from the server), waiting up to `waitMs` for it: how long the round trip takes
+ * does not eat into the window (#229).
+ */
+export function sampleGong(
+  page: Page,
+  ms: number,
+  opts: { afterStrikes?: number; waitMs?: number } = {},
+): Promise<GongSample> {
+  const args = {
+    duration: ms,
+    afterStrikes: opts.afterStrikes ?? null,
+    waitMs: opts.waitMs ?? 15_000,
+  };
+  return page.evaluate(async ({ duration, afterStrikes, waitMs }) => {
     type Obj = {
       name: string;
       count?: number;
@@ -78,7 +92,8 @@ export function sampleGong(page: Page, ms: number): Promise<GongSample> {
       seated: boolean;
       cheering: boolean;
     };
-    const end = performance.now() + duration;
+    const giveUp = performance.now() + waitMs;
+    let end = afterStrikes === null ? performance.now() + duration : Number.POSITIVE_INFINITY;
     do {
       let swing = 0;
       let confetti = 0;
@@ -115,10 +130,14 @@ export function sampleGong(page: Page, ms: number): Promise<GongSample> {
       out.maxConfetti = Math.max(out.maxConfetti, confetti);
       out.lastConfetti = confetti;
       out.robots = robots;
+      if (end === Number.POSITIVE_INFINITY) {
+        if (afterStrikes !== null && out.strikes > afterStrikes) end = performance.now() + duration;
+        else if (performance.now() > giveUp) break;
+      }
       await new Promise((resolve) => requestAnimationFrame(resolve));
     } while (performance.now() < end);
     return out;
-  }, ms);
+  }, args);
 }
 
 /** Robots' poses now (a zero-length sample). */

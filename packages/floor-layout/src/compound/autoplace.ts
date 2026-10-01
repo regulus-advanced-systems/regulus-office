@@ -148,10 +148,16 @@ export interface ReconcileResult {
  * Make a set of rooms valid, in priority order (earlier rooms keep their
  * spot first). Valid placements are kept; the others are placed anew in
  * the rows off the main corridor, else anywhere that fits.
+ *
+ * With `stopAtUnplaced`, gives up at the first room with no spot (every
+ * later pending room is reported unplaced too): a failed search scans the
+ * whole compound, so a caller that only needs "do they all fit" should not
+ * pay for it once per remaining room.
  */
 export function reconcilePlacements(
   spec: CompoundSpec,
   rooms: readonly ReconcileInput[],
+  { stopAtUnplaced = false }: { stopAtUnplaced?: boolean } = {},
 ): ReconcileResult {
   const placed: CompoundRoomInput[] = [];
   const pending: ReconcileInput[] = [];
@@ -164,7 +170,11 @@ export function reconcilePlacements(
   }
   const changed: string[] = [];
   const unplaced: string[] = [];
-  for (const room of pending) {
+  for (const [i, room] of pending.entries()) {
+    if (stopAtUnplaced && unplaced.length > 0) {
+      unplaced.push(...pending.slice(i).map((r) => r.id));
+      break;
+    }
     const spot =
       rowSlot(spec, placed, room.id, room.size) ?? findPlacement(spec, placed, room.id, room.size);
     if (spot) {
@@ -181,19 +191,21 @@ export function reconcilePlacements(
  * Migrating the building of floors: lay every room out in rows off the main
  * corridor. When they do not fit the compound grows (lobby re-centred on the
  * south edge), up to the maximum size; only valid while nothing is placed yet.
+ * Sizes that turn out too small are abandoned at the first room that does
+ * not fit; only the final size is laid out in full.
  */
 export function planMigration(
   spec: CompoundSpec,
   rooms: readonly ReconcileInput[],
 ): { spec: CompoundSpec; result: ReconcileResult } {
   let current = spec;
-  let result = reconcilePlacements(current, rooms);
-  while (result.unplaced.length > 0) {
+  for (;;) {
     const width = Math.min(MAX_COMPOUND_SIZE_TILES, current.width + GROWTH_STEP_TILES);
     const depth = Math.min(MAX_COMPOUND_SIZE_TILES, current.depth + GROWTH_STEP_TILES);
-    if (width === current.width && depth === current.depth) break;
+    const largest = width === current.width && depth === current.depth;
+    // At the largest size, place what fits and report the rest.
+    const result = reconcilePlacements(current, rooms, { stopAtUnplaced: !largest });
+    if (result.unplaced.length === 0 || largest) return { spec: current, result };
     current = defaultCompoundSpec(width, depth);
-    result = reconcilePlacements(current, rooms);
   }
-  return { spec: current, result };
 }

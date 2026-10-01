@@ -2,12 +2,12 @@
  * The merge gong in the office e2e (#43): with a (fake) org token connected, a PR merged from
  * the PR board rings the gong once: the disc swings, confetti flies and is gone within 3 s,
  * any robot on the floor cheers and ends exactly where it sat. Then a manual bang by click
- * rings it, a second bang at once is refused (rate limit), and `E` at the gong rings it again
- * once the ring is over.
+ * rings it, `E` at the gong rings it again once the ring is over, and a second bang at once is
+ * refused (rate limit).
  */
 import { expect, type Page } from "@playwright/test";
 import { scenePoint } from "./agentProbes.ts";
-import { clickInScene, walkInto } from "./compoundProbes.ts";
+import { clickInScene, navPose, walkInto } from "./compoundProbes.ts";
 import { startFakeGitHub } from "./fakeGitHub.ts";
 import {
   boneDriftDeg,
@@ -65,7 +65,9 @@ export async function checkMergeGong(page: Page, opts: { githubPort: number; flo
     await card.click();
     await panel.getByRole("button", { name: "Merge…" }).click();
     await panel.getByRole("button", { name: "Confirm merge" }).click();
-    const ringing = await sampleGong(page, 2_500);
+    // Sample from when the ring arrives: the merge goes through the server and (fake) GitHub
+    // first, which takes seconds on a loaded runner.
+    const ringing = await sampleGong(page, 2_500, { afterStrikes: strikes, waitMs: 30_000 });
     await expect(
       page.locator(".rg-toast", { hasText: "Pull request merged" }).filter({ hasText: "#12" }),
     ).toBeVisible();
@@ -93,25 +95,30 @@ export async function checkMergeGong(page: Page, opts: { githubPort: number; flo
     }
     expect(poseDrift(seated, after.robots)).toBeLessThan(1e-6);
 
-    // A bang by click rings it; another one straight away is refused.
+    // A bang by click rings it, and walks us over to the gong. The camera follows the walk, so
+    // the gong's screen point moves: a second click at the same point lands on the wall or the
+    // floor on a slow runner (#229). The refused bang below is pressed with `E` instead.
     const gong = await scenePoint(page, GONG);
     if (!gong) throw new Error("gong not in view");
     await page.mouse.click(gong.x, gong.y);
     await expect.poll(() => gongStrikes(page)).toBe(strikes + 2);
-    await page.mouse.click(gong.x, gong.y);
-    await expect(
-      page.locator(".rg-toast", { hasText: "The gong is still ringing." }),
-    ).toBeVisible();
-    expect(await gongStrikes(page)).toBe(strikes + 2);
+    await expect.poll(async () => (await navPose(page)).walking, { timeout: 30_000 }).toBe(false);
 
-    // The click walked us to the gong: once the ring is over, E bangs it too.
-    // Pressing E before arriving (software GL is slow) sends nothing, and a press during the
-    // cooldown is refused without spending a bang, so keep pressing until it rings.
+    // Once the ring is over, `E` at the gong bangs it too. A press that sends nothing (not in
+    // reach yet) is pressed again; a bang shows up within the inner wait, so no press repeats
+    // one that was sent.
     await page.waitForTimeout(4_200);
     await expect(async () => {
       await page.keyboard.press("e");
-      await expect.poll(() => gongStrikes(page), { timeout: 2_000 }).toBe(strikes + 3);
+      await expect.poll(() => gongStrikes(page), { timeout: 5_000 }).toBe(strikes + 3);
     }).toPass({ timeout: 30_000 });
+
+    // Another bang straight away is refused (the floor's cooldown) and spends nothing.
+    const refused = page.locator(".rg-toast", { hasText: "The gong is still ringing." });
+    await expect(refused).toHaveCount(0);
+    await page.keyboard.press("e");
+    await expect(refused).toBeVisible();
+    expect(await gongStrikes(page)).toBe(strikes + 3);
   } finally {
     await page.request
       .delete("/api/github/connection", { headers: { origin } })
@@ -138,7 +145,7 @@ export async function checkRobotCheers(page: Page, agentId: string) {
   const gong = await scenePoint(page, GONG);
   if (!gong) throw new Error("gong not in view");
   await page.mouse.click(gong.x, gong.y);
-  const ringing = await sampleGong(page, 1_200);
+  const ringing = await sampleGong(page, 1_200, { afterStrikes: strikes });
   expect(ringing.strikes).toBe(strikes + 1);
   expect(ringing.cheered, JSON.stringify(ringing)).toContain(agentId);
   expect(boneDriftDeg(bones, await boneSnapshot(page, agentId))).toBeGreaterThan(10);

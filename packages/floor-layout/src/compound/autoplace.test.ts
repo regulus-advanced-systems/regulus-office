@@ -56,10 +56,28 @@ describe("rows off the main corridor", () => {
 
   test("the compound grows when the floors do not fit, and only then", () => {
     expect(planMigration(spec, legacy(6)).spec).toEqual(spec);
-    const many = planMigration(spec, legacy(40, 3));
+    // 18 floors do not fit the default 64 tiles; one growth step does.
+    const many = planMigration(spec, legacy(18, 3));
     expect(many.result.unplaced).toEqual([]);
     expect(many.spec.width).toBeGreaterThan(64);
     expect(many.spec.lobby.y + many.spec.lobby.d).toBe(many.spec.depth);
+    // The size it settles on is laid out in full, as a plain reconcile would.
+    const plain = reconcilePlacements(many.spec, legacy(18, 3));
+    expect([...many.result.placements]).toEqual([...plain.placements]);
+  });
+
+  test("stopAtUnplaced gives up at the first room that does not fit", () => {
+    const small = defaultCompoundSpec(48);
+    const rooms = legacy(30, 9);
+    const quick = reconcilePlacements(small, rooms, { stopAtUnplaced: true });
+    const ids = rooms.map((r) => r.id);
+    const first = quick.changed.length;
+    expect(quick.unplaced.length).toBeGreaterThan(0);
+    expect(quick.changed).toEqual(ids.slice(0, first));
+    expect(quick.unplaced).toEqual(ids.slice(first));
+    const next = rooms[first];
+    if (!next) throw new Error("no unplaced room");
+    expect(findPlacement(small, asInputs(quick.placements), next.id, next.size)).toBeNull();
   });
 
   test("migration is deterministic", () => {
