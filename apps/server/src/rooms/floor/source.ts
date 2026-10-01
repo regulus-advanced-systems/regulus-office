@@ -53,6 +53,8 @@ export class DrizzleFloorRoomSource implements FloorRoomSource {
       slug: floor.slug,
       paletteId: floor.paletteId,
       layoutTemplateId: floor.layoutTemplateId,
+      deskCount: floor.deskCount,
+      decorStyle: floor.decorStyle,
       repos: repos.map((r) => ({
         repoId: r.id,
         owner: r.owner,

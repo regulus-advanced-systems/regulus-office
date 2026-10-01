@@ -285,4 +285,6 @@ export const floorFixture: FloorState = {
     },
   },
   queueSettings: { maxRunning: 2, maxPerOwner: 1 },
+  deskCount: 3,
+  decorStyle: "lab",
 };

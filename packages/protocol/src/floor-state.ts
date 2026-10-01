@@ -16,6 +16,7 @@ import {
   TASK_KINDS,
   TASK_STATES,
 } from "./enums.ts";
+import { DECOR_STYLES } from "./room-settings-api.ts";
 
 /** Counters behind the GDT-style work bubbles (SPEC §9.3), reset per task. */
 export const BubbleEmits = z.object({
@@ -229,6 +230,9 @@ export const FloorState = z.object({
   /** Keyed by carrier session id. */
   carriedCards: z.record(Id, CarriedCard),
   queueSettings: QueueSettings,
+  /** Room settings (#182): desks in the generated interior, and its lair decor style. */
+  deskCount: Count,
+  decorStyle: z.enum(DECOR_STYLES),
 });
 export type FloorState = z.infer<typeof FloorState>;
 
