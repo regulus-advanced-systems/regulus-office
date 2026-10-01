@@ -16,15 +16,7 @@ import {
   openDatabase,
   runMigrations,
 } from "../db/index.ts";
-import {
-  agents,
-  auditLog,
-  desks,
-  floorMembers,
-  floorRepos,
-  userProfiles,
-  users,
-} from "../db/schema/index.ts";
+import { agents, auditLog, desks, floorMembers, floorRepos, users } from "../db/schema/index.ts";
 import { ensureCompound } from "./migrate.ts";
 import { liveRooms, readSpec } from "./store.ts";
 
@@ -71,7 +63,13 @@ async function preCompoundOffice(): Promise<Db> {
   db.insert(users)
     .values({ id: "u1", name: "Olga", email: "o@x.test", emailVerified: false })
     .run();
-  db.insert(userProfiles).values({ userId: "u1", displayName: "Olga", role: "owner" }).run();
+  // Raw SQL: the drizzle schema has user_profiles columns from later migrations (0016 avatar).
+  db.$client
+    .prepare(
+      `INSERT INTO user_profiles (id, user_id, display_name, role, created_at, updated_at)
+       VALUES ('p1', 'u1', 'Olga', 'owner', 0, 0)`,
+    )
+    .run();
   const created = 1_700_000_000_000;
   for (const f of FLOORS) {
     // Raw SQL: the drizzle schema already has the 0013 columns.

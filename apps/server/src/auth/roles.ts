@@ -4,7 +4,13 @@
  * starts as member unless an invite says otherwise. Role changes are
  * authorised here and written to the audit log.
  */
-import { type AvatarLook, isUserRole, type UserRole } from "@regulus/protocol";
+import {
+  DEFAULT_GENIUS_LOOK,
+  type GeniusLookValue,
+  isUserRole,
+  resolveGeniusLook,
+  type UserRole,
+} from "@regulus/protocol";
 import { count, eq } from "drizzle-orm";
 import type { Db } from "../db/index.ts";
 import { userProfiles } from "../db/schema/index.ts";
@@ -20,11 +26,20 @@ export interface Profile {
   userId: string;
   displayName: string;
   role: UserRole;
-  /** Robot colour set and accessory for the human's avatar (SPEC §5 `user_profiles.avatar`). */
-  avatar: AvatarLook;
+  /** The human's genius (SPEC §5 `user_profiles.avatar`). */
+  avatar: GeniusLookValue;
+  /** False until the human confirmed a genius in the picker (first-login picker, #185). */
+  avatarChosen: boolean;
 }
 
-const DEFAULT_AVATAR: AvatarLook = { colorSet: "default", accessory: "none" };
+/** Stored avatar JSON to a look; a corrupt or stale value falls back field by field. */
+export function avatarFromColumn(json: string): GeniusLookValue {
+  try {
+    return resolveGeniusLook(JSON.parse(json));
+  } catch {
+    return { ...DEFAULT_GENIUS_LOOK };
+  }
+}
 
 export const isAdminOrOwner = (role: UserRole): boolean => role === "owner" || role === "admin";
 
@@ -40,8 +55,8 @@ export function getProfileByUserId(db: DbOrTx, userId: string): Profile | undefi
       userId: userProfiles.userId,
       displayName: userProfiles.displayName,
       role: userProfiles.role,
-      colorSet: userProfiles.avatarColorSet,
-      accessory: userProfiles.avatarAccessory,
+      avatar: userProfiles.avatar,
+      avatarChosenAt: userProfiles.avatarChosenAt,
     })
     .from(userProfiles)
     .where(eq(userProfiles.userId, userId))
@@ -51,7 +66,8 @@ export function getProfileByUserId(db: DbOrTx, userId: string): Profile | undefi
     userId: row.userId,
     displayName: row.displayName,
     role: row.role,
-    avatar: { colorSet: row.colorSet, accessory: row.accessory },
+    avatar: avatarFromColumn(row.avatar),
+    avatarChosen: row.avatarChosenAt !== null,
   };
 }
 
@@ -83,7 +99,13 @@ export function ensureProfile(
         });
       }
       return {
-        profile: { userId: user.id, displayName, role, avatar: DEFAULT_AVATAR },
+        profile: {
+          userId: user.id,
+          displayName,
+          role,
+          avatar: { ...DEFAULT_GENIUS_LOOK },
+          avatarChosen: false,
+        },
         created: true,
       };
     },

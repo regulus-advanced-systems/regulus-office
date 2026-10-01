@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { DEFAULT_GENIUS_LOOK } from "@regulus/protocol";
 import { eq } from "drizzle-orm";
 import { auditLog } from "../db/schema/index.ts";
 import { AUDIT_ACTIONS } from "./audit.ts";
@@ -26,6 +27,9 @@ describe("registration and roles", () => {
       id: owner.id,
       displayName: "Ante",
       role: "owner",
+      // A new human starts as the default genius until the picker saves one (#185).
+      avatar: DEFAULT_GENIUS_LOOK,
+      avatarChosen: false,
     });
     expect(await (await office.me(member.cookie)).json()).toMatchObject({ role: "member" });
     expect(audits(AUDIT_ACTIONS.bootstrapOwner)).toHaveLength(1);
@@ -115,6 +119,8 @@ describe("invites", () => {
       id: joined.id,
       displayName: "Guest",
       role: "viewer",
+      avatar: DEFAULT_GENIUS_LOOK,
+      avatarChosen: false,
     });
     expect(audits(AUDIT_ACTIONS.inviteConsume)).toHaveLength(1);
 

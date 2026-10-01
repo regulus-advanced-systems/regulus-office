@@ -1,0 +1,121 @@
+/* Genius picker (#185): preview on the left, choices on the right; one column on narrow screens. */
+.rg-genius-picker {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  gap: 20px;
+  align-items: start;
+}
+@media (max-width: 760px) {
+  .rg-genius-picker {
+    grid-template-columns: 1fr;
+  }
+}
+.rg-genius-picker__intro {
+  margin: 0 0 6px;
+  color: var(--rg-color-ink-muted);
+}
+.rg-genius-preview__stage {
+  height: 380px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: radial-gradient(ellipse at 50% 35%, #5a5248 0%, #2d2925 80%);
+  border: 2px solid var(--rg-color-gold);
+}
+.rg-genius-preview__stage:focus-visible {
+  outline: 3px solid var(--rg-color-blue);
+  outline-offset: 2px;
+}
+.rg-genius-preview__controls {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+.rg-genius-group {
+  border: 0;
+  margin: 0 0 10px;
+  padding: 0;
+  min-width: 0;
+}
+.rg-genius-group > legend {
+  padding: 0;
+  margin-bottom: 4px;
+}
+.rg-genius-group input[type="radio"] {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+}
+.rg-genius-archetypes {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+.rg-genius-card {
+  position: relative;
+  display: grid;
+  gap: 2px;
+  padding: 6px 8px;
+  border: 2px solid var(--rg-color-panel-border);
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+}
+.rg-genius-card__name {
+  font-weight: 700;
+}
+.rg-genius-card__blurb {
+  font-size: 11px;
+  color: var(--rg-color-ink-muted);
+}
+.rg-genius-card:has(input:checked) {
+  border-color: var(--rg-color-amber);
+  background: #fff4dc;
+}
+.rg-genius-swatches,
+.rg-genius-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.rg-genius-swatch {
+  position: relative;
+  cursor: pointer;
+}
+.rg-genius-swatch > span {
+  display: block;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid rgba(0, 0, 0, 0.25);
+  box-sizing: border-box;
+}
+.rg-genius-swatch:has(input:checked) > span {
+  border: 3px solid var(--rg-color-navy);
+  box-shadow: 0 0 0 2px var(--rg-color-gold);
+}
+.rg-genius-chip {
+  position: relative;
+  cursor: pointer;
+}
+.rg-genius-chip > span {
+  display: inline-block;
+  padding: 4px 10px;
+  border: 2px solid var(--rg-color-panel-border);
+  border-radius: 999px;
+  background: #fff;
+  font-size: 13px;
+}
+.rg-genius-chip:has(input:checked) > span {
+  border-color: var(--rg-color-amber);
+  background: #fff4dc;
+  font-weight: 600;
+}
+.rg-genius-card:has(input:focus-visible),
+.rg-genius-chip:has(input:focus-visible) > span,
+.rg-genius-swatch:has(input:focus-visible) > span {
+  outline: 3px solid var(--rg-color-blue);
+  outline-offset: 2px;
+}

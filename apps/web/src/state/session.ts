@@ -7,12 +7,17 @@
  */
 // Enums only: the package index also pulls zod and the Colyseus schemas into the bundle.
 import { isUserRole, type UserRole } from "@regulus/protocol/src/enums.ts";
+import { type GeniusLookValue, resolveGeniusLook } from "@regulus/protocol/src/genius.ts";
 import { create } from "zustand";
 
 export interface SessionUser {
   id: string;
   displayName: string;
   role: UserRole;
+  /** The human's genius (#185); absent only in test doubles. */
+  avatar?: GeniusLookValue;
+  /** False until the genius picker was confirmed once: the office opens the picker. */
+  avatarChosen?: boolean;
 }
 
 /**
@@ -30,21 +35,29 @@ export interface SessionStore {
   fetchSession: (fetchFn?: typeof fetch) => Promise<void>;
   /** Forget the user locally (after sign-out). */
   clear: () => void;
+  /** The picker saved a genius (the server answered with it). */
+  setAvatar: (avatar: GeniusLookValue) => void;
 }
 
 export const SESSION_ENDPOINT = "/api/me";
 
-/** Validate the `/api/me` body (`{ id, displayName, role }`); null if it is not one. */
+/** Validate the `/api/me` body (`{ id, displayName, role, avatar, avatarChosen }`); null if it is not one. */
 export function parseSessionUser(body: unknown): SessionUser | null {
   if (!body || typeof body !== "object") return null;
-  const { id, displayName, role } = body as Record<string, unknown>;
+  const { id, displayName, role, avatar, avatarChosen } = body as Record<string, unknown>;
   if (typeof id !== "string" || id.length === 0) return null;
-  return {
+  const user: SessionUser = {
     id,
     displayName: typeof displayName === "string" && displayName.length > 0 ? displayName : id,
     // An unknown role gets the least privilege; the server authorises everything anyway.
     role: isUserRole(role) ? role : "viewer",
   };
+  if (avatar !== undefined) {
+    user.avatar = resolveGeniusLook(avatar);
+    // Only an explicit "not yet" opens the picker.
+    user.avatarChosen = avatarChosen !== false;
+  }
+  return user;
 }
 
 let inflight: Promise<void> | null = null;
@@ -54,6 +67,10 @@ export const useSessionStore = create<SessionStore>()((set, get) => ({
   user: null,
   error: null,
   clear: () => set({ status: "anonymous", user: null, error: null }),
+  setAvatar: (avatar) => {
+    const user = get().user;
+    if (user) set({ user: { ...user, avatar, avatarChosen: true } });
+  },
   fetchSession: (fetchFn = fetch) => {
     if (inflight) return inflight;
     /** A failed refresh (network, 5xx) keeps a known user; only a 401 signs them out here. */

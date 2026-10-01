@@ -14,13 +14,45 @@ import {
   PROVIDER_IDS,
   USER_ROLES,
 } from "./enums.ts";
+import {
+  checkGeniusLook,
+  GENIUS_ARCHETYPES,
+  GENIUS_HAIRS,
+  GENIUS_OUTFITS,
+  GENIUS_SKINS,
+  GENIUS_TRIMS,
+} from "./genius.ts";
 
-/** Robot colour set and accessory chosen by a human for their avatar (SPEC §5 user_profiles.avatar). */
-export const AvatarLook = z.object({
-  colorSet: z.string().max(32),
-  accessory: z.string().max(32),
-});
-export type AvatarLook = z.infer<typeof AvatarLook>;
+/**
+ * Robot colour set and accessory, derived on the client (scene/robots); not
+ * part of room state. Humans are geniuses since #185 (`GeniusLook`).
+ */
+export interface AvatarLook {
+  colorSet: string;
+  accessory: string;
+}
+
+const ids = <T extends object>(record: T) => Object.keys(record) as [keyof T & string];
+
+/**
+ * A human's genius (SPEC §5 `user_profiles.avatar`, §9.3): archetype, colour
+ * ids and an accessory of that archetype (genius.ts holds the catalogue and
+ * the plain validator the server uses for request bodies).
+ */
+export const GeniusLook = z
+  .object({
+    archetype: z.enum(GENIUS_ARCHETYPES),
+    outfit: z.enum(ids(GENIUS_OUTFITS)),
+    trim: z.enum(ids(GENIUS_TRIMS)),
+    skin: z.enum(ids(GENIUS_SKINS)),
+    hair: z.enum(ids(GENIUS_HAIRS)),
+    accessory: z.string().max(32),
+  })
+  .refine((look) => checkGeniusLook(look).ok, {
+    message: "accessory does not belong to the archetype",
+    path: ["accessory"],
+  });
+export type GeniusLook = z.infer<typeof GeniusLook>;
 
 /** One connected human. Keyed by Colyseus session id in `BuildingState.humans`. */
 export const HumanPresence = z.object({
@@ -28,7 +60,7 @@ export const HumanPresence = z.object({
   userId: Id,
   displayName: z.string().max(64),
   role: z.enum(USER_ROLES),
-  avatar: AvatarLook,
+  avatar: GeniusLook,
   /** Floor the human is currently on; the lobby has index 0. */
   floorId: Id,
   position: WorldPos,

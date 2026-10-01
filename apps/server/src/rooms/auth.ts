@@ -7,7 +7,12 @@
  * Production uses {@link createSessionRoomAuth} over Better Auth's session
  * cookie; development composes the header auth behind it.
  */
-import { type AvatarLook, USER_ROLES, type UserRole } from "@regulus/protocol";
+import {
+  type GeniusLookValue,
+  resolveGeniusLook,
+  USER_ROLES,
+  type UserRole,
+} from "@regulus/protocol";
 import { z } from "zod";
 import type { SessionUser } from "../auth/auth.ts";
 
@@ -15,7 +20,7 @@ export interface RoomAuthUser {
   userId: string;
   displayName: string;
   role: UserRole;
-  avatar: AvatarLook;
+  avatar: GeniusLookValue;
 }
 
 export interface RoomAuth {
@@ -30,12 +35,11 @@ export const DevUserHeader = z.object({
   userId: z.string().min(1).max(128),
   displayName: z.string().min(1).max(64),
   role: z.enum(USER_ROLES).default("member"),
+  /** Any partial look; unknown fields fall back to the default genius. */
   avatar: z
-    .object({
-      colorSet: z.string().max(32).default("default"),
-      accessory: z.string().max(32).default("none"),
-    })
-    .default({ colorSet: "default", accessory: "none" }),
+    .unknown()
+    .default({})
+    .transform((raw) => resolveGeniusLook(raw)),
 });
 
 export const isProduction = (env: NodeJS.ProcessEnv = process.env): boolean =>

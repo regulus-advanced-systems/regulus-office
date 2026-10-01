@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
+import { DEFAULT_GENIUS_LOOK } from "@regulus/protocol";
 import { type Db, MEMORY_DB_PATH, openDatabase, runMigrations, schema } from "../db/index.ts";
 import { AuthHttpError } from "./errors.ts";
 import {
@@ -10,7 +11,7 @@ import {
   setUserRole,
 } from "./roles.ts";
 
-const DEFAULT_AVATAR = { colorSet: "default", accessory: "none" };
+const DEFAULT_AVATAR = DEFAULT_GENIUS_LOOK;
 const opened: Db[] = [];
 const freshDb = () => {
   const db = openDatabase({ path: MEMORY_DB_PATH });
@@ -41,7 +42,13 @@ describe("ensureProfile", () => {
     const a = insertUser(db, "A", "a@example.com");
     const b = insertUser(db, "", "b.long@example.com");
     expect(ensureProfile(db, { ...a, name: "A", email: "a@example.com" })).toEqual({
-      profile: { userId: a.id, displayName: "A", role: "owner", avatar: DEFAULT_AVATAR },
+      profile: {
+        userId: a.id,
+        displayName: "A",
+        role: "owner",
+        avatar: DEFAULT_AVATAR,
+        avatarChosen: false,
+      },
       created: true,
     });
     expect(ensureProfile(db, { ...b, name: "", email: "b.long@example.com" }).profile).toEqual({
@@ -49,9 +56,16 @@ describe("ensureProfile", () => {
       displayName: "b.long",
       role: "member",
       avatar: DEFAULT_AVATAR,
+      avatarChosen: false,
     });
     expect(ensureProfile(db, { ...a, name: "Renamed", email: "a@example.com" })).toEqual({
-      profile: { userId: a.id, displayName: "A", role: "owner", avatar: DEFAULT_AVATAR },
+      profile: {
+        userId: a.id,
+        displayName: "A",
+        role: "owner",
+        avatar: DEFAULT_AVATAR,
+        avatarChosen: false,
+      },
       created: false,
     });
     expect(getProfileByUserId(db, "nope")).toBeUndefined();

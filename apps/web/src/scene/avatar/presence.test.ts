@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { HumanPresence } from "@regulus/protocol";
+import { DEFAULT_GENIUS_LOOK, type HumanPresence } from "@regulus/protocol";
 import { ROBOT_CLIPS } from "./clips.ts";
 import { avatarAnimationFor, presenceAnimation } from "./presence.ts";
 import { SEATED_CLIPS } from "./seatedClips.ts";
@@ -9,7 +9,7 @@ const humanFixture: HumanPresence = {
   userId: "u1",
   displayName: "Ada",
   role: "member",
-  avatar: { colorSet: "teal", accessory: "antenna" },
+  avatar: DEFAULT_GENIUS_LOOK,
   floorId: "lobby",
   position: { x: 0, z: 0, heading: 0 },
   animation: "walk",

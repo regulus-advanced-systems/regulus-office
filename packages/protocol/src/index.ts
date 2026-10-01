@@ -7,6 +7,7 @@
  * - building-state.ts  BuildingRoom state shapes (zod + inferred types)
  * - compound.ts        compound grid conventions, room placement, layout state and REST (#181)
  * - floor-state.ts     FloorRoom state shapes (zod + inferred types)
+ * - genius.ts        genius avatar catalogue (archetypes, colours, accessories) and validator
  * - floors-api.ts      REST shapes for floors, repos and floor members
  * - boards-api.ts      REST shapes for the issue/PR board panel and its write actions (#36)
  * - changes-api.ts     REST shapes for a robot's changes window: diff, commit, discard (#38)
@@ -44,6 +45,7 @@ export * from "./credentials-api.ts";
 export * from "./enums.ts";
 export * from "./floor-state.ts";
 export * from "./floors-api.ts";
+export * from "./genius.ts";
 export * from "./github-api.ts";
 export * from "./notifications.ts";
 export * from "./permission-modes.ts";

@@ -39,6 +39,7 @@ import { type BoneSegment, boneSegments, recordBones, sampleBones } from "./bone
 import { checkChangesWindow } from "./changesChecks.ts";
 import { checkLaptopCopy, checkLoginTerminalCopy, checkRobotTerminalCopy } from "./copyChecks.ts";
 import { type FakeGitHub, startFakeGitHub } from "./fakeGitHub.ts";
+import { pickGenius } from "./geniusChecks.ts";
 import { createRemoteRepo } from "./gitRemote.ts";
 import { checkRobotCheers } from "./gongChecks.ts";
 import { freeDeskPoint, OFFICE_PROBE_PATH, waitForScene } from "./probes.ts";
@@ -193,6 +194,8 @@ async function register(page: Page, who: typeof owner, submit: string): Promise<
   await page.getByLabel("Confirm password").fill(who.password);
   await page.getByRole("button", { name: submit }).click();
   await expect(page).toHaveURL(/\/office/);
+  // First login opens the genius picker (#185).
+  await pickGenius(page, "Hacker");
 }
 
 /** A same-origin JSON API call with the page's session cookie. */
