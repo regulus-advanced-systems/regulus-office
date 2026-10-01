@@ -38,7 +38,7 @@
   padding: 8px 10px;
   border: 1px solid var(--rg-color-panel-border);
   border-radius: 6px;
-  background: var(--rg-color-panel-surface);
+  background: var(--rg-color-raised);
 }
 .rg-queue__task-head {
   display: flex;
@@ -58,24 +58,19 @@
   color: var(--rg-color-ink-muted);
   font-size: 12px;
 }
-.rg-queue__state {
-  font-size: 12px;
-  padding: 1px 8px;
-  border-radius: 999px;
-  background: #e8e1d2;
-}
+/* Lamp chips (feedback.css): queued is a dim lamp. */
 .rg-queue__state--running {
-  background: #cfe3ff;
+  --rg-lamp: var(--rg-lamp-working);
 }
 .rg-queue__state--done {
-  background: #d4f0d4;
+  --rg-lamp: var(--rg-lamp-idle);
 }
 .rg-queue__state--failed {
-  background: #f8d0c8;
+  --rg-lamp: var(--rg-lamp-error);
 }
 .rg-queue__reason {
   font-size: 12px;
-  color: #8a4b12;
+  color: var(--rg-color-amber);
 }
 .rg-queue__task-actions {
   display: flex;

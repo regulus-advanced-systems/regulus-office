@@ -23,7 +23,7 @@ export function PanelsSection() {
       <Row label="modal (inline)">
         <div style={{ width: "100%" }}>
           <Modal inline open onClose={() => {}} title="Inline preview" width={440}>
-            Static preview of the golden-bordered dialog on #FFF9EF with the cream glow.
+            Static preview of the brass-framed console dialog with its stencilled nameplate.
           </Modal>
         </div>
       </Row>

@@ -60,7 +60,7 @@
   padding: 6px 8px;
   border: 2px solid var(--rg-color-panel-border);
   border-radius: 8px;
-  background: #fff;
+  background: var(--rg-color-raised);
   cursor: pointer;
 }
 .rg-genius-card__name {
@@ -72,7 +72,7 @@
 }
 .rg-genius-card:has(input:checked) {
   border-color: var(--rg-color-amber);
-  background: #fff4dc;
+  background: var(--rg-color-selected);
 }
 .rg-genius-swatches,
 .rg-genius-chips {
@@ -105,12 +105,12 @@
   padding: 4px 10px;
   border: 2px solid var(--rg-color-panel-border);
   border-radius: 999px;
-  background: #fff;
+  background: var(--rg-color-raised);
   font-size: 13px;
 }
 .rg-genius-chip:has(input:checked) > span {
   border-color: var(--rg-color-amber);
-  background: #fff4dc;
+  background: var(--rg-color-selected);
   font-weight: 600;
 }
 .rg-genius-card:has(input:focus-visible),

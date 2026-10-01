@@ -1,4 +1,4 @@
-/** Round white "X" with an orange rim (research 03 §5), used by modals and toasts. */
+/** Round close dial with a brass rim and an alarm-red X (controls.css), used by modals and toasts. */
 import type { ButtonHTMLAttributes } from "react";
 import { XIcon } from "./icons.tsx";
 

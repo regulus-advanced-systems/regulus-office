@@ -1,6 +1,6 @@
 /**
  * /ui-kit: every HUD component in every variant and state (issue #18), so
- * the GDT styling can be reviewed without Storybook. Dialogs and toasts
+ * the lair control-panel styling (#189) can be reviewed without Storybook. Dialogs and toasts
  * opened here use the real ui store, so the HUD dialogs are mounted too.
  */
 import { HudDialogs } from "../Hud.tsx";
