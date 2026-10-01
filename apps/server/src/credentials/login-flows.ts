@@ -325,6 +325,12 @@ export class LoginFlows {
       cancel: cleanup,
       expiry: this.#expiry(loginId, expiresAt),
       check: async () => {
+        // Whether `claude auth login` is still running is read BEFORE `auth status` runs
+        // (#199). The login command stores the login and then exits, so a session that was
+        // already gone when the status check started means the status saw the final state.
+        // Read after it, the login could have finished while the (slow) status check was
+        // running: "not logged in" plus "session gone" would then fail a sign-in that worked.
+        const loginRunning = await runner.sessionExists(session).catch(() => true);
         const loggedIn = await cliLoggedIn(
           "claude-code",
           ctx,
@@ -336,8 +342,8 @@ export class LoginFlows {
           this.#log.info({ loginId, outcome }, "claude onboarding step after sign-in");
           return "succeeded";
         }
-        // The login command exited without a login: nothing left to wait for.
-        if (!(await runner.sessionExists(session).catch(() => true))) return "failed";
+        // The login command had exited without a login: nothing left to wait for.
+        if (!loginRunning) return "failed";
         return null;
       },
     };

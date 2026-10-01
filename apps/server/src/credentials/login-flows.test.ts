@@ -4,7 +4,7 @@
  * a private tmux server (LocalTmuxRunner). No real CLI, no real HOME.
  */
 import { afterAll, afterEach, beforeAll, describe, expect, test } from "bun:test";
-import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   LoginFlowInfo,
@@ -17,6 +17,7 @@ import {
   FAKE_CLAUDE,
   fakeCodex,
   RECORDED_TRACES,
+  SLOW_STATUS_CLAUDE,
   startCredentialOffice,
   trace,
 } from "./testing/helpers.ts";
@@ -203,6 +204,51 @@ describe.skipIf(!hasTmux())("provider logins", () => {
       (f) => f.state !== "pending",
     );
     expect(done.state).toBe("failed");
+  });
+
+  test("Claude: a login that ends while a status check runs succeeds (#199)", async () => {
+    // `auth status` reads the login state, then waits for the test; `auth login` exits right
+    // after the code, like the real CLI. The check that saw "not logged in" must not fail the
+    // flow just because the login session closed while it was running.
+    const office = startCredentialOffice({
+      runner,
+      commands: { claude: SLOW_STATUS_CLAUDE, codex: ["false"] },
+    });
+    offices.push(office);
+    const olga = await office.user("Olga");
+    const home = (await runner.provision({ userId: olga.id })).home;
+    const started = LoginFlowInfo.parse(
+      await (await office.send("POST", `${BASE}/claude-code`, olga.cookie)).json(),
+    );
+    const session = { userId: olga.id, name: `agent-${started.terminalId}` };
+    await until(
+      () => runner.capturePane(session, 50),
+      (text) => text.includes("Paste code here"),
+    );
+    const exists = (name: string) =>
+      access(join(home, name)).then(
+        () => true,
+        () => false,
+      );
+
+    // A poll starts a check; its `auth status` has read "not logged in" and is still running.
+    const racing = flow(office, started.loginId, olga.cookie);
+    await until(() => exists(".fake-claude-status-started"), Boolean);
+    // Meanwhile the human pastes the code: the CLI stores the login and exits.
+    await runner.sendKeys(session, "CODE-OK", { enter: true });
+    await until(
+      () => runner.sessionExists(session),
+      (alive) => !alive,
+    );
+    await writeFile(join(home, ".fake-claude-status-release"), "");
+    expect((await racing).state).toBe("pending");
+
+    // The next check asks the CLI again and sees the login.
+    const done = await until(
+      () => flow(office, started.loginId, olga.cookie),
+      (f) => f.state !== "pending",
+    );
+    expect(done.state).toBe("succeeded");
   });
 
   test("viewers cannot start logins; unknown providers are refused", async () => {
