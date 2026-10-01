@@ -9,7 +9,7 @@
  *     PR code runs only when allowed and the PR is from the same repo;
  *  6. the office's API key for the provider (D2) → else `refused`;
  *  7. a throwaway checkout, read-only unless code may run;
- *  8. the robot in its own sandbox of the workflow runner identity, one
+ *  8. the henchman in its own sandbox of the workflow runner identity, one
  *     headless read-only CLI run with a timeout;
  *  9. its JSON answer, validated, posted as the App; usage to `office`.
  *
@@ -19,7 +19,7 @@ import type { WorkflowRunLink } from "@regulus/protocol";
 import { eq } from "drizzle-orm";
 import { AUDIT_ACTIONS, writeAudit } from "../auth/audit.ts";
 import type { Db } from "../db/index.ts";
-import { floors } from "../db/schema/index.ts";
+import { operations } from "../db/schema/index.ts";
 import type { GitHubConnection } from "../github/connection.ts";
 import type { GitRunner } from "../github/git.ts";
 import type { RepoAccess } from "../github/repo-access.ts";
@@ -28,12 +28,12 @@ import type { Runner } from "../runners/types.ts";
 import type { MasterKeyring } from "../secrets/index.ts";
 import type { UsageRecorder } from "../usage/index.ts";
 import { type AppRepoClient, appClientFor, canWrite, WorkflowRefusal } from "./github-app.ts";
+import { type HenchmanReview, parseHenchmanOutput } from "./henchman-output.ts";
+import { buildHenchmanPlan } from "./henchman-plan.ts";
 import { matchWorkflow } from "./match.ts";
 import { officeKey } from "./office-key.ts";
 import { checkSummary, plannedActions, postResult } from "./post.ts";
 import { renderPrompt } from "./prompt.ts";
-import { parseRobotOutput, type RobotReview } from "./robot-output.ts";
-import { buildRobotPlan } from "./robot-plan.ts";
 import type { RunRow, RunStore } from "./runs.ts";
 import { type SecretMatch, SecretScrubber } from "./scrub.ts";
 import type { StoredWorkflow } from "./store.ts";
@@ -92,8 +92,8 @@ async function readCapped(stream: ReadableStream<Uint8Array>, cap: number): Prom
   return Buffer.concat(chunks).toString("utf8");
 }
 
-/** A secret anywhere in what the robot answered (summary, inline comments, paths, labels). */
-export function findSecret(scrubber: SecretScrubber, review: RobotReview): SecretMatch | null {
+/** A secret anywhere in what the henchman answered (summary, inline comments, paths, labels). */
+export function findSecret(scrubber: SecretScrubber, review: HenchmanReview): SecretMatch | null {
   const texts = [
     review.summary,
     ...review.comments.flatMap((c) => [c.path, c.body]),
@@ -112,16 +112,16 @@ export class WorkflowExecutor {
   constructor(private readonly deps: ExecutorDeps) {}
 
   /** A run the office stopped in the middle of: its sandbox and checkout go. */
-  async cleanup(runId: string, floorId: string): Promise<void> {
+  async cleanup(runId: string, operationId: string): Promise<void> {
     await this.deps.runner.kill({ userId: WORKFLOW_RUNNER_USER, agentId: runId }).catch(() => {});
-    const floor = this.deps.db
-      .select({ slug: floors.slug })
-      .from(floors)
-      .where(eq(floors.id, floorId))
+    const operation = this.deps.db
+      .select({ slug: operations.slug })
+      .from(operations)
+      .where(eq(operations.id, operationId))
       .get();
-    if (floor) {
+    if (operation) {
       await removeCheckout(
-        checkoutDir({ worktreesDir: this.deps.worktreesDir, floorSlug: floor.slug, runId }),
+        checkoutDir({ worktreesDir: this.deps.worktreesDir, operationSlug: operation.slug, runId }),
       );
     }
   }
@@ -158,15 +158,18 @@ export class WorkflowExecutor {
       if (!ctx.repo) throw new WorkflowRefusal("no_repo", "the event names no repository");
       const repoRow = ctx.repoIds
         .map((id) => deps.repos.getRepo(id))
-        .find((r) => r && r.floorId === wf.floorId);
+        .find((r) => r && r.operationId === wf.operationId);
       if (!repoRow)
-        throw new WorkflowRefusal("repo_not_on_floor", "the repo is no longer in the operation");
-      const floor = deps.db
-        .select({ slug: floors.slug })
-        .from(floors)
-        .where(eq(floors.id, wf.floorId))
+        throw new WorkflowRefusal(
+          "repo_not_on_operation",
+          "the repo is no longer in the operation",
+        );
+      const operation = deps.db
+        .select({ slug: operations.slug })
+        .from(operations)
+        .where(eq(operations.id, wf.operationId))
         .get();
-      if (!floor) throw new WorkflowRefusal("floor_gone", "the operation was deleted");
+      if (!operation) throw new WorkflowRefusal("operation_gone", "the operation was deleted");
       const { client, token } = await appClientFor(deps.connection, ctx.repo);
       appClient = client;
       log.scrubber = new SecretScrubber({ installation_token: token });
@@ -204,22 +207,22 @@ export class WorkflowExecutor {
             : "the fix action is not available yet (#155 follow-up)",
         );
       }
-      const runCommands = spec.robot.executePrCode && target.kind === "pull" && !fork;
+      const runCommands = spec.henchman.executePrCode && target.kind === "pull" && !fork;
       if (fork) log.add("fork PR: read-only review, no code execution, no approve, no labels");
-      else if (spec.robot.executePrCode && !runCommands) log.add("no PR: code execution off");
+      else if (spec.henchman.executePrCode && !runCommands) log.add("no PR: code execution off");
       log.add(`will post: ${plannedActions(spec, { kind: target.kind, fork }).join("; ")}`);
 
-      const apiKey = officeKey(deps.db, deps.keyring, spec.robot.provider);
+      const apiKey = officeKey(deps.db, deps.keyring, spec.henchman.provider);
       const scrubber = new SecretScrubber({
         office_key: apiKey.reveal(),
         installation_token: token,
       });
       log.scrubber = scrubber;
-      log.add(`model key: the office's ${spec.robot.provider} API key (usage → office)`);
+      log.add(`model key: the office's ${spec.henchman.provider} API key (usage → office)`);
 
       const checkout = await prepareCheckout(deps.git, {
         worktreesDir: deps.worktreesDir,
-        floorSlug: floor.slug,
+        operationSlug: operation.slug,
         runId: row.id,
         remoteUrl: repoRow.remoteUrl,
         mirror: repoRow.workdir,
@@ -258,7 +261,7 @@ export class WorkflowExecutor {
       const user = { userId: WORKFLOW_RUNNER_USER };
       const handle = await deps.runner.provision(user);
       const mounted = await deps.runner.mountProject(user, {
-        floorId: wf.floorId,
+        operationId: wf.operationId,
         repoId: repoRow.repoId,
         workdir: checkout.dir,
       });
@@ -284,29 +287,29 @@ export class WorkflowExecutor {
         { canRunCommands: runCommands },
       );
       if (prompt.diffCut) log.add("diff shortened to fit the prompt");
-      const plan = buildRobotPlan({
+      const plan = buildHenchmanPlan({
         runId: row.id,
-        provider: spec.robot.provider,
-        model: spec.robot.model,
-        effort: spec.robot.effort,
+        provider: spec.henchman.provider,
+        model: spec.henchman.model,
+        effort: spec.henchman.effort,
         workdir: mounted.workdir,
         home: handle.home,
         backend: deps.runner.backend,
         prompt: prompt.text,
         apiKey,
         runCommands,
-        command: deps.commands?.[spec.robot.provider],
+        command: deps.commands?.[spec.henchman.provider],
       });
       const proc = await deps.runner.spawnPiped(user, plan);
       log.add(
-        `henchman started (${spec.robot.provider}${spec.robot.model ? ` ${spec.robot.model}` : ""})`,
+        `henchman started (${spec.henchman.provider}${spec.henchman.model ? ` ${spec.henchman.model}` : ""})`,
       );
       let timedOut = false;
       const kill = () => proc.kill("SIGKILL");
       const timer = setTimeout(() => {
         timedOut = true;
         kill();
-      }, spec.robot.timeoutMinutes * 60_000);
+      }, spec.henchman.timeoutMinutes * 60_000);
       signal.addEventListener("abort", kill, { once: true });
       const [stdout, , code] = await Promise.all([
         readCapped(proc.stdout, STDOUT_MAX),
@@ -316,15 +319,15 @@ export class WorkflowExecutor {
         clearTimeout(timer);
         signal.removeEventListener("abort", kill);
       });
-      const result = parseRobotOutput(spec.robot.provider, stdout);
+      const result = parseHenchmanOutput(spec.henchman.provider, stdout);
       const usage = result.usage;
       // Office usage (D2) through the usage tracker (#40); one sample per run, so a
       // retried or re-finished run is never counted twice.
       if (usage.inputTokens + usage.outputTokens > 0) {
         deps.usage.recordUsage({
           attributedTo: "office",
-          provider: spec.robot.provider,
-          model: spec.robot.model,
+          provider: spec.henchman.provider,
+          model: spec.henchman.model,
           sample: {
             ts: deps.now(),
             inputTokens: usage.inputTokens,
@@ -342,12 +345,12 @@ export class WorkflowExecutor {
       );
       if (signal.aborted) return finish("cancelled", "cancelled", { usage });
       if (timedOut) {
-        return finish("failed", `henchman timed out after ${spec.robot.timeoutMinutes} min`, {
+        return finish("failed", `henchman timed out after ${spec.henchman.timeoutMinutes} min`, {
           usage,
         });
       }
       if (!result.review) return finish("failed", result.error ?? "no review", { usage });
-      // The robot read attacker-written text with the model key in its env: nothing it
+      // The henchman read attacker-written text with the model key in its env: nothing it
       // wrote is posted, logged or stored if it carries a secret (#155 review).
       const leak = findSecret(scrubber, result.review);
       if (leak) {

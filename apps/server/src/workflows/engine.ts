@@ -7,7 +7,7 @@
  *  2. loop protection: events the office's App caused (`fromOfficeApp`),
  *     comments carrying the office's hidden marker, and stale replays are
  *     ignored;
- *  3. every enabled workflow of the event's floors is matched (trigger, then
+ *  3. every enabled workflow of the event's operations is matched (trigger, then
  *     the filters the event can answer);
  *  4. guards: the daily run limit and token budget, and the per-target
  *     cooldown (commands excepted) → a `skipped` run with the reason;
@@ -35,10 +35,10 @@ export interface EngineDeps {
   store: WorkflowStore;
   runs: RunStore;
   events: EventLog;
-  repos: Pick<RepoAccess, "listFloorRepos">;
+  repos: Pick<RepoAccess, "listOperationRepos">;
   execute(row: RunRow, wf: StoredWorkflow, signal: AbortSignal): Promise<void>;
   /** Remove what a run left behind (sandbox, checkout) when the office stopped mid-run. */
-  cleanup?(runId: string, floorId: string): Promise<void>;
+  cleanup?(runId: string, operationId: string): Promise<void>;
   logger: Logger;
   now?: () => number;
   /** Runs at once across the office (default 3; the 8 vCPU VM, D11). */
@@ -75,7 +75,7 @@ export class WorkflowEngine {
 
   onEvent(event: AnyGitHubEvent): void {
     if (event.name === "installation" || event.name === "installation_repositories") return;
-    if (event.floorIds.length === 0) return;
+    if (event.operationIds.length === 0) return;
     const ctx = contextFromEvent(event);
     try {
       this.#d.events.record(ctx);
@@ -93,19 +93,19 @@ export class WorkflowEngine {
       return [];
     }
     const queued: string[] = [];
-    for (const wf of only ?? this.#d.store.enabledOn(ctx.floorIds)) {
+    for (const wf of only ?? this.#d.store.enabledOn(ctx.operationIds)) {
       if (!matchWorkflow(wf.spec, ctx).matched) continue;
       const skip = this.guard(wf, ctx);
       const row = this.#d.runs.insert({
         workflowId: wf.id,
-        floorId: wf.floorId,
+        operationId: wf.operationId,
         deliveryId: ctx.deliveryId,
         trigger: ctx.event,
         target: targetFromContext(ctx),
         targetKey: targetKey(ctx),
         context: ctx,
-        provider: wf.spec.robot.provider,
-        model: wf.spec.robot.model ?? null,
+        provider: wf.spec.henchman.provider,
+        model: wf.spec.henchman.model ?? null,
         status: skip ? "skipped" : "queued",
         reason: skip,
         now: this.#now(),
@@ -214,7 +214,7 @@ export class WorkflowEngine {
   }
 
   scheduleContexts(wf: StoredWorkflow, slot: number): WorkflowContext[] {
-    const repos = this.#d.repos.listFloorRepos(wf.floorId);
+    const repos = this.#d.repos.listOperationRepos(wf.operationId);
     const chosen =
       wf.spec.filters.repoIds.length > 0
         ? repos.filter((r) => wf.spec.filters.repoIds.includes(r.repoId))
@@ -228,7 +228,7 @@ export class WorkflowEngine {
       receivedAt: slot,
       repo: { owner: r.owner, name: r.name, fullName: `${r.owner}/${r.name}` },
       repoIds: [r.repoId],
-      floorIds: [wf.floorId],
+      operationIds: [wf.operationId],
       sender: null,
       fromOfficeApp: false,
       stale: false,
@@ -245,7 +245,7 @@ export class WorkflowEngine {
         log: [],
       });
       this.#d
-        .cleanup?.(row.id, row.floorId)
+        .cleanup?.(row.id, row.operationId)
         .catch((err) => this.#d.logger.warn({ err, runId: row.id }, "run cleanup failed"));
     }
     this.pump();
@@ -260,7 +260,7 @@ export class WorkflowEngine {
     this.#timer.unref?.();
   }
 
-  /** Stop the loop and cancel what is running (the robots' sandboxes are removed). */
+  /** Stop the loop and cancel what is running (the henchmen's sandboxes are removed). */
   async stop(): Promise<void> {
     if (this.#timer) clearInterval(this.#timer);
     this.#timer = null;

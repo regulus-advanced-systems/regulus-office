@@ -24,7 +24,7 @@ describe("seat ids", () => {
   });
 });
 
-describe("migrated floors keep their seats", () => {
+describe("migrated operations keep their seats", () => {
   test.each(Object.values(TIER_TEMPLATES).map((t) => [t.id, t] as const))(
     "%s: every desk seat maps to a distinct generated seat",
     (id, template) => {

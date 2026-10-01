@@ -1,6 +1,6 @@
 /**
  * The docker backend's per-session and per-agent calls (tmux, processes,
- * ports, files), each run where it belongs: the robot's own sandbox when it
+ * ports, files), each run where it belongs: the henchman's own sandbox when it
  * has one (#169), else the human's runner (exec-router.ts). DockerRunner
  * (docker-runner.ts) adds provisioning, mounts, spawning and kill.
  */
@@ -104,7 +104,7 @@ export abstract class DockerSessionOps {
     return res?.code === 0;
   }
 
-  /** The runner's sessions (logins, robots from before sandboxes) and every robot sandbox's. */
+  /** The runner's sessions (logins, henchmen from before sandboxes) and every henchman sandbox's. */
   async listSessions(user: RunnerUser): Promise<string[]> {
     const sandboxes = (await this.sandboxes?.of(user.userId)) ?? [];
     const lists = await Promise.all([

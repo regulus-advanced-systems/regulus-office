@@ -315,7 +315,7 @@ describe("attach", () => {
 describe("mountProject", () => {
   // u1's runner id is "u1" (short ids are used as they are, runners/layout.ts).
   const area = "/srv/office/worktrees/f1/u1";
-  const repo = { floorId: "f1", repoId: "r1", workdir: `${area}/_clones/repo` };
+  const repo = { operationId: "f1", repoId: "r1", workdir: `${area}/_clones/repo` };
   const volumes = () =>
     new DockerRunner({
       engine: new EngineClient(fake.dockerHost),
@@ -328,7 +328,7 @@ describe("mountProject", () => {
   const createdMounts = () =>
     JSON.parse(fake.calls("POST", "/containers/create").at(-1)?.body ?? "{}").HostConfig.Mounts;
 
-  test("recreates an idle runner with the human's own area on the floor, keeping HOME", async () => {
+  test("recreates an idle runner with the human's own area on the operation, keeping HOME", async () => {
     runner = volumes();
     const before = await runner.provision(user);
     expect(await runner.mountProject(user, repo)).toEqual({ workdir: repo.workdir });
@@ -350,7 +350,7 @@ describe("mountProject", () => {
     expect(fake.calls("POST", "/containers/create")).toHaveLength(2);
   });
 
-  test("never mounts a mirror, a floor dir or another human's area", async () => {
+  test("never mounts a mirror, an operation dir or another human's area", async () => {
     for (const workdir of [
       "/srv/office/projects/f1/repo",
       "/srv/office/worktrees/f1",
@@ -371,7 +371,7 @@ describe("mountProject", () => {
     expect(fake.calls("POST", "/containers/create")).toHaveLength(1);
   });
 
-  describe("whole-floor mounts from before per-human clones (#114)", () => {
+  describe("whole-operation mounts from before per-human clones (#114)", () => {
     const legacy = [
       { Type: "bind", Source: "/srv/office/projects/f1", Target: "/srv/office/projects/f1" },
       { Type: "bind", Source: "/srv/office/worktrees/f1", Target: "/srv/office/worktrees/f1" },
@@ -396,7 +396,7 @@ describe("mountProject", () => {
       await legacyRunner();
       await runner.exec(user, plan("a1"));
       expect(await runner.reconcileMounts(user)).toBe(false);
-      // Already covered by the floor mount, but the stale mount alone refuses it.
+      // Already covered by the operation mount, but the stale mount alone refuses it.
       const err = await runner.mountProject(user, repo).catch((e) => e);
       expect(err).toBeInstanceOf(RunnerBusyError);
       expect(err.missing).toContain("-/srv/office/projects/f1");

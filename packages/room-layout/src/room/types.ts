@@ -5,7 +5,7 @@
  */
 import type { DecorStyle } from "@regulus/protocol";
 import type { CompassDirection, Pose } from "../geometry.ts";
-import type { RoomTemplate, Palette } from "../types.ts";
+import type { Palette, RoomTemplate } from "../types.ts";
 
 export interface GenerateRoomInput {
   /** Tiles along x (1 tile = 2 m), 4..12. */
@@ -55,7 +55,7 @@ export interface RoomLighting {
 export interface RoomMaterials {
   readonly floor: string;
   readonly wall: string;
-  /** Colours for today's toon materials (same shape as the floor palettes). */
+  /** Colours for today's toon materials (same shape as the operation palettes). */
   readonly palette: Palette;
 }
 

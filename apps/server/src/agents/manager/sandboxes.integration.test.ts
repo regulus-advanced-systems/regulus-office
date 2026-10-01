@@ -1,7 +1,7 @@
 /**
  * AgentManager with a runner that has per-agent sandboxes (#169): a spawn
- * makes the robot's sandbox before it runs anything, stop and send-home
- * remove it, and at boot the sandboxes of live robots are kept while orphans
+ * makes the henchman's sandbox before it runs anything, stop and send-home
+ * remove it, and at boot the sandboxes of live henchmen are kept while orphans
  * are reaped. The runner is LocalTmuxRunner plus a recorded sandbox list;
  * the real backends are covered in runners/docker and runners/linux-user.
  */
@@ -86,14 +86,14 @@ describe.skipIf(!hasTmux())("AgentManager with per-agent sandboxes (#169)", () =
     await rm(office.workdir, { recursive: true, force: true });
   });
 
-  test("spawn makes the robot's sandbox first; stop and send-home remove it", async () => {
+  test("spawn makes the henchman's sandbox first; stop and send-home remove it", async () => {
     const { runner, sandboxes, log } = sandboxing(inner);
-    const { manager, robots } = makeManager(office.db, runner, [adapter()]);
+    const { manager, henchmen } = makeManager(office.db, runner, [adapter()]);
     const { agentId } = await manager.spawn(
       office.member,
-      spawnInput(office.floorId, office.repoId),
+      spawnInput(office.operationId, office.repoId),
     );
-    await robots.waitFor(agentId, (r) => r.status === "idle");
+    await henchmen.waitFor(agentId, (r) => r.status === "idle");
     expect(log.slice(0, 2)).toEqual([`sandbox ${agentId}`, `exec ${agentId}`]);
     expect(sandboxes.get(agentId)).toMatchObject({
       userId: office.member.id,
@@ -105,7 +105,7 @@ describe.skipIf(!hasTmux())("AgentManager with per-agent sandboxes (#169)", () =
     expect(sandboxes.has(agentId)).toBe(false);
 
     await manager.resume(office.member, agentId);
-    await robots.waitFor(agentId, (r) => r.status === "idle");
+    await henchmen.waitFor(agentId, (r) => r.status === "idle");
     expect(sandboxes.has(agentId)).toBe(true);
 
     await manager.sendHome(office.member, agentId, { keepBranch: true });
@@ -113,25 +113,25 @@ describe.skipIf(!hasTmux())("AgentManager with per-agent sandboxes (#169)", () =
     await manager.close();
   });
 
-  test("boot keeps the sandboxes of re-adopted robots and reaps orphans", async () => {
+  test("boot keeps the sandboxes of re-adopted henchmen and reaps orphans", async () => {
     const first = sandboxing(inner);
-    const { manager, robots } = makeManager(office.db, first.runner, [adapter()]);
+    const { manager, henchmen } = makeManager(office.db, first.runner, [adapter()]);
     const { agentId } = await manager.spawn(
       office.member,
-      spawnInput(office.floorId, office.repoId),
+      spawnInput(office.operationId, office.repoId),
     );
-    await robots.waitFor(agentId, (r) => r.status === "idle");
+    await henchmen.waitFor(agentId, (r) => r.status === "idle");
     await manager.close();
 
-    // The office restarts: the robot's sandbox is still there, plus one nobody owns.
+    // The office restarts: the henchman's sandbox is still there, plus one nobody owns.
     const again = sandboxing(inner);
     again.sandboxes.set(agentId, {
       ...(first.sandboxes.get(agentId) as SandboxInfo & { workdir: string }),
     });
-    again.sandboxes.set("gone-robot", {
+    again.sandboxes.set("gone-henchman", {
       userId: office.member.id,
-      agentId: "gone-robot",
-      host: "sbx-gone-robot",
+      agentId: "gone-henchman",
+      host: "sbx-gone-henchman",
       ports: { first: 20_010, last: 20_019 },
       createdAt: 0,
       workdir: office.workdir,
@@ -139,7 +139,7 @@ describe.skipIf(!hasTmux())("AgentManager with per-agent sandboxes (#169)", () =
     const next = makeManager(office.db, again.runner, [adapter()]);
     await next.manager.adopt();
     expect([...again.sandboxes.keys()]).toEqual([agentId]);
-    expect(again.log).toContain("kill gone-robot");
+    expect(again.log).toContain("kill gone-henchman");
     expect(
       await again.runner.sessionExists({ userId: office.member.id, name: `agent-${agentId}` }),
     ).toBe(true);

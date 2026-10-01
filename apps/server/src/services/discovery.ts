@@ -1,21 +1,21 @@
 /**
  * Services discovery, the pure part (SPEC §9.4, research 01 §12, #39).
  *
- * The runner lists the LISTEN sockets of a robot's sandbox with their pids
- * (`Runner.listPorts`: docker reads `/proc/net/tcp{,6}` inside the robot's
+ * The runner lists the LISTEN sockets of a henchman's sandbox with their pids
+ * (`Runner.listPorts`: docker reads `/proc/net/tcp{,6}` inside the henchman's
  * container, linux-user the tables of its network namespace; both map socket
  * inodes to the sandbox's pids). Here those listeners become services: one
  * per port, classified as reachable by the proxy or "localhost only", and
- * titled from the robot's terminal (the fast path: dev servers print their
+ * titled from the henchman's terminal (the fast path: dev servers print their
  * URL and name), the page's `<title>`, or the process name.
  */
 import type { PortInfo, ProcessInfo } from "../runners/types.ts";
 
-/** Where the office reaches a robot's ports. */
+/** Where the office reaches a henchman's ports. */
 export interface ServiceTarget {
   /** Host name or address (a sandbox's container name or bridge address, or 127.0.0.1). */
   host: string;
-  /** True when the robot has its own network namespace (a sandbox); loopback there is its own. */
+  /** True when the henchman has its own network namespace (a sandbox); loopback there is its own. */
   sandboxed: boolean;
 }
 
@@ -128,7 +128,7 @@ const BANNERS: readonly [RegExp, string][] = [
 /** Lines above a printed URL that may name its server. */
 const BANNER_WINDOW = 8;
 
-/** The dev server a robot's terminal names for `port`, e.g. "Vite", or null. */
+/** The dev server a henchman's terminal names for `port`, e.g. "Vite", or null. */
 export function bannerTitle(text: string, port: number): string | null {
   const lines = stripAnsi(text).split("\n");
   const hits = parsePrintedUrls(text).filter((u) => u.port === port);

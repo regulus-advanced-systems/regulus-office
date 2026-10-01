@@ -14,16 +14,16 @@ export const AUDIT_ACTIONS = {
   roleChange: "user.role_change",
   inviteCreate: "invite.create",
   inviteConsume: "invite.consume",
-  floorCreate: "floor.create",
-  floorArchive: "floor.archive",
-  floorRestore: "floor.restore",
-  floorDelete: "floor.delete",
-  floorMemberSet: "floor.member_set",
-  floorMemberRemove: "floor.member_remove",
+  operationCreate: "operation.create",
+  operationArchive: "operation.archive",
+  operationRestore: "operation.restore",
+  operationDelete: "operation.delete",
+  operationMemberSet: "operation.member_set",
+  operationMemberRemove: "operation.member_remove",
   /** A room manager changed the room's desk count or decor style (#182). */
-  floorRoomSettings: "floor.room_settings",
-  floorRepoClone: "floor_repo.clone",
-  /** The compound row was created and pre-compound floors laid out as rooms (#181). */
+  operationRoomSettings: "operation.room_settings",
+  operationRepoClone: "operation_repo.clone",
+  /** The compound row was created and pre-compound operations laid out as rooms (#181). */
   compoundCreate: "compound.create",
   /** Rooms without a valid spot (restored, or never placed) were placed automatically. */
   compoundRoomsPlaced: "compound.rooms_placed",
@@ -36,12 +36,12 @@ export const AUDIT_ACTIONS = {
   worktreesPrune: "worktrees.prune",
   agentSpawn: "agent.spawn",
   agentStop: "agent.stop",
-  /** An office owner/admin stopped someone else's robot (D12, #138). */
+  /** An office owner/admin stopped someone else's henchman (D12, #138). */
   agentEmergencyStop: "agent.emergency_stop",
   agentApprove: "agent.approve",
   agentResume: "agent.resume",
   agentSendHome: "agent.send_home",
-  /** The robot's owner committed or discarded in its changes window (#38). */
+  /** The henchman's owner committed or discarded in its changes window (#38). */
   agentChangesCommit: "agent.changes_commit",
   agentChangesDiscard: "agent.changes_discard",
   credentialProfileCreate: "credential_profile.create",
@@ -51,7 +51,7 @@ export const AUDIT_ACTIONS = {
   providerLoginFinish: "provider_login.finish",
   githubConnect: "github.connect",
   githubDisconnect: "github.disconnect",
-  /** Board write actions (#36): a floor manager acted on GitHub through the office credential. */
+  /** Board write actions (#36): an operation manager acted on GitHub through the office credential. */
   githubBoardComment: "github.board_comment",
   githubBoardAssign: "github.board_assign",
   githubBoardMerge: "github.board_merge",
@@ -65,7 +65,7 @@ export const AUDIT_ACTIONS = {
   /** A workflow run wrote to GitHub as the office's App (review, comment, labels, check run). */
   workflowRunGitHubWrite: "workflow_run.github_write",
   workflowRunCancel: "workflow_run.cancel",
-  /** A robot's answer held a secret and was not posted (#155). */
+  /** A henchman's answer held a secret and was not posted (#155). */
   workflowRunSecretBlocked: "workflow_run.secret_blocked",
   /** Henchman skin rules (#184). */
   skinRuleCreate: "skin_rule.create",
@@ -81,8 +81,8 @@ export interface AuditEntry {
   targetKind:
     | "user"
     | "invite"
-    | "floor"
-    | "floor_repo"
+    | "operation"
+    | "operation_repo"
     | "compound"
     | "agent"
     | "worktrees"

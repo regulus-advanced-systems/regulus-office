@@ -32,17 +32,20 @@ export async function createRunner(
         memoryBytes: d.memoryBytes,
         nanoCpus: d.cpus === undefined ? undefined : Math.round(d.cpus * 1e9),
         pidsLimit: d.pidsLimit,
-        floorRoots: d.floorRoots,
+        operationRoots: d.operationRoots,
         volumeMap: d.volumeMap,
         // Recreated broken or outdated runner containers (#151).
         logger: logger?.child({ component: "docker-runner" }),
-        // One container per coding robot (D18, #169).
+        // One container per coding henchman (D18, #169).
         sandboxes: config.sandbox ?? undefined,
       });
     }
     case "linux-user":
-      // One scope and network/pid namespace per coding robot (D18, #169).
-      return new LinuxUserRunner({ sandboxes: config.sandbox ?? undefined });
+      // One scope and network/pid namespace per coding henchman (D18, #169).
+      return new LinuxUserRunner({
+        sandboxes: config.sandbox ?? undefined,
+        logger: logger?.child({ component: "linux-user-runner" }),
+      });
     case "local":
       if (production) throw new Error("the local runner backend is not allowed in production");
       return LocalTmuxRunner.open(join(config.dataDir, "local-runner"));

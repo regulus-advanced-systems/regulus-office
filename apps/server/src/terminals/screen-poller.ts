@@ -1,13 +1,13 @@
 /**
- * One floor's laptop screens (SPEC §9.4): while at least one subscriber is
- * connected, capture the visible pane of every robot on the floor every
- * `intervalMs` (2 Hz), clamp it, and push only screens that changed. Robots
+ * One operation's laptop screens (SPEC §9.4): while at least one subscriber is
+ * connected, capture the visible pane of every henchman on the operation every
+ * `intervalMs` (2 Hz), clamp it, and push only screens that changed. Henchmen
  * whose screen has not changed for a while are captured less often, so an
- * idle floor costs a fraction of a busy one. Screen text is never logged.
+ * idle operation costs a fraction of a busy one. Screen text is never logged.
  */
 import { clampScreenText, type ScreenFeedMessage } from "@regulus/protocol";
 import type { Logger } from "../logging.ts";
-import type { FloorTerminalTargets, TerminalTarget } from "./targets.ts";
+import type { OperationTerminalTargets, TerminalTarget } from "./targets.ts";
 
 /** A connected client of the feed, as the poller sees it. */
 export interface ScreenSubscriber {
@@ -19,8 +19,8 @@ export interface ScreenSubscriber {
 }
 
 export interface ScreenPollerOptions {
-  floorId: string;
-  sources: FloorTerminalTargets;
+  operationId: string;
+  sources: OperationTerminalTargets;
   logger: Logger;
   intervalMs: number;
   /** Unchanged ticks after which a screen counts as idle. */
@@ -91,13 +91,13 @@ export class ScreenPoller {
   }
 
   async #poll(): Promise<void> {
-    const { floorId, sources, logger } = this.#opts;
+    const { operationId, sources, logger } = this.#opts;
     this.#tickNo += 1;
     let targets: TerminalTarget[];
     try {
-      targets = await sources.listFloor(floorId);
+      targets = await sources.listOperation(operationId);
     } catch (err) {
-      logger.warn({ err, floorId }, "screen feed: listing robots failed");
+      logger.warn({ err, operationId }, "screen feed: listing henchmen failed");
       return;
     }
     const live = new Set(targets.map((t) => t.agentId));
@@ -137,7 +137,7 @@ export class ScreenPoller {
     screen.unchanged = 0;
   }
 
-  /** The robot is gone (left the floor, exited, capture failed): dark screen. */
+  /** The henchman is gone (left the operation, exited, capture failed): dark screen. */
   #drop(agentId: string): void {
     this.#screens.delete(agentId);
     for (const sub of this.#subscribers) {

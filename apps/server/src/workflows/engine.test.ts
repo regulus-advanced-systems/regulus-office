@@ -1,10 +1,10 @@
 /** The workflow engine (#155): loop protection, dedupe, budgets, cooldown, concurrency, schedules. */
 import { describe, expect, test } from "bun:test";
 import { WorkflowInput as Schema, type WorkflowInput } from "@regulus/protocol";
-import { floors } from "../db/schema/index.ts";
-import { testDb } from "../floors/test-helpers.ts";
+import { operations } from "../db/schema/index.ts";
 import type { RepoCheckout } from "../github/repo-access.ts";
 import { createLogger } from "../logging.ts";
+import { testDb } from "../operations/test-helpers.ts";
 import { OFFICE_MARKER, type WorkflowContext } from "./context.ts";
 import { cronMatches, dueSlot, parseCron } from "./cron.ts";
 import { WorkflowEngine } from "./engine.ts";
@@ -17,7 +17,7 @@ const spec = (over: Partial<WorkflowInput> = {}) =>
     name: "w",
     enabled: true,
     trigger: { kind: "pull_request", actions: ["opened", "synchronize"] },
-    robot: { provider: "claude-code", promptTemplate: "x" },
+    henchman: { provider: "claude-code", promptTemplate: "x" },
     limits: { cooldownMinutes: 0 },
     ...over,
   });
@@ -34,7 +34,7 @@ function ctx(over: Partial<WorkflowContext> = {}, number = 1): WorkflowContext {
     receivedAt: 0,
     repo: { owner: "octo", name: "hello", fullName: "octo/hello" },
     repoIds: ["r1"],
-    floorIds: ["f1"],
+    operationIds: ["f1"],
     sender: { login: "alice", isBot: false },
     fromOfficeApp: false,
     stale: false,
@@ -60,7 +60,7 @@ function ctx(over: Partial<WorkflowContext> = {}, number = 1): WorkflowContext {
 
 function setup(opts: { maxParallel?: number } = {}) {
   const { db } = testDb();
-  db.insert(floors)
+  db.insert(operations)
     .values({ id: "f1", name: "F", slug: "f", index: 1, paletteId: "p", layoutTemplateId: "t" })
     .run();
   const clock = { now: Date.parse("2026-09-30T10:00:00Z") };
@@ -73,7 +73,7 @@ function setup(opts: { maxParallel?: number } = {}) {
     store,
     runs,
     events: new EventLog(db),
-    repos: { listFloorRepos: () => [repo] },
+    repos: { listOperationRepos: () => [repo] },
     logger: createLogger({ level: "silent" }),
     now: () => clock.now,
     maxParallel: opts.maxParallel,
@@ -122,7 +122,7 @@ describe("loop protection and dedupe", () => {
       comment: { author: "x", authorIsBot: false, body: OFFICE_MARKER, url: "", fromOffice: true },
     });
     expect(s.engine.consider(marked)).toEqual([]);
-    expect(s.runs.list({ floorId: "f1" })).toEqual([]);
+    expect(s.runs.list({ operationId: "f1" })).toEqual([]);
   });
 
   test("one run per workflow and delivery id", () => {
@@ -131,15 +131,15 @@ describe("loop protection and dedupe", () => {
     const c = ctx();
     expect(s.engine.consider(c)).toHaveLength(1);
     expect(s.engine.consider({ ...c })).toEqual([]);
-    expect(s.runs.list({ floorId: "f1" })).toHaveLength(1);
+    expect(s.runs.list({ operationId: "f1" })).toHaveLength(1);
   });
 
-  test("disabled workflows and other floors are not considered", () => {
+  test("disabled workflows and other operations are not considered", () => {
     const s = setup();
     s.store.create("f1", spec({ enabled: false }), null);
     expect(s.engine.consider(ctx())).toEqual([]);
     s.store.create("f1", spec(), null);
-    expect(s.engine.consider(ctx({ floorIds: ["f2"] }))).toEqual([]);
+    expect(s.engine.consider(ctx({ operationIds: ["f2"] }))).toEqual([]);
   });
 });
 
@@ -150,7 +150,7 @@ describe("limits", () => {
     expect(s.engine.consider(ctx())).toHaveLength(1);
     await s.finishAll();
     expect(s.engine.consider(ctx())).toEqual([]);
-    const [skipped] = s.runs.list({ floorId: "f1" });
+    const [skipped] = s.runs.list({ operationId: "f1" });
     expect(skipped?.status).toBe("skipped");
     expect(skipped?.reason).toStartWith("cooldown");
     expect(s.engine.consider(ctx({}, 2))).toHaveLength(1);
@@ -164,7 +164,7 @@ describe("limits", () => {
     expect(s.engine.consider(ctx({}, 1))).toHaveLength(1);
     expect(s.engine.consider(ctx({}, 2))).toHaveLength(1);
     expect(s.engine.consider(ctx({}, 3))).toEqual([]);
-    expect(s.runs.list({ floorId: "f1" })[0]?.reason).toStartWith("daily_run_limit");
+    expect(s.runs.list({ operationId: "f1" })[0]?.reason).toStartWith("daily_run_limit");
     await s.finishAll();
     // A new UTC day starts from zero.
     s.clock.now += 24 * 60 * 60_000;
@@ -182,7 +182,7 @@ describe("limits", () => {
     }
     // 1000 tokens per run: the 11th finds the budget used up.
     expect(t.engine.consider(ctx({}, 11))).toEqual([]);
-    expect(t.runs.list({ floorId: "f1" })[0]?.reason).toStartWith("daily_token_budget");
+    expect(t.runs.list({ operationId: "f1" })[0]?.reason).toStartWith("daily_token_budget");
   });
 
   test("concurrency per workflow and in the office", async () => {
@@ -194,14 +194,14 @@ describe("limits", () => {
       null,
     );
     for (let i = 1; i <= 4; i += 1) s.engine.consider(ctx({}, i));
-    // `one` runs 1 at a time, `two` 2: three robots, the rest wait.
+    // `one` runs 1 at a time, `two` 2: three henchmen, the rest wait.
     expect(s.started).toHaveLength(3);
-    const byWf = (id: string) => s.runs.list({ floorId: "f1", workflowId: id });
+    const byWf = (id: string) => s.runs.list({ operationId: "f1", workflowId: id });
     expect(byWf(one.id).filter((r) => r.status === "running")).toHaveLength(1);
     expect(byWf(two.id).filter((r) => r.status === "running")).toHaveLength(2);
     await s.finishAll();
     expect(s.started).toHaveLength(8);
-    expect(s.runs.list({ floorId: "f1" }).every((r) => r.status === "succeeded")).toBe(true);
+    expect(s.runs.list({ operationId: "f1" }).every((r) => r.status === "succeeded")).toBe(true);
   });
 
   test("cancel and disable", async () => {
@@ -227,7 +227,7 @@ describe("limits", () => {
       store: s.store,
       runs: s.runs,
       events: new EventLog(s.db),
-      repos: { listFloorRepos: () => [] },
+      repos: { listOperationRepos: () => [] },
       logger: createLogger({ level: "silent" }),
       execute: async () => {},
     });
@@ -253,15 +253,15 @@ describe("schedules", () => {
     expect(dueSlot(parseCron("5 * * * *"), Date.parse("2026-09-30T10:05:00Z"), now)).toBeNull();
   });
 
-  test("a schedule fires once per slot on the floor's primary repo", async () => {
+  test("a schedule fires once per slot on the operation's primary repo", async () => {
     const s = setup();
     s.store.create("f1", spec({ trigger: { kind: "schedule", cron: "*/5 * * * *" } }), null);
     s.engine.tick();
-    expect(s.runs.list({ floorId: "f1" })).toEqual([]);
+    expect(s.runs.list({ operationId: "f1" })).toEqual([]);
     s.clock.now += 5 * 60_000;
     s.engine.tick();
     s.engine.tick();
-    const runs = s.runs.list({ floorId: "f1" });
+    const runs = s.runs.list({ operationId: "f1" });
     expect(runs).toHaveLength(1);
     expect(runs[0]?.trigger).toBe("schedule");
     expect(runs[0]?.deliveryId).toStartWith("schedule:2026-09-30T10:05:00.000Z:r1");

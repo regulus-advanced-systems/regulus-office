@@ -1,15 +1,15 @@
-/** State machine, RobotState reducer and the heuristic rungs of the status ladder. */
+/** State machine, HenchmanState reducer and the heuristic rungs of the status ladder. */
 import { describe, expect, test } from "bun:test";
 import { CLAUDE_SIGN_IN_REASON, CLAUDE_TRUST_REASON } from "@regulus/agent-adapters";
-import { AGENT_STATUSES, type AgentEvent, RobotState } from "@regulus/protocol";
+import { AGENT_STATUSES, type AgentEvent, HenchmanState } from "@regulus/protocol";
+import { type AgentView, applyEvent, henchmanState, setStatus, viewFromRow } from "./henchman.ts";
 import { deriveHeuristicStatus } from "./ladder.ts";
-import { type AgentView, applyEvent, robotState, setStatus, viewFromRow } from "./robot.ts";
 import { canTransition, handRaised, isLive, transition } from "./state-machine.ts";
 
 function view(overrides: Partial<AgentView> = {}): AgentView {
   return {
     agentId: "a1",
-    floorId: "f1",
+    operationId: "f1",
     repoId: "r1",
     seatId: "seat-1",
     ownerUserId: "u1",
@@ -34,10 +34,10 @@ function view(overrides: Partial<AgentView> = {}): AgentView {
   };
 }
 
-describe("permission mode on the robot (#166)", () => {
+describe("permission mode on the henchman (#166)", () => {
   const row = {
     id: "a1",
-    floorId: "f1",
+    operationId: "f1",
     repoId: "r1",
     deskSeatId: "seat-1",
     ownerUserId: "u1",
@@ -53,11 +53,11 @@ describe("permission mode on the robot (#166)", () => {
     lastActivityAt: null,
   };
 
-  test("the stored mode is published in RobotState", () => {
-    const state = robotState(viewFromRow({ ...row, permissionMode: "acceptEdits" }, "Olga"));
-    expect(RobotState.parse(state).permissionMode).toBe("acceptEdits");
+  test("the stored mode is published in HenchmanState", () => {
+    const state = henchmanState(viewFromRow({ ...row, permissionMode: "acceptEdits" }, "Olga"));
+    expect(HenchmanState.parse(state).permissionMode).toBe("acceptEdits");
     const codex = viewFromRow({ ...row, provider: "codex", permissionMode: "never" }, "Olga");
-    expect(robotState(codex).permissionMode).toBe("never");
+    expect(henchmanState(codex).permissionMode).toBe("never");
   });
 
   test("rows from before #166 show the provider default", () => {
@@ -105,7 +105,7 @@ describe("state machine", () => {
   });
 });
 
-describe("robot reducer", () => {
+describe("henchman reducer", () => {
   const ts = 1000;
 
   test("permission requests raise the hand and events drive actions and bubbles", () => {
@@ -149,21 +149,25 @@ describe("robot reducer", () => {
       7,
     );
     expect(r.statusChanged).toBe(true);
-    const robot = RobotState.parse(robotState(v));
-    expect(robot).toMatchObject({ status: "waiting_permission", handRaised: true, action: "none" });
+    const henchman = HenchmanState.parse(henchmanState(v));
+    expect(henchman).toMatchObject({
+      status: "waiting_permission",
+      handRaised: true,
+      action: "none",
+    });
 
     applyEvent(v, { kind: "status", ts, status: "done" }, 8);
     expect(v.action).toBe("celebrating");
     expect(v.lastActivityAt).toBe(8);
   });
 
-  test("exit settles the robot and later events are refused", () => {
+  test("exit settles the henchman and later events are refused", () => {
     const v = view({ status: "working" });
     expect(applyEvent(v, { kind: "exit", ts, code: 0 }, 1).statusChanged).toBe(true);
     const late = applyEvent(v, { kind: "status", ts, status: "working" }, 2);
     expect(late).toEqual({
       statusChanged: false,
-      robotChanged: false,
+      henchmanChanged: false,
       refused: { from: "exited", to: "working" },
     });
     applyEvent(v, { kind: "action", ts, action: "typing" }, 3);
@@ -171,31 +175,31 @@ describe("robot reducer", () => {
     expect(setStatus(v, "starting", 4)).toBe(true);
   });
 
-  test("an error shows its redacted reason until the robot leaves error", () => {
+  test("an error shows its redacted reason until the henchman leaves error", () => {
     const v = view();
     const reason = "runner_api: Docker Engine: POST /containers/x/start: 500 no such file";
     applyEvent(v, { kind: "status", ts, status: "error", reason }, 1);
-    expect(robotState(v)).toMatchObject({
+    expect(henchmanState(v)).toMatchObject({
       status: "error",
       action: "failing",
       statusReason: "runner_api: Docker Engine: POST <path>: 500 no such file",
     });
-    expect(RobotState.safeParse(robotState(v)).success).toBe(true);
+    expect(HenchmanState.safeParse(henchmanState(v)).success).toBe(true);
     applyEvent(v, { kind: "status", ts, status: "working" }, 2);
-    expect(robotState(v).statusReason).toBe("");
+    expect(henchmanState(v).statusReason).toBe("");
     applyEvent(v, { kind: "status", ts, status: "error" }, 3);
-    expect(robotState(v).statusReason).toBe("");
+    expect(henchmanState(v).statusReason).toBe("");
     applyEvent(v, { kind: "status", ts, status: "error", reason: "boom" }, 4);
     expect(v.statusReason).toBe("");
     v.statusReason = "stale";
     expect(setStatus(v, "starting", 5)).toBe(true);
-    expect(robotState(v).statusReason).toBe("");
+    expect(henchmanState(v).statusReason).toBe("");
   });
 
   test("waiting_input shows only an adapter's fixed human reason (#158)", () => {
     const v = view();
     applyEvent(v, { kind: "status", ts, status: "waiting_input", reason: CLAUDE_TRUST_REASON }, 1);
-    expect(robotState(v)).toMatchObject({
+    expect(henchmanState(v)).toMatchObject({
       status: "waiting_input",
       handRaised: true,
       statusReason: CLAUDE_TRUST_REASON,
@@ -206,16 +210,16 @@ describe("robot reducer", () => {
       { kind: "status", ts, status: "waiting_input", reason: CLAUDE_SIGN_IN_REASON },
       2,
     );
-    expect(robotState(v).statusReason).toBe(CLAUDE_SIGN_IN_REASON);
+    expect(henchmanState(v).statusReason).toBe(CLAUDE_SIGN_IN_REASON);
     // Any other text (e.g. from a hook) is never shown.
     applyEvent(v, { kind: "status", ts, status: "waiting_input", reason: "/home/x secret" }, 3);
-    expect(robotState(v).statusReason).toBe(CLAUDE_SIGN_IN_REASON);
+    expect(henchmanState(v).statusReason).toBe(CLAUDE_SIGN_IN_REASON);
     // The first hook (SessionStart → idle) clears it.
     applyEvent(v, { kind: "status", ts, status: "idle" }, 4);
-    expect(robotState(v).statusReason).toBe("");
+    expect(henchmanState(v).statusReason).toBe("");
     applyEvent(v, { kind: "status", ts, status: "waiting_input", reason: "elicitation" }, 5);
-    expect(robotState(v)).toMatchObject({ status: "waiting_input", statusReason: "" });
-    expect(RobotState.safeParse(robotState(v)).success).toBe(true);
+    expect(henchmanState(v)).toMatchObject({ status: "waiting_input", statusReason: "" });
+    expect(HenchmanState.safeParse(henchmanState(v)).success).toBe(true);
   });
 
   test("usage does not count as activity", () => {
@@ -233,7 +237,7 @@ describe("robot reducer", () => {
       },
       50,
     );
-    expect(r.robotChanged).toBe(false);
+    expect(r.henchmanChanged).toBe(false);
     expect(v.lastActivityAt).toBe(1);
   });
 });

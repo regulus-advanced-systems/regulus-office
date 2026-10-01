@@ -13,7 +13,7 @@
 import type { Rect } from "./geometry.ts";
 import { buildNavGrid, type Cell, type NavGrid } from "./nav-grid.ts";
 import { interactables } from "./query.ts";
-import type { RoomTemplate, ObstacleKind, Seat } from "./types.ts";
+import type { ObstacleKind, RoomTemplate, Seat } from "./types.ts";
 
 /** Minimum clear width of a walking lane, metres. */
 export const LANE_WIDTH = 1.5;

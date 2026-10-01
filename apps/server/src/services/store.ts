@@ -1,8 +1,8 @@
 /**
- * The `services` table (SPEC §5, #39): the running apps of every robot, so the
+ * The `services` table (SPEC §5, #39): the running apps of every henchman, so the
  * first-seen time and ids survive an office restart. The scanner owns the rows;
- * rows of robots that are gone are removed with them (and by the FK cascade
- * when a robot row is deleted).
+ * rows of henchmen that are gone are removed with them (and by the FK cascade
+ * when a henchman row is deleted).
  */
 import { and, eq, inArray, notInArray } from "drizzle-orm";
 import type { Db } from "../db/index.ts";
@@ -41,7 +41,7 @@ export class ServiceStore {
       }));
   }
 
-  /** Insert or update one robot's service (unique on robot and port). */
+  /** Insert or update one henchman's service (unique on henchman and port). */
   upsert(s: StoredService): void {
     const values = {
       pid: s.pid,
@@ -63,7 +63,7 @@ export class ServiceStore {
       .run();
   }
 
-  /** Remove a robot's rows except `keepPorts`. */
+  /** Remove a henchman's rows except `keepPorts`. */
   prune(agentId: string, keepPorts: readonly number[]): void {
     const where =
       keepPorts.length > 0
@@ -72,7 +72,7 @@ export class ServiceStore {
     this.db.delete(services).where(where).run();
   }
 
-  /** Remove every row of robots not in `agentIds`. */
+  /** Remove every row of henchmen not in `agentIds`. */
   retainAgents(agentIds: readonly string[]): void {
     if (agentIds.length === 0) this.db.delete(services).run();
     else

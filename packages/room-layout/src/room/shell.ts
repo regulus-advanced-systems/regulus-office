@@ -39,7 +39,7 @@ const COUNTER_CLOCKWISE: Readonly<Record<DoorSide, DoorSide>> = {
 /**
  * The two full walls of a room with its door on `doorSide`: the one facing
  * the door, then its counter-clockwise neighbour (north and west for a door
- * on the south side, as the fixed floors had).
+ * on the south side, as the fixed operations had).
  */
 export function fullSides(doorSide: DoorSide): [DoorSide, DoorSide] {
   const back = OPPOSITE[doorSide];

@@ -46,7 +46,7 @@ export class AgentStore {
 
   /**
    * Insert the agent and claim its desk atomically: the requested seat when
-   * given (must exist on the floor and be free), else the first free seat.
+   * given (must exist on the operation and be free), else the first free seat.
    * Returns the seat id.
    */
   insertWithDesk(row: NewAgentRow & { id: string }, seatId: string | undefined): string {
@@ -54,7 +54,7 @@ export class AgentStore {
       const free = tx
         .select({ seatId: desks.seatId, agentId: desks.agentId })
         .from(desks)
-        .where(eq(desks.floorId, row.floorId))
+        .where(eq(desks.operationId, row.operationId))
         .orderBy(asc(desks.seatId))
         .all();
       let seat: string | undefined;
@@ -73,7 +73,13 @@ export class AgentStore {
       const claimed = tx
         .update(desks)
         .set({ agentId: row.id })
-        .where(and(eq(desks.floorId, row.floorId), eq(desks.seatId, seat), isNull(desks.agentId)))
+        .where(
+          and(
+            eq(desks.operationId, row.operationId),
+            eq(desks.seatId, seat),
+            isNull(desks.agentId),
+          ),
+        )
         .returning({ id: desks.id })
         .all();
       if (claimed.length !== 1) throw new AgentManagerError("conflict", "desk is taken");
@@ -97,7 +103,7 @@ export class AgentStore {
     this.db.update(desks).set({ agentId: null }).where(eq(desks.agentId, agentId)).run();
   }
 
-  /** Agents that hold a desk, i.e. robots in the world (re-published on boot). */
+  /** Agents that hold a desk, i.e. henchmen in the world (re-published on boot). */
   seated(): AgentRow[] {
     return this.db
       .select({ agent: agents })

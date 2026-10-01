@@ -1,21 +1,21 @@
 /**
  * The merge gong (#43, SPEC D9), server side. Everything it does is a
- * broadcast to one floor's FloorRoom; clients ring the gong, burst confetti
- * and let their robots celebrate (apps/web/src/scene/gong).
+ * broadcast to one operation's OperationRoom; clients ring the gong, burst confetti
+ * and let their henchmen celebrate (apps/web/src/scene/gong).
  *
- * - `followGitHub(bus)`: a merged PR of a floor's repo (#35 webhook or poll)
- *   broadcasts `pr.merged` to that floor, once per merge (merges.ts).
+ * - `followGitHub(bus)`: a merged PR of an operation's repo (#35 webhook or poll)
+ *   broadcasts `pr.merged` to that operation, once per merge (merges.ts).
  * - `boardMerged(...)`: the same for a merge made from the office's PR board
  *   (#36), without waiting for the webhook or the next poll; the mark makes
  *   their later report of it a no-op.
- * - `bang(floorId, user)`: a human bangs the gong (`gong.bang`), rate-limited
- *   per floor and per human (bang-limit.ts), broadcast as `gong.ring`.
- * - `queueEmptied(floorId)`: the task queue (#37) emptied (queue-watch.ts
+ * - `bang(operationId, user)`: a human bangs the gong (`gong.bang`), rate-limited
+ *   per operation and per human (bang-limit.ts), broadcast as `gong.ring`.
+ * - `queueEmptied(operationId)`: the task queue (#37) emptied (queue-watch.ts
  *   detects it from the queue's publishes): a triple ring. Repeats within
  *   `QUEUE_EMPTY_REPEAT_MS` are dropped, so a queue that flaps between one
  *   and zero tasks does not ring each time.
  *
- * Nothing is queued for floors nobody is on: a ring is a moment, not state.
+ * Nothing is queued for operations nobody is on: a ring is a moment, not state.
  */
 import {
   GONG_RING_MESSAGE,
@@ -35,8 +35,8 @@ export const QUEUE_EMPTY_REPEAT_MS = 10_000;
 
 export interface CelebrationsDeps {
   db: Db;
-  /** The FloorRoom registry's broadcast (FloorRooms.broadcast). */
-  floors: { broadcast(floorId: string, type: string, payload: unknown): boolean };
+  /** The OperationRoom registry's broadcast (OperationRooms.broadcast). */
+  operations: { broadcast(operationId: string, type: string, payload: unknown): boolean };
   logger: Logger;
   /** `https://github.com` (OFFICE_GITHUB_WEB_BASE), for the PR link. */
   githubWebBase?: string;
@@ -47,15 +47,15 @@ export interface CelebrationsDeps {
 export interface Celebrations {
   /** Ring for merged PRs on the GitHub event bus. Replaces an earlier subscription. */
   followGitHub(events: Pick<GitHubEventBus, "on">): void;
-  /** A PR was merged from the office's PR board. Returns the floors that rang. */
+  /** A PR was merged from the office's PR board. Returns the operations that rang. */
   boardMerged(pull: MergedPull): string[];
-  /** A human banged the gong on a floor they are on. */
-  bang(floorId: string, user: { userId: string; displayName: string }): BangVerdict;
+  /** A human banged the gong on an operation they are on. */
+  bang(operationId: string, user: { userId: string; displayName: string }): BangVerdict;
   /**
-   * The task queue (#37) of `floorId` just emptied: a triple ring. Safe to
+   * The task queue (#37) of `operationId` just emptied: a triple ring. Safe to
    * call on every transition to empty; returns whether it rang.
    */
-  queueEmptied(floorId: string): boolean;
+  queueEmptied(operationId: string): boolean;
   close(): void;
 }
 
@@ -67,28 +67,28 @@ export function createCelebrations(deps: CelebrationsDeps): Celebrations {
   const queueRungAt = new Map<string, number>();
   let unsubscribe: (() => void) | undefined;
 
-  const ring = (floorId: string, cause: GongCause, by?: string): boolean => {
+  const ring = (operationId: string, cause: GongCause, by?: string): boolean => {
     const payload = GongRing.parse({
-      floorId,
+      operationId,
       cause,
       strikes: GONG_STRIKES[cause],
       ...(by ? { by: by.slice(0, 64) } : {}),
       at: now(),
     });
-    limiter.rang(floorId);
-    return deps.floors.broadcast(floorId, GONG_RING_MESSAGE, payload);
+    limiter.rang(operationId);
+    return deps.operations.broadcast(operationId, GONG_RING_MESSAGE, payload);
   };
 
   const merged = (pull: MergedPull, source: string): string[] => {
-    const floors: string[] = [];
+    const operations: string[] = [];
     for (const r of claimMergeRings(deps.db, pull, webBase)) {
       const payload = PrMerged.parse({ ...r, at: now() });
-      limiter.rang(r.floorId);
-      deps.floors.broadcast(r.floorId, PR_MERGED_MESSAGE, payload);
-      floors.push(r.floorId);
-      logger.info({ floorId: r.floorId, prNumber: r.number, source }, "merge gong rang");
+      limiter.rang(r.operationId);
+      deps.operations.broadcast(r.operationId, PR_MERGED_MESSAGE, payload);
+      operations.push(r.operationId);
+      logger.info({ operationId: r.operationId, prNumber: r.number, source }, "merge gong rang");
     }
-    return floors;
+    return operations;
   };
 
   return {
@@ -102,20 +102,20 @@ export function createCelebrations(deps: CelebrationsDeps): Celebrations {
 
     boardMerged: (pull) => merged(pull, "board"),
 
-    bang(floorId, user) {
-      const verdict = limiter.bang(floorId, user.userId);
-      if (verdict.ok) ring(floorId, "bang", user.displayName);
+    bang(operationId, user) {
+      const verdict = limiter.bang(operationId, user.userId);
+      if (verdict.ok) ring(operationId, "bang", user.displayName);
       return verdict;
     },
 
-    queueEmptied(floorId) {
+    queueEmptied(operationId) {
       const t = now();
-      const last = queueRungAt.get(floorId);
+      const last = queueRungAt.get(operationId);
       if (last !== undefined && t - last < QUEUE_EMPTY_REPEAT_MS) return false;
-      queueRungAt.set(floorId, t);
+      queueRungAt.set(operationId, t);
       for (const [id, at] of queueRungAt)
         if (t - at >= QUEUE_EMPTY_REPEAT_MS) queueRungAt.delete(id);
-      ring(floorId, "queue_empty");
+      ring(operationId, "queue_empty");
       return true;
     },
 

@@ -34,7 +34,7 @@ export class DrizzleChatStore implements ChatStore {
       id: message.id,
       userId: message.userId,
       displayName: message.displayName,
-      floorId: message.floorId,
+      operationId: message.operationId,
       text: message.text,
       ts: new Date(message.ts),
     });
@@ -51,7 +51,7 @@ export class DrizzleChatStore implements ChatStore {
       id: row.id,
       userId: row.userId,
       displayName: row.displayName,
-      floorId: row.floorId,
+      operationId: row.operationId,
       text: row.text,
       ts: row.ts.getTime(),
     }));

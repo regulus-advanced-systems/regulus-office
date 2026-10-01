@@ -1,17 +1,17 @@
 /**
  * The owner's write actions in the changes window (#38): commit chosen files
  * with a message, and discard one file's uncommitted changes. The caller
- * (service.ts) has checked D12 and holds the robot's lock.
+ * (service.ts) has checked D12 and holds the henchman's lock.
  *
  * Both take a fresh look at the worktree first and refuse with
  * `changed_since_viewed` when a file's fingerprint differs from what the
- * human saw, and with `git_busy` when the robot's own git holds the index
+ * human saw, and with `git_busy` when the henchman's own git holds the index
  * lock. Nothing is forced: no lock is removed, no hook runs, other staged
- * work of the robot stays staged (`git commit --only -- <paths>`).
+ * work of the henchman stays staged (`git commit --only -- <paths>`).
  */
 import type { CommitChangesRequest, FileSig } from "@regulus/protocol";
+import { type HenchmanShell, text } from "./henchman-shell.ts";
 import { ChangesHttpError, checkRepoPath } from "./paths.ts";
-import { type RobotShell, text } from "./robot-shell.ts";
 import { gitFailure, type WorktreeLook } from "./snapshot.ts";
 
 export interface CommitIdentity {
@@ -46,14 +46,14 @@ export function checkViewed(look: WorktreeLook, files: readonly FileSig[]): void
 }
 
 /** `-c user.*` only when the owner has no git identity of their own in the runner. */
-async function identityArgs(shell: RobotShell, fallback: CommitIdentity): Promise<string[]> {
+async function identityArgs(shell: HenchmanShell, fallback: CommitIdentity): Promise<string[]> {
   const res = await shell.git(["config", "--get", "user.email"], { maxBytes: 4096 });
   if (res.code === 0 && text(res.stdout).trim()) return [];
   return ["-c", `user.name=${fallback.name}`, "-c", `user.email=${fallback.email}`];
 }
 
 export async function commitFiles(
-  shell: RobotShell,
+  shell: HenchmanShell,
   look: WorktreeLook,
   req: CommitChangesRequest,
   identity: CommitIdentity,
@@ -81,7 +81,7 @@ export async function commitFiles(
 }
 
 export async function discardFile(
-  shell: RobotShell,
+  shell: HenchmanShell,
   look: WorktreeLook,
   file: FileSig,
 ): Promise<void> {

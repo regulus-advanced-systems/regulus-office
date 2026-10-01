@@ -1,11 +1,11 @@
 /**
- * @regulus/room-layout: data-driven floor templates, palettes and the nav
+ * @regulus/room-layout: data-driven room templates, palettes and the nav
  * grid (SPEC §9.1). Templates are validated when this module loads.
  *
  * - types.ts        zod schemas + inferred types (RoomTemplate, Seat, WallAnchor, ...)
  * - facing.ts       what each seat should face (its table, a coffee table, a TV)
  * - geometry.ts     axis / heading conventions and rect helpers
- * - palettes.ts     ordered GDT-style palettes that floors cycle through
+ * - palettes.ts     ordered GDT-style palettes that operations cycle through
  * - query.ts        read helpers: walls, anchor stand poses, interactables
  * - nav-grid.ts     NavGrid generated from walls and obstacles
  * - astar.ts        small A* over the grid

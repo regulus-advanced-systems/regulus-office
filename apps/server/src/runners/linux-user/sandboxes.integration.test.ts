@@ -1,5 +1,5 @@
 /**
- * Real linux-user robot sandboxes (#169): two robots of one human each run a
+ * Real linux-user henchman sandboxes (#169): two henchmen of one human each run a
  * web server on port 3000 in their own network namespace and the office
  * reaches both at their sandbox addresses; the limits are on their scopes; a
  * sandbox sees only its own processes and not another human's area;
@@ -63,9 +63,9 @@ const fetchText = (url: string) =>
 
 describe.skipIf(!enabled)("LinuxUserRunner sandboxes (real namespaces and scopes, #169)", () => {
   const runner = new LinuxUserRunner({ sandboxes: settings, onCall: logCall });
-  const floorDir = join(WORKTREES, `floor-${rid}`);
-  const area = join(floorDir, rid);
-  const areaB = join(floorDir, ridB);
+  const operationDir = join(WORKTREES, `operation-${rid}`);
+  const area = join(operationDir, rid);
+  const areaB = join(operationDir, ridB);
   const infos = new Map<string, SandboxInfo | null>();
   let office: ReturnType<typeof Bun.serve> | undefined;
   let home = "";
@@ -86,7 +86,7 @@ describe.skipIf(!enabled)("LinuxUserRunner sandboxes (real namespaces and scopes
   const server = (agentId: string) =>
     [
       `mkdir -p "$HOME/www-${agentId}"`,
-      `echo "robot ${agentId} PORT=$PORT" > "$HOME/www-${agentId}/index.html"`,
+      `echo "henchman ${agentId} PORT=$PORT" > "$HOME/www-${agentId}/index.html"`,
       `exec python3 -m http.server 3000 --bind 0.0.0.0 --directory "$HOME/www-${agentId}"`,
     ].join(" && ");
 
@@ -103,12 +103,16 @@ describe.skipIf(!enabled)("LinuxUserRunner sandboxes (real namespaces and scopes
     home = (await runner.provision(user)).home;
     await runner.provision(userB);
     await runner.mountProject(userB, {
-      floorId: "f",
+      operationId: "f",
       repoId: "r",
       workdir: join(areaB, "_clones", "repo"),
     });
     for (const agentId of ["a1", "a2", "a3"]) {
-      await runner.mountProject(user, { floorId: "f", repoId: "r", workdir: join(area, agentId) });
+      await runner.mountProject(user, {
+        operationId: "f",
+        repoId: "r",
+        workdir: join(area, agentId),
+      });
     }
     for (const agentId of ["a1", "a2"]) {
       const info = await runner.sandbox({ userId: rid, agentId }, { workdir: join(area, agentId) });
@@ -122,13 +126,13 @@ describe.skipIf(!enabled)("LinuxUserRunner sandboxes (real namespaces and scopes
     await Promise.allSettled(all);
     const results = await Promise.allSettled([runner.deprovision(user), runner.deprovision(userB)]);
     office?.stop(true);
-    await Bun.$`sudo -n rm -rf ${floorDir}`.nothrow();
-    await rm(floorDir, { recursive: true, force: true });
+    await Bun.$`sudo -n rm -rf ${operationDir}`.nothrow();
+    await rm(operationDir, { recursive: true, force: true });
     for (const r of results) if (r.status === "rejected") throw r.reason;
   }, TIMEOUT);
 
   bunTest(
-    "two robots of one human both serve on port 3000; the office reaches each at its address",
+    "two henchmen of one human both serve on port 3000; the office reaches each at its address",
     async () => {
       const a1 = infos.get("a1");
       const a2 = infos.get("a2");
@@ -140,9 +144,9 @@ describe.skipIf(!enabled)("LinuxUserRunner sandboxes (real namespaces and scopes
       ] as const) {
         const page = await waitFor(
           () => fetchText(`http://${info?.host}:3000/`),
-          (t) => t.includes("robot"),
+          (t) => t.includes("henchman"),
         );
-        expect(page.trim()).toBe(`robot ${agentId} PORT=${info?.ports.first}`);
+        expect(page.trim()).toBe(`henchman ${agentId} PORT=${info?.ports.first}`);
         const ports = await waitFor(
           () => runner.listPorts({ userId: rid, agentId }),
           (p) => p.some((x) => x.port === 3000),
@@ -155,7 +159,7 @@ describe.skipIf(!enabled)("LinuxUserRunner sandboxes (real namespaces and scopes
     TIMEOUT,
   );
 
-  bunTest("limits are on the robot's scope", async () => {
+  bunTest("limits are on the henchman's scope", async () => {
     const scope = "/sys/fs/cgroup/system.slice/agent-a1.scope";
     const read = async (f: string) => (await readFile(join(scope, f), "utf8")).trim();
     expect(await read("memory.max")).toBe(String(settings.memoryBytes));
@@ -181,7 +185,7 @@ describe.skipIf(!enabled)("LinuxUserRunner sandboxes (real namespaces and scopes
       expect(procs).not.toContain("python3");
       expect((procs ?? "").split("\n").filter(Boolean).length).toBeLessThan(10);
       expect((await runner.readTextFile(user, join(home, "b-a3")))?.trim()).toBe("denied");
-      // The office still sees the robot's processes (host view of its scope).
+      // The office still sees the henchman's processes (host view of its scope).
       const listed = await runner.listProcesses({ userId: rid, agentId: "a1" });
       expect(listed.map((p) => p.command)).toContain("python3");
     },
@@ -230,7 +234,7 @@ describe.skipIf(!enabled)("LinuxUserRunner sandboxes (real namespaces and scopes
       });
       const screen = await again.capturePane({ userId: rid, name: "agent-a2" }, 20);
       expect(screen).toContain("Serving HTTP");
-      // Starting the robot again keeps its address and ports.
+      // Starting the henchman again keeps its address and ports.
       const same = await again.sandbox(
         { userId: rid, agentId: "a2" },
         { workdir: join(area, "a2") },
@@ -241,7 +245,7 @@ describe.skipIf(!enabled)("LinuxUserRunner sandboxes (real namespaces and scopes
   );
 
   bunTest(
-    "kill removes the sandbox and its dev server; the other robot keeps serving",
+    "kill removes the sandbox and its dev server; the other henchman keeps serving",
     async () => {
       const a1 = infos.get("a1");
       const slot = ((a1?.ports.first ?? 0) - settings.portBase) / settings.portSpan;
@@ -251,7 +255,7 @@ describe.skipIf(!enabled)("LinuxUserRunner sandboxes (real namespaces and scopes
       expect(await stat(`/run/netns/office-sbx${slot}`).catch(() => null)).toBeNull();
       expect(await stat("/sys/fs/cgroup/system.slice/agent-a1.scope").catch(() => null)).toBeNull();
       expect(await fetchText(`http://${a1?.host}:3000/`)).toBe("");
-      expect(await fetchText(`http://${infos.get("a2")?.host}:3000/`)).toContain("robot a2");
+      expect(await fetchText(`http://${infos.get("a2")?.host}:3000/`)).toContain("henchman a2");
     },
     TIMEOUT,
   );

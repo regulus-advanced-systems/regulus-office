@@ -1,6 +1,6 @@
 /**
  * Finding room placements automatically: rooms created without a placement
- * (the pre-compound floor API), floors migrated from the building of floors
+ * (the pre-compound operation API), operations migrated from the building of operations
  * (SPEC §9.1 "placed in a row off the main corridor"), and archived rooms
  * restored onto a spot that has since been built over.
  */
@@ -31,10 +31,10 @@ export interface RoomSize {
 export const PREFERRED_GAP_TILES = 4;
 /** Rows of migrated rooms are this far apart (north to south, bottom to bottom). */
 export const ROW_PITCH_TILES = ROOM_MAX_TILES + PREFERRED_GAP_TILES;
-/** How much a compound grows (each side) when migrated floors do not fit. */
+/** How much a compound grows (each side) when migrated operations do not fit. */
 export const GROWTH_STEP_TILES = 16;
 
-/** Size for a floor migrated from a fixed template, from how many desk seats it has. */
+/** Size for an operation migrated from a fixed template, from how many desk seats it has. */
 export function legacyRoomSize(deskSeats: number): RoomSize {
   if (deskSeats <= 8) return { width: 8, depth: 8 };
   if (deskSeats <= 12) return { width: 10, depth: 10 };
@@ -188,7 +188,7 @@ export function reconcilePlacements(
 }
 
 /**
- * Migrating the building of floors: lay every room out in rows off the main
+ * Migrating the building of operations: lay every room out in rows off the main
  * corridor. When they do not fit the compound grows (lobby re-centred on the
  * south edge), up to the maximum size; only valid while nothing is placed yet.
  * Sizes that turn out too small are abandoned at the first room that does

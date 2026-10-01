@@ -1,6 +1,6 @@
 /**
- * Repos an office GitHub connection can see (#141), for the "Add floor"
- * picker and for deciding whether a floor repo is covered by the connection.
+ * Repos an office GitHub connection can see (#141), for the "Add operation"
+ * picker and for deciding whether an operation repo is covered by the connection.
  *
  * - App: `GET /installation/repositories` with an installation token.
  * - Org PAT: `GET /user/repos`, which for a fine-grained token lists the

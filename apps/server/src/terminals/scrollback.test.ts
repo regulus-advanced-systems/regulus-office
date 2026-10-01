@@ -19,7 +19,7 @@ function fakeTarget(agentId: string, pane: { text: string; captures: number }): 
   return {
     agentId,
     ownerUserId: "u1",
-    floorId: "f1",
+    operationId: "f1",
     session: { userId: "u1", name: `agent-${agentId}` },
     runner,
   };

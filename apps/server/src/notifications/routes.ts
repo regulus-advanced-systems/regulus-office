@@ -1,7 +1,7 @@
 /**
  * REST for notifications (#42).
  *
- *   GET    /api/notifications/attention          my robots waiting for me (tab badge)
+ *   GET    /api/notifications/attention          my henchmen waiting for me (tab badge)
  *   GET    /api/notifications/prefs              my preferences (signed in)
  *   PUT    /api/notifications/prefs              replace my preferences
  *   GET    /api/notifications/channels           team channels (owners/admins)
@@ -26,9 +26,9 @@ import type { OfficeAuth } from "../auth/auth.ts";
 import { AuthHttpError, forbidden, unauthorized } from "../auth/errors.ts";
 import { checkOrigin } from "../auth/origin.ts";
 import type { Db } from "../db/index.ts";
-import { type FloorActor, isOfficeManager } from "../floors/access.ts";
-import { readBody } from "../floors/routes.ts";
 import { json, type RouteContext, type Router } from "../http/router.ts";
+import { isOfficeManager, type OperationActor } from "../operations/access.ts";
+import { readBody } from "../operations/routes.ts";
 import type { NotificationCenter } from "./center.ts";
 import { type ChannelStore, ChannelStoreError } from "./channels.ts";
 import type { NotificationDirectory } from "./directory.ts";
@@ -53,14 +53,14 @@ export function mountNotificationRoutes(router: Router, deps: NotificationRoutes
   const now = deps.now ?? Date.now;
   const lastTest = new Map<string, number>();
 
-  const signedIn = async (request: Request): Promise<FloorActor> => {
+  const signedIn = async (request: Request): Promise<OperationActor> => {
     const user = await auth.getSessionFromRequest(request);
     if (!user) throw unauthorized();
     return { id: user.id, role: user.role };
   };
   const handle =
     (
-      fn: (ctx: RouteContext, actor: FloorActor) => Promise<Response> | Response,
+      fn: (ctx: RouteContext, actor: OperationActor) => Promise<Response> | Response,
       opts: { write?: boolean; manager?: boolean } = {},
     ) =>
     async (ctx: RouteContext) => {
@@ -85,7 +85,7 @@ export function mountNotificationRoutes(router: Router, deps: NotificationRoutes
       }
     };
   const audit = (
-    actor: FloorActor,
+    actor: OperationActor,
     action: "create" | "update" | "delete",
     id: string,
     meta: Record<string, unknown>,
@@ -124,7 +124,7 @@ export function mountNotificationRoutes(router: Router, deps: NotificationRoutes
     handle(
       async (ctx, actor) => {
         const prefs = await readBody(ctx.request, NotificationPrefs);
-        // Other robots' errors are only for owners and admins.
+        // Other henchmen's errors are only for owners and admins.
         if (!isOfficeManager(actor.role)) prefs.adminErrors = false;
         directory.setPrefs(actor.id, prefs);
         return json(prefs);
@@ -150,7 +150,7 @@ export function mountNotificationRoutes(router: Router, deps: NotificationRoutes
           kind: view.kind,
           label: view.label,
           events: view.events,
-          floors: view.floorIds?.length ?? "all",
+          operations: view.operationIds?.length ?? "all",
         });
         return json(view, { status: 201 });
       },

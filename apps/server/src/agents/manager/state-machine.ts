@@ -9,7 +9,7 @@
  *   exited ──▶ starting (resume)
  *
  * `exited` is final for the process: late events (a hook that was in flight,
- * a queued structured event) cannot bring a robot back to life; only an
+ * a queued structured event) cannot bring a henchman back to life; only an
  * explicit resume, which goes through `starting`, can. Guards are enforced in
  * one place, {@link transition}, and the manager ignores refused changes.
  */
@@ -67,7 +67,7 @@ export function transition(
   return { status: to, changed: true, refused: false };
 }
 
-/** Raised hand in the world while the robot waits for its human (SPEC §6 RobotState). */
+/** Raised hand in the world while the henchman waits for its human (SPEC §6 HenchmanState). */
 export function handRaised(status: AgentStatus): boolean {
   return status === "waiting_permission" || status === "waiting_input";
 }

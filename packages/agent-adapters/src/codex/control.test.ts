@@ -254,7 +254,7 @@ describe("CodexControl against documented traces", () => {
     await expect(control.prompt("x")).rejects.toThrow("closed");
   });
 
-  test("the robot's approval policy goes on thread/start and thread/resume (#166)", async () => {
+  test("the henchman's approval policy goes on thread/start and thread/resume (#166)", async () => {
     const opening = (method: "thread/start" | "thread/resume", params: object): TraceStep[] => [
       ...handshake(),
       out({ method, id: 1, params }),

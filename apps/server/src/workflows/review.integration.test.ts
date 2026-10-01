@@ -15,8 +15,8 @@ import { hasTmux } from "../runners/testing/local-tmux-runner.ts";
 import { OFFICE_MARKER } from "./context.ts";
 import {
   APP_SLUG,
-  FLOOR_ID,
   OFFICE_KEY,
+  OPERATION_ID,
   prPayload,
   repository,
   type WorkflowFixture,
@@ -34,7 +34,7 @@ const spec = (over: Partial<WorkflowInput> = {}) =>
     name: "Review PRs",
     enabled: true,
     trigger: { kind: "pull_request", actions: ["opened", "synchronize"] },
-    robot: { provider: "claude-code", promptTemplate: "Review {{pr.title}}\n{{diff}}" },
+    henchman: { provider: "claude-code", promptTemplate: "Review {{pr.title}}\n{{diff}}" },
     actions: {
       review: { enabled: true, allowRequestChanges: true },
       label: { enabled: true, allowed: ["needs-*"] },
@@ -52,7 +52,7 @@ describe.skipIf(!hasTmux())("workflow review runs", () => {
   test("a new PR gets a review from the App, read-only, on the office key", async () => {
     f = await workflowFixture();
     f.addOfficeKey();
-    const wf = f.workflows.store.create(FLOOR_ID, spec(), null);
+    const wf = f.workflows.store.create(OPERATION_ID, spec(), null);
     const res = await f.deliver("pull_request", prPayload("opened", f.remote.headSha));
     expect(res.status).toBe(202);
     await f.workflows.engine.idle();
@@ -79,7 +79,7 @@ describe.skipIf(!hasTmux())("workflow review runs", () => {
     ]);
     expect(review.body).toContain("via Regulus Office");
     expect(review.body).toContain(OFFICE_MARKER);
-    // The robot's probes: no writes, nothing to push to, no GitHub token, the office key.
+    // The henchman's probes: no writes, nothing to push to, no GitHub token, the office key.
     expect(review.body).toContain("write: denied, push: denied, remotes: 0");
     expect(review.body).toContain("github tokens in env: 0, model key: yes");
     expect(review.body).not.toContain("@octocat");
@@ -123,11 +123,11 @@ describe.skipIf(!hasTmux())("workflow review runs", () => {
     f = await workflowFixture();
     f.addOfficeKey();
     f.workflows.store.create(
-      FLOOR_ID,
+      OPERATION_ID,
       spec({ trigger: { kind: "command", command: "review" } }),
       null,
     );
-    f.workflows.store.create(FLOOR_ID, spec(), null);
+    f.workflows.store.create(OPERATION_ID, spec(), null);
     const id = crypto.randomUUID();
     await f.deliver("pull_request", prPayload("opened", f.remote.headSha), id);
     expect(
@@ -135,7 +135,7 @@ describe.skipIf(!hasTmux())("workflow review runs", () => {
     ).toBe(200);
     await f.workflows.engine.idle();
     expect(runs()).toHaveLength(1);
-    // Pushed by the office's App (a fix robot later), and a comment the office posted.
+    // Pushed by the office's App (a fix henchman later), and a comment the office posted.
     const bot = { login: `${APP_SLUG}[bot]`, id: 9, type: "Bot" };
     await f.deliver("pull_request", prPayload("synchronize", f.remote.headSha, { sender: bot }));
     await f.deliver("issue_comment", {
@@ -167,8 +167,8 @@ describe.skipIf(!hasTmux())("workflow review runs", () => {
     f.addOfficeKey();
     const base = spec();
     f.workflows.store.create(
-      FLOOR_ID,
-      { ...base, robot: { ...base.robot, executePrCode: true } },
+      OPERATION_ID,
+      { ...base, henchman: { ...base.henchman, executePrCode: true } },
       null,
     );
     await f.deliver(
@@ -203,11 +203,14 @@ describe.skipIf(!hasTmux())("workflow review runs", () => {
       f.addOfficeKey();
       const base = spec();
       f.workflows.store.create(
-        FLOOR_ID,
+        OPERATION_ID,
         {
           ...base,
           actions: { ...base.actions, comment: { enabled: true } },
-          robot: { ...base.robot, promptTemplate: "Review {{pr.title}}\n{{pr.body}}\n{{diff}}" },
+          henchman: {
+            ...base.henchman,
+            promptTemplate: "Review {{pr.title}}\n{{pr.body}}\n{{diff}}",
+          },
         },
         null,
       );
@@ -216,7 +219,7 @@ describe.skipIf(!hasTmux())("workflow review runs", () => {
       const [run] = runs();
       expect(run?.status).toBe("failed");
       expect(run?.reason).toStartWith("secret_in_output");
-      // Only the check run the office opened (and closed) before the robot answered.
+      // Only the check run the office opened (and closed) before the henchman answered.
       expect(f.wf.writes.map((w) => w.kind)).toEqual(["check_run", "check_run_update"]);
       const b64 = Buffer.from(`KEY=${OFFICE_KEY}`).toString("base64");
       const everything = [
@@ -241,7 +244,7 @@ describe.skipIf(!hasTmux())("workflow review runs", () => {
   test("commands need write access to the repo; runs need the office key", async () => {
     f = await workflowFixture();
     f.workflows.store.create(
-      FLOOR_ID,
+      OPERATION_ID,
       spec({ trigger: { kind: "command", command: "review" } }),
       null,
     );

@@ -1,12 +1,12 @@
 /**
  * The compound layout as published in the BuildingRoom (protocol
- * `CompoundState`, plus the placement fields of each `FloorSummary`), and
+ * `CompoundState`, plus the placement fields of each `OperationSummary`), and
  * back again for the client's nav grid.
  */
 import {
   COMPOUND_TILE_METRES,
   type CompoundState,
-  type FloorSummary,
+  type OperationSummary,
   type SpecialRoomState,
 } from "@regulus/protocol";
 import type { CompoundLayout, LaidOutRoom } from "./layout.ts";
@@ -58,7 +58,7 @@ export function compoundStateOf(layout: CompoundLayout): CompoundState {
 /** The placement fields of a project room's summary (`gridX` .. `doorY`). */
 export function roomSummaryPlacement(
   room: LaidOutRoom,
-): Pick<FloorSummary, "gridX" | "gridY" | "width" | "depth" | "doorSide" | "doorX" | "doorY"> {
+): Pick<OperationSummary, "gridX" | "gridY" | "width" | "depth" | "doorSide" | "doorX" | "doorY"> {
   return {
     gridX: room.rect.x,
     gridY: room.rect.y,
@@ -77,8 +77,8 @@ export function roomSummaryPlacement(
  */
 export function compoundNavInputFromState(
   compound: CompoundState,
-  floors: Iterable<FloorSummary>,
-  lobbyFloorId = "lobby",
+  operations: Iterable<OperationSummary>,
+  lobbyOperationId = "lobby",
 ): CompoundNavInput {
   const rooms: Array<CompoundNavInput["rooms"][number]> = compound.specialRooms.map((s) => ({
     id: s.kind,
@@ -86,10 +86,10 @@ export function compoundNavInputFromState(
     doorSide: s.doorSide,
     door: { x: s.doorX, y: s.doorY },
   }));
-  for (const f of floors) {
-    if (f.floorId === lobbyFloorId || f.gridX < 0 || f.gridY < 0) continue;
+  for (const f of operations) {
+    if (f.operationId === lobbyOperationId || f.gridX < 0 || f.gridY < 0) continue;
     rooms.push({
-      id: f.floorId,
+      id: f.operationId,
       rect: { x: f.gridX, y: f.gridY, w: f.width, d: f.depth },
       doorSide: f.doorSide,
       door: { x: f.doorX, y: f.doorY },

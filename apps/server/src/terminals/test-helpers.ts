@@ -1,7 +1,7 @@
 /**
  * Fixtures for the terminal bridge tests: an office server with real auth, the
  * bridge and the Colyseus rooms behind one `WsRouter`, database rows for
- * floors and robots, and a small WebSocket client that records frames.
+ * operations and henchmen, and a small WebSocket client that records frames.
  */
 import {
   parseScreenFeedMessage,
@@ -18,14 +18,20 @@ import { createAuth } from "../auth/auth.ts";
 import { cookieHeaderFrom, mountAuthRoutes } from "../auth/routes.ts";
 import { PASSWORD, TEST_SECRET } from "../auth/test-helpers.ts";
 import { MEMORY_DB_PATH, openDatabase, runMigrations } from "../db/index.ts";
-import { agents, floorMembers, floorRepos, floors, userProfiles } from "../db/schema/index.ts";
+import {
+  agents,
+  operationMembers,
+  operationRepos,
+  operations,
+  userProfiles,
+} from "../db/schema/index.ts";
 import { createOfficeServer } from "../http/server.ts";
 import { WsRouter } from "../http/ws-router.ts";
 import { createLogger } from "../logging.ts";
 import { createSessionRoomAuth } from "../rooms/auth.ts";
 import { createRooms } from "../rooms/index.ts";
 import type { Runner } from "../runners/types.ts";
-import { dbFloorVisibility } from "./acl.ts";
+import { dbOperationVisibility } from "./acl.ts";
 import { TerminalBridge, type TerminalBridgeOptions } from "./bridge.ts";
 import { ScreenFeed, type ScreenFeedOptions } from "./screens.ts";
 import { DbTerminalTargets, RunnerRegistry } from "./targets.ts";
@@ -75,7 +81,7 @@ export async function startTerminalOffice(options: TerminalOfficeOptions) {
   const bridge = new TerminalBridge({
     targets,
     sessions,
-    canViewFloor: dbFloorVisibility(db),
+    canViewOperation: dbOperationVisibility(db),
     // Production policy: only the office's own origin, no localhost wildcard.
     originPolicy: { publicUrl: String(server.url) },
     logger,
@@ -84,7 +90,7 @@ export async function startTerminalOffice(options: TerminalOfficeOptions) {
   const screens = new ScreenFeed({
     sources: targets,
     sessions,
-    canViewFloor: dbFloorVisibility(db),
+    canViewOperation: dbOperationVisibility(db),
     originPolicy: { publicUrl: String(server.url) },
     logger,
     ...options.screens,
@@ -108,14 +114,14 @@ export async function startTerminalOffice(options: TerminalOfficeOptions) {
     return { id: body.user.id, cookie: cookieHeaderFrom(res.headers) };
   };
 
-  const addFloor = (id: string, members: Record<string, "manage" | "spawn" | "view"> = {}) => {
-    db.insert(floors)
+  const addOperation = (id: string, members: Record<string, "manage" | "spawn" | "view"> = {}) => {
+    db.insert(operations)
       .values({ id, name: id, slug: id, index: seq + 1, paletteId: "p", layoutTemplateId: "t" })
       .run();
-    db.insert(floorRepos)
+    db.insert(operationRepos)
       .values({
         id: `${id}-repo`,
-        floorId: id,
+        operationId: id,
         owner: "o",
         name: id,
         url: "https://example.invalid",
@@ -123,16 +129,16 @@ export async function startTerminalOffice(options: TerminalOfficeOptions) {
       })
       .run();
     for (const [userId, access] of Object.entries(members)) {
-      db.insert(floorMembers).values({ floorId: id, userId, access }).run();
+      db.insert(operationMembers).values({ operationId: id, userId, access }).run();
     }
   };
 
-  const addAgent = (id: string, floorId: string, ownerUserId: string) => {
+  const addAgent = (id: string, operationId: string, ownerUserId: string) => {
     db.insert(agents)
       .values({
         id,
-        floorId,
-        repoId: `${floorId}-repo`,
+        operationId,
+        repoId: `${operationId}-repo`,
         deskSeatId: "s1",
         ownerUserId,
         provider: "custom",
@@ -161,9 +167,9 @@ export async function startTerminalOffice(options: TerminalOfficeOptions) {
       },
     });
 
-  const subscribeScreens = (floorId: string, cookie: string) =>
+  const subscribeScreens = (operationId: string, cookie: string) =>
     FeedClient.open(
-      `${String(server.url).replace(/^http/, "ws").replace(/\/$/, "")}${screensWsPath(floorId)}`,
+      `${String(server.url).replace(/^http/, "ws").replace(/\/$/, "")}${screensWsPath(operationId)}`,
       { cookie, origin },
     );
 
@@ -178,7 +184,7 @@ export async function startTerminalOffice(options: TerminalOfficeOptions) {
     screens,
     rooms,
     signUp,
-    addFloor,
+    addOperation,
     addAgent,
     probe,
     connect,
@@ -266,7 +272,7 @@ export class TermClient {
   }
 }
 
-/** Records laptop screen feed messages (`/ws/screens/<floorId>`). */
+/** Records laptop screen feed messages (`/ws/screens/<operationId>`). */
 export class FeedClient {
   readonly messages: ScreenFeedMessage[] = [];
   readonly closed: Promise<number>;

@@ -1,6 +1,6 @@
 /**
  * End-to-end fixture for workflow runs (#155 tests only): an in-memory office
- * DB with one floor following `octo/hello`, a local bare repo as its remote
+ * DB with one operation following `octo/hello`, a local bare repo as its remote
  * (with `refs/pull/7/head` changing `src/app.ts`), the fake GitHub (App
  * installation tokens + the workflow endpoints), a GitHub App connection, the
  * board sync that verifies webhooks and feeds the event bus, the office's
@@ -13,8 +13,7 @@ import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { credentialProfileContext } from "../../agents/manager/credentials.ts";
-import { credentialProfiles, floorRepos, floors } from "../../db/schema/index.ts";
-import { testDb } from "../../floors/test-helpers.ts";
+import { credentialProfiles, operationRepos, operations } from "../../db/schema/index.ts";
 import { startFakeGitHub, testAppKey } from "../../github/fake-github.ts";
 import { gitBaseEnv } from "../../github/git.ts";
 import type { RepoCheckout, RepoCredential } from "../../github/repo-access.ts";
@@ -22,6 +21,7 @@ import { createGitHubConnection } from "../../github/setup.ts";
 import { createGitHubSync } from "../../github/sync.ts";
 import { signWebhookBody } from "../../github/webhook-signature.ts";
 import { createLogger } from "../../logging.ts";
+import { testDb } from "../../operations/test-helpers.ts";
 import { LocalTmuxRunner } from "../../runners/testing/local-tmux-runner.ts";
 import { encryptSecret } from "../../secrets/index.ts";
 import { UsageTracker } from "../../usage/index.ts";
@@ -33,7 +33,7 @@ export const WEBHOOK_SECRET = "whsec_workflows_fixture";
 export const OFFICE_KEY = "sk-ant-api03-FAKE-office-key-0123456789";
 export const APP_ID = 5150;
 export const APP_SLUG = "regulus-office-wf";
-export const FLOOR_ID = "floor-wf";
+export const OPERATION_ID = "operation-wf";
 export const REPO_ID = "repo-wf-hello";
 const keyPair = testAppKey();
 
@@ -127,9 +127,9 @@ export async function workflowFixture(opts: { pulls?: (headSha: string) => FakeP
     privateKey: keyPair.privateKey,
     webhookSecret: WEBHOOK_SECRET,
   });
-  db.insert(floors)
+  db.insert(operations)
     .values({
-      id: FLOOR_ID,
+      id: OPERATION_ID,
       name: "Hello",
       slug: "hello",
       index: 1,
@@ -138,10 +138,10 @@ export async function workflowFixture(opts: { pulls?: (headSha: string) => FakeP
     })
     .run();
   const mirror = join(root, "projects", "hello", "hello");
-  db.insert(floorRepos)
+  db.insert(operationRepos)
     .values({
       id: REPO_ID,
-      floorId: FLOOR_ID,
+      operationId: OPERATION_ID,
       owner: "octo",
       name: "hello",
       url: "https://github.com/octo/hello",
@@ -170,7 +170,7 @@ export async function workflowFixture(opts: { pulls?: (headSha: string) => FakeP
   };
   const checkout: RepoCheckout = {
     repoId: REPO_ID,
-    floorId: FLOOR_ID,
+    operationId: OPERATION_ID,
     owner: "octo",
     name: "hello",
     workdir: mirror,
@@ -181,7 +181,7 @@ export async function workflowFixture(opts: { pulls?: (headSha: string) => FakeP
   };
   const repos = {
     getRepo: (id: string) => (id === REPO_ID ? checkout : undefined),
-    listFloorRepos: (floorId: string) => (floorId === FLOOR_ID ? [checkout] : []),
+    listOperationRepos: (operationId: string) => (operationId === OPERATION_ID ? [checkout] : []),
     withRepoCredential: async <T>(_id: string, fn: (c: RepoCredential) => T | Promise<T>) =>
       fn({ token: null } as RepoCredential),
   };

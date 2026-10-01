@@ -4,14 +4,14 @@
  * from a verified webhook or a poll (#35), or a merge made from the office's
  * own PR board (#36), which reports it at once instead of waiting for them.
  *
- * Each merge rings once per floor repo row: a mark in `notification_marks`
+ * Each merge rings once per operation repo row: a mark in `notification_marks`
  * (`gong:pr_merged:<repoId>#<n>`, apart from #42's notification marks) is
  * claimed first, so a webhook, a poll and the board reporting the same
  * merge, or a replay after a restart, ring only the first time.
  */
 import { and, eq, inArray } from "drizzle-orm";
 import type { Db } from "../db/index.ts";
-import { floorRepos, githubPulls, notificationMarks } from "../db/schema/index.ts";
+import { githubPulls, notificationMarks, operationRepos } from "../db/schema/index.ts";
 import type { GitHubEvent } from "../github/events.ts";
 
 export const gongMark = (repoId: string, n: number) => `gong:pr_merged:${repoId}#${n}`;
@@ -23,7 +23,7 @@ export interface MergedPull {
   title?: string;
 }
 
-/** The merged PR an event reports, or null (not a merge, a stale replay, no floor repo). */
+/** The merged PR an event reports, or null (not a merge, a stale replay, no operation repo). */
 export function mergedPullOf(event: GitHubEvent<"pull_request">): MergedPull | null {
   if (event.action !== "closed" || event.stale || event.repoIds.length === 0) return null;
   const pr = event.payload.pull_request;
@@ -50,7 +50,7 @@ export function claimMark(db: Db, key: string): boolean {
 }
 
 export interface MergeRing {
-  floorId: string;
+  operationId: string;
   repoId: string;
   number: number;
   title: string;
@@ -58,27 +58,27 @@ export interface MergeRing {
 }
 
 /**
- * The floors a merge rings on, claiming each repo row's mark: one entry per
- * floor (the first of its repo rows that was not rung for this PR yet).
+ * The operations a merge rings on, claiming each repo row's mark: one entry per
+ * operation (the first of its repo rows that was not rung for this PR yet).
  */
 export function claimMergeRings(db: Db, pull: MergedPull, webBase: string): MergeRing[] {
   if (pull.repoIds.length === 0) return [];
   const rows = db
     .select({
-      repoId: floorRepos.id,
-      floorId: floorRepos.floorId,
-      owner: floorRepos.owner,
-      name: floorRepos.name,
+      repoId: operationRepos.id,
+      operationId: operationRepos.operationId,
+      owner: operationRepos.owner,
+      name: operationRepos.name,
     })
-    .from(floorRepos)
-    .where(inArray(floorRepos.id, [...pull.repoIds]))
+    .from(operationRepos)
+    .where(inArray(operationRepos.id, [...pull.repoIds]))
     .all();
   const rings = new Map<string, MergeRing>();
   for (const row of rows) {
     if (!claimMark(db, gongMark(row.repoId, pull.number))) continue;
-    if (rings.has(row.floorId)) continue;
-    rings.set(row.floorId, {
-      floorId: row.floorId,
+    if (rings.has(row.operationId)) continue;
+    rings.set(row.operationId, {
+      operationId: row.operationId,
       repoId: row.repoId,
       number: pull.number,
       title: (pull.title ?? cachedTitle(db, row.repoId, pull.number)).slice(0, 300),

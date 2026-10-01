@@ -23,7 +23,7 @@ function insertAgent(o: Office, id: string, userId = o.member.id) {
     .insert(agents)
     .values({
       id,
-      floorId: o.floorId,
+      operationId: o.operationId,
       repoId: o.repoId,
       deskSeatId: "seat-1",
       ownerUserId: userId,

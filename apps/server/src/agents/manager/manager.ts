@@ -3,7 +3,7 @@
  *
  * spawn → starting → idle / working / waiting_* → done / error / exited, with
  * guarded transitions (state-machine.ts); persistence of `agents` and
- * `agent_events`; RobotState in the FloorRoom and floor counters in the
+ * `agent_events`; HenchmanState in the OperationRoom and operation counters in the
  * BuildingRoom; re-adoption of live tmux sessions on boot (adopt.ts).
  *
  * It is also the `AgentEventSink` every event source publishes into: the
@@ -16,16 +16,16 @@
  * owner's runner: every runner call is bound to `ownerUserId`.
  */
 import type { AgentControl } from "@regulus/agent-adapters";
-import { mayControlRobot, mayEmergencyStop, type PermissionDecision } from "@regulus/protocol";
+import { mayControlHenchman, mayEmergencyStop, type PermissionDecision } from "@regulus/protocol";
 import { eq } from "drizzle-orm";
 import { AUDIT_ACTIONS } from "../../auth/audit.ts";
-import { floorRepos } from "../../db/schema/index.ts";
-import type { FloorActor } from "../../floors/access.ts";
+import { operationRepos } from "../../db/schema/index.ts";
+import type { OperationActor } from "../../operations/access.ts";
 import { LEGACY_WORKSPACE_MESSAGE, type Workspaces } from "../../worktrees/types.ts";
 import { adoptAll } from "./adopt.ts";
 import { AgentManagerError } from "./errors.ts";
+import { setStatus } from "./henchman.ts";
 import { closeQuietly } from "./launch.ts";
-import { setStatus } from "./robot.ts";
 import {
   type AgentManagerOptions,
   AgentRuntime,
@@ -43,8 +43,8 @@ import { RepoWorkspaces, taskSlug } from "./workspaces.ts";
 export type {
   AgentManagerOptions,
   AgentWorktreeTools,
+  HenchmanPublisher,
   LiveAgent,
-  RobotPublisher,
   ScrollbackTracker,
 } from "./runtime.ts";
 export type { SpawnInput } from "./spawn.ts";
@@ -61,10 +61,10 @@ export class AgentManager extends AgentRuntime {
 
   /**
    * `hooks.onAdmitted` runs once the agent row and desk are claimed, before
-   * anything starts (the task queue links its task to the robot, #37).
+   * anything starts (the task queue links its task to the henchman, #37).
    */
   async spawn(
-    actor: FloorActor,
+    actor: OperationActor,
     input: SpawnInput,
     hooks?: { onAdmitted?(agentId: string): void },
   ): Promise<{ agentId: string; seatId: string }> {
@@ -87,7 +87,7 @@ export class AgentManager extends AgentRuntime {
     try {
       const prepare = {
         agentId,
-        floorId: input.floorId,
+        operationId: input.operationId,
         repoId: input.repoId,
         slug: taskSlug({ taskTitle: admitted.taskTitle, issueNumber: input.issueNumber }),
         ownerUserId: actor.id,
@@ -133,7 +133,7 @@ export class AgentManager extends AgentRuntime {
   }
   // ---- Controls for #33 ----------------------------------------------------
 
-  async prompt(actor: FloorActor, agentId: string, text: string): Promise<void> {
+  async prompt(actor: OperationActor, agentId: string, text: string): Promise<void> {
     const control = this.#controlFor(actor, agentId);
     await this.#adapterCall(agentId, "prompt", () => control.prompt(text));
   }
@@ -144,7 +144,7 @@ export class AgentManager extends AgentRuntime {
    * and dropped from the controllers' list.
    */
   async respondPermission(
-    actor: FloorActor,
+    actor: OperationActor,
     agentId: string,
     requestId: string,
     decision: PermissionDecision,
@@ -164,14 +164,14 @@ export class AgentManager extends AgentRuntime {
     this.store.audit(actor.id, AUDIT_ACTIONS.agentApprove, agentId, { requestId, decision });
   }
 
-  async interrupt(actor: FloorActor, agentId: string): Promise<void> {
+  async interrupt(actor: OperationActor, agentId: string): Promise<void> {
     const control = this.#controlFor(actor, agentId);
     await this.#adapterCall(agentId, "interrupt", () => control.interrupt());
   }
 
   /** Uncommitted files of the agent's worktree (send-home and PR dialogs). */
   async worktreeStatus(
-    actor: FloorActor,
+    actor: OperationActor,
     agentId: string,
   ): Promise<{ branch: string; uncommitted: string[] }> {
     this.#authorize(actor, agentId);
@@ -186,10 +186,10 @@ export class AgentManager extends AgentRuntime {
 
   /**
    * One-click PR from the agent's branch (#31). A dirty worktree is refused
-   * with its files; an already open PR is returned. The robot shows the number.
+   * with its files; an already open PR is returned. The henchman shows the number.
    */
   async openPullRequest(
-    actor: FloorActor,
+    actor: OperationActor,
     agentId: string,
     opts: { draft: boolean; title?: string; body?: string },
   ) {
@@ -209,19 +209,19 @@ export class AgentManager extends AgentRuntime {
     return pr;
   }
 
-  /** Stop the process (kill its session and processes). The robot stays at its desk. */
-  async stop(actor: FloorActor, agentId: string): Promise<void> {
+  /** Stop the process (kill its session and processes). The henchman stays at its desk. */
+  async stop(actor: OperationActor, agentId: string): Promise<void> {
     const live = this.#authorize(actor, agentId);
     await this.#halt(live, "stopped");
     this.store.audit(actor.id, AUDIT_ACTIONS.agentStop, agentId);
   }
 
   /**
-   * Office owner/admin escape hatch on anyone's robot (D12, #138): kill the
+   * Office owner/admin escape hatch on anyone's henchman (D12, #138): kill the
    * session like `stop`, keep the branch, the worktree and the desk, and
-   * audit who did it to whose robot and why. Grants nothing else.
+   * audit who did it to whose henchman and why. Grants nothing else.
    */
-  async emergencyStop(actor: FloorActor, agentId: string, reason?: string): Promise<void> {
+  async emergencyStop(actor: OperationActor, agentId: string, reason?: string): Promise<void> {
     const live = this.agents.get(agentId);
     if (!live) throw new AgentManagerError("not_found", "no such agent");
     if (!mayEmergencyStop(actor)) {
@@ -247,7 +247,7 @@ export class AgentManager extends AgentRuntime {
   }
 
   /** Restart an exited / offline / failed agent, resuming its provider session when possible. */
-  async resume(actor: FloorActor, agentId: string): Promise<void> {
+  async resume(actor: OperationActor, agentId: string): Promise<void> {
     const live = this.#authorize(actor, agentId);
     if (!RESUMABLE_STATUSES.includes(live.view.status)) {
       throw new AgentManagerError("conflict", "the agent is still running");
@@ -278,8 +278,12 @@ export class AgentManager extends AgentRuntime {
     }
   }
 
-  /** Stop if needed, release the workspace, free the desk and remove the robot. */
-  async sendHome(actor: FloorActor, agentId: string, opts: { keepBranch: boolean }): Promise<void> {
+  /** Stop if needed, release the workspace, free the desk and remove the henchman. */
+  async sendHome(
+    actor: OperationActor,
+    agentId: string,
+    opts: { keepBranch: boolean },
+  ): Promise<void> {
     await this.#sendHome(this.#authorize(actor, agentId), opts);
     this.store.audit(actor.id, AUDIT_ACTIONS.agentSendHome, agentId, {
       keepBranch: opts.keepBranch,
@@ -287,11 +291,11 @@ export class AgentManager extends AgentRuntime {
   }
 
   /**
-   * "Send all home" before an office owner/admin deletes a floor (#150): not
-   * control (D12, #138), a floor-lifecycle step, so the branch is always kept
-   * and the robot's owner is recorded in the audit entry.
+   * "Send all home" before an office owner/admin deletes an operation (#150): not
+   * control (D12, #138), an operation-lifecycle step, so the branch is always kept
+   * and the henchman's owner is recorded in the audit entry.
    */
-  async evacuate(actor: FloorActor, agentId: string): Promise<void> {
+  async evacuate(actor: OperationActor, agentId: string): Promise<void> {
     const live = this.agents.get(agentId);
     if (!live) throw new AgentManagerError("not_found", "no such agent");
     if (!mayEmergencyStop(actor)) {
@@ -303,7 +307,7 @@ export class AgentManager extends AgentRuntime {
     await this.#sendHome(live, { keepBranch: true });
     this.store.audit(actor.id, AUDIT_ACTIONS.agentSendHome, agentId, {
       keepBranch: true,
-      floorEvacuation: true,
+      operationEvacuation: true,
       ownerUserId: live.view.ownerUserId,
     });
   }
@@ -318,26 +322,26 @@ export class AgentManager extends AgentRuntime {
     const adapter = this.adapters.find(live.view.provider) as { forget?(id: string): void };
     adapter?.forget?.(agentId);
     this.agents.delete(agentId);
-    this.opts.robots.removeRobot(live.view.floorId, agentId);
+    this.opts.henchmen.removeHenchman(live.view.operationId, agentId);
     this.countersChanged();
   }
 
-  /** Re-publish seated robots and re-adopt live sessions (boot). */
+  /** Re-publish seated henchmen and re-adopt live sessions (boot). */
   async adopt(): Promise<void> {
     this.store.sweep();
     await adoptAll(this);
     this.countersChanged();
   }
-  #authorize(actor: FloorActor, agentId: string): LiveAgent {
+  #authorize(actor: OperationActor, agentId: string): LiveAgent {
     const live = this.agents.get(agentId);
     if (!live) throw new AgentManagerError("not_found", "no such agent");
-    if (!mayControlRobot(actor, live.view.ownerUserId)) {
+    if (!mayControlHenchman(actor, live.view.ownerUserId)) {
       throw new AgentManagerError("forbidden", "only the henchman's owner may control it");
     }
     return live;
   }
 
-  #controlFor(actor: FloorActor, agentId: string): AgentControl {
+  #controlFor(actor: OperationActor, agentId: string): AgentControl {
     const live = this.#authorize(actor, agentId);
     if (!live.control || !isLive(live.view.status)) {
       throw new AgentManagerError("conflict", "the agent is not running");
@@ -363,16 +367,16 @@ export class AgentManager extends AgentRuntime {
 
   /**
    * The clone the agent's git uses: its owner's own clone (#114). A workspace
-   * from before #114 lives in the floor's shared mirror, which runners can no
-   * longer reach, so it is refused. Without `clones` (tests), the floor repo.
+   * from before #114 lives in the operation's shared mirror, which runners can no
+   * longer reach, so it is refused. Without `clones` (tests), the operation repo.
    */
   #clonePath(row: AgentRow): string {
     const clones = this.opts.clones;
     if (!clones) {
       const repo = this.opts.db
-        .select({ workdir: floorRepos.workdir })
-        .from(floorRepos)
-        .where(eq(floorRepos.id, row.repoId))
+        .select({ workdir: operationRepos.workdir })
+        .from(operationRepos)
+        .where(eq(operationRepos.id, row.repoId))
         .get();
       return repo?.workdir ?? row.workdir;
     }
@@ -381,7 +385,7 @@ export class AgentManager extends AgentRuntime {
     return clone;
   }
 
-  /** A robot whose workspace predates per-human clones (#114): never started in a runner. */
+  /** A henchman whose workspace predates per-human clones (#114): never started in a runner. */
   isLegacyWorkspace(row: AgentRow): boolean {
     const clones = this.opts.clones;
     if (!clones) return false;

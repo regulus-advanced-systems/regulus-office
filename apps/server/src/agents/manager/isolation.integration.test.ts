@@ -1,11 +1,11 @@
 /**
- * #114: two humans on one floor never share a git directory. Human A's agent
+ * #114: two humans on one operation never share a git directory. Human A's agent
  * plants a hook, `core.fsmonitor`, an `include.path` and a filter driver in
  * the git dir of its own worktree (as a prompt-injected agent could); human
  * B's agent then runs git in its own worktree. Nothing A planted may run for
  * B, and B's clone must be untouched. As a control, A's own git does run it.
  *
- * Real AgentManager + GitWorktreeWorkspaces + LocalTmuxRunner, with the floor
+ * Real AgentManager + GitWorktreeWorkspaces + LocalTmuxRunner, with the operation
  * cloned from a local bare repo over file://. LocalTmuxRunner runs every
  * "human" as the same OS user, so this proves the git-level separation; the
  * filesystem separation between runners is checked by the docker and
@@ -18,10 +18,10 @@ import { join } from "node:path";
 import { FakeAdapter } from "@regulus/agent-adapters";
 import { and, eq } from "drizzle-orm";
 import { agents, desks } from "../../db/schema/index.ts";
-import type { FloorActor } from "../../floors/access.ts";
+import type { OperationActor } from "../../operations/access.ts";
 import { runnerId } from "../../runners/layout.ts";
 import { hasTmux, LocalTmuxRunner, shellQuote } from "../../runners/testing/local-tmux-runner.ts";
-import { git, setupFloor } from "../../worktrees/test-helpers.ts";
+import { git, setupOperation } from "../../worktrees/test-helpers.ts";
 import { LEGACY_WORKSPACE_MESSAGE, WorkspaceError } from "../../worktrees/types.ts";
 import { AgentManagerError } from "./errors.ts";
 import { makeManager } from "./test-helpers.ts";
@@ -86,7 +86,7 @@ git checkout -q -
 
 describe.skipIf(!hasTmux())("per-human clones (#114)", () => {
   test("a hook, fsmonitor, include.path or filter planted by A's agent never runs for B", async () => {
-    const f = await setupFloor(root);
+    const f = await setupOperation(root);
     const bob = f.addUser("Bob", "admin");
     runner = await LocalTmuxRunner.create();
     const scripts = join(root, `scripts-${Date.now()}`);
@@ -113,9 +113,9 @@ describe.skipIf(!hasTmux())("per-human clones (#114)", () => {
       workspaces: f.worktrees.workspaces,
       clones: f.worktrees.workspaces,
     });
-    const spawn = (actor: FloorActor, taskTitle: string) =>
+    const spawn = (actor: OperationActor, taskTitle: string) =>
       manager.spawn(actor, {
-        floorId: f.floorId,
+        operationId: f.operationId,
         repoId: f.repo.repoId,
         provider: "custom",
         model: "fake-1",
@@ -176,12 +176,12 @@ describe.skipIf(!hasTmux())("per-human clones (#114)", () => {
   }, 60_000);
 
   test("an agent from before per-human clones goes offline, cannot resume, keeps PR and send-home", async () => {
-    const f = await setupFloor(root);
+    const f = await setupOperation(root);
     runner = await LocalTmuxRunner.create();
-    // A pre-#114 worktree of the shared mirror, directly in the floor dir, with a commit.
+    // A pre-#114 worktree of the shared mirror, directly in the operation dir, with a commit.
     const agentId = f.addAgent("agent-legacy", { taskTitle: "Old work" });
-    const legacy = join(f.worktreesDir, "wt-floor", agentId);
-    await mkdir(join(f.worktreesDir, "wt-floor"), { recursive: true });
+    const legacy = join(f.worktreesDir, "wt-operation", agentId);
+    await mkdir(join(f.worktreesDir, "wt-operation"), { recursive: true });
     await git(["-C", f.repo.workdir, "worktree", "add", "-q", "-b", "office/old", legacy, "trunk"]);
     await writeFile(join(legacy, "old.md"), "old\n");
     await git(["-C", legacy, "add", "old.md"]);
@@ -191,23 +191,28 @@ describe.skipIf(!hasTmux())("per-human clones (#114)", () => {
       .set({ workdir: legacy, worktreeBranch: "office/old", status: "idle", provider: "custom" })
       .where(eq(agents.id, agentId))
       .run();
-    const seat = f.db.select().from(desks).where(eq(desks.floorId, f.floorId)).get();
+    const seat = f.db.select().from(desks).where(eq(desks.operationId, f.operationId)).get();
     f.db
       .update(desks)
       .set({ agentId })
-      .where(and(eq(desks.floorId, f.floorId), eq(desks.seatId, seat?.seatId ?? "")))
+      .where(and(eq(desks.operationId, f.operationId), eq(desks.seatId, seat?.seatId ?? "")))
       .run();
 
-    const { manager, robots } = makeManager(f.db, runner, [new FakeAdapter({ command: ["sh"] })], {
-      workspaces: f.worktrees.workspaces,
-      clones: f.worktrees.workspaces,
-    });
+    const { manager, henchmen } = makeManager(
+      f.db,
+      runner,
+      [new FakeAdapter({ command: ["sh"] })],
+      {
+        workspaces: f.worktrees.workspaces,
+        clones: f.worktrees.workspaces,
+      },
+    );
     await manager.adopt();
     expect(f.db.select().from(agents).where(eq(agents.id, agentId)).get()?.status).toBe("offline");
     expect(manager.store.events(agentId).map((e) => ("reason" in e ? e.reason : ""))).toContain(
       LEGACY_WORKSPACE_MESSAGE,
     );
-    expect(robots.robots.get(agentId)?.status).toBe("offline");
+    expect(henchmen.henchmen.get(agentId)?.status).toBe("offline");
 
     const err = await manager.resume(f.owner, agentId).catch((e) => e);
     expect(err).toBeInstanceOf(AgentManagerError);

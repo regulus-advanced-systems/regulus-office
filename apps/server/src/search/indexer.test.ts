@@ -3,15 +3,15 @@ import { mkdirSync, utimesSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { eq } from "drizzle-orm";
 import { chatMessages } from "../db/schema/index.ts";
-import { testDb } from "../floors/test-helpers.ts";
+import { testDb } from "../operations/test-helpers.ts";
 import { chunkScrollback } from "./chunks.ts";
 import { ensureSearchSchema, SEARCH_SCHEMA_VERSION } from "./schema.ts";
 import {
   addChat,
-  addFloor,
-  addRobot,
+  addHenchman,
+  addOperation,
   docCount,
-  exitRobot,
+  exitHenchman,
   indexerFor,
   tempDir,
 } from "./testing.ts";
@@ -22,10 +22,10 @@ let tmp: ReturnType<typeof tempDir>;
 beforeEach(() => {
   env = testDb();
   tmp = tempDir();
-  addFloor(env.db, "f1");
+  addOperation(env.db, "f1");
   const owner = env.addUser("Rob", "member");
-  addRobot(env.db, "a1", "f1", owner.id);
-  addRobot(env.db, "a2", "f1", owner.id);
+  addHenchman(env.db, "a1", "f1", owner.id);
+  addHenchman(env.db, "a2", "f1", owner.id);
 });
 afterEach(() => tmp.cleanup());
 
@@ -47,13 +47,13 @@ describe("chat indexing", () => {
     expect(indexer.syncChat()).toBe(2);
     expect(indexer.syncChat()).toBe(0);
     const rows = env.db.$client
-      .query<{ body: string; floor_id: string }, []>(
-        "SELECT body, floor_id FROM search_docs WHERE kind = 'chat' ORDER BY id",
+      .query<{ body: string; operation_id: string }, []>(
+        "SELECT body, operation_id FROM search_docs WHERE kind = 'chat' ORDER BY id",
       )
       .all();
     expect(rows).toEqual([
-      { body: "deploy is green", floor_id: "lobby" },
-      { body: "my key is [redacted]", floor_id: "f1" },
+      { body: "deploy is green", operation_id: "lobby" },
+      { body: "my key is [redacted]", operation_id: "f1" },
     ]);
   });
 
@@ -130,7 +130,7 @@ describe("scrollback indexing", () => {
     expect(text).toBe("Build ok\nGITHUB_TOKEN=[redacted]");
   });
 
-  test("sync reads files, skips unchanged ones, and forgets exited robots", async () => {
+  test("sync reads files, skips unchanged ones, and forgets exited henchmen", async () => {
     const indexer = indexerFor(env.db, tmp.dir);
     snapshot("a1", "hello from a1", 1_700_000_000);
     snapshot("a2", "hello from a2", 1_700_000_000);
@@ -147,7 +147,7 @@ describe("scrollback indexing", () => {
     await indexer.syncScrollback();
     expect(bodies("a1").map((r) => r.body)).toEqual(["a1 moved on to new work"]);
 
-    exitRobot(env.db, "a2");
+    exitHenchman(env.db, "a2");
     await indexer.syncScrollback();
     expect(docCount(env.db, "scrollback", "a2")).toBe(0);
   });
@@ -155,7 +155,7 @@ describe("scrollback indexing", () => {
   test("files of unknown agents and login terminals are never indexed", async () => {
     const indexer = indexerFor(env.db, tmp.dir);
     snapshot("login-abc", "paste your code: 4/0AbCdEf", 1_700_000_000);
-    snapshot("ghost", "no such robot", 1_700_000_000);
+    snapshot("ghost", "no such henchman", 1_700_000_000);
     snapshot("../evil", "x", 1_700_000_000);
     indexer.indexSnapshot("login-abc", "f1", "direct call", 1);
     await indexer.syncScrollback();

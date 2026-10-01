@@ -17,14 +17,14 @@ export const AGENT_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
 export interface TerminalTarget {
   /**
    * `login`: a login session (login-sessions.ts), owner-only and never
-   * recorded; absent or `agent` for robots, under the D12 ACL.
+   * recorded; absent or `agent` for henchmen, under the D12 ACL.
    */
   kind?: "agent" | "login";
   /** The agent id, or the `login-…` terminal id of a login session. */
   agentId: string;
   /** The human whose runner the agent runs in (SPEC §8 rule 4). */
   ownerUserId: string;
-  floorId: string;
+  operationId: string;
   session: TmuxSessionRef;
   runner: Runner;
 }
@@ -34,10 +34,10 @@ export interface TerminalTargets {
   resolve(agentId: string): Promise<TerminalTarget | null>;
 }
 
-/** The robots on one floor whose screens can be captured (laptop screen feed). */
-export interface FloorTerminalTargets {
-  /** Live agents on `floorId` that have a runner; exited ones are left out. */
-  listFloor(floorId: string): Promise<TerminalTarget[]>;
+/** The henchmen on one operation whose screens can be captured (laptop screen feed). */
+export interface OperationTerminalTargets {
+  /** Live agents on `operationId` that have a runner; exited ones are left out. */
+  listOperation(operationId: string): Promise<TerminalTarget[]>;
 }
 
 /** Which runner backend hosts a given human's runner. */
@@ -69,7 +69,7 @@ export class RunnerRegistry implements RunnerLookup {
 }
 
 /** {@link TerminalTargets} over the `agents` table. */
-export class DbTerminalTargets implements TerminalTargets, FloorTerminalTargets {
+export class DbTerminalTargets implements TerminalTargets, OperationTerminalTargets {
   constructor(
     private readonly db: Db,
     private readonly runners: RunnerLookup,
@@ -80,7 +80,7 @@ export class DbTerminalTargets implements TerminalTargets, FloorTerminalTargets 
     const row = this.db
       .select({
         ownerUserId: agents.ownerUserId,
-        floorId: agents.floorId,
+        operationId: agents.operationId,
         tmuxSession: agents.tmuxSession,
         exitedAt: agents.exitedAt,
       })
@@ -93,17 +93,17 @@ export class DbTerminalTargets implements TerminalTargets, FloorTerminalTargets 
     return {
       agentId,
       ownerUserId: row.ownerUserId,
-      floorId: row.floorId,
+      operationId: row.operationId,
       session: { userId: row.ownerUserId, name: row.tmuxSession ?? tmuxSessionName(agentId) },
       runner,
     };
   }
 
-  async listFloor(floorId: string): Promise<TerminalTarget[]> {
+  async listOperation(operationId: string): Promise<TerminalTarget[]> {
     const rows = this.db
       .select({ id: agents.id, ownerUserId: agents.ownerUserId, tmuxSession: agents.tmuxSession })
       .from(agents)
-      .where(and(eq(agents.floorId, floorId), isNull(agents.exitedAt)))
+      .where(and(eq(agents.operationId, operationId), isNull(agents.exitedAt)))
       .all();
     const targets: TerminalTarget[] = [];
     for (const row of rows) {
@@ -112,7 +112,7 @@ export class DbTerminalTargets implements TerminalTargets, FloorTerminalTargets 
       targets.push({
         agentId: row.id,
         ownerUserId: row.ownerUserId,
-        floorId,
+        operationId,
         session: { userId: row.ownerUserId, name: row.tmuxSession ?? tmuxSessionName(row.id) },
         runner,
       });

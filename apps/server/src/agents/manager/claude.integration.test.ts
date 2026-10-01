@@ -2,7 +2,7 @@
  * Claude-shaped end to end: the manager spawns the Claude Code adapter with a
  * fake `claude` script in tmux; the script POSTs a SessionStart hook through
  * the real hook route with the token the manager issued; the manager's sink
- * turns it into a RobotState change (starting → idle). A wrong token is 401.
+ * turns it into a HenchmanState change (starting → idle). A wrong token is 401.
  * Skipped without tmux or curl.
  */
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
@@ -44,9 +44,9 @@ describe.skipIf(!hasTmux() || !Bun.which("curl"))("Claude via hooks (tmux)", () 
     await rm(dist, { recursive: true, force: true });
   });
 
-  test("a hook posted with the issued token changes the robot", async () => {
+  test("a hook posted with the issued token changes the henchman", async () => {
     const adapter = new ClaudeCodeAdapter({ command: FAKE_CLAUDE });
-    const { manager, robots } = makeManager(office.db, runner, [adapter], {
+    const { manager, henchmen } = makeManager(office.db, runner, [adapter], {
       officeUrl: `http://127.0.0.1:${server.port}`,
     });
     mountClaudeHookRoutes(server.router, {
@@ -58,11 +58,11 @@ describe.skipIf(!hasTmux() || !Bun.which("curl"))("Claude via hooks (tmux)", () 
 
     const { agentId } = await manager.spawn(
       office.member,
-      spawnInput(office.floorId, office.repoId, { provider: "claude-code", model: "sonnet" }),
+      spawnInput(office.operationId, office.repoId, { provider: "claude-code", model: "sonnet" }),
     );
-    expect(robots.history[0]?.status).toBe("starting");
-    const robot = await robots.waitFor(agentId, (r) => r.status === "idle");
-    expect(robot.provider).toBe("claude-code");
+    expect(henchmen.history[0]?.status).toBe("starting");
+    const henchman = await henchmen.waitFor(agentId, (r) => r.status === "idle");
+    expect(henchman.provider).toBe("claude-code");
 
     const kinds = office.db
       .select({ kind: agentEvents.kind })
@@ -83,7 +83,7 @@ describe.skipIf(!hasTmux() || !Bun.which("curl"))("Claude via hooks (tmux)", () 
     expect(denied.status).toBe(401);
 
     await manager.stop(office.member, agentId);
-    expect(robots.robots.get(agentId)?.status).toBe("exited");
+    expect(henchmen.henchmen.get(agentId)?.status).toBe("exited");
     await manager.close();
   }, 20_000);
 });

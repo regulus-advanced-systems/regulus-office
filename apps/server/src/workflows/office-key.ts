@@ -1,11 +1,11 @@
 /**
- * The model key a workflow robot runs on (#155 owner decision, SPEC §8 rule
+ * The model key a workflow henchman runs on (#155 owner decision, SPEC §8 rule
  * 3, D2): only an office-wide API key for a metered provider, added by an
  * admin (`credential_profiles` row with `userId` null and `authKind`
  * `api_key`). Never a human's profile, never a CLI (subscription) login and
  * never a base-URL plan key. Usage is attributed to `office`.
  *
- * The key is decrypted only here, right before the robot's plan is built, and
+ * The key is decrypted only here, right before the henchman's plan is built, and
  * lives only in that plan's `SecretEnv`.
  */
 import { Secret } from "@regulus/agent-adapters";

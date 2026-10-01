@@ -1,6 +1,6 @@
 /**
  * AgentManager end to end over LocalTmuxRunner (private tmux socket) with
- * the FakeAdapter running the fake agent script: spawn → events → RobotState
+ * the FakeAdapter running the fake agent script: spawn → events → HenchmanState
  * → stop; spawn ACL; re-adoption after the manager is dropped. Skipped
  * without tmux.
  */
@@ -50,17 +50,17 @@ describe.skipIf(!hasTmux())("AgentManager (tmux)", () => {
     await rm(office.workdir, { recursive: true, force: true });
   });
 
-  test("spawn runs the agent in tmux, publishes RobotState, persists, and stop exits", async () => {
+  test("spawn runs the agent in tmux, publishes HenchmanState, persists, and stop exits", async () => {
     const adapter = fakeAdapter();
-    const { manager, robots } = makeManager(office.db, runner, [adapter]);
+    const { manager, henchmen } = makeManager(office.db, runner, [adapter]);
     const { agentId, seatId } = await manager.spawn(
       office.member,
-      spawnInput(office.floorId, office.repoId, { seatId: "seat-2", taskTitle: "Fix it" }),
+      spawnInput(office.operationId, office.repoId, { seatId: "seat-2", taskTitle: "Fix it" }),
     );
     expect(seatId).toBe("seat-2");
 
-    const robot = await robots.waitFor(agentId, (r) => r.bubbleEmits.toolCalls === 1);
-    expect(robot).toMatchObject({
+    const henchman = await henchmen.waitFor(agentId, (r) => r.bubbleEmits.toolCalls === 1);
+    expect(henchman).toMatchObject({
       seatId: "seat-2",
       ownerUserId: office.member.id,
       ownerName: "Mia",
@@ -70,8 +70,8 @@ describe.skipIf(!hasTmux())("AgentManager (tmux)", () => {
       worktreeBranch: "trunk",
       bubbleEmits: { toolCalls: 1, fileEdits: 1, testRuns: 0, toolFailures: 0 },
     });
-    expect(robots.history[0]?.status).toBe("starting");
-    expect(adapter.lastControl?.prompts.map((p) => p.text)).toEqual(["hello robot"]);
+    expect(henchmen.history[0]?.status).toBe("starting");
+    expect(adapter.lastControl?.prompts.map((p) => p.text)).toEqual(["hello henchman"]);
 
     const row = office.db.select().from(agents).where(eq(agents.id, agentId)).get();
     expect(row).toMatchObject({
@@ -96,7 +96,7 @@ describe.skipIf(!hasTmux())("AgentManager (tmux)", () => {
 
     await expect(manager.stop(office.stranger, agentId)).rejects.toThrow(AgentManagerError);
     await manager.stop(office.member, agentId);
-    expect(robots.robots.get(agentId)?.status).toBe("exited");
+    expect(henchmen.henchmen.get(agentId)?.status).toBe("exited");
     expect(await runner.sessionExists({ userId: office.member.id, name: `agent-${agentId}` })).toBe(
       false,
     );
@@ -105,53 +105,53 @@ describe.skipIf(!hasTmux())("AgentManager (tmux)", () => {
     expect(stopped?.exitedAt).not.toBeNull();
     expect(stopped?.hookTokenHash).toBeNull();
 
-    // Late events cannot revive an exited robot.
+    // Late events cannot revive an exited henchman.
     manager.publish(agentId, { kind: "status", ts: Date.now(), status: "working" });
-    expect(robots.robots.get(agentId)?.status).toBe("exited");
+    expect(henchmen.henchmen.get(agentId)?.status).toBe("exited");
 
-    // Office owners watch other people's robots; only the robot's owner sends it home (#138).
+    // Office owners watch other people's henchmen; only the henchman's owner sends it home (#138).
     await expect(manager.sendHome(office.owner, agentId, { keepBranch: true })).rejects.toThrow(
       "only the henchman's owner may control it",
     );
     await manager.sendHome(office.member, agentId, { keepBranch: true });
-    expect(robots.removed).toEqual([agentId]);
+    expect(henchmen.removed).toEqual([agentId]);
     expect(office.db.select().from(desks).where(eq(desks.agentId, agentId)).get()).toBeUndefined();
     const actions = office.db.select({ action: auditLog.action }).from(auditLog).all();
     expect(actions.map((a) => a.action)).toEqual(["agent.spawn", "agent.stop", "agent.send_home"]);
     await manager.close();
   }, 15_000);
 
-  test("spawn without a prompt starts the robot idle, titled after its issue", async () => {
+  test("spawn without a prompt starts the henchman idle, titled after its issue", async () => {
     const adapter = fakeAdapter();
-    const { manager, robots } = makeManager(office.db, runner, [adapter]);
+    const { manager, henchmen } = makeManager(office.db, runner, [adapter]);
     const { agentId } = await manager.spawn(
       office.member,
-      spawnInput(office.floorId, office.repoId, { prompt: "", issueNumber: 42 }),
+      spawnInput(office.operationId, office.repoId, { prompt: "", issueNumber: 42 }),
     );
-    const robot = await robots.waitFor(agentId, (r) => r.status === "idle");
-    expect(robot).toMatchObject({ taskTitle: "Issue #42", issueNumber: 42 });
+    const henchman = await henchmen.waitFor(agentId, (r) => r.status === "idle");
+    expect(henchman).toMatchObject({ taskTitle: "Issue #42", issueNumber: 42 });
     expect(adapter.lastControl?.prompts ?? []).toEqual([]);
     await manager.close();
   }, 15_000);
 
   test("an agent whose process exits on its own becomes exited", async () => {
-    const { manager, robots } = makeManager(office.db, runner, [fakeAdapter()]);
+    const { manager, henchmen } = makeManager(office.db, runner, [fakeAdapter()]);
     const { agentId } = await manager.spawn(
       office.owner,
-      spawnInput(office.floorId, office.repoId),
+      spawnInput(office.operationId, office.repoId),
     );
-    await robots.waitFor(agentId, (r) => r.status === "working");
+    await henchmen.waitFor(agentId, (r) => r.status === "working");
     await runner.sendKeys({ userId: office.owner.id, name: `agent-${agentId}` }, "exit", {
       enter: true,
     });
-    await robots.waitFor(agentId, (r) => r.status === "exited");
+    await henchmen.waitFor(agentId, (r) => r.status === "exited");
     await manager.close();
   }, 15_000);
 
   test("spawn ACL, desks and profiles are enforced before anything runs", async () => {
     const adapter = fakeAdapter();
     const { manager } = makeManager(office.db, runner, [adapter]);
-    const input = spawnInput(office.floorId, office.repoId);
+    const input = spawnInput(office.operationId, office.repoId);
     const code = (p: Promise<unknown>) =>
       p.then(
         () => "ok",
@@ -193,14 +193,14 @@ describe.skipIf(!hasTmux())("AgentManager (tmux)", () => {
     const first = makeManager(office.db, runner, [fakeAdapter()]);
     const alive = await first.manager.spawn(
       office.member,
-      spawnInput(office.floorId, office.repoId),
+      spawnInput(office.operationId, office.repoId),
     );
     const dead = await first.manager.spawn(
       office.member,
-      spawnInput(office.floorId, office.repoId),
+      spawnInput(office.operationId, office.repoId),
     );
-    await first.robots.waitFor(alive.agentId, (r) => r.status === "working");
-    await first.robots.waitFor(dead.agentId, (r) => r.status === "working");
+    await first.henchmen.waitFor(alive.agentId, (r) => r.status === "working");
+    await first.henchmen.waitFor(dead.agentId, (r) => r.status === "working");
     // The office goes away without stopping anything; one agent dies meanwhile.
     await first.manager.close();
     await runner.kill({ userId: office.member.id, agentId: dead.agentId });
@@ -208,8 +208,8 @@ describe.skipIf(!hasTmux())("AgentManager (tmux)", () => {
     const adapter = fakeAdapter(false);
     const second = makeManager(office.db, runner, [adapter]);
     await second.manager.adopt();
-    expect(second.robots.robots.get(dead.agentId)?.status).toBe("offline");
-    const adopted = second.robots.robots.get(alive.agentId);
+    expect(second.henchmen.henchmen.get(dead.agentId)?.status).toBe("offline");
+    const adopted = second.henchmen.henchmen.get(alive.agentId);
     expect(adopted?.status).toBe("working");
     expect(adopted?.seatId).toBe("seat-1");
     expect(adapter.controls).toHaveLength(1);
@@ -222,7 +222,7 @@ describe.skipIf(!hasTmux())("AgentManager (tmux)", () => {
     // The offline one can be resumed on its provider session.
     await second.manager.resume(office.member, dead.agentId);
     expect(adapter.spawns.at(-1)?.resumeSessionId).toBe("sess-1");
-    expect(second.robots.robots.get(dead.agentId)?.status).toBe("starting");
+    expect(second.henchmen.henchmen.get(dead.agentId)?.status).toBe("starting");
     expect(
       await runner.sessionExists({ userId: office.member.id, name: `agent-${dead.agentId}` }),
     ).toBe(true);

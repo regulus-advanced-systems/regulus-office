@@ -1,6 +1,6 @@
 /**
  * Running apps (SPEC §9.4, research 01 §12, #39): discovery of the dev servers
- * robots run in their sandboxes, the `services` table, the FloorRoom list and
+ * henchmen run in their sandboxes, the `services` table, the OperationRoom list and
  * the authenticated proxy. Design notes: docs/deploy/services-proxy.md.
  *
  * Config (read here, all optional):
@@ -12,8 +12,8 @@ import { eq } from "drizzle-orm";
 import type { OriginPolicy } from "../auth/origin.ts";
 import type { Db } from "../db/index.ts";
 import { userProfiles } from "../db/schema/index.ts";
-import { floorAccessFor } from "../floors/access.ts";
 import type { Logger } from "../logging.ts";
+import { operationAccessFor } from "../operations/access.ts";
 import type { Runner } from "../runners/types.ts";
 import type { AppUser } from "./access.ts";
 import { type AppDomain, AppTokens, appDomainFrom, appLabel } from "./app-domain.ts";
@@ -25,8 +25,8 @@ import { ServiceStore } from "./store.ts";
 
 export interface ServicesOptions {
   db: Db;
-  /** FloorRooms (#39 `publishServices`). */
-  floors: { publishServices(floorId: string, services: readonly ServiceState[]): void };
+  /** OperationRooms (#39 `publishServices`). */
+  operations: { publishServices(operationId: string, services: readonly ServiceState[]): void };
   sessions: { getSessionFromRequest(request: Request): Promise<AppUser | null> };
   originPolicy: OriginPolicy;
   officePort: number;
@@ -91,7 +91,8 @@ export function createServices(opts: ServicesOptions): Services {
     registry,
     sessions: opts.sessions,
     userById,
-    canViewFloor: (user, floorId) => floorAccessFor(opts.db, user, floorId) !== null,
+    canViewOperation: (user, operationId) =>
+      operationAccessFor(opts.db, user, operationId) !== null,
     originPolicy: opts.originPolicy,
     officePort: opts.officePort,
     appDomain,
@@ -113,7 +114,7 @@ export function createServices(opts: ServicesOptions): Services {
         runner,
         registry,
         store: new ServiceStore(opts.db),
-        publish: (floorId, list) => opts.floors.publishServices(floorId, list),
+        publish: (operationId, list) => opts.operations.publishServices(operationId, list),
         shared,
         probeTitle,
         logger,

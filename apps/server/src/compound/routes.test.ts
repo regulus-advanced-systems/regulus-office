@@ -1,33 +1,33 @@
 /**
  * Compound REST (#181): owners and admins place, move and remove rooms (a
- * floor manager, a member and a viewer get 403; anonymous 401; cross-origin
+ * operation manager, a member and a viewer get 403; anonymous 401; cross-origin
  * 403), every change is audited, invalid placements and moves with running
- * robots are refused, and removal is the floor delete.
+ * henchmen are refused, and removal is the operation delete.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { randomUUID } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { layoutProblems } from "@regulus/room-layout";
 import {
   CompoundLayoutResponse,
   type CompoundRoomInfo,
-  type FloorAccess,
-  type FloorInfo,
+  type OperationAccess,
+  type OperationInfo,
   PlacementCheckResponse,
   PlacementRefusedResponse,
   PlaceRoomResponse,
-  RoomHasRunningRobotsResponse,
+  RoomHasRunningHenchmenResponse,
   type RoomPlacement,
   type UserRole,
 } from "@regulus/protocol";
+import { layoutProblems } from "@regulus/room-layout";
 import { and, eq } from "drizzle-orm";
 import { type Office, startOffice } from "../auth/test-helpers.ts";
-import { agents, auditLog, desks, floorMembers, userProfiles } from "../db/schema/index.ts";
-import { createFloors, type Floors, mountFloorRoutes } from "../floors/index.ts";
-import { makeBareRepo } from "../floors/test-helpers.ts";
+import { agents, auditLog, desks, operationMembers, userProfiles } from "../db/schema/index.ts";
 import { createLogger } from "../logging.ts";
+import { createOperations, mountOperationRoutes, type Operations } from "../operations/index.ts";
+import { makeBareRepo } from "../operations/test-helpers.ts";
 import { mountCompoundRoutes } from "./routes.ts";
 import { CompoundService } from "./service.ts";
 import { liveRooms, readSpec } from "./store.ts";
@@ -36,20 +36,20 @@ type Who = { id: string; cookie: string };
 
 let root: string;
 let office: Office;
-let floors: Floors;
+let operations: Operations;
 let compound: CompoundService;
 let owner: Who;
 let admin: Who;
 let manager: Who;
 let member: Who;
 let viewer: Who;
-let apollo: FloorInfo;
+let apollo: OperationInfo;
 const published: number[] = [];
 
 const setRole = (who: Who, role: UserRole) =>
   office.db.update(userProfiles).set({ role }).where(eq(userProfiles.userId, who.id)).run();
-const grant = (who: Who, floorId: string, access: FloorAccess) =>
-  office.db.insert(floorMembers).values({ floorId, userId: who.id, access }).run();
+const grant = (who: Who, operationId: string, access: OperationAccess) =>
+  office.db.insert(operationMembers).values({ operationId, userId: who.id, access }).run();
 const send = (method: string, path: string, who: Who | null, body: unknown = {}, origin?: string) =>
   office.request(path, {
     method,
@@ -71,8 +71,8 @@ const layout = async (who: Who) =>
   CompoundLayoutResponse.parse(
     await (await office.request("/api/compound", { cookie: who.cookie })).json(),
   );
-const roomOf = async (floorId: string): Promise<CompoundRoomInfo | undefined> =>
-  (await layout(owner)).rooms.find((r) => r.floorId === floorId);
+const roomOf = async (operationId: string): Promise<CompoundRoomInfo | undefined> =>
+  (await layout(owner)).rooms.find((r) => r.operationId === operationId);
 const audits = (action: string, targetId: string) =>
   office.db
     .select()
@@ -92,7 +92,7 @@ beforeAll(async () => {
     publish: (s) => published.push(s.state.version),
   });
   compound.boot();
-  floors = createFloors({
+  operations = createOperations({
     db: office.db,
     logger,
     config: {
@@ -102,18 +102,18 @@ beforeAll(async () => {
     },
     keyring: undefined,
     placer: compound,
-    onChange: (floorId) => compound.floorChanged(floorId),
+    onChange: (operationId) => compound.operationChanged(operationId),
   });
-  mountFloorRoutes(office.server.router, {
+  mountOperationRoutes(office.server.router, {
     auth: office.auth,
-    floors: floors.service,
-    lifecycle: floors.lifecycle,
+    operations: operations.service,
+    lifecycle: operations.lifecycle,
   });
   mountCompoundRoutes(office.server.router, {
     auth: office.auth,
     compound,
-    floors: floors.service,
-    lifecycle: floors.lifecycle,
+    operations: operations.service,
+    lifecycle: operations.lifecycle,
   });
   owner = await office.signUp("Olga");
   admin = await office.signUp("Ada");
@@ -122,20 +122,20 @@ beforeAll(async () => {
   viewer = await office.signUp("Vic");
   setRole(admin, "admin");
   setRole(viewer, "viewer");
-  const created = floors.service.create(
+  const created = operations.service.create(
     { id: owner.id, role: "owner" },
     { name: "Apollo", tier: "small", repos: [{ repo: "octo/hello" }] },
   );
   await created.cloned;
-  apollo = created.floor;
-  grant(manager, apollo.floorId, "manage");
-  grant(member, apollo.floorId, "spawn");
-  grant(viewer, apollo.floorId, "view");
+  apollo = created.operation;
+  grant(manager, apollo.operationId, "manage");
+  grant(member, apollo.operationId, "spawn");
+  grant(viewer, apollo.operationId, "view");
 });
 
 afterAll(async () => {
   compound.close();
-  await floors.cloner.idle();
+  await operations.cloner.idle();
   await office.stop();
   await rm(root, { recursive: true, force: true });
 });
@@ -150,14 +150,14 @@ describe("compound routes", () => {
       "conference",
       "break_room",
     ]);
-    const room = seen.rooms.find((r) => r.floorId === apollo.floorId);
+    const room = seen.rooms.find((r) => r.operationId === apollo.operationId);
     expect(room).toMatchObject({ name: "Apollo", doorSide: "south", buildState: "building" });
     expect(room?.buildEndsAt).toBeGreaterThan(Date.now());
-    expect(audits("compound.room_place", apollo.floorId)).toHaveLength(1);
+    expect(audits("compound.room_place", apollo.operationId)).toHaveLength(1);
   });
 
-  test("a floor manager, a member and a viewer get 403 on every write", async () => {
-    const path = `/api/compound/rooms/${apollo.floorId}`;
+  test("an operation manager, a member and a viewer get 403 on every write", async () => {
+    const path = `/api/compound/rooms/${apollo.operationId}`;
     for (const who of [manager, member, viewer]) {
       const calls = [
         await send("POST", "/api/compound/check", who, { placement: spot(4, 4) }),
@@ -175,7 +175,7 @@ describe("compound routes", () => {
     const evil = "https://evil.example";
     expect((await send("PATCH", path, owner, { placement: spot(4, 4) }, evil)).status).toBe(403);
     expect((await send("DELETE", path, owner, { confirmName: "Apollo" }, evil)).status).toBe(403);
-    expect((await roomOf(apollo.floorId))?.gridX).not.toBe(4);
+    expect((await roomOf(apollo.operationId))?.gridX).not.toBe(4);
   });
 
   test("check reports why a ghost is red", async () => {
@@ -203,7 +203,7 @@ describe("compound routes", () => {
     });
     expect(refused.status).toBe(409);
     expect(PlacementRefusedResponse.parse(await refused.json()).reason).toBe("out_of_bounds");
-    expect(floors.service.list({ id: owner.id, role: "owner" }).map((f) => f.name)).toEqual([
+    expect(operations.service.list({ id: owner.id, role: "owner" }).map((f) => f.name)).toEqual([
       "Apollo",
     ]);
 
@@ -213,13 +213,17 @@ describe("compound routes", () => {
       placement: spot(4, 4, { doorSide: "east", width: 6 }),
     });
     expect(res.status).toBe(201);
-    const { floor, room } = PlaceRoomResponse.parse(await res.json());
+    const { operation, room } = PlaceRoomResponse.parse(await res.json());
     expect(room).toMatchObject({ gridX: 4, gridY: 4, width: 6, doorSide: "east" });
     expect(room.buildState).toBe("building");
-    expect(audits("compound.room_place", floor.floorId)[0]?.userId).toBe(admin.id);
-    expect(audits("floor.create", floor.floorId)).toHaveLength(1);
+    expect(audits("compound.room_place", operation.operationId)[0]?.userId).toBe(admin.id);
+    expect(audits("operation.create", operation.operationId)).toHaveLength(1);
     // Build mode (#187): a placed room starts vanilla, one desk of four seats (D8).
-    const seats = office.db.select().from(desks).where(eq(desks.floorId, floor.floorId)).all();
+    const seats = office.db
+      .select()
+      .from(desks)
+      .where(eq(desks.operationId, operation.operationId))
+      .all();
     expect(seats.map((d) => d.seatId).sort()).toEqual(["d1s1", "d1s2", "d1s3", "d1s4"]);
     const spec = readSpec(office.db);
     const placed = liveRooms(office.db).map((r) => ({
@@ -227,18 +231,22 @@ describe("compound routes", () => {
       placement: r.placement as RoomPlacement,
     }));
     if (spec) expect(layoutProblems(spec, placed)).toEqual([]);
-    await floors.cloner.idle();
+    await operations.cloner.idle();
   });
 
-  test("moving: refused while a robot runs in the room, refused onto another room, audited", async () => {
-    const path = `/api/compound/rooms/${apollo.floorId}`;
-    const desk = office.db.select().from(desks).where(eq(desks.floorId, apollo.floorId)).get();
+  test("moving: refused while a henchman runs in the room, refused onto another room, audited", async () => {
+    const path = `/api/compound/rooms/${apollo.operationId}`;
+    const desk = office.db
+      .select()
+      .from(desks)
+      .where(eq(desks.operationId, apollo.operationId))
+      .get();
     const agentId = randomUUID();
     office.db
       .insert(agents)
       .values({
         id: agentId,
-        floorId: apollo.floorId,
+        operationId: apollo.operationId,
         repoId: apollo.repos[0]?.repoId ?? "",
         deskSeatId: desk?.seatId ?? "",
         ownerUserId: member.id,
@@ -259,10 +267,10 @@ describe("compound routes", () => {
     const busy = await send("PATCH", path, owner, { placement: spot(40, 10) });
     expect(busy.status).toBe(409);
     expect(
-      RoomHasRunningRobotsResponse.parse(await busy.json()).robots.map((r) => r.agentId),
+      RoomHasRunningHenchmenResponse.parse(await busy.json()).henchmen.map((r) => r.agentId),
     ).toEqual([agentId]);
 
-    // An exited robot still holding its seat moves with the room.
+    // An exited henchman still holding its seat moves with the room.
     office.db.update(agents).set({ status: "exited" }).where(eq(agents.id, agentId)).run();
     const onHermes = await send("PATCH", path, owner, { placement: spot(5, 5) });
     expect(onHermes.status).toBe(409);
@@ -273,20 +281,24 @@ describe("compound routes", () => {
     expect(moved.status).toBe(200);
     expect(await moved.json()).toMatchObject({ gridX: 40, gridY: 10, width: 10 });
     expect(published.length).toBeGreaterThan(before);
-    const audit = audits("compound.room_move", apollo.floorId);
+    const audit = audits("compound.room_move", apollo.operationId);
     expect(audit).toHaveLength(1);
     expect(JSON.parse(audit[0]?.metaJson ?? "{}").to).toMatchObject({ gridX: 40, gridY: 10 });
     expect(office.db.select().from(desks).where(eq(desks.agentId, agentId)).get()).toBeDefined();
   });
 
-  test("removing is the floor delete: typed name, robots first, then gone from the layout", async () => {
-    const path = `/api/compound/rooms/${apollo.floorId}`;
+  test("removing is the operation delete: typed name, henchmen first, then gone from the layout", async () => {
+    const path = `/api/compound/rooms/${apollo.operationId}`;
     const held = await send("DELETE", path, owner, { confirmName: "Apollo" });
     expect(held.status).toBe(409);
-    office.db.update(desks).set({ agentId: null }).where(eq(desks.floorId, apollo.floorId)).run();
+    office.db
+      .update(desks)
+      .set({ agentId: null })
+      .where(eq(desks.operationId, apollo.operationId))
+      .run();
     expect((await send("DELETE", path, owner, { confirmName: "Nope" })).status).toBe(400);
     expect((await send("DELETE", path, owner, { confirmName: "Apollo" })).status).toBe(204);
-    expect(await roomOf(apollo.floorId)).toBeUndefined();
-    expect(audits("floor.delete", apollo.floorId).length).toBeGreaterThan(0);
+    expect(await roomOf(apollo.operationId)).toBeUndefined();
+    expect(audits("operation.delete", apollo.operationId).length).toBeGreaterThan(0);
   });
 });

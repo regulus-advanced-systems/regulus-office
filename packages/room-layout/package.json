@@ -4,7 +4,7 @@
   "private": true,
   "license": "MIT",
   "type": "module",
-  "description": "Data-driven floor templates, seats, wall anchors and nav grid",
+  "description": "Data-driven room templates, seats, wall anchors and nav grid",
   "main": "src/index.ts",
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json"

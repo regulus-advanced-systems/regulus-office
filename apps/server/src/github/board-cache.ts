@@ -1,13 +1,13 @@
 /**
  * The board cache (SPEC §5 `github_issues`, `github_pulls`; #35): rows per
- * floor repo, written from verified webhooks and from polling. One GitHub repo
- * can back several floors, so every write goes to each floor repo row that
+ * operation repo, written from verified webhooks and from polling. One GitHub repo
+ * can back several operations, so every write goes to each operation repo row that
  * follows it. A write never moves a row back in time: an object older than
  * the cached one (a replayed or out-of-order delivery) is ignored.
  */
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { Db } from "../db/index.ts";
-import { floorRepos, floors, githubIssues, githubPulls } from "../db/schema/index.ts";
+import { githubIssues, githubPulls, operationRepos, operations } from "../db/schema/index.ts";
 import {
   aggregateChecks,
   aggregateReviews,
@@ -21,7 +21,7 @@ export interface FollowedRepo {
   owner: string;
   name: string;
   repoIds: string[];
-  floorIds: string[];
+  operationIds: string[];
 }
 
 /** What a write changed, for the poller's synthetic events. */
@@ -56,31 +56,36 @@ export class BoardCache {
     this.#db = db;
   }
 
-  /** Every GitHub repo followed by a live floor, with its floor repo rows. */
+  /** Every GitHub repo followed by a live operation, with its operation repo rows. */
   followedRepos(): FollowedRepo[] {
     const rows = this.#db
       .select({
-        id: floorRepos.id,
-        floorId: floorRepos.floorId,
-        owner: floorRepos.owner,
-        name: floorRepos.name,
+        id: operationRepos.id,
+        operationId: operationRepos.operationId,
+        owner: operationRepos.owner,
+        name: operationRepos.name,
       })
-      .from(floorRepos)
-      .innerJoin(floors, eq(floors.id, floorRepos.floorId))
-      .where(isNull(floors.archivedAt))
+      .from(operationRepos)
+      .innerJoin(operations, eq(operations.id, operationRepos.operationId))
+      .where(isNull(operations.archivedAt))
       .all();
     const byKey = new Map<string, FollowedRepo>();
     for (const r of rows) {
       const key = `${r.owner}/${r.name}`.toLowerCase();
-      const entry = byKey.get(key) ?? { owner: r.owner, name: r.name, repoIds: [], floorIds: [] };
+      const entry = byKey.get(key) ?? {
+        owner: r.owner,
+        name: r.name,
+        repoIds: [],
+        operationIds: [],
+      };
       entry.repoIds.push(r.id);
-      if (!entry.floorIds.includes(r.floorId)) entry.floorIds.push(r.floorId);
+      if (!entry.operationIds.includes(r.operationId)) entry.operationIds.push(r.operationId);
       byKey.set(key, entry);
     }
     return [...byKey.values()];
   }
 
-  /** The floor repo rows following `owner/name` (case-insensitive), or null. */
+  /** The operation repo rows following `owner/name` (case-insensitive), or null. */
   follow(owner: string, name: string): FollowedRepo | null {
     const key = `${owner}/${name}`.toLowerCase();
     return this.followedRepos().find((r) => `${r.owner}/${r.name}`.toLowerCase() === key) ?? null;

@@ -57,7 +57,7 @@ const workdir = await mkdtemp(join(tmpdir(), "rgo-term-load-"));
 const office = await startTerminalOffice({ runner });
 try {
   const owner = await office.signUp("Owner");
-  office.addFloor("f1");
+  office.addOperation("f1");
   office.addAgent("load", "f1", owner.id);
   const generator = `setInterval(() => console.log("T " + Date.now() + " " + "x".repeat(80)), ${INTERVAL_MS})`;
   await runner.exec(

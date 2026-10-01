@@ -5,42 +5,42 @@
  *
  *   GET    /api/compound                    layout + room summaries
  *   POST   /api/compound/check              placement check for the build-mode ghost
- *   POST   /api/compound/rooms              place a new room: creates the floor and clones its repos
- *   PATCH  /api/compound/rooms/:floorId     move/resize (409 while robots run in it)
- *   DELETE /api/compound/rooms/:floorId     remove = floor delete (#150), `{ confirmName }`
+ *   POST   /api/compound/rooms              place a new room: creates the operation and clones its repos
+ *   PATCH  /api/compound/rooms/:operationId     move/resize (409 while henchmen run in it)
+ *   DELETE /api/compound/rooms/:operationId     remove = operation delete (#150), `{ confirmName }`
  */
 import {
   CheckPlacementRequest,
   COMPOUND_API_PATH,
   COMPOUND_CHECK_API_PATH,
   COMPOUND_ROOMS_API_PATH,
-  DeleteFloorRequest,
+  DeleteOperationRequest,
   MoveRoomRequest,
   PlaceRoomRequest,
 } from "@regulus/protocol";
 import type { OfficeAuth } from "../auth/auth.ts";
 import { AuthHttpError, forbidden, unauthorized } from "../auth/errors.ts";
 import { checkOrigin } from "../auth/origin.ts";
-import type { FloorActor } from "../floors/access.ts";
-import type { FloorLifecycle } from "../floors/lifecycle.ts";
-import { readBody } from "../floors/routes.ts";
-import type { FloorService } from "../floors/service.ts";
 import { json, type RouteContext, type RouteHandler, type Router } from "../http/router.ts";
+import type { OperationActor } from "../operations/access.ts";
+import type { OperationLifecycle } from "../operations/lifecycle.ts";
+import { readBody } from "../operations/routes.ts";
+import type { OperationService } from "../operations/service.ts";
 import type { CompoundService } from "./service.ts";
 
 export interface CompoundRouteDeps {
   auth: Pick<OfficeAuth, "getSessionFromRequest" | "publicUrl" | "allowedOrigins">;
   compound: CompoundService;
-  floors: FloorService;
-  lifecycle: FloorLifecycle;
+  operations: OperationService;
+  lifecycle: OperationLifecycle;
 }
 
 export function mountCompoundRoutes(router: Router, deps: CompoundRouteDeps): void {
-  const { auth, compound, floors, lifecycle } = deps;
+  const { auth, compound, operations, lifecycle } = deps;
 
   const route =
     (
-      handler: (ctx: RouteContext, actor: FloorActor) => Promise<Response> | Response,
+      handler: (ctx: RouteContext, actor: OperationActor) => Promise<Response> | Response,
       write = false,
     ): RouteHandler =>
     async (ctx) => {
@@ -60,7 +60,7 @@ export function mountCompoundRoutes(router: Router, deps: CompoundRouteDeps): vo
       }
     };
 
-  const floorId = (ctx: RouteContext) => ctx.params.floorId ?? "";
+  const operationId = (ctx: RouteContext) => ctx.params.operationId ?? "";
 
   router.get(
     COMPOUND_API_PATH,
@@ -71,7 +71,7 @@ export function mountCompoundRoutes(router: Router, deps: CompoundRouteDeps): vo
     COMPOUND_CHECK_API_PATH,
     route(async (ctx, actor) => {
       const body = await readBody(ctx.request, CheckPlacementRequest);
-      return json(compound.check(actor, body.placement, body.floorId));
+      return json(compound.check(actor, body.placement, body.operationId));
     }, true),
   );
 
@@ -79,27 +79,29 @@ export function mountCompoundRoutes(router: Router, deps: CompoundRouteDeps): vo
     COMPOUND_ROOMS_API_PATH,
     route(async (ctx, actor) => {
       const { placement, ...input } = await readBody(ctx.request, PlaceRoomRequest);
-      const { floor } = floors.create(actor, input, placement);
-      const room = compound.layoutResponse().rooms.find((r) => r.floorId === floor.floorId);
-      return json({ floor, room }, { status: 201 });
+      const { operation } = operations.create(actor, input, placement);
+      const room = compound
+        .layoutResponse()
+        .rooms.find((r) => r.operationId === operation.operationId);
+      return json({ operation, room }, { status: 201 });
     }, true),
   );
 
   router.add(
     "PATCH",
-    `${COMPOUND_ROOMS_API_PATH}/:floorId`,
+    `${COMPOUND_ROOMS_API_PATH}/:operationId`,
     route(async (ctx, actor) => {
       const body = await readBody(ctx.request, MoveRoomRequest);
-      return json(compound.move(actor, floorId(ctx), body.placement));
+      return json(compound.move(actor, operationId(ctx), body.placement));
     }, true),
   );
 
   router.add(
     "DELETE",
-    `${COMPOUND_ROOMS_API_PATH}/:floorId`,
+    `${COMPOUND_ROOMS_API_PATH}/:operationId`,
     route(async (ctx, actor) => {
-      const body = await readBody(ctx.request, DeleteFloorRequest);
-      await lifecycle.delete(actor, floorId(ctx), body.confirmName);
+      const body = await readBody(ctx.request, DeleteOperationRequest);
+      await lifecycle.delete(actor, operationId(ctx), body.confirmName);
       return new Response(null, { status: 204 });
     }, true),
   );

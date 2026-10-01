@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { type FloorSummary, LOBBY_FLOOR_ID } from "@regulus/protocol";
+import { LOBBY_OPERATION_ID, type OperationSummary } from "@regulus/protocol";
 import { findPath } from "../astar.ts";
 import { doorApproach } from "./grid.ts";
 import { computeCompoundLayout } from "./layout.ts";
@@ -78,9 +78,9 @@ describe("compound nav grid", () => {
       slug: "x",
       index: 1,
       paletteId: "p",
-      robotsWorking: 0,
-      robotsWaiting: 0,
-      robotsTotal: 0,
+      henchmenWorking: 0,
+      henchmenWaiting: 0,
+      henchmenTotal: 0,
       humansPresent: 0,
       buildState: "ready" as const,
       buildEndsAt: 0,
@@ -89,13 +89,13 @@ describe("compound nav grid", () => {
     };
     const lobby = layout.specialRooms[0];
     if (!lobby) throw new Error("no lobby");
-    const floors: FloorSummary[] = [
-      { ...base, floorId: LOBBY_FLOOR_ID, ...roomSummaryPlacement(lobby) },
-      ...layout.rooms.map((r) => ({ ...base, floorId: r.id, ...roomSummaryPlacement(r) })),
-      { ...base, floorId: "unplaced", ...roomSummaryPlacement(lobby), gridX: -1, gridY: -1 },
+    const operations: OperationSummary[] = [
+      { ...base, operationId: LOBBY_OPERATION_ID, ...roomSummaryPlacement(lobby) },
+      ...layout.rooms.map((r) => ({ ...base, operationId: r.id, ...roomSummaryPlacement(r) })),
+      { ...base, operationId: "unplaced", ...roomSummaryPlacement(lobby), gridX: -1, gridY: -1 },
     ];
     const a = buildCompoundNavGrid(compoundNavInput(layout));
-    const b = buildCompoundNavGrid(compoundNavInputFromState(state, floors));
+    const b = buildCompoundNavGrid(compoundNavInputFromState(state, operations));
     expect(b.toAscii()).toBe(a.toAscii());
   });
 });

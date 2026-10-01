@@ -1,41 +1,41 @@
 /**
- * Fixtures for AgentManager tests: an in-memory office with one floor, one
+ * Fixtures for AgentManager tests: an in-memory office with one operation, one
  * cloned repo (a temp dir), three desks and users with different access; a
- * recording RobotPublisher; and a manager factory over a LocalTmuxRunner.
+ * recording HenchmanPublisher; and a manager factory over a LocalTmuxRunner.
  */
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { AdapterRegistry, type AgentAdapter } from "@regulus/agent-adapters";
-import type { PendingPermission, RobotState } from "@regulus/protocol";
-import { desks, floorMembers, floorRepos, floors } from "../../db/schema/index.ts";
-import { testDb } from "../../floors/test-helpers.ts";
+import type { HenchmanState, PendingPermission } from "@regulus/protocol";
+import { desks, operationMembers, operationRepos, operations } from "../../db/schema/index.ts";
 import { createLogger } from "../../logging.ts";
+import { testDb } from "../../operations/test-helpers.ts";
 import type { Runner } from "../../runners/types.ts";
-import { AgentManager, type AgentManagerOptions, type RobotPublisher } from "./manager.ts";
+import { AgentManager, type AgentManagerOptions, type HenchmanPublisher } from "./manager.ts";
 
 export const FAKE_AGENT = join(import.meta.dir, "../../runners/testing/fake-agent.sh");
 
-export class RecordingRobots implements RobotPublisher {
-  readonly robots = new Map<string, RobotState>();
-  readonly history: RobotState[] = [];
+export class RecordingHenchmen implements HenchmanPublisher {
+  readonly henchmen = new Map<string, HenchmanState>();
+  readonly history: HenchmanState[] = [];
   readonly removed: string[] = [];
-  /** Latest pending permission requests per robot, as the FloorRoom would get them. */
+  /** Latest pending permission requests per henchman, as the OperationRoom would get them. */
   readonly permissions = new Map<string, PendingPermission[]>();
   readonly permissionHistory: { agentId: string; ownerUserId: string; count: number }[] = [];
 
-  publishRobot(_floorId: string, robot: RobotState): void {
-    this.robots.set(robot.agentId, robot);
-    this.history.push(robot);
+  publishHenchman(_operationId: string, henchman: HenchmanState): void {
+    this.henchmen.set(henchman.agentId, henchman);
+    this.history.push(henchman);
   }
 
-  removeRobot(_floorId: string, agentId: string): void {
-    this.robots.delete(agentId);
+  removeHenchman(_operationId: string, agentId: string): void {
+    this.henchmen.delete(agentId);
     this.removed.push(agentId);
   }
 
   publishPermissions(
-    _floorId: string,
+    _operationId: string,
     agentId: string,
     ownerUserId: string,
     requests: PendingPermission[],
@@ -44,13 +44,17 @@ export class RecordingRobots implements RobotPublisher {
     this.permissionHistory.push({ agentId, ownerUserId, count: requests.length });
   }
 
-  async waitFor(agentId: string, ok: (r: RobotState) => boolean, ms = 5000): Promise<RobotState> {
+  async waitFor(
+    agentId: string,
+    ok: (r: HenchmanState) => boolean,
+    ms = 5000,
+  ): Promise<HenchmanState> {
     const deadline = Date.now() + ms;
     for (;;) {
-      const robot = this.robots.get(agentId);
-      if (robot && ok(robot)) return robot;
+      const henchman = this.henchmen.get(agentId);
+      if (henchman && ok(henchman)) return henchman;
       if (Date.now() > deadline) {
-        throw new Error(`robot ${agentId} never matched; last: ${JSON.stringify(robot)}`);
+        throw new Error(`henchman ${agentId} never matched; last: ${JSON.stringify(henchman)}`);
       }
       await Bun.sleep(20);
     }
@@ -64,14 +68,14 @@ export async function officeFixture() {
   const viewer = addUser("Vic", "member");
   const stranger = addUser("Sam", "member");
   const admin = addUser("Ada", "admin");
-  /** Office role `viewer` (watch only, SPEC §8 rule 4), with view access to the floor. */
+  /** Office role `viewer` (watch only, SPEC §8 rule 4), with view access to the operation. */
   const roleViewer = addUser("Wes", "viewer");
   const workdir = await mkdtemp(join(tmpdir(), "rgo-agents-repo-"));
-  const floorId = "floor-1";
+  const operationId = "operation-1";
   const repoId = "repo-1";
-  db.insert(floors)
+  db.insert(operations)
     .values({
-      id: floorId,
+      id: operationId,
       name: "Demo",
       slug: "demo",
       index: 1,
@@ -79,10 +83,10 @@ export async function officeFixture() {
       layoutTemplateId: "t",
     })
     .run();
-  db.insert(floorRepos)
+  db.insert(operationRepos)
     .values({
       id: repoId,
-      floorId,
+      operationId,
       owner: "octo",
       name: "hello",
       url: "file:///dev/null",
@@ -93,12 +97,12 @@ export async function officeFixture() {
     })
     .run();
   for (const seatId of ["seat-1", "seat-2", "seat-3"]) {
-    db.insert(desks).values({ floorId, seatId }).run();
+    db.insert(desks).values({ operationId, seatId }).run();
   }
-  db.insert(floorMembers).values({ floorId, userId: member.id, access: "spawn" }).run();
-  db.insert(floorMembers).values({ floorId, userId: viewer.id, access: "view" }).run();
-  db.insert(floorMembers).values({ floorId, userId: roleViewer.id, access: "view" }).run();
-  return { db, owner, member, viewer, stranger, admin, roleViewer, floorId, repoId, workdir };
+  db.insert(operationMembers).values({ operationId, userId: member.id, access: "spawn" }).run();
+  db.insert(operationMembers).values({ operationId, userId: viewer.id, access: "view" }).run();
+  db.insert(operationMembers).values({ operationId, userId: roleViewer.id, access: "view" }).run();
+  return { db, owner, member, viewer, stranger, admin, roleViewer, operationId, repoId, workdir };
 }
 
 export function makeManager(
@@ -107,30 +111,30 @@ export function makeManager(
   adapters: AgentAdapter[],
   extra: Partial<AgentManagerOptions> = {},
 ) {
-  const robots = new RecordingRobots();
+  const henchmen = new RecordingHenchmen();
   const manager = new AgentManager({
     db,
     runner,
     adapters: new AdapterRegistry(adapters),
-    robots,
+    henchmen,
     officeUrl: "http://office.test",
     logger: createLogger({ level: "silent" }),
     pollIntervalMs: 50,
     ...extra,
   });
-  return { manager, robots };
+  return { manager, henchmen };
 }
 
 export const spawnInput = (
-  floorId: string,
+  operationId: string,
   repoId: string,
   extra: Record<string, unknown> = {},
 ) => ({
-  floorId,
+  operationId,
   repoId,
   provider: "custom" as const,
   model: "fake-1",
-  prompt: "hello robot",
+  prompt: "hello henchman",
   autoWorktree: false,
   ...extra,
 });

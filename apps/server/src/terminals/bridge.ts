@@ -2,8 +2,8 @@
  * Terminal bridge (SPEC §6 channel 3, #24): `/ws/term/<agentId>?mode=watch|control`.
  *
  * Every upgrade is checked server-side before a socket exists: Origin (SPEC
- * §11), the Better Auth session cookie, then the D12 ACL against the robot's
- * floor and owner. Each accepted viewer gets its own tmux client; tmux fans
+ * §11), the Better Auth session cookie, then the D12 ACL against the henchman's
+ * operation and owner. Each accepted viewer gets its own tmux client; tmux fans
  * the agent's output out to all of them. Plugs into the office `Bun.serve`
  * as a `WsRoute` (http/ws-router.ts) next to the Colyseus transport.
  */
@@ -23,7 +23,7 @@ import type { WsRoute } from "../http/ws-router.ts";
 import type { Logger } from "../logging.ts";
 import { UPGRADED } from "../rooms/transport.ts";
 import type { TtySize } from "../runners/types.ts";
-import { decideTerminalAccess, type FloorVisibility, type TerminalUser } from "./acl.ts";
+import { decideTerminalAccess, type OperationVisibility, type TerminalUser } from "./acl.ts";
 import { isLoginTerminalId, mayUseLoginTerminal } from "./login-sessions.ts";
 import type { ScrollbackRecorder } from "./scrollback.ts";
 import { AGENT_ID_PATTERN, type TerminalTarget, type TerminalTargets } from "./targets.ts";
@@ -42,7 +42,7 @@ export interface TerminalBridgeOptions {
   /** Login sessions (`/ws/term/login-<id>`, #32): owner-only, outside the D12 agent ACL. */
   logins?: TerminalTargets;
   sessions: TerminalSessionLookup;
-  canViewFloor: FloorVisibility;
+  canViewOperation: OperationVisibility;
   originPolicy: OriginPolicy;
   logger: Logger;
   /** Periodic on-disk snapshots of watched agents (optional). */
@@ -133,7 +133,7 @@ export class TerminalBridge implements WsRoute {
     }
     const decision = login
       ? ({ ok: true } as const)
-      : decideTerminalAccess(user, target, mode, this.#opts.canViewFloor);
+      : decideTerminalAccess(user, target, mode, this.#opts.canViewOperation);
     if (!decision.ok) {
       log.info({ agentId, userId: user.id, mode, reason: decision.reason }, "terminal denied");
       return decision.reason === "forbidden" ? reject(403, "forbidden") : reject(404, "not_found");

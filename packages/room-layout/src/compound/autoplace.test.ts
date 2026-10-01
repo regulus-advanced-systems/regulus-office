@@ -17,7 +17,7 @@ const spec = defaultCompoundSpec();
 const legacy = (n: number, seed = 1): ReconcileInput[] => {
   const r = rng(seed);
   return Array.from({ length: n }, (_, i) => ({
-    id: `floor-${String(i).padStart(2, "0")}`,
+    id: `operation-${String(i).padStart(2, "0")}`,
     placement: null,
     size: legacyRoomSize([6, 12, 20][int(r, 0, 2)] ?? 12),
   }));
@@ -45,7 +45,7 @@ describe("rows off the main corridor", () => {
     }
   });
 
-  test.each([1, 4, 9, 14, 20])("%d floors migrate into a valid compound", (n) => {
+  test.each([1, 4, 9, 14, 20])("%d operations migrate into a valid compound", (n) => {
     const { spec: grown, result } = planMigration(spec, legacy(n, n));
     expect(result.unplaced).toEqual([]);
     expect(result.changed).toHaveLength(n);
@@ -54,9 +54,9 @@ describe("rows off the main corridor", () => {
     expect(layoutViolations(computeCompoundLayout(grown, rooms))).toEqual([]);
   });
 
-  test("the compound grows when the floors do not fit, and only then", () => {
+  test("the compound grows when the operations do not fit, and only then", () => {
     expect(planMigration(spec, legacy(6)).spec).toEqual(spec);
-    // 18 floors do not fit the default 64 tiles; one growth step does.
+    // 18 operations do not fit the default 64 tiles; one growth step does.
     const many = planMigration(spec, legacy(18, 3));
     expect(many.result.unplaced).toEqual([]);
     expect(many.spec.width).toBeGreaterThan(64);

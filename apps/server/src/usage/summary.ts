@@ -6,14 +6,14 @@
  *   from the session by the route.
  * - `office()`: shared BuildingRoom state: everyone's totals for the office's
  *   day as plain sums, office-key spend, how many humans used anything, and
- *   the top robots by tokens with only the robot's display name and owner.
+ *   the top henchmen by tokens with only the henchman's display name and owner.
  *
  * Never another human's limits or per-human spend.
  */
 import {
+  henchmanDisplayName,
   type MyUsage,
-  robotDisplayName,
-  USAGE_TOP_ROBOTS,
+  USAGE_TOP_HENCHMEN,
   type UsageLimitView,
   type UsageSummary,
   type UsageTotals,
@@ -142,14 +142,14 @@ export class UsageSummaries {
       todayCostUsdEstimate: all.costUsd,
       officeKeysCostUsdEstimate: officeKeys.costUsd,
       activeHumans: Number(active?.n ?? 0),
-      topRobots: this.topRobots(dayStart),
+      topHenchmen: this.topHenchmen(dayStart),
       dayStart,
       observedAt: now,
     };
   }
 
-  /** Robot name and owner name only: no floor, task, model or cost. */
-  topRobots(since: number): UsageSummary["topRobots"] {
+  /** Henchman name and owner name only: no operation, task, model or cost. */
+  topHenchmen(since: number): UsageSummary["topHenchmen"] {
     const rows = this.db
       .select({
         agentId: usageSamples.agentId,
@@ -164,7 +164,7 @@ export class UsageSummaries {
       .where(gte(usageSamples.ts, new Date(since)))
       .groupBy(usageSamples.agentId)
       .orderBy(desc(tokenSum))
-      .limit(USAGE_TOP_ROBOTS)
+      .limit(USAGE_TOP_HENCHMEN)
       .all();
     return rows.flatMap((r) => {
       if (!r.agentId || Number(r.tokens) <= 0) return [];
@@ -172,7 +172,7 @@ export class UsageSummaries {
       return [
         {
           agentId: r.agentId,
-          name: robotDisplayName(ownerName, r.provider).slice(0, 120),
+          name: henchmanDisplayName(ownerName, r.provider).slice(0, 120),
           ownerName,
           provider: r.provider,
           tokens: Number(r.tokens),

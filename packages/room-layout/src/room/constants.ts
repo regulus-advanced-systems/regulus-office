@@ -9,7 +9,7 @@ import { COMPOUND_TILE_METRES } from "@regulus/protocol";
 /** Edge of one compound grid tile, metres (room sizes, 4..12 tiles, are in protocol). */
 export const TILE = COMPOUND_TILE_METRES;
 
-/** `layoutTemplateId` of a floor whose interior comes from `generateRoom`. */
+/** `layoutTemplateId` of an operation whose interior comes from `generateRoom`. */
 export const ROOM_LAYOUT_ID = "room";
 
 /** Height of full walls and of the low front (stub) walls, metres. */

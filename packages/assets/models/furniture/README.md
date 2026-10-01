@@ -7,7 +7,7 @@ row in `../../ATTRIBUTION.md`.
 
 Only the models the scene actually places are checked in, unmodified from the kit's
 `Models/GLTF format/` folder (binary glTF, flat `KHR_materials_unlit` colours, no textures). The
-client swaps their materials for `MeshToonMaterial` and recolours some of them to the floor
+client swaps their materials for `MeshToonMaterial` and recolours some of them to the operation
 palette at load time (`apps/web/src/scene/furniture/catalog.ts`).
 
 | File | Used for (room-layout kind) |

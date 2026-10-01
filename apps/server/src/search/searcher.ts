@@ -2,19 +2,19 @@
  * Search queries with the ACL applied in SQL (#41):
  *
  * - Chat lines: the lobby's (building-wide) for everyone signed in, a
- *   floor's only for people who can see that floor.
- * - Scrollback: only live robots on floors the searcher can see, i.e.
- *   exactly the people who may watch the robot's terminal (D12, the same
- *   `decideTerminalAccess(..., "watch", canViewFloor)` the bridge uses, which
- *   is checked again per robot before anything is returned). Exited robots
+ *   operation's only for people who can see that operation.
+ * - Scrollback: only live henchmen on operations the searcher can see, i.e.
+ *   exactly the people who may watch the henchman's terminal (D12, the same
+ *   `decideTerminalAccess(..., "watch", canViewOperation)` the bridge uses, which
+ *   is checked again per henchman before anything is returned). Exited henchmen
  *   cannot be watched, so their scrollback is not searchable either.
  *
- * Results come back in rank order, grouped by robot (scrollback) and by
- * floor (chat), with snippets as structured segments.
+ * Results come back in rank order, grouped by henchman (scrollback) and by
+ * operation (chat), with snippets as structured segments.
  */
 import type { Database } from "bun:sqlite";
 import {
-  LOBBY_FLOOR_ID,
+  LOBBY_OPERATION_ID,
   type SearchContextResponse,
   type SearchDocKind,
   type SearchGroup,
@@ -23,7 +23,7 @@ import {
   type UserRole,
 } from "@regulus/protocol";
 import type { Db } from "../db/index.ts";
-import { decideTerminalAccess, type FloorVisibility } from "../terminals/acl.ts";
+import { decideTerminalAccess, type OperationVisibility } from "../terminals/acl.ts";
 import type { ParsedQuery } from "./query.ts";
 
 export interface SearchUser {
@@ -43,15 +43,15 @@ interface HitRow {
   id: number;
   kind: SearchDocKind;
   source_id: string;
-  floor_id: string;
+  operation_id: string;
   ts: number;
   author: string;
   snip: string;
 }
 
-interface RobotRow {
+interface HenchmanRow {
   owner_user_id: string;
-  floor_id: string;
+  operation_id: string;
   desk_seat_id: string;
   task_title: string;
   model: string;
@@ -99,27 +99,29 @@ export function bestLine(lines: readonly string[], terms: readonly string[]): nu
 
 export class Searcher {
   readonly #client: Database;
-  readonly #canViewFloor: FloorVisibility;
+  readonly #canViewOperation: OperationVisibility;
 
-  constructor(opts: { db: Db; canViewFloor: FloorVisibility }) {
+  constructor(opts: { db: Db; canViewOperation: OperationVisibility }) {
     this.#client = opts.db.$client;
-    this.#canViewFloor = opts.canViewFloor;
+    this.#canViewOperation = opts.canViewOperation;
   }
 
-  /** Live floors the user can see, with their names. */
-  visibleFloors(user: SearchUser): Map<string, string> {
+  /** Live operations the user can see, with their names. */
+  visibleOperations(user: SearchUser): Map<string, string> {
     const rows = this.#client
       .query<{ id: string; name: string }, []>(
-        "SELECT id, name FROM floors WHERE archived_at IS NULL",
+        "SELECT id, name FROM operations WHERE archived_at IS NULL",
       )
       .all();
-    return new Map(rows.filter((r) => this.#canViewFloor(user, r.id)).map((r) => [r.id, r.name]));
+    return new Map(
+      rows.filter((r) => this.#canViewOperation(user, r.id)).map((r) => [r.id, r.name]),
+    );
   }
 
-  #robot(agentId: string): RobotRow | null {
+  #henchman(agentId: string): HenchmanRow | null {
     return this.#client
-      .query<RobotRow, [string]>(
-        `SELECT a.owner_user_id, a.floor_id, a.desk_seat_id, a.task_title, a.model,
+      .query<HenchmanRow, [string]>(
+        `SELECT a.owner_user_id, a.operation_id, a.desk_seat_id, a.task_title, a.model,
                 p.display_name AS owner_name
          FROM agents a LEFT JOIN user_profiles p ON p.user_id = a.owner_user_id
          WHERE a.id = ? AND a.exited_at IS NULL`,
@@ -127,61 +129,63 @@ export class Searcher {
       .get(agentId);
   }
 
-  /** May `user` watch this robot's terminal (and so search its scrollback)? */
-  #mayWatch(user: SearchUser, robot: RobotRow | null): robot is RobotRow {
-    if (!robot) return false;
-    const target = { ownerUserId: robot.owner_user_id, floorId: robot.floor_id };
-    return decideTerminalAccess(user, target, "watch", this.#canViewFloor).ok;
+  /** May `user` watch this henchman's terminal (and so search its scrollback)? */
+  #mayWatch(user: SearchUser, henchman: HenchmanRow | null): henchman is HenchmanRow {
+    if (!henchman) return false;
+    const target = { ownerUserId: henchman.owner_user_id, operationId: henchman.operation_id };
+    return decideTerminalAccess(user, target, "watch", this.#canViewOperation).ok;
   }
 
   search(user: SearchUser, query: ParsedQuery, limit: number = SEARCH_LIMIT): SearchResponse {
-    const floors = this.visibleFloors(user);
-    const floorIds = [...floors.keys()];
+    const operations = this.visibleOperations(user);
+    const operationIds = [...operations.keys()];
     const rows = this.#client
       .query<HitRow, [string, string, string, number]>(
-        `SELECT d.id, d.kind, d.source_id, d.floor_id, d.ts, d.author,
+        `SELECT d.id, d.kind, d.source_id, d.operation_id, d.ts, d.author,
                 snippet(search_fts, 0, char(2), char(3), '…', 16) AS snip
          FROM search_fts
          JOIN search_docs d ON d.id = search_fts.rowid
          LEFT JOIN agents a ON d.kind = 'scrollback' AND a.id = d.source_id
          WHERE search_fts MATCH ?
-           AND ((d.kind = 'chat' AND d.floor_id IN (SELECT value FROM json_each(?)))
+           AND ((d.kind = 'chat' AND d.operation_id IN (SELECT value FROM json_each(?)))
              OR (d.kind = 'scrollback' AND a.id IS NOT NULL AND a.exited_at IS NULL
-                 AND a.floor_id IN (SELECT value FROM json_each(?))))
+                 AND a.operation_id IN (SELECT value FROM json_each(?))))
          ORDER BY rank
          LIMIT ?`,
       )
       .all(
         query.match,
-        JSON.stringify([LOBBY_FLOOR_ID, ...floorIds]),
-        JSON.stringify(floorIds),
+        JSON.stringify([LOBBY_OPERATION_ID, ...operationIds]),
+        JSON.stringify(operationIds),
         limit + 1,
       );
 
     let truncated = rows.length > limit;
     const groups = new Map<string, SearchGroup>();
-    const robots = new Map<string, RobotRow | null>();
+    const henchmen = new Map<string, HenchmanRow | null>();
     for (const row of rows.slice(0, limit)) {
-      const key = row.kind === "chat" ? `chat:${row.floor_id}` : `robot:${row.source_id}`;
+      const key = row.kind === "chat" ? `chat:${row.operation_id}` : `henchman:${row.source_id}`;
       let group = groups.get(key);
       if (!group) {
         if (row.kind === "chat") {
-          const floorName = row.floor_id === LOBBY_FLOOR_ID ? LOBBY_NAME : floors.get(row.floor_id);
-          if (floorName === undefined) continue;
-          group = { key, kind: "chat", floorId: row.floor_id, floorName, hits: [] };
+          const operationName =
+            row.operation_id === LOBBY_OPERATION_ID ? LOBBY_NAME : operations.get(row.operation_id);
+          if (operationName === undefined) continue;
+          group = { key, kind: "chat", operationId: row.operation_id, operationName, hits: [] };
         } else {
-          if (!robots.has(row.source_id)) robots.set(row.source_id, this.#robot(row.source_id));
-          const robot = robots.get(row.source_id) ?? null;
-          if (!this.#mayWatch(user, robot)) continue;
+          if (!henchmen.has(row.source_id))
+            henchmen.set(row.source_id, this.#henchman(row.source_id));
+          const henchman = henchmen.get(row.source_id) ?? null;
+          if (!this.#mayWatch(user, henchman)) continue;
           group = {
             key,
             kind: "scrollback",
-            floorId: robot.floor_id,
-            floorName: floors.get(robot.floor_id) ?? robot.floor_id,
+            operationId: henchman.operation_id,
+            operationName: operations.get(henchman.operation_id) ?? henchman.operation_id,
             agentId: row.source_id,
-            seatId: robot.desk_seat_id,
-            robotName: robot.task_title || robot.model,
-            ownerName: robot.owner_name ?? "",
+            seatId: henchman.desk_seat_id,
+            henchmanName: henchman.task_title || henchman.model,
+            ownerName: henchman.owner_name ?? "",
             hits: [],
           };
         }
@@ -210,8 +214,8 @@ export class Searcher {
       )
       .get(docId);
     if (!doc) return null;
-    const robot = this.#robot(doc.source_id);
-    if (!this.#mayWatch(user, robot)) return null;
+    const henchman = this.#henchman(doc.source_id);
+    if (!this.#mayWatch(user, henchman)) return null;
     const chunks = this.#client
       .query<{ seq: number; body: string }, [string, number, number]>(
         `SELECT seq, body FROM search_docs
@@ -229,6 +233,6 @@ export class Searcher {
       }
       lines.push(...chunkLines);
     }
-    return { docId, agentId: doc.source_id, floorId: robot.floor_id, lines, matchLine };
+    return { docId, agentId: doc.source_id, operationId: henchman.operation_id, lines, matchLine };
   }
 }

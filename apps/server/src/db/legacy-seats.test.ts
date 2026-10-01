@@ -84,7 +84,8 @@ describe("0017_room_seats", () => {
       ]);
     });
     sql.run("PRAGMA foreign_keys = ON");
-    runMigrations(db);
+    // Through 0017 only: 0018 (#226) renames the tables this test reads.
+    runMigrations(db, before("operations_henchmen"));
 
     const floorsAfter = sql
       .query<{ id: string; layout_template_id: string }, []>(

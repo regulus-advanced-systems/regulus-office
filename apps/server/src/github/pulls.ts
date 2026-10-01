@@ -1,7 +1,7 @@
 /**
  * GitHub REST pull requests for the one-click PR (SPEC §6 `agent.pr`, D14).
  *
- * The token is the floor repo's project credential and travels only in the
+ * The token is the operation repo's project credential and travels only in the
  * `Authorization` header, never in a URL or a log line; error text taken from
  * GitHub responses is redacted before it leaves this module. `apiBase` is
  * `OFFICE_GITHUB_API_BASE` (`https://api.github.com`), a local fake in tests.

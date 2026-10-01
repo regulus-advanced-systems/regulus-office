@@ -1,5 +1,5 @@
 /**
- * Lobby (floor 0, SPEC §9.1): elevator bank, reception desk (PM robot home),
+ * Lobby (operation 0, SPEC §9.1): elevator bank, reception desk (PM henchman home),
  * usage-tracker wall, lounge with TV, jukebox, building whiteboard, coffee
  * machine and plants. 18 x 14 m.
  *
@@ -8,7 +8,7 @@
  * - notices, west of the entry: the building whiteboard on the north wall and
  *   the usage-tracker wall on the west wall;
  * - lounge, west: couch facing the TV, coffee table and jukebox on a rug;
- * - reception, east of the entry: the PM robot's desk facing the room;
+ * - reception, east of the entry: the PM henchman's desk facing the room;
  * - coffee corner, north-east: counter with the coffee machine and a bistro
  *   table on a rug.
  * - atrium, centre: a large rug with a planter island and two benches south of

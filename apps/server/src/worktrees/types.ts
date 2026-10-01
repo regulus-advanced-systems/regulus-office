@@ -2,15 +2,15 @@
  * Per-agent git worktrees (SPEC §8, §10 M1; research 02 weakness #7).
  *
  * The AgentManager (#26) calls {@link Workspaces}: `prepare` before a spawn
- * (the owner's own clone of the floor repo, fetch, then a fresh
+ * (the owner's own clone of the operation repo, fetch, then a fresh
  * `office/<slug>` branch cut from `origin/<default>` in
- * `<worktreesDir>/<floor-slug>/<runner id>/<agentId>`), `release` on
+ * `<worktreesDir>/<operation-slug>/<runner id>/<agentId>`), `release` on
  * send-home. Layout: ../runners/layout.ts (#114).
  */
 
 export interface PrepareWorkspaceInput {
   agentId: string;
-  floorId: string;
+  operationId: string;
   repoId: string;
   /** Human-readable agent slug; becomes the branch `office/<slug>` (made unique). */
   slug: string;
@@ -37,13 +37,13 @@ export interface Workspaces {
 
 /** Where an agent's git lives. */
 export interface AgentClone {
-  /** The owner's own clone, or the shared floor mirror for a `legacy` workspace. */
+  /** The owner's own clone, or the shared operation mirror for a `legacy` workspace. */
   clone: string;
   /** A workspace from before #114, inside the shared mirror: office-side git only, no runner. */
   legacy: boolean;
 }
 
-/** Each human's own clone of a floor repo (#114). */
+/** Each human's own clone of an operation repo (#114). */
 export interface HumanClones {
   /** `autoWorktree: false`: the owner's own clone (made on first use) on the default branch. */
   prepareClone(input: PrepareWorkspaceInput): Promise<PreparedWorkspace>;

@@ -2,7 +2,7 @@
  * Applying verified GitHub events to the board cache and the event bus (#35).
  * Webhook deliveries arrive here after signature and dedupe checks; polled
  * changes arrive as coarse synthetic events. Each updates `github_issues` /
- * `github_pulls`, asks for the affected floors' board summaries to be
+ * `github_pulls`, asks for the affected operations' board summaries to be
  * republished, then emits a typed event for #155.
  *
  * https://docs.github.com/en/webhooks/webhook-events-and-payloads
@@ -33,8 +33,8 @@ export interface EventApplyDeps {
   cache: BoardCache;
   bus: GitHubEventBus;
   app(): OfficeAppIdentity | null;
-  /** Republish these floors' board summaries. */
-  publish(floorIds: string[]): void;
+  /** Republish these operations' board summaries. */
+  publish(operationIds: string[]): void;
   /** The app was installed, removed, or its repo selection changed. */
   installationChanged(): void;
   now(): number;
@@ -113,7 +113,7 @@ export class EventApplier {
     const repo = repoOf(payload);
     const followed = repo ? cache.follow(repo.owner, repo.name) : null;
     if (followed && applyToCache(cache, name, payload, followed)) {
-      this.#deps.publish(followed.floorIds);
+      this.#deps.publish(followed.operationIds);
     }
     const event = this.#event(name, payload, deliveryId, "webhook", repo, followed);
     this.#deps.bus.emit(event);
@@ -165,7 +165,7 @@ export class EventApplier {
       receivedAt: now,
       repo,
       repoIds: followed?.repoIds ?? [],
-      floorIds: followed?.floorIds ?? [],
+      operationIds: followed?.operationIds ?? [],
       installationId: typeof installation === "number" ? installation : null,
       sender: accountOf(payload.sender),
       fromOfficeApp: causedByApp(payload, this.#deps.app()),

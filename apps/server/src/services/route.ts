@@ -2,16 +2,16 @@
  * The services proxy route (SPEC §9.4, #39), a `WsRoute` in front of the rest
  * of the office (http/ws-router.ts) so it sees HTTP and WebSocket upgrades:
  *
- * - `/p/<floorId>/a/<agentId>/port/<n>/…` on the office host. Keyed by robot
- *   as well as floor: with per-robot sandboxes (D18) two robots of one floor
+ * - `/p/<operationId>/a/<agentId>/port/<n>/…` on the office host. Keyed by henchman
+ *   as well as operation: with per-henchman sandboxes (D18) two henchmen of one operation
  *   can both serve on 3000, so a port alone names nothing. Session cookie,
- *   floor visibility and the app ACL (access.ts) are checked on every
- *   request. Path mode proxies here, for the robot's owner only; app domain
+ *   operation visibility and the app ACL (access.ts) are checked on every
+ *   request. Path mode proxies here, for the henchman's owner only; app domain
  *   mode redirects everyone allowed to the app's own origin with a ticket.
  * - `<port>-<agentId>.<OFFICE_SERVICES_DOMAIN>` (app domain mode): the app
- *   cookie, then the same floor and ACL checks, per request.
+ *   cookie, then the same operation and ACL checks, per request.
  *
- * Only services the scanner found listening in that robot's sandbox are
+ * Only services the scanner found listening in that henchman's sandbox are
  * proxied, to the address the runner gave for the sandbox (registry.ts); the
  * request never names a host. WebSocket upgrades and unsafe methods need the
  * app's own Origin (the office's in path mode).
@@ -46,7 +46,7 @@ import { openUpstream, relayHandler } from "./proxy-ws.ts";
 import type { ProxyableService, ServiceRegistry } from "./registry.ts";
 
 export const SERVICES_PREFIX = "/p/";
-export const SERVICES_ROUTE = "/p/:floorId/a/:agentId/port/:port/*";
+export const SERVICES_ROUTE = "/p/:operationId/a/:agentId/port/:port/*";
 export const APP_HOST_ROUTE = "app-host:/*";
 
 const PATH_RE =
@@ -57,7 +57,7 @@ export interface ServicesRouteOptions {
   sessions: { getSessionFromRequest(request: Request): Promise<AppUser | null> };
   /** A user's current role (app domain requests carry only the user id). */
   userById(id: string): AppUser | null;
-  canViewFloor(user: AppUser, floorId: string): boolean;
+  canViewOperation(user: AppUser, operationId: string): boolean;
   originPolicy: OriginPolicy;
   /** The office's own port: never a proxy target on loopback. */
   officePort: number;
@@ -74,7 +74,7 @@ export function parseServicePath(pathname: string) {
   if (!m?.[1] || !m[2] || !m[3]) return null;
   const port = Number(m[3]);
   if (port > 65_535) return null;
-  return { floorId: m[1], agentId: m[2], port, rest: m[4] ?? "" };
+  return { operationId: m[1], agentId: m[2], port, rest: m[4] ?? "" };
 }
 
 export class ServicesRoute implements WsRoute {
@@ -105,7 +105,7 @@ export class ServicesRoute implements WsRoute {
   async #officePath(request: Request, url: URL, server: Server<unknown>) {
     const p = parseServicePath(url.pathname);
     if (!p) return appError(404, "No such app.");
-    const prefix = servicesProxyPath(p.floorId, p.agentId, p.port);
+    const prefix = servicesProxyPath(p.operationId, p.agentId, p.port);
     if (!p.rest) return redirect(`${prefix}${url.search}`);
     const policy = this.#o.originPolicy;
     if (isUpgrade(request) || !isSafe(request.method)) {
@@ -118,10 +118,10 @@ export class ServicesRoute implements WsRoute {
     const user = await this.#o.sessions.getSessionFromRequest(request);
     if (!user) return appError(401, "Sign in to the office to open this app.");
     const svc = this.#service(p.agentId, p.port);
-    if (!svc || svc.floorId !== p.floorId) return appError(404, "No such app.");
+    if (!svc || svc.operationId !== p.operationId) return appError(404, "No such app.");
     const d = this.#o.appDomain;
     const label = d ? appLabel(p.agentId, p.port) : null;
-    const decision = decideAppAccess(user, svc, this.#o.canViewFloor, Boolean(label));
+    const decision = decideAppAccess(user, svc, this.#o.canViewOperation, Boolean(label));
     if (!decision.ok) return this.#denied(decision.reason, user, svc);
     const unreachable = this.#unreachable(svc);
     if (unreachable) return unreachable;
@@ -170,13 +170,13 @@ export class ServicesRoute implements WsRoute {
     if (!user) {
       // Through the office, which checks the session and comes back with a ticket.
       if (svc && request.method === "GET" && !isUpgrade(request)) {
-        const back = `${servicesProxyPath(svc.floorId, app.agentId, app.port)}${url.pathname.slice(1)}${url.search}`;
+        const back = `${servicesProxyPath(svc.operationId, app.agentId, app.port)}${url.pathname.slice(1)}${url.search}`;
         return redirect(new URL(back, this.#o.originPolicy.publicUrl).toString());
       }
       return appError(401, "Open this app from the office.");
     }
     if (!svc) return appError(404, "No such app.");
-    const decision = decideAppAccess(user, svc, this.#o.canViewFloor, true);
+    const decision = decideAppAccess(user, svc, this.#o.canViewOperation, true);
     if (!decision.ok) return this.#denied(decision.reason, user, svc);
     return this.#unreachable(svc) ?? this.#forward(request, url, server, svc, decision.access, "");
   }

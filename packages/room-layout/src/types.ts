@@ -1,5 +1,5 @@
 /**
- * Floor template and palette types (SPEC §9.1). Templates are plain data
+ * Room template and palette types (SPEC §9.1). Templates are plain data
  * validated with zod at load time; see `validate.ts`.
  *
  * Units are metres on the ground plane, origin at the north-west corner of the
@@ -9,14 +9,14 @@ import { z } from "zod";
 
 // ---- Enums -----------------------------------------------------------------
 
-/** Desk-count tiers for project floors (SPEC §9.1). The lobby is its own kind. */
+/** Desk-count tiers for project operations (SPEC §9.1). The lobby is its own kind. */
 export const ROOM_TIERS = ["small", "medium", "large"] as const;
 export type RoomTier = (typeof ROOM_TIERS)[number];
 
 export const TEMPLATE_KINDS = ["lobby", ...ROOM_TIERS] as const;
 export type TemplateKind = (typeof TEMPLATE_KINDS)[number];
 
-/** Desk seats are agent workstations; the rest are for humans / the PM robot. */
+/** Desk seats are agent workstations; the rest are for humans / the PM henchman. */
 export const SEAT_KINDS = ["desk", "reception", "chair", "couch"] as const;
 export type SeatKind = (typeof SEAT_KINDS)[number];
 
@@ -67,7 +67,7 @@ export type WallOpeningKind = (typeof WALL_OPENING_KINDS)[number];
 export const COMPASS_DIRECTIONS = ["north", "south", "east", "west"] as const;
 
 /**
- * Rug colour, resolved against the floor's palette: `warm` takes the second
+ * Rug colour, resolved against the operation's palette: `warm` takes the second
  * wall colour (cream, orange or crimson), `alt` the second floor colour,
  * `light` a lighter shade of the floor, `wood` a warm oak plank tone.
  */
@@ -216,7 +216,7 @@ export const RoomTemplateSchema = z.object({
   wallHeight: PositiveMetres,
   stubHeight: PositiveMetres,
   walls: z.array(WallSchema).min(4),
-  /** Wall whose exterior face carries the painted floor name (a stub wall). */
+  /** Wall whose exterior face carries the painted operation name (a stub wall). */
   nameWallId: Id,
   seats: z.array(SeatSchema),
   wallAnchors: z.array(WallAnchorSchema),
@@ -248,7 +248,7 @@ export const PaletteSchema = z.object({
   /** Second wall colour when the two back walls differ. */
   wallAlt: Hex.optional(),
   accent: Hex,
-  /** Exterior face of the stub walls (carries the floor name). */
+  /** Exterior face of the stub walls (carries the operation name). */
   exterior: Hex,
   /** Dark cap on top of the stub walls. */
   cap: Hex,

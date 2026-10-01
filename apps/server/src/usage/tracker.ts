@@ -1,15 +1,15 @@
 /**
  * Usage tracker (#40): turns what adapters already emit into rows.
  *
- * - `agentEvent`: `usage` / `limit` events of a robot (Claude statusline via
+ * - `agentEvent`: `usage` / `limit` events of a henchman (Claude statusline via
  *   the hook routes, Codex `thread/tokenUsage/updated` and
  *   `account/rateLimits/*` via its control), published by the AgentManager.
  * - `transcriptSample`: the periodic scan in a human's runner (scanner.ts).
  * - `recordUsage`: for other office code (workflows, #155; office agents).
  *
- * Attribution (SPEC §8 rule 3, D2): usage of a robot spawned with an
+ * Attribution (SPEC §8 rule 3, D2): usage of a henchman spawned with an
  * office-wide key (`profileId` `office:<provider>`) belongs to `office`
- * (`userId` null), everything else to the robot's owner. Office keys have no
+ * (`userId` null), everything else to the henchman's owner. Office keys have no
  * plan windows, so their limit readings are not stored. Nothing is enforced
  * (D13).
  */
@@ -27,7 +27,7 @@ export interface RecordUsageInput {
   attributedTo: UsageAttribution;
   provider: ProviderId;
   sample: UsageSample;
-  /** The robot or office agent row, when there is one. */
+  /** The henchman or office agent row, when there is one. */
   agentId?: string;
   /** Model id for the price estimate when `sample.model` is absent. */
   model?: string;
@@ -73,7 +73,7 @@ export class UsageTracker implements UsageRecorder {
     );
   }
 
-  /** A robot's `usage` or `limit` event (other kinds are ignored). */
+  /** A henchman's `usage` or `limit` event (other kinds are ignored). */
   agentEvent(agentId: string, event: AgentEvent): void {
     if (event.kind !== "usage" && event.kind !== "limit") return;
     const agent = this.#agent(agentId);
@@ -87,26 +87,26 @@ export class UsageTracker implements UsageRecorder {
     this.#insert(userId, agentId, agent.provider, agent.model, sample, agentId);
   }
 
-  /** A limit reading for a human, outside any robot (e.g. the scan's cached statusline limits). */
+  /** A limit reading for a human, outside any henchman (e.g. the scan's cached statusline limits). */
   limit(userId: string, provider: ProviderId, limit: LimitSample): void {
     this.store.upsertLimit(userId, provider, limit);
   }
 
   /**
    * Transcript usage found in `userId`'s runner. The session id finds the
-   * robot (and an office-key robot's usage goes to `office`); usage of
-   * sessions no robot owns (the human's own terminal) is the human's.
+   * henchman (and an office-key henchman's usage goes to `office`); usage of
+   * sessions no henchman owns (the human's own terminal) is the human's.
    */
   transcriptSamples(userId: string, provider: ProviderId, samples: readonly UsageSample[]): number {
     const sessions = [...new Set(samples.flatMap((s) => (s.sessionId ? [s.sessionId] : [])))];
-    const bySession = this.#robotsBySession(userId, sessions);
+    const bySession = this.#henchmenBySession(userId, sessions);
     let stored = 0;
     for (const sample of samples) {
-      const robot = sample.sessionId ? bySession.get(sample.sessionId) : undefined;
-      const owner = robot ? this.#agent(robot) : null;
+      const henchman = sample.sessionId ? bySession.get(sample.sessionId) : undefined;
+      const owner = henchman ? this.#agent(henchman) : null;
       const attributed = owner?.office ? null : userId;
       const model = sample.model ?? owner?.model;
-      if (this.#insert(attributed, robot ?? null, provider, model, sample, userId)) stored++;
+      if (this.#insert(attributed, henchman ?? null, provider, model, sample, userId)) stored++;
     }
     return stored;
   }
@@ -167,7 +167,7 @@ export class UsageTracker implements UsageRecorder {
     return info;
   }
 
-  #robotsBySession(userId: string, sessions: readonly string[]): Map<string, string> {
+  #henchmenBySession(userId: string, sessions: readonly string[]): Map<string, string> {
     const out = new Map<string, string>();
     for (let i = 0; i < sessions.length; i += 200) {
       const rows = this.db

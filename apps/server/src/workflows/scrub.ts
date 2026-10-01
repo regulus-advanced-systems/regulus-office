@@ -1,7 +1,7 @@
 /**
- * Secret scrubbing for workflow output (#155 review). The robot's env holds
+ * Secret scrubbing for workflow output (#155 review). The henchman's env holds
  * the office's model key and it reads attacker-written text, so a PR can ask
- * it to print `/proc/self/environ` into its review. Nothing a robot wrote
+ * it to print `/proc/self/environ` into its review. Nothing a henchman wrote
  * reaches GitHub, the run log or a preview before passing through here.
  *
  * - Exact secrets of the run (the office key, the installation token): plain,
@@ -14,7 +14,7 @@
  * `find` reports only what kind of secret matched, never the value.
  */
 
-/** Zero-width and other invisible characters a robot could use to split a key. */
+/** Zero-width and other invisible characters a henchman could use to split a key. */
 const INVISIBLE = /[­͏؜ᅟᅠ឴឵᠎​-‏‪-‮⁠-⁯ㅤ︀-️﻿ﾠ]/g;
 
 export const KEY_SHAPES: readonly { kind: string; re: RegExp }[] = [

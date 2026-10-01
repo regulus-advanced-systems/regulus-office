@@ -1,7 +1,7 @@
 /**
  * Starting an agent process (spawn, resume, boot relaunch): provision the
  * owner's runner, mount the owner's own clone and the agent's workdir (#114:
- * never the floor mirror or anything of another human), give the robot its own
+ * never the operation mirror or anything of another human), give the henchman its own
  * sandbox when the backend has them (D18, #169), issue a hook token, resolve
  * (decrypt) the credential, build the SpawnPlan, then `Runner.exec` and/or
  * `connect` per the provider's launch profile (launch.ts).
@@ -53,7 +53,7 @@ export async function startAgent(
   const adapter = deps.adapters.get(row.provider);
   const user: RunnerUser = { userId: row.ownerUserId };
   const handle = await deps.runner.provision(user);
-  const repo = { floorId: row.floorId, repoId: row.repoId };
+  const repo = { operationId: row.operationId, repoId: row.repoId };
   const mounted = await deps.runner.mountProject(user, { ...repo, workdir: opts.clonePath });
   const workdir =
     row.workdir === opts.clonePath
@@ -104,7 +104,7 @@ export async function startAgent(
     env: SecretEnv.of(agentGitEnv(workdir, mounted.workdir)).merge(built.env),
   };
   // The CLI's own first-run state (Claude: onboarding done, trust for the
-  // robot's own worktree only, never its owner's clone; #158).
+  // henchman's own worktree only, never its owner's clone; #158).
   const worktree = row.workdir === opts.clonePath ? undefined : workdir;
   const prepared = await adapter.prepareSpawn?.(plan, ctx, { worktree });
   if (prepared) {

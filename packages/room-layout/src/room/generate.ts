@@ -18,12 +18,7 @@
  * layout that leaves a seat or stand point unreachable throws.
  */
 import { DECOR_STYLES, ROOM_MAX_TILES, ROOM_MIN_TILES } from "@regulus/protocol";
-import {
-  COMPASS_DIRECTIONS,
-  ROOM_TIERS,
-  type RoomTemplateInput,
-  type RoomTier,
-} from "../types.ts";
+import { COMPASS_DIRECTIONS, ROOM_TIERS, type RoomTemplateInput, type RoomTier } from "../types.ts";
 import { loadTemplate } from "../validate.ts";
 import { hangBoardWall } from "./anchors.ts";
 import { ROOM_MIN_FREE, ROOM_STUB_HEIGHT, ROOM_WALL_HEIGHT, TILE } from "./constants.ts";

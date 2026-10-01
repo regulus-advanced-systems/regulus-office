@@ -102,7 +102,7 @@ const waits = (events: AgentEvent[]) =>
   events.filter((e) => e.kind === "status" && e.status === "waiting_input");
 
 describe("ClaudeControl screen watch", () => {
-  test("a sign-in screen turns the robot to waiting_input with the fixed reason, once", async () => {
+  test("a sign-in screen turns the henchman to waiting_input with the fixed reason, once", async () => {
     const { adapter, ctx, plan, runner } = setup();
     runner.panes.set(plan.tmuxSession, THEME_PICKER);
     const control = adapter.connect(plan, ctx);
@@ -148,7 +148,7 @@ describe("ClaudeControl screen watch", () => {
     await control.close();
   });
 
-  test("a re-adopted robot (nothing started) and screenPollMs: 0 are not watched", async () => {
+  test("a re-adopted henchman (nothing started) and screenPollMs: 0 are not watched", async () => {
     const { adapter, ctx, plan, runner } = setup();
     runner.panes.set(plan.tmuxSession, THEME_PICKER);
     const adopted = adapter.connect({ ...plan, argv: [] }, ctx);

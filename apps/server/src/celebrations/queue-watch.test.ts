@@ -10,8 +10,8 @@ function setup() {
   const published: string[] = [];
   const rang: string[] = [];
   const rooms = {
-    publishQueue: (floorId: string, _t: readonly QueueTask[], _s: QueueSettings) =>
-      void published.push(floorId),
+    publishQueue: (operationId: string, _t: readonly QueueTask[], _s: QueueSettings) =>
+      void published.push(operationId),
     other: () => "kept",
   };
   const watched = watchQueueEmptied(rooms, (id) => rang.push(id));
@@ -31,7 +31,7 @@ describe("watchQueueEmptied", () => {
     expect(s.watched.other()).toBe("kept");
   });
 
-  test("no ring after a restart, for a cancelled-only queue, or on another floor", () => {
+  test("no ring after a restart, for a cancelled-only queue, or on another operation", () => {
     const s = setup();
     s.watched.publishQueue("f1", [task("a", "done")], settings);
     s.watched.publishQueue("f2", [task("c", "queued")], settings);

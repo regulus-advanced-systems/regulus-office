@@ -1,4 +1,4 @@
-/** Merge gong (#43): `pr.merged` / `gong.ring` broadcasts to a floor's FloorRoom. */
+/** Merge gong (#43): `pr.merged` / `gong.ring` broadcasts to an operation's OperationRoom. */
 export { BangLimiter, type BangLimits, DEFAULT_BANG_LIMITS } from "./bang-limit.ts";
 export { gongMark, type MergedPull, mergedPullOf } from "./merges.ts";
 export { watchQueueEmptied } from "./queue-watch.ts";

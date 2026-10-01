@@ -1,7 +1,7 @@
 /**
- * Message bodies for each webhook kind (#42). Only robot name, owner, floor,
+ * Message bodies for each webhook kind (#42). Only henchman name, owner, operation,
  * status, task title and PR link go out. Every value that a human typed
- * (task title, floor name, display name) is escaped for the target format so
+ * (task title, operation name, display name) is escaped for the target format so
  * it cannot mention @everyone, forge links or break the layout.
  *
  * - Slack incoming webhooks: `{ text }`, mrkdwn; `&`, `<`, `>` must be
@@ -13,7 +13,7 @@
  *   previews off (core.telegram.org/bots/api#sendmessage).
  */
 import { NOTIFICATION_EVENT_LABELS, type WebhookKind } from "@regulus/protocol";
-import type { RobotNotice } from "./events.ts";
+import type { HenchmanNotice } from "./events.ts";
 
 const TITLE_MAX = 200;
 
@@ -37,10 +37,10 @@ interface Parts {
   lines: string[];
 }
 
-function parts(n: RobotNotice, esc: (s: string) => string): Parts {
-  const headline = `${esc(oneLine(n.robotName, 120))} ${NOTIFICATION_EVENT_LABELS[n.event]}`;
+function parts(n: HenchmanNotice, esc: (s: string) => string): Parts {
+  const headline = `${esc(oneLine(n.henchmanName, 120))} ${NOTIFICATION_EVENT_LABELS[n.event]}`;
   const lines = [
-    `Operation: ${esc(oneLine(n.floorName, 100))}`,
+    `Operation: ${esc(oneLine(n.operationName, 100))}`,
     `Owner: ${esc(oneLine(n.ownerName, 64))}`,
   ];
   if (n.taskTitle.trim()) lines.push(`Task: ${esc(oneLine(n.taskTitle))}`);
@@ -49,7 +49,7 @@ function parts(n: RobotNotice, esc: (s: string) => string): Parts {
 
 export type WebhookBody = Record<string, unknown>;
 
-export function slackBody(n: RobotNotice): WebhookBody {
+export function slackBody(n: HenchmanNotice): WebhookBody {
   const { headline, lines } = parts(n, escapeSlack);
   if (n.prUrl) lines.push(`<${escapeSlack(n.prUrl)}|Pull request #${n.prNumber}>`);
   return {
@@ -59,7 +59,7 @@ export function slackBody(n: RobotNotice): WebhookBody {
   };
 }
 
-export function discordBody(n: RobotNotice): WebhookBody {
+export function discordBody(n: HenchmanNotice): WebhookBody {
   const { headline, lines } = parts(n, escapeDiscord);
   // <url> suppresses the embed.
   if (n.prUrl) lines.push(`Pull request #${n.prNumber}: <${n.prUrl}>`);
@@ -69,7 +69,7 @@ export function discordBody(n: RobotNotice): WebhookBody {
   };
 }
 
-export function telegramBody(n: RobotNotice, chatId: string): WebhookBody {
+export function telegramBody(n: HenchmanNotice, chatId: string): WebhookBody {
   const { headline, lines } = parts(n, (s) => s);
   if (n.prUrl) lines.push(`Pull request #${n.prNumber}: ${n.prUrl}`);
   return {
@@ -79,7 +79,11 @@ export function telegramBody(n: RobotNotice, chatId: string): WebhookBody {
   };
 }
 
-export function webhookBody(kind: WebhookKind, n: RobotNotice, chatId: string | null): WebhookBody {
+export function webhookBody(
+  kind: WebhookKind,
+  n: HenchmanNotice,
+  chatId: string | null,
+): WebhookBody {
   switch (kind) {
     case "slack":
       return slackBody(n);
@@ -90,17 +94,17 @@ export function webhookBody(kind: WebhookKind, n: RobotNotice, chatId: string | 
   }
 }
 
-/** The "Send test" message: fixed text, no robot data. */
-export function testNotice(now: number): RobotNotice {
+/** The "Send test" message: fixed text, no henchman data. */
+export function testNotice(now: number): HenchmanNotice {
   return {
     id: `test-${now}`,
     event: "done",
     agentId: "test",
-    floorId: "test",
-    floorName: "Test operation",
+    operationId: "test",
+    operationName: "Test operation",
     ownerUserId: "test",
     ownerName: "Regulus Office",
-    robotName: "Test henchman",
+    henchmanName: "Test henchman",
     provider: "custom",
     taskTitle: "Checking that this channel receives office notifications",
     prNumber: 0,

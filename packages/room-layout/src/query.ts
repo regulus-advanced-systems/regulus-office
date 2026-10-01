@@ -10,7 +10,7 @@ import {
   segmentRect,
   type Vec2,
 } from "./geometry.ts";
-import type { RoomTemplate, Interactable, Seat, Wall, WallAnchor } from "./types.ts";
+import type { Interactable, RoomTemplate, Seat, Wall, WallAnchor } from "./types.ts";
 
 /** Physical thickness used when walls block navigation, metres. */
 export const WALL_THICKNESS = 0.2;

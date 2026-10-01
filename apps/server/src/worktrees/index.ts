@@ -3,7 +3,7 @@
  * SPEC §6 `agent.pr`, §8, §10 M1).
  *
  * Boot wiring:
- *   const worktrees = createWorktrees({ db, logger, config, repos: floors.repos, runner });
+ *   const worktrees = createWorktrees({ db, logger, config, repos: operations.repos, runner });
  *   mountWorktreeRoutes(server.router, { auth, db, prune: worktrees.prune });
  * The AgentManager (#26) uses `worktrees.workspaces` ({@link Workspaces});
  * the `agent.pr` command and button (#33) call `worktrees.openPullRequest`.
@@ -24,13 +24,13 @@ import {
 } from "./pull-request.ts";
 import { GitWorktreeWorkspaces } from "./workspaces.ts";
 
-export {
-  type FloorDirRemover,
-  floorDirRemover,
-  OfficeFloorDirRemover,
-} from "./floor-dirs.ts";
 export { agentGitEnv, BRANCH_PREFIX, branchSlug } from "./git-ops.ts";
 export { type LegacyLayoutDeps, migrateLegacyLayout } from "./migrate.ts";
+export {
+  OfficeOperationDirRemover,
+  type OperationDirRemover,
+  operationDirRemover,
+} from "./operation-dirs.ts";
 export type { PruneResult } from "./prune.ts";
 export {
   draftBody,

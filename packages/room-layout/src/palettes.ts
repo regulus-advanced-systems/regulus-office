@@ -1,7 +1,7 @@
 /**
- * Floor palettes (SPEC §9.1, §12; research 03 §3). Colours are approximate
+ * Operation palettes (SPEC §9.1, §12; research 03 §3). Colours are approximate
  * hex values from the research notes, not extracted assets. Exported in the
- * order floors cycle through them so consecutive floors look distinct.
+ * order operations cycle through them so consecutive operations look distinct.
  */
 import { type Palette, PaletteSchema } from "./types.ts";
 
@@ -43,10 +43,10 @@ export const PALETTES: readonly Palette[] = [
 /** The lobby always uses the first palette. */
 export const LOBBY_PALETTE_ID = "teal-cream";
 
-/** Palette for the n-th project floor (0-based), cycling through `PALETTES`. */
-export function paletteForFloor(floorIndex: number): Palette {
+/** Palette for the n-th project operation (0-based), cycling through `PALETTES`. */
+export function paletteForOperation(operationIndex: number): Palette {
   const n = PALETTES.length;
-  const i = ((Math.trunc(floorIndex) % n) + n) % n;
+  const i = ((Math.trunc(operationIndex) % n) + n) % n;
   const palette = PALETTES[i];
   if (!palette) throw new Error("PALETTES is empty");
   return palette;

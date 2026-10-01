@@ -42,7 +42,7 @@ test("a signed delivery is accepted without a session; an unsigned one is not", 
   expect((await post(body)).status).toBe(401);
   const res = await post(body, signWebhookBody(WEBHOOK_SECRET, body));
   expect(res.status).toBe(202);
-  expect(f.published.get(f.alpha.floorId)?.issues[0]?.number).toBe(3);
+  expect(f.published.get(f.alpha.operationId)?.issues[0]?.number).toBe(3);
 });
 
 test("sync status is for owners and admins, and never carries the secret", async () => {

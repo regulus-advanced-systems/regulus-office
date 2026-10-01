@@ -1,8 +1,8 @@
 /**
- * Why a robot is in `error`, in a form every floor viewer may see (#130).
+ * Why a henchman is in `error`, in a form every operation viewer may see (#130).
  *
  * A start failure (spawn, resume, boot relaunch) becomes a short code and a
- * one-line message; `RobotState.statusReason` carries `<code>: <message>` so
+ * one-line message; `HenchmanState.statusReason` carries `<code>: <message>` so
  * the UI and the e2e can show it, and the status event persists the same text.
  * The full error summary only goes to the server log.
  *
@@ -24,7 +24,7 @@ import { HelperError } from "../../runners/linux-user/helper-client.ts";
 import { WorkspaceError, type WorkspaceErrorCode } from "../../worktrees/types.ts";
 import { AgentManagerError } from "./errors.ts";
 
-/** `RobotState.statusReason` limit (protocol floor-state.ts). */
+/** `HenchmanState.statusReason` limit (protocol operation-state.ts). */
 export const MAX_STATUS_REASON = 200;
 
 export type StartFailureCode =
@@ -45,7 +45,7 @@ export type StartFailureCode =
 
 export interface StartFailure {
   code: StartFailureCode;
-  /** One line, redacted, safe for every floor viewer. */
+  /** One line, redacted, safe for every operation viewer. */
   message: string;
 }
 
@@ -114,7 +114,7 @@ export function startFailure(err: unknown): StartFailure {
   return { code: "start_failed", message: "unknown error" };
 }
 
-/** `<code>: <message>`, redacted and cut to the `RobotState.statusReason` limit. */
+/** `<code>: <message>`, redacted and cut to the `HenchmanState.statusReason` limit. */
 export function startFailureReason(err: unknown): string {
   const { code, message } = startFailure(err);
   return safeReason(`${code}: ${message}`);

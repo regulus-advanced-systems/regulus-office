@@ -217,7 +217,7 @@ describe("LinuxUserRunner command construction", () => {
     expect(await runner.listPorts({ userId: "u1", agentId: "a1" })).toEqual([]);
     await runner.kill({ userId: "u1", agentId: "a1" });
     await runner.mountProject(user, {
-      floorId: "f1",
+      operationId: "f1",
       repoId: "r1",
       workdir: "/srv/office/worktrees/f1/u1/_clones/r1",
     });
@@ -233,20 +233,44 @@ describe("LinuxUserRunner command construction", () => {
     ]);
   });
 
-  test("removeFloorDirs passes only a floor slug and reports what the helper removed", async () => {
+  test("removeOperationDirs passes only an operation slug and reports what the helper removed", async () => {
     const { runner, calls } = mocked({
-      "remove-floor": {
+      "remove-operation": {
         stdout: "removed=/srv/office/projects/apollo\nremoved=/srv/office/worktrees/apollo\n",
       },
     });
-    expect(await runner.removeFloorDirs("apollo")).toEqual([
+    expect(await runner.removeOperationDirs("apollo")).toEqual([
       "/srv/office/projects/apollo",
       "/srv/office/worktrees/apollo",
     ]);
     for (const slug of ["", "..", "a/b", "/etc", "Apollo", "apollo-", "a.b"]) {
-      await expect(runner.removeFloorDirs(slug)).rejects.toThrow("invalid floor slug");
+      await expect(runner.removeOperationDirs(slug)).rejects.toThrow("invalid operation slug");
     }
-    expect(calls.map((c) => c.argv.slice(3))).toEqual([["remove-floor", "apollo"]]);
+    expect(calls.map((c) => c.argv.slice(3))).toEqual([["remove-operation", "apollo"]]);
+  });
+
+  test("a helper installed before #226 is asked with the old remove-floor verb, with a warning", async () => {
+    const verbs: string[] = [];
+    const warned: string[] = [];
+    const legacyHelper = (allowsLegacy: boolean) =>
+      new LinuxUserRunner({
+        logger: { warn: (_obj, msg) => warned.push(msg) },
+        run: async ({ argv }) => {
+          verbs.push(argv[3] ?? "");
+          return argv[3] === "remove-floor" && allowsLegacy
+            ? { code: 0, stdout: "removed=/srv/office/projects/apollo\n", stderr: "" }
+            : { code: 1, stdout: "", stderr: "sudo: a password is required" };
+        },
+      });
+    expect(await legacyHelper(true).removeOperationDirs("apollo")).toEqual([
+      "/srv/office/projects/apollo",
+    ]);
+    expect(verbs).toEqual(["remove-operation", "remove-floor"]);
+    expect(warned).toEqual([expect.stringContaining("deprecated remove-floor verb")]);
+    // When both fail, the error names the current verb.
+    await expect(legacyHelper(false).removeOperationDirs("apollo")).rejects.toThrow(
+      "office-runner-helper remove-operation failed",
+    );
   });
 });
 
@@ -293,7 +317,7 @@ describe("LinuxUserRunner sandboxes (#169)", () => {
     return { runner, calls, spawned };
   }
 
-  test("sandbox-up gets the slot, limits and owner; the robot's env gets PORT", async () => {
+  test("sandbox-up gets the slot, limits and owner; the henchman's env gets PORT", async () => {
     const { runner, calls, spawned } = withSandboxes();
     const info = await runner.sandbox({ userId: "u1", agentId: "a1" }, { workdir: "/w" });
     const up = calls.find((c) => c.argv[3] === "sandbox-up");
@@ -326,12 +350,12 @@ describe("LinuxUserRunner sandboxes (#169)", () => {
     await runner.spawnPiped(user, plan(runner, "a1"));
     expect(spawned[0]?.written.join("")).toContain(`export PORT='${first}'\n`);
 
-    // A robot without a sandbox (or a login terminal) gets no PORT.
+    // A henchman without a sandbox (or a login terminal) gets no PORT.
     await runner.exec(user, plan(runner, "a2"));
     expect(calls.filter((c) => c.argv[3] === "exec")[1]?.stdin).not.toContain("PORT=");
   });
 
-  test("two robots never get the same slot; a known sandbox keeps its slot", async () => {
+  test("two henchmen never get the same slot; a known sandbox keeps its slot", async () => {
     const { runner, calls } = withSandboxes();
     const a1 = await runner.sandbox({ userId: "u1", agentId: "a1" }, { workdir: "/w" });
     const a2 = await runner.sandbox({ userId: "u1", agentId: "a2" }, { workdir: "/w" });
@@ -370,7 +394,7 @@ describe("LinuxUserRunner sandboxes (#169)", () => {
       ports: made?.ports ?? { first: 0, last: 0 },
       createdAt: made?.createdAt,
     });
-    // Another human's robot id: not theirs.
+    // Another human's henchman id: not theirs.
     expect(await runner.sandboxOf({ userId: "u2", agentId: "a1" })).toBeNull();
     expect(calls.filter((c) => c.argv[3] === "sandbox-up")).toHaveLength(1);
   });

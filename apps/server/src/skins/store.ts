@@ -1,8 +1,8 @@
 /**
  * The admin's henchman skin rules (#184, SPEC §5 `skin_rules`): CRUD on the
- * table, and the resolved skin of a robot from the cached rule list
+ * table, and the resolved skin of a henchman from the cached rule list
  * (protocol `resolveSkin`). Listeners hear about every change so the
- * FloorRooms can republish the skins of the robots they show.
+ * OperationRooms can republish the skins of the henchmen they show.
  */
 import {
   type CreateSkinRule,
@@ -19,7 +19,7 @@ import { eq } from "drizzle-orm";
 import type { Db } from "../db/index.ts";
 import { skinRules } from "../db/schema/index.ts";
 
-/** Upper bound on rules, so a list stays small enough to resolve on every robot change. */
+/** Upper bound on rules, so a list stays small enough to resolve on every henchman change. */
 export const MAX_SKIN_RULES = 200;
 
 export class SkinRuleError extends Error {
@@ -60,7 +60,7 @@ export class SkinRuleStore {
     return this.list().find((r) => r.id === id);
   }
 
-  /** The skin a robot wears under the current rules. */
+  /** The skin a henchman wears under the current rules. */
   skinFor(subject: SkinSubject): HenchmanSkinId {
     return resolveSkin(this.list(), subject);
   }

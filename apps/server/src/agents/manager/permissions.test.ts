@@ -60,7 +60,7 @@ describe("PendingPermissions", () => {
     expect(pending.has("a1", "p1")).toBe(false);
   });
 
-  test("keeps at most 20 per robot, dropping the oldest", () => {
+  test("keeps at most 20 per henchman, dropping the oldest", () => {
     const { pending } = setup();
     for (let i = 0; i < 25; i++) pending.add("a1", event(`p${i}`), 5000);
     const ids = pending.list("a1").map((r) => r.requestId);

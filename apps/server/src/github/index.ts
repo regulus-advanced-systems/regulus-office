@@ -1,10 +1,10 @@
 /**
  * GitHub integration (SPEC §4.3 `github/`, D14). M1: repo references, the
- * floor repo project credential (per-repo fine-grained PAT), the office
+ * operation repo project credential (per-repo fine-grained PAT), the office
  * GitHub connection (#141: a GitHub App from the manifest flow or an org PAT,
- * with installation tokens and the repo list for "Add floor"), server-side
+ * with installation tokens and the repo list for "Add operation"), server-side
  * git, and the pull request REST client for the one-click PR. M2 (#35):
- * signed webhooks, polling, the issue/PR board cache, FloorRoom board
+ * signed webhooks, polling, the issue/PR board cache, OperationRoom board
  * summaries and the typed event bus that workflows (#155) subscribe to.
  */
 export { GitHubConnection } from "./connection.ts";

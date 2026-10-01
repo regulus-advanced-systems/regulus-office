@@ -1,6 +1,6 @@
 /**
- * Per-robot permission mode (#166) through the manager: validated per
- * provider at spawn, stored on the row, published in RobotState, handed to the
+ * Per-henchman permission mode (#166) through the manager: validated per
+ * provider at spawn, stored on the row, published in HenchmanState, handed to the
  * adapter, and kept on resume. Uses the FakeAdapter under provider ids that
  * have modes. Skipped without tmux.
  */
@@ -37,17 +37,17 @@ describe.skipIf(!hasTmux())("permission mode (tmux)", () => {
 
   test("the chosen mode is stored, shown and passed again on resume", async () => {
     const adapter = fake("claude-code");
-    const { manager, robots } = makeManager(office.db, runner, [adapter]);
+    const { manager, henchmen } = makeManager(office.db, runner, [adapter]);
     const { agentId } = await manager.spawn(
       office.member,
-      spawnInput(office.floorId, office.repoId, {
+      spawnInput(office.operationId, office.repoId, {
         provider: "claude-code",
         prompt: "",
         permissionMode: "acceptEdits",
       }),
     );
-    const robot = await robots.waitFor(agentId, (r) => r.status === "idle");
-    expect(robot.permissionMode).toBe("acceptEdits");
+    const henchman = await henchmen.waitFor(agentId, (r) => r.status === "idle");
+    expect(henchman.permissionMode).toBe("acceptEdits");
     expect(adapter.spawns[0]?.permissionMode).toBe("acceptEdits");
     const row = office.db.select().from(agents).where(eq(agents.id, agentId)).get();
     expect(row?.permissionMode).toBe("acceptEdits");
@@ -64,8 +64,8 @@ describe.skipIf(!hasTmux())("permission mode (tmux)", () => {
   test("no mode = the provider default; a mode of another provider is refused", async () => {
     const claude = fake("claude-code");
     const codex = fake("codex");
-    const { manager, robots } = makeManager(office.db, runner, [claude, codex]);
-    const input = spawnInput(office.floorId, office.repoId, { prompt: "" });
+    const { manager, henchmen } = makeManager(office.db, runner, [claude, codex]);
+    const input = spawnInput(office.operationId, office.repoId, { prompt: "" });
     const code = (p: Promise<unknown>) =>
       p.then(
         () => "ok",
@@ -90,10 +90,10 @@ describe.skipIf(!hasTmux())("permission mode (tmux)", () => {
 
     const a = await manager.spawn(office.member, { ...input, provider: "claude-code" });
     const b = await manager.spawn(office.member, { ...input, provider: "codex" });
-    expect((await robots.waitFor(a.agentId, (r) => r.status === "idle")).permissionMode).toBe(
+    expect((await henchmen.waitFor(a.agentId, (r) => r.status === "idle")).permissionMode).toBe(
       "auto",
     );
-    expect((await robots.waitFor(b.agentId, (r) => r.status === "idle")).permissionMode).toBe(
+    expect((await henchmen.waitFor(b.agentId, (r) => r.status === "idle")).permissionMode).toBe(
       "on-request",
     );
     expect(claude.spawns[0]?.permissionMode).toBe("auto");

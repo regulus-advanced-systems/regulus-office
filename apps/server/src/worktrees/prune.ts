@@ -4,15 +4,15 @@
  * clone so git forgets missing worktrees. Branches and humans' clones are
  * left alone: an orphaned branch may hold work nobody pushed.
  *
- * Layout (../runners/layout.ts): `<worktreesDir>/<floor>/<rid>/<agentId>`
+ * Layout (../runners/layout.ts): `<worktreesDir>/<operation>/<rid>/<agentId>`
  * next to `<rid>/_clones/<repo>`, plus pre-#114 worktrees directly in the
- * floor dir (`<floor>/<agentId>`: not a runner id, or a checkout).
+ * operation dir (`<operation>/<agentId>`: not a runner id, or a checkout).
  */
 import { readdir, rm, rmdir, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { eq, inArray } from "drizzle-orm";
 import type { Db } from "../db/index.ts";
-import { agents, floorRepos } from "../db/schema/index.ts";
+import { agents, operationRepos } from "../db/schema/index.ts";
 import type { RepoAccess } from "../github/repo-access.ts";
 import type { Logger } from "../logging.ts";
 import { CLONES_DIR } from "../runners/layout.ts";
@@ -81,11 +81,11 @@ export async function pruneWorktrees(deps: {
     }
   };
 
-  for (const floorDir of await subdirs(worktreesDir)) {
-    const floorPath = join(worktreesDir, floorDir);
+  for (const operationDir of await subdirs(worktreesDir)) {
+    const operationPath = join(worktreesDir, operationDir);
     const legacy: string[] = [];
-    for (const name of await subdirs(floorPath)) {
-      const path = join(floorPath, name);
+    for (const name of await subdirs(operationPath)) {
+      const path = join(operationPath, name);
       if (!RUNNER_ID.test(name) || (await kind(join(path, ".git"))) !== null) {
         legacy.push(name);
         continue;
@@ -98,16 +98,16 @@ export async function pruneWorktrees(deps: {
       const agentDirs = (await subdirs(path)).filter((n) => n !== CLONES_DIR);
       await removeOrphans(path, agentDirs);
     }
-    await removeOrphans(floorPath, legacy);
-    // Drop the floor directory once it is empty; ignore "not empty".
-    await rmdir(floorPath).catch(() => undefined);
+    await removeOrphans(operationPath, legacy);
+    // Drop the operation directory once it is empty; ignore "not empty".
+    await rmdir(operationPath).catch(() => undefined);
   }
 
-  // Floor mirrors still own the worktrees of pre-#114 agents.
+  // Operation mirrors still own the worktrees of pre-#114 agents.
   const ready = db
-    .select({ id: floorRepos.id })
-    .from(floorRepos)
-    .where(eq(floorRepos.cloneStatus, "ready"))
+    .select({ id: operationRepos.id })
+    .from(operationRepos)
+    .where(eq(operationRepos.cloneStatus, "ready"))
     .all();
   for (const { id } of ready) {
     const repo = repos.getRepo(id);

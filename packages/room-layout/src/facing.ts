@@ -5,7 +5,7 @@
  */
 import { headingFacing, type Rect, type Vec2 } from "./geometry.ts";
 import { wallPoint } from "./query.ts";
-import type { RoomTemplate, Obstacle, Seat, WallAnchor } from "./types.ts";
+import type { Obstacle, RoomTemplate, Seat, WallAnchor } from "./types.ts";
 
 /** Largest angle between a seat's heading and its focus that still reads as "facing it". */
 export const MAX_FACING_ERROR = (20 * Math.PI) / 180;

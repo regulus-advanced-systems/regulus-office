@@ -2,10 +2,10 @@
  * Claude Code's first-run state in the human's runner (#158, SPEC §8).
  *
  * `claude auth login` stores the login but does not mark the CLI's
- * onboarding complete, so the first interactive `claude` (a robot) showed
+ * onboarding complete, so the first interactive `claude` (a henchman) showed
  * the theme picker and "Select login method" again. And the first run in a
  * new folder shows the workspace trust dialog; until it is accepted, the
- * `--settings` hooks do not run and the robot stays "starting".
+ * `--settings` hooks do not run and the henchman stays "starting".
  *
  * Both are flags in the CLI's own global config, `~/.claude.json`
  * (`$CLAUDE_CONFIG_DIR/.claude.json` when that is set), which holds "per-project
@@ -18,7 +18,7 @@
  * - `projects["<dir>"].hasTrustDialogAccepted: true` is the documented way to
  *   trust a folder by hand
  *   (https://code.claude.com/docs/en/permissions#what-runs-before-you-trust-a-folder).
- *   The office only ever writes it for the robot's own office-created
+ *   The office only ever writes it for the henchman's own office-created
  *   worktree, and only when `OFFICE_CLAUDE_TRUST_WORKTREES` is on. (A trust
  *   accepted in the dialog is stored on the main checkout's root, i.e. the
  *   human's clone; the lookup also honours the worktree's own entry, checked
@@ -161,9 +161,9 @@ function outcomeOf(code: number | null, stdout: string): OnboardingOutcome {
 
 /**
  * Mark Claude Code's onboarding complete in `ctx`'s runner, and trust
- * `trust` (the robot's own worktree) when given. Never throws: a runner
+ * `trust` (the henchman's own worktree) when given. Never throws: a runner
  * without node/bun, a broken config or a timeout only means Claude shows its
- * screens, which the robot then reports as waiting for its human.
+ * screens, which the henchman then reports as waiting for its human.
  */
 export async function ensureClaudeOnboarding(
   ctx: RunnerContext,

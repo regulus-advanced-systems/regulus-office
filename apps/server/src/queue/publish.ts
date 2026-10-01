@@ -1,10 +1,10 @@
 /**
- * The queue as the FloorRoom shows it (SPEC §6 channel 2 `FloorState.queue`,
+ * The queue as the OperationRoom shows it (SPEC §6 channel 2 `OperationState.queue`,
  * `queueSettings`; #37): task rows become protocol `QueueTask`s, and the
- * FloorRoom's Colyseus state is made equal to them.
+ * OperationRoom's Colyseus state is made equal to them.
  */
 import {
-  type FloorStateSchema,
+  type OperationStateSchema,
   type QueueSettings,
   QueueSettingsSchema,
   QueueTask,
@@ -12,7 +12,7 @@ import {
 } from "@regulus/protocol";
 import type { TaskRow } from "./store.ts";
 
-type FloorRoomState = InstanceType<typeof FloorStateSchema>;
+type OperationRoomState = InstanceType<typeof OperationStateSchema>;
 
 const ms = (d: Date | null) => (d ? d.getTime() : 0);
 
@@ -44,7 +44,7 @@ export function toQueueTask(row: TaskRow, position: number, ownerName: string): 
 
 /** Make the room's `queue` and `queueSettings` equal these. */
 export function syncQueue(
-  state: FloorRoomState,
+  state: OperationRoomState,
   tasks: readonly QueueTask[],
   settings: QueueSettings,
 ): void {

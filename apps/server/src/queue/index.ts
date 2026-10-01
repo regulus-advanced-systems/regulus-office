@@ -4,19 +4,19 @@
  * - service.ts   TaskQueue: `enqueueTask` (server API, also for #155), reorder,
  *                cancel, retry, settings with their ACL; PR linking; boot
  * - scheduler.ts starts tasks as their owner when a slot and a desk are free,
- *                follows their robots, restart recovery
+ *                follows their henchmen, restart recovery
  * - plan.ts      which queued tasks start now (pure)
- * - store.ts     `tasks` and `floor_queue_settings`
+ * - store.ts     `tasks` and `operation_queue_settings`
  * - content.ts   titles and prompts for issue / PR tasks
- * - pr-link.ts   the PR a task's robot opened (office, event bus, cache)
- * - publish.ts   rows → `FloorState.queue` / `queueSettings`
- * - commands.ts  the FloorRoom's `queue.*` commands; the AgentManager as spawner
+ * - pr-link.ts   the PR a task's henchman opened (office, event bus, cache)
+ * - publish.ts   rows → `OperationState.queue` / `queueSettings`
+ * - commands.ts  the OperationRoom's `queue.*` commands; the AgentManager as spawner
  */
 import type { AgentManager } from "../agents/manager/manager.ts";
 import type { AgentObserver } from "../agents/manager/runtime.ts";
 import type { Db } from "../db/index.ts";
 import type { Logger } from "../logging.ts";
-import { floorQueueCommands, managerSpawner } from "./commands.ts";
+import { managerSpawner, operationQueueCommands } from "./commands.ts";
 import type { QueueSpawner } from "./scheduler.ts";
 import { type QueuePublisher, TaskQueue } from "./service.ts";
 
@@ -35,7 +35,7 @@ export interface TaskQueueBoot {
 export function createTaskQueue(opts: {
   db: Db;
   rooms: QueuePublisher & {
-    setQueueCommands(commands: ReturnType<typeof floorQueueCommands>): void;
+    setQueueCommands(commands: ReturnType<typeof operationQueueCommands>): void;
   };
   logger: Logger;
 }): TaskQueueBoot {
@@ -54,7 +54,7 @@ export function createTaskQueue(opts: {
     },
   });
   opts.rooms.setQueueCommands(
-    floorQueueCommands(queue, (err) =>
+    operationQueueCommands(queue, (err) =>
       opts.logger.error({ err: String(err) }, "queue command failed"),
     ),
   );

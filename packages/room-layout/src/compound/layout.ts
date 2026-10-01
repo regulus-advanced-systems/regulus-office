@@ -9,7 +9,7 @@ import { doorFront, doorStart, placementRect, type TilePoint, tilesToRects } fro
 import { type CorridorNetwork, type RouteRoom, routeCorridors } from "./routing.ts";
 import { blastDoor, type CompoundSpec, mainCorridor, specialRooms } from "./special.ts";
 
-/** A project room as the compound sees it: its floor id and placement. */
+/** A project room as the compound sees it: its operation id and placement. */
 export interface CompoundRoomInput {
   readonly id: string;
   readonly placement: RoomPlacement;

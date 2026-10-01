@@ -30,10 +30,10 @@ describe("checkCommand", () => {
     if (!r.ok) expect(r.reason).toMatch(/^invalid chat: text: /);
   });
 
-  test("applies command defaults (floor.go mode) and trims chat", () => {
-    expect(checkCommand("floor.go", { floorId: "f1" })).toEqual({
+  test("applies command defaults (operation.go mode) and trims chat", () => {
+    expect(checkCommand("operation.go", { operationId: "f1" })).toEqual({
       ok: true,
-      command: { type: "floor.go", floorId: "f1", mode: "ride" },
+      command: { type: "operation.go", operationId: "f1", mode: "ride" },
     });
     expect(checkCommand("chat", { text: "  hi  " })).toEqual({
       ok: true,

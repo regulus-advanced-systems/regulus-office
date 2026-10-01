@@ -1,9 +1,9 @@
 /**
  * The runtime half of the AgentManager: which agents are tracked, their
- * RobotState, and the event sink every source publishes into (structured
+ * HenchmanState, and the event sink every source publishes into (structured
  * channels pumped here, the Claude hook routes, the heuristic rungs of the
- * status ladder). Persists events and status, publishes robots, refreshes
- * floor counters. The lifecycle commands live in manager.ts.
+ * status ladder). Persists events and status, publishes henchmen, refreshes
+ * operation counters. The lifecycle commands live in manager.ts.
  */
 import type { AdapterRegistry, AgentControl, RunnerContext } from "@regulus/agent-adapters";
 import { tmuxSessionName } from "@regulus/agent-adapters";
@@ -18,24 +18,24 @@ import type { AgentEventSink } from "../events.ts";
 import { CredentialResolver } from "./credentials.ts";
 import { AgentManagerError } from "./errors.ts";
 import { startFailure, startFailureReason } from "./failure.ts";
+import { type AgentView, applyEvent, henchmanState, setStatus, viewFromRow } from "./henchman.ts";
 import { type HeuristicRung, SessionWatcher } from "./ladder.ts";
 import { closeQuietly, type LaunchProfile, launchProfile } from "./launch.ts";
 import { DEFAULT_PERMISSION_TTL_MS, PendingPermissions } from "./permissions.ts";
-import { type AgentView, applyEvent, robotState, setStatus, viewFromRow } from "./robot.ts";
 import { reapSandboxes, SANDBOX_REAP_INTERVAL_MS } from "./sandbox-reaper.ts";
 import { type AgentRow, AgentStore, type RetentionPolicy } from "./store.ts";
 import { DbAgentTokens } from "./tokens.ts";
 
-/** Where robots are shown (FloorRooms satisfies this). */
-export interface RobotPublisher {
-  publishRobot(floorId: string, robot: ReturnType<typeof robotState>): void;
-  removeRobot(floorId: string, agentId: string): void;
+/** Where henchmen are shown (OperationRooms satisfies this). */
+export interface HenchmanPublisher {
+  publishHenchman(operationId: string, henchman: ReturnType<typeof henchmanState>): void;
+  removeHenchman(operationId: string, agentId: string): void;
   /**
-   * The robot's pending permission requests changed (empty = none left).
+   * The henchman's pending permission requests changed (empty = none left).
    * They carry what exactly would run, so they go to its controllers only.
    */
   publishPermissions?(
-    floorId: string,
+    operationId: string,
     agentId: string,
     ownerUserId: string,
     requests: PendingPermission[],
@@ -60,7 +60,7 @@ export interface AgentObserver {
   ): void;
 }
 
-/** Usage tracker (#40): stores robots' `usage` and `limit` events. */
+/** Usage tracker (#40): stores henchmen's `usage` and `limit` events. */
 export interface AgentUsageObserver {
   agentEvent(agentId: string, event: AgentEvent): void;
 }
@@ -74,11 +74,11 @@ export interface AgentManagerOptions {
   db: Db;
   runner: Runner;
   adapters: AdapterRegistry;
-  robots: RobotPublisher;
-  /** Re-read BuildingRoom floor counters (`rooms.refreshFloors`). */
-  refreshFloors?: () => Promise<void>;
+  henchmen: HenchmanPublisher;
+  /** Re-read BuildingRoom operation counters (`rooms.refreshOperations`). */
+  refreshOperations?: () => Promise<void>;
   workspaces?: Workspaces;
-  /** Each human's own clone of a floor repo (#114); worktrees.workspaces implements it. */
+  /** Each human's own clone of an operation repo (#114); worktrees.workspaces implements it. */
   clones?: HumanClones;
   /** Worktree status and PRs for `agent.worktree` / `agent.pr`. */
   worktreeTools?: AgentWorktreeTools;
@@ -140,7 +140,12 @@ export class AgentRuntime implements AgentEventSink {
       onChange: (agentId, requests) => {
         const view = this.agents.get(agentId)?.view;
         if (!view) return;
-        this.opts.robots.publishPermissions?.(view.floorId, agentId, view.ownerUserId, requests);
+        this.opts.henchmen.publishPermissions?.(
+          view.operationId,
+          agentId,
+          view.ownerUserId,
+          requests,
+        );
       },
     });
     this.watcher = new SessionWatcher({
@@ -172,7 +177,7 @@ export class AgentRuntime implements AgentEventSink {
       live.untrack = this.opts.scrollback?.track({
         agentId: live.view.agentId,
         ownerUserId: live.view.ownerUserId,
-        floorId: live.view.floorId,
+        operationId: live.view.operationId,
         session,
         runner: this.runner,
       });
@@ -194,7 +199,7 @@ export class AgentRuntime implements AgentEventSink {
 
   // ---- Event sink ----------------------------------------------------------
 
-  /** `AgentEventSink`: persist, fold into the robot, publish. Events are schema-valid. */
+  /** `AgentEventSink`: persist, fold into the henchman, publish. Events are schema-valid. */
   publish(agentId: string, event: AgentEvent): void {
     const live = this.agents.get(agentId);
     if (!live) return;
@@ -227,7 +232,7 @@ export class AgentRuntime implements AgentEventSink {
       this.#observe(() => this.opts.observer?.statusChanged(live.view, previous));
       if (live.view.status === "exited") this.processGone(live);
     }
-    if (result.robotChanged) this.publishLive(live);
+    if (result.henchmanChanged) this.publishLive(live);
   }
 
   /** Observers never break the event path. */
@@ -287,7 +292,7 @@ export class AgentRuntime implements AgentEventSink {
     return {
       agentId,
       ownerUserId: row.ownerUserId,
-      floorId: row.floorId,
+      operationId: row.operationId,
       session: { userId: row.ownerUserId, name: row.tmuxSession },
       runner: this.runner,
     };
@@ -303,8 +308,8 @@ export class AgentRuntime implements AgentEventSink {
   }
 
   /**
-   * Remove orphaned robot sandboxes now and then every minute (sandbox-reaper.ts,
-   * #169). Started once robots are re-adopted at boot.
+   * Remove orphaned henchman sandboxes now and then every minute (sandbox-reaper.ts,
+   * #169). Started once henchmen are re-adopted at boot.
    */
   async reapSandboxes(): Promise<void> {
     if (!this.runner.listSandboxes) return;
@@ -341,7 +346,7 @@ export class AgentRuntime implements AgentEventSink {
     return this.trackRow(row);
   }
 
-  publishRobot(live: LiveAgent): void {
+  publishHenchman(live: LiveAgent): void {
     this.publishLive(live);
   }
 
@@ -371,12 +376,12 @@ export class AgentRuntime implements AgentEventSink {
   }
 
   protected publishLive(live: LiveAgent): void {
-    this.opts.robots.publishRobot(live.view.floorId, robotState(live.view));
+    this.opts.henchmen.publishHenchman(live.view.operationId, henchmanState(live.view));
   }
 
   /**
    * A start failed: log the cause, stop what may have started, and move the
-   * robot to `error` with a short, safe reason (failure.ts) that the robot
+   * henchman to `error` with a short, safe reason (failure.ts) that the henchman
    * shows (`statusReason`) and the status event keeps.
    */
   protected failed(live: LiveAgent, err: unknown): void {
@@ -406,11 +411,11 @@ export class AgentRuntime implements AgentEventSink {
   }
 
   protected countersChanged(): void {
-    const refresh = this.opts.refreshFloors;
+    const refresh = this.opts.refreshOperations;
     if (!refresh || this.countersTimer) return;
     this.countersTimer = setTimeout(() => {
       this.countersTimer = undefined;
-      refresh().catch((err) => this.logger.warn({ err }, "floor counter refresh failed"));
+      refresh().catch((err) => this.logger.warn({ err }, "operation counter refresh failed"));
     }, 100);
   }
 }

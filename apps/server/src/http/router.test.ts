@@ -16,10 +16,10 @@ describe("Router", () => {
   });
 
   test("captures and decodes params", () => {
-    const r = new Router().get("/api/floors/:floorId/agents/:agentId", ok);
-    const m = r.match("GET", "/api/floors/f%201/agents/a2");
-    expect(m?.params).toEqual({ floorId: "f 1", agentId: "a2" });
-    expect(r.match("GET", "/api/floors/f1")).toBeUndefined();
+    const r = new Router().get("/api/operations/:operationId/agents/:agentId", ok);
+    const m = r.match("GET", "/api/operations/f%201/agents/a2");
+    expect(m?.params).toEqual({ operationId: "f 1", agentId: "a2" });
+    expect(r.match("GET", "/api/operations/f1")).toBeUndefined();
   });
 
   test("a trailing * swallows one or more remaining segments", () => {

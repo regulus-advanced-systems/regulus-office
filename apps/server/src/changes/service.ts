@@ -1,12 +1,12 @@
 /**
- * The changes window's server side (#38): finds a robot's worktree and runs
+ * The changes window's server side (#38): finds a henchman's worktree and runs
  * the look, the per-file views and the owner's actions in its runner.
  *
- * - Looks are shared: every viewer polling the same robot within `cacheMs`
- *   gets the same result, and one look runs at a time per robot, so ten
- *   watchers cost the robot's owner one `git status` every two seconds.
- * - File diffs and image reads are limited per robot (`maxReads` at once).
- * - Commit and discard run one at a time per robot, each on a fresh look.
+ * - Looks are shared: every viewer polling the same henchman within `cacheMs`
+ *   gets the same result, and one look runs at a time per henchman, so ten
+ *   watchers cost the henchman's owner one `git status` every two seconds.
+ * - File diffs and image reads are limited per henchman (`maxReads` at once).
+ * - Commit and discard run one at a time per henchman, each on a fresh look.
  *
  * Authorisation is the route's job (routes.ts); this layer trusts its caller.
  */
@@ -19,8 +19,8 @@ import type { Runner } from "../runners/types.ts";
 import { KeyedMutex } from "../worktrees/git-ops.ts";
 import type { HumanClones } from "../worktrees/types.ts";
 import { type CommitIdentity, commitFiles, discardFile } from "./actions.ts";
+import { HenchmanShell } from "./henchman-shell.ts";
 import { ChangesHttpError, checkRepoPath } from "./paths.ts";
-import { RobotShell } from "./robot-shell.ts";
 import { lookAtWorktree, type WorktreeLook } from "./snapshot.ts";
 import { fileDiff, imageBlob } from "./views.ts";
 
@@ -34,7 +34,7 @@ export interface ChangesServiceDeps {
   now?: () => number;
   /** How long a look is reused (default 1500 ms, under the 2 s poll). */
   cacheMs?: number;
-  /** Diff and image reads at once per robot (default 4). */
+  /** Diff and image reads at once per henchman (default 4). */
   maxReads?: number;
 }
 
@@ -50,12 +50,12 @@ export class ChangesService {
 
   constructor(private readonly deps: ChangesServiceDeps) {}
 
-  /** The robot's row, or null when it does not exist. */
+  /** The henchman's row, or null when it does not exist. */
   agent(agentId: string): AgentRow | null {
     return this.deps.db.select().from(agents).where(eq(agents.id, agentId)).get() ?? null;
   }
 
-  #shell(row: AgentRow): { shell: RobotShell; baseRef: string } {
+  #shell(row: AgentRow): { shell: HenchmanShell; baseRef: string } {
     const repo = this.deps.repos.getRepo(row.repoId);
     if (!repo) throw new ChangesHttpError(409, "unavailable", "the henchman's repo is gone");
     let clone: string;
@@ -73,7 +73,7 @@ export class ChangesService {
       if (err instanceof ChangesHttpError) throw err;
       throw new ChangesHttpError(409, "unavailable", "the henchman's workspace cannot be found");
     }
-    const shell = new RobotShell(this.deps.runner, {
+    const shell = new HenchmanShell(this.deps.runner, {
       userId: row.ownerUserId,
       agentId: row.id,
       provider: row.provider,

@@ -238,7 +238,7 @@ describe("lobby", () => {
     expect(island.rect.z - centre.z).toBeGreaterThanOrEqual(1.5);
   });
 
-  test("couch seats face the TV and the PM robot faces the room", () => {
+  test("couch seats face the TV and the PM henchman faces the room", () => {
     for (const seat of lobby.seats.filter((s) => s.furnitureId === "couch")) {
       expect(seat.pose.heading).toBe(HEADING.west);
     }

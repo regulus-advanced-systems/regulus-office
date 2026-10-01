@@ -1,4 +1,4 @@
-/** The AgentManager hands robots' usage and limit events to the tracker (#40). */
+/** The AgentManager hands henchmen's usage and limit events to the tracker (#40). */
 import { describe, expect, test } from "bun:test";
 import { AgentManager } from "../agents/manager/manager.ts";
 import { makeManager } from "../agents/manager/test-helpers.ts";

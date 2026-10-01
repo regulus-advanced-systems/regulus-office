@@ -1,36 +1,36 @@
 /**
  * The queue's runner side (#37): starts queued tasks when a room has a free
- * slot and desk (plan.ts), follows their robots to done / failed, and puts
+ * slot and desk (plan.ts), follows their henchmen to done / failed, and puts
  * the queue back together after an office restart.
  *
  * Ownership (SPEC §8): a task is always started as the human who queued it,
  * with their credential profile, in their runner, and only while they may
  * still spawn in the room. The spawn goes through the AgentManager's normal
  * admission (access, repo, provider, profile, desk), so the queue can never
- * start a robot its owner could not start by hand.
+ * start a henchman its owner could not start by hand.
  *
- * A tick is synchronous (the manager admits a robot synchronously inside
+ * A tick is synchronous (the manager admits a henchman synchronously inside
  * `spawn`), so ticks never interleave. A task is marked running before its spawn
- * and gets its robot id the moment the robot is admitted, so a restart
- * finds it either with a robot (followed from then on) or without one
+ * and gets its henchman id the moment the henchman is admitted, so a restart
+ * finds it either with a henchman (followed from then on) or without one
  * (queued again).
  */
-import type { AgentStatus, FloorAccess, PermissionMode, UserRole } from "@regulus/protocol";
+import type { AgentStatus, OperationAccess, PermissionMode, UserRole } from "@regulus/protocol";
 import { eq } from "drizzle-orm";
 import { AgentManagerError } from "../agents/manager/errors.ts";
 import type { SpawnInput } from "../agents/manager/spawn.ts";
 import { agents, userProfiles } from "../db/schema/index.ts";
-import { type FloorActor, floorAccessFor } from "../floors/access.ts";
 import type { Logger } from "../logging.ts";
+import { type OperationActor, operationAccessFor } from "../operations/access.ts";
 import { planQueue, WAIT_REASONS } from "./plan.ts";
 import type { TaskRow, TaskStore } from "./store.ts";
 
 /** What the queue needs from the AgentManager. */
 export interface QueueSpawner {
   /** Refuse now what could never start (provider, permission mode, profile); throws. */
-  check(owner: FloorActor, input: SpawnInput): void;
+  check(owner: OperationActor, input: SpawnInput): void;
   spawn(
-    owner: FloorActor,
+    owner: OperationActor,
     input: SpawnInput,
     hooks: { onAdmitted(agentId: string): void },
   ): Promise<unknown>;
@@ -49,7 +49,7 @@ export interface SchedulerDeps {
   spawner: QueueSpawner;
   logger: Logger;
   /** A room's queue changed: publish it. */
-  changed(floorId: string): void;
+  changed(operationId: string): void;
 }
 
 export class QueueScheduler {
@@ -68,29 +68,29 @@ export class QueueScheduler {
    * Start what can start in a room. Deferred to a microtask, so a burst of
    * changes makes one tick; a kick while one is pending joins it.
    */
-  kick(floorId: string): Promise<void> {
-    const pending = this.#ticks.get(floorId);
+  kick(operationId: string): Promise<void> {
+    const pending = this.#ticks.get(operationId);
     if (pending) return pending;
     const run = Promise.resolve()
       .then(() => {
-        this.#ticks.delete(floorId);
-        this.#tick(floorId);
+        this.#ticks.delete(operationId);
+        this.#tick(operationId);
       })
       .catch((err) => {
-        this.#ticks.delete(floorId);
-        this.#deps.logger.error({ floorId, err: String(err) }, "queue tick failed");
+        this.#ticks.delete(operationId);
+        this.#deps.logger.error({ operationId, err: String(err) }, "queue tick failed");
       });
-    this.#ticks.set(floorId, run);
+    this.#ticks.set(operationId, run);
     return run;
   }
 
   /** Every room with queued work (the periodic tick: desks freed, access changed). */
   async kickAll(): Promise<void> {
-    await Promise.all(this.#store.floorsWithQueued().map((id) => this.kick(id)));
+    await Promise.all(this.#store.operationsWithQueued().map((id) => this.kick(id)));
   }
 
   /** The human as an actor (id + office role), or null when they are gone. */
-  ownerActor(userId: string): FloorActor | null {
+  ownerActor(userId: string): OperationActor | null {
     const row = this.#store.db
       .select({ role: userProfiles.role })
       .from(userProfiles)
@@ -99,22 +99,22 @@ export class QueueScheduler {
     return row ? { id: userId, role: row.role as UserRole } : null;
   }
 
-  ownerAccess(userId: string, floorId: string): FloorAccess | null {
+  ownerAccess(userId: string, operationId: string): OperationAccess | null {
     const actor = this.ownerActor(userId);
-    return actor ? floorAccessFor(this.#store.db, actor, floorId) : null;
+    return actor ? operationAccessFor(this.#store.db, actor, operationId) : null;
   }
 
-  #tick(floorId: string): void {
+  #tick(operationId: string): void {
     const store = this.#store;
-    const queued = store.queued(floorId);
+    const queued = store.queued(operationId);
     if (queued.length === 0) return;
     const plan = planQueue({
       queued,
-      running: store.running(floorId),
-      settings: store.settings(floorId),
-      freeDesks: store.freeDesks(floorId),
+      running: store.running(operationId),
+      settings: store.settings(operationId),
+      freeDesks: store.freeDesks(operationId),
       ownerMaySpawn: (userId) => {
-        const access = this.ownerAccess(userId, floorId);
+        const access = this.ownerAccess(userId, operationId);
         return access === "spawn" || access === "manage";
       },
     });
@@ -130,7 +130,7 @@ export class QueueScheduler {
         changed = true;
       }
     }
-    if (changed) this.#deps.changed(floorId);
+    if (changed) this.#deps.changed(operationId);
   }
 
   /**
@@ -154,7 +154,7 @@ export class QueueScheduler {
       },
     });
     spawning.then(
-      () => this.#deps.changed(task.floorId),
+      () => this.#deps.changed(task.operationId),
       (err: unknown) => {
         const message = safeMessage(err);
         this.#deps.logger.info({ taskId: task.id, err: message }, "queued task did not start");
@@ -162,20 +162,20 @@ export class QueueScheduler {
           // Lost a desk race: wait in the same place; the periodic tick retries
           // (kicking now could loop on a desk the database still shows free).
           store.backToQueue(task.id, WAIT_REASONS.desk);
-          this.#deps.changed(task.floorId);
+          this.#deps.changed(task.operationId);
           return;
         }
         store.finish(task.id, "failed", message);
-        this.#deps.changed(task.floorId);
-        void this.kick(task.floorId);
+        this.#deps.changed(task.operationId);
+        void this.kick(task.operationId);
       },
     );
   }
 
   /**
-   * A robot's status changed: a running task is done once its robot finished
+   * A henchman's status changed: a running task is done once its henchman finished
    * its turn (`done`, or idle straight after working: adapters without a
-   * `done` signal), failed once its robot
+   * `done` signal), failed once its henchman
    * errors, stops or goes offline. Its slot frees and the room ticks.
    */
   agentStatus(
@@ -195,13 +195,13 @@ export class QueueScheduler {
       finished = this.#store.finish(task.id, "failed", FAIL_REASONS[status]);
     }
     if (!finished) return;
-    this.#deps.changed(task.floorId);
-    void this.kick(task.floorId);
+    this.#deps.changed(task.operationId);
+    void this.kick(task.operationId);
   }
 
   /**
-   * After an office restart (and after robots were re-adopted): running
-   * tasks without a robot go back to the queue; those whose robot finished,
+   * After an office restart (and after henchmen were re-adopted): running
+   * tasks without a henchman go back to the queue; those whose henchman finished,
    * failed or is gone meanwhile are settled; the rest keep running.
    */
   recover(): Set<string> {
@@ -211,7 +211,7 @@ export class QueueScheduler {
     for (const task of store.running()) {
       if (!task.agentId) {
         store.backToQueue(task.id, "");
-        touched.add(task.floorId);
+        touched.add(task.operationId);
         continue;
       }
       const agent = store.db
@@ -226,7 +226,7 @@ export class QueueScheduler {
       else if (status === "exited" || status === "offline") {
         store.finish(task.id, "failed", FAIL_REASONS[status]);
       } else continue;
-      touched.add(task.floorId);
+      touched.add(task.operationId);
     }
     return touched;
   }
@@ -240,7 +240,7 @@ export class QueueScheduler {
 /** The spawn request a task stands for (checked again by the manager). */
 export function spawnInput(task: TaskRow): SpawnInput {
   return {
-    floorId: task.floorId,
+    operationId: task.operationId,
     repoId: task.repoId ?? "",
     provider: task.provider,
     model: task.model,

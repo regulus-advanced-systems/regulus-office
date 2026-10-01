@@ -76,7 +76,7 @@ export function parseProcessOutput(output: string): ProcessInfo[] {
 }
 
 /**
- * `sh -c SCRIPT`: in a robot's own sandbox (#169) every process is the robot's,
+ * `sh -c SCRIPT`: in a henchman's own sandbox (#169) every process is the henchman's,
  * detached dev servers included. Prints the script's own pid, then one
  * `/proc/<pid>/stat` line per process.
  */

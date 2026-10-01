@@ -6,10 +6,10 @@
  * wildcard DNS record and certificate for the domain (docs/deploy/services-proxy.md).
  *
  * The office session cookie is host-only, so the app host does not see it.
- * Opening an app goes through the office first: `/p/<floor>/a/<agent>/port/<n>/`
+ * Opening an app goes through the office first: `/p/<operation>/a/<agent>/port/<n>/`
  * checks the session and redirects with a one-time ticket (60 s) to
  * `/.office/auth` on the app host, which swaps it for a host-only app cookie
- * (12 h) bound to that user, robot and port. Both are HMAC-signed with a key
+ * (12 h) bound to that user, henchman and port. Both are HMAC-signed with a key
  * made at boot, so a restart only sends people through the office once more.
  */
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
@@ -52,7 +52,7 @@ export function appOrigin(d: AppDomain, label: string): string {
   return `${d.protocol}//${label}.${d.domain}${d.portSuffix}`;
 }
 
-/** Robot and port from an app host name, or null when it is not one of ours. */
+/** Henchman and port from an app host name, or null when it is not one of ours. */
 export function parseAppHost(
   d: AppDomain,
   hostname: string,
@@ -115,7 +115,7 @@ export class AppTokens {
     });
   }
 
-  /** A valid, unused ticket for this robot and port (single use). */
+  /** A valid, unused ticket for this henchman and port (single use). */
   redeemTicket(token: string, agentId: string, port: number): AppGrant | null {
     const c = this.#verify(token, "t", agentId, port);
     if (!c?.n || this.#used.has(c.n)) return null;

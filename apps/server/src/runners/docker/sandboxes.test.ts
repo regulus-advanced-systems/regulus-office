@@ -2,7 +2,7 @@
  * Per-agent sandboxes of the docker backend (#169) against the fake Engine API:
  * the sandbox create body (hardening, HOME plus the human's own area only,
  * limits, ports, network, labels), which container each call runs in,
- * kill/remove, re-adoption by a fresh runner, self-heal, and that robots in
+ * kill/remove, re-adoption by a fresh runner, self-heal, and that henchmen in
  * sandboxes no longer keep the human's runner from being recreated.
  */
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
@@ -94,13 +94,13 @@ function runner(opts: { sandboxes?: SandboxSettings | null; network?: string } =
     user: "1001:1001",
     home: "/home/runner",
     network: opts.network ?? "office_runners",
-    floorRoots: [join(root, "worktrees")],
+    operationRoots: [join(root, "worktrees")],
     volumeMap: [{ path: join(root, "worktrees"), volume: "office_worktrees" }],
     sandboxes: opts.sandboxes === null ? undefined : (opts.sandboxes ?? settings),
   });
 }
 
-const area = (rid = "u1", floor = "f1") => join(root, "worktrees", floor, rid);
+const area = (rid = "u1", operation = "f1") => join(root, "worktrees", operation, rid);
 const workdir = (agentId: string, rid = "u1") => join(area(rid), agentId);
 
 function plan(agentId: string, cwd = workdir(agentId)): SpawnPlan {
@@ -194,7 +194,7 @@ describe("sandbox()", () => {
     expect(runnerOf()?.running).toBe(true);
   });
 
-  test("is idempotent and keeps the agent's ports; two robots never share ports", async () => {
+  test("is idempotent and keeps the agent's ports; two henchmen never share ports", async () => {
     const r = runner();
     const a1 = await r.sandbox({ userId: "u1", agentId: "a1" }, { workdir: workdir("a1") });
     const again = await r.sandbox({ userId: "u1", agentId: "a1" }, { workdir: workdir("a1") });
@@ -205,7 +205,7 @@ describe("sandbox()", () => {
     expect(await r.listSandboxes()).toHaveLength(2);
   });
 
-  test("sandboxOf: the robot's running sandbox, by name; 127.0.0.1 on the host network (#39)", async () => {
+  test("sandboxOf: the henchman's running sandbox, by name; 127.0.0.1 on the host network (#39)", async () => {
     const r = runner();
     expect(await r.sandboxOf({ userId: "u1", agentId: "a1" })).toBeNull();
     const a1 = await r.sandbox({ userId: "u1", agentId: "a1" }, { workdir: workdir("a1") });
@@ -231,7 +231,7 @@ describe("sandbox()", () => {
     expect(sandboxOf("a1")).toBeUndefined();
   });
 
-  test("returns null (robots stay in the runner) when sandboxes are off", async () => {
+  test("returns null (henchmen stay in the runner) when sandboxes are off", async () => {
     const r = runner({ sandboxes: null });
     expect(await r.sandbox({ userId: "u1", agentId: "a1" }, { workdir: workdir("a1") })).toBeNull();
     expect(await r.listSandboxes()).toEqual([]);
@@ -255,7 +255,7 @@ describe("sandbox()", () => {
   });
 });
 
-describe("calls about a sandboxed robot run in its sandbox", () => {
+describe("calls about a sandboxed henchman run in its sandbox", () => {
   test("exec, files and the env file go to the sandbox; a login stays in the runner", async () => {
     const r = runner();
     await r.sandbox({ userId: "u1", agentId: "a1" }, { workdir: workdir("a1") });
@@ -296,7 +296,7 @@ describe("calls about a sandboxed robot run in its sandbox", () => {
     expect(tty.kind).toBe("stream");
   });
 
-  test("piped processes of a sandboxed robot run in the sandbox with exec-scoped env", async () => {
+  test("piped processes of a sandboxed henchman run in the sandbox with exec-scoped env", async () => {
     const r = runner();
     await r.sandbox({ userId: "u1", agentId: "a1" }, { workdir: workdir("a1") });
     fake.onExec = async (exec, io) => {
@@ -325,7 +325,7 @@ describe("calls about a sandboxed robot run in its sandbox", () => {
 });
 
 describe("kill and re-adoption", () => {
-  test("kill removes the sandbox and everything in it; other robots are left alone", async () => {
+  test("kill removes the sandbox and everything in it; other henchmen are left alone", async () => {
     const r = runner();
     await r.sandbox({ userId: "u1", agentId: "a1" }, { workdir: workdir("a1") });
     await r.sandbox({ userId: "u1", agentId: "a2" }, { workdir: workdir("a2") });
@@ -377,12 +377,16 @@ describe("kill and re-adoption", () => {
     expect(runnerOf()).toBeUndefined();
   });
 
-  test("robots in sandboxes do not keep the runner from getting a new floor mounted", async () => {
+  test("henchmen in sandboxes do not keep the runner from getting a new operation mounted", async () => {
     const r = runner();
     await r.sandbox({ userId: "u1", agentId: "a1" }, { workdir: workdir("a1") });
     await r.exec(user, plan("a1"));
     const before = runnerOf()?.id;
-    const repo = { floorId: "f2", repoId: "r", workdir: join(area("u1", "f2"), "_clones", "r") };
+    const repo = {
+      operationId: "f2",
+      repoId: "r",
+      workdir: join(area("u1", "f2"), "_clones", "r"),
+    };
     await r.mountProject(user, repo);
     expect(runnerOf()?.id).not.toBe(before);
     expect(sandboxOf("a1")?.running).toBe(true);

@@ -44,12 +44,12 @@ export interface ClaudeCodeAdapterOptions {
   newSessionId?: () => string;
   newRequestId?: () => string;
   /**
-   * Before a spawn, mark the robot's own office-created worktree trusted in
+   * Before a spawn, mark the henchman's own office-created worktree trusted in
    * the runner's `~/.claude.json` (`OFFICE_CLAUDE_TRUST_WORKTREES`, default
    * true). Onboarding is marked complete either way (#158).
    */
   trustWorktrees?: boolean;
-  /** How often a new robot's pane is checked for sign-in/trust screens, ms (default 2000; 0 = never). */
+  /** How often a new henchman's pane is checked for sign-in/trust screens, ms (default 2000; 0 = never). */
   screenPollMs?: number;
   /** How long after a spawn that check runs without a hook, ms (default 15 min). */
   screenWatchMs?: number;
@@ -135,7 +135,7 @@ export class ClaudeCodeAdapter implements AgentAdapter {
 
   /**
    * Before every spawn: Claude Code's onboarding complete in the runner, and
-   * the robot's own worktree trusted when {@link trustWorktrees} is on
+   * the henchman's own worktree trusted when {@link trustWorktrees} is on
    * (onboarding.ts). Never throws; never touches `~/.claude/`.
    */
   prepareSpawn(

@@ -1,5 +1,5 @@
 /**
- * GitHub repo references for floors (SPEC §5 `floor_repos`, D7): parse what
+ * GitHub repo references for operations (SPEC §5 `operation_repos`, D7): parse what
  * an admin typed (`owner/name` or an https GitHub URL) into owner + name,
  * and build the public web URL and the clone remote from it.
  *
@@ -55,7 +55,7 @@ export function parseRepoRef(input: string): RepoRefResult {
   return fromParts(parts[0], parts[1]);
 }
 
-/** Public web URL shown to clients and stored in `floor_repos.url`. */
+/** Public web URL shown to clients and stored in `operation_repos.url`. */
 export function repoWebUrl(ref: RepoRef): string {
   return `https://github.com/${ref.owner}/${ref.name}`;
 }

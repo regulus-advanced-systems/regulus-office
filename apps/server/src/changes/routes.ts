@@ -1,9 +1,9 @@
 /**
- * REST for a robot's changes window (#38); shapes and paths in
+ * REST for a henchman's changes window (#38); shapes and paths in
  * `@regulus/protocol` changes-api.ts, ACL in acl.ts.
  *
- * Reads need floor visibility (404 otherwise, as for terminals). Commit and
- * discard need the robot's owner (D12) and a same-origin request, and each
+ * Reads need operation visibility (404 otherwise, as for terminals). Commit and
+ * discard need the henchman's owner (D12) and a same-origin request, and each
  * is audited (`agent.changes_commit` with the file count and new commit,
  * `agent.changes_discard` with the path; never file contents or the message).
  * Image bytes go out as `application/octet-stream` with `nosniff`, a
@@ -21,10 +21,10 @@ import type { OfficeAuth, SessionUser } from "../auth/auth.ts";
 import { AuthHttpError, unauthorized } from "../auth/errors.ts";
 import { checkOrigin } from "../auth/origin.ts";
 import type { Db } from "../db/index.ts";
-import { floorAccessFor } from "../floors/access.ts";
-import { readBody } from "../floors/routes.ts";
 import { json, type RouteContext, type Router } from "../http/router.ts";
 import type { Logger } from "../logging.ts";
+import { operationAccessFor } from "../operations/access.ts";
+import { readBody } from "../operations/routes.ts";
 import { type ChangesAccess, decideChangesAccess, mayWriteChanges } from "./acl.ts";
 import { ChangesHttpError } from "./paths.ts";
 import type { AgentRow, ChangesService } from "./service.ts";
@@ -42,8 +42,8 @@ type Handler = (ctx: RouteContext, user: SessionUser, row: AgentRow) => Promise<
 
 export function mountChangesRoutes(router: Router, deps: ChangesRoutesDeps): void {
   const { auth, db, changes } = deps;
-  const canView = (u: { id: string; role: SessionUser["role"] }, floorId: string) =>
-    floorAccessFor(db, u, floorId) !== null;
+  const canView = (u: { id: string; role: SessionUser["role"] }, operationId: string) =>
+    operationAccessFor(db, u, operationId) !== null;
 
   const guarded =
     (want: ChangesAccess, handler: Handler) =>

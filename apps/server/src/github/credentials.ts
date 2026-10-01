@@ -1,7 +1,7 @@
 /**
- * Floor repo credentials (SPEC §8, D14 fallback): an admin-supplied
+ * Operation repo credentials (SPEC §8, D14 fallback): an admin-supplied
  * fine-grained PAT scoped to one repo, stored envelope-encrypted in
- * `floor_repos.encrypted_credential` with the AAD bound to the repo id, so a
+ * `operation_repos.encrypted_credential` with the AAD bound to the repo id, so a
  * ciphertext copied onto another row does not decrypt.
  *
  * This is a project credential for server-side git only (clone, and push /
@@ -17,7 +17,11 @@ import {
 
 export const REPO_CREDENTIAL_SECRET_NAME = "github_pat";
 
-/** AAD context for a repo's PAT: `floor_repo:<repoId>|github_pat`. */
+/**
+ * AAD context for a repo's PAT: `floor_repo:<repoId>|github_pat`. The prefix
+ * predates the rename to operations (#226) and stays: every stored ciphertext
+ * is bound to it, so changing it would make them undecryptable.
+ */
 export function repoCredentialContext(repoId: string): SecretContext {
   return { userId: `floor_repo:${repoId}`, secretName: REPO_CREDENTIAL_SECRET_NAME };
 }

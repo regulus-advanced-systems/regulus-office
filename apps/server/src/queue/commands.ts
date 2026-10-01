@@ -1,12 +1,12 @@
 /**
- * The FloorRoom's `queue.*` commands (SPEC §6; #37) and the AgentManager as
+ * The OperationRoom's `queue.*` commands (SPEC §6; #37) and the AgentManager as
  * the queue's spawner. Refusals come back as a reason that is safe to show;
  * anything unexpected is logged and becomes "internal error".
  */
 import type { ClientCommand, QueueCommandResult } from "@regulus/protocol";
 import { AgentManagerError } from "../agents/manager/errors.ts";
 import type { AgentManager } from "../agents/manager/manager.ts";
-import type { FloorActor } from "../floors/access.ts";
+import type { OperationActor } from "../operations/access.ts";
 import type { QueueSpawner } from "./scheduler.ts";
 import { QueueError, type TaskQueue } from "./service.ts";
 
@@ -21,29 +21,30 @@ export function isQueueCommand(command: ClientCommand): command is QueueCommand 
   return command.type.startsWith("queue.");
 }
 
-/** Queue commands for the FloorRoom of `floorId`. */
-export interface FloorQueueCommands {
-  run(actor: FloorActor, floorId: string, command: QueueCommand): QueueOutcome;
+/** Queue commands for the OperationRoom of `operationId`. */
+export interface OperationQueueCommands {
+  run(actor: OperationActor, operationId: string, command: QueueCommand): QueueOutcome;
 }
 
-function run(queue: TaskQueue, actor: FloorActor, floorId: string, command: QueueCommand) {
+function run(queue: TaskQueue, actor: OperationActor, operationId: string, command: QueueCommand) {
   switch (command.type) {
     case "queue.add": {
-      if (command.floorId !== floorId) throw new QueueError("bad_request", "wrong operation");
+      if (command.operationId !== operationId)
+        throw new QueueError("bad_request", "wrong operation");
       const { type: _type, ...input } = command;
       return queue.enqueueTask(actor, input).id;
     }
     case "queue.reorder":
-      queue.reorder(actor, floorId, command.taskId, command.position);
+      queue.reorder(actor, operationId, command.taskId, command.position);
       return command.taskId;
     case "queue.cancel":
-      queue.cancel(actor, floorId, command.taskId);
+      queue.cancel(actor, operationId, command.taskId);
       return command.taskId;
     case "queue.retry":
-      queue.retry(actor, floorId, command.taskId);
+      queue.retry(actor, operationId, command.taskId);
       return command.taskId;
     case "queue.settings":
-      queue.configure(actor, floorId, {
+      queue.configure(actor, operationId, {
         maxRunning: command.maxRunning,
         maxPerOwner: command.maxPerOwner,
       });
@@ -51,11 +52,11 @@ function run(queue: TaskQueue, actor: FloorActor, floorId: string, command: Queu
   }
 }
 
-export function floorQueueCommands(queue: TaskQueue, onError: (err: unknown) => void) {
+export function operationQueueCommands(queue: TaskQueue, onError: (err: unknown) => void) {
   return {
-    run(actor, floorId, command) {
+    run(actor, operationId, command) {
       try {
-        const taskId = run(queue, actor, floorId, command);
+        const taskId = run(queue, actor, operationId, command);
         return { ok: true, result: { type: command.type, taskId } };
       } catch (err) {
         if (err instanceof QueueError) return { ok: false, reason: err.message };
@@ -63,7 +64,7 @@ export function floorQueueCommands(queue: TaskQueue, onError: (err: unknown) => 
         return { ok: false, reason: "internal error" };
       }
     },
-  } satisfies FloorQueueCommands;
+  } satisfies OperationQueueCommands;
 }
 
 /** The AgentManager as the queue's spawner: tasks start through its normal admission. */

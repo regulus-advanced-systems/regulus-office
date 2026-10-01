@@ -15,7 +15,7 @@ function setup() {
 }
 
 describe("UsageTracker", () => {
-  test("robot usage goes to its owner, priced from the robot's model", () => {
+  test("henchman usage goes to its owner, priced from the henchman's model", () => {
     const { tracker, rows, addAgent, ada } = setup();
     addAgent("a1", ada.id, { provider: "codex", model: "gpt-6-sol" });
     tracker.agentEvent("a1", { kind: "usage", ...usage(T, { input: 1_000_000, output: 100_000 }) });
@@ -29,7 +29,7 @@ describe("UsageTracker", () => {
     expect(row?.costUsdEstimate).toBeCloseTo(3, 6);
   });
 
-  test("office-key robots are attributed to office and their limits are not stored (D2)", () => {
+  test("office-key henchmen are attributed to office and their limits are not stored (D2)", () => {
     const { tracker, rows, limits, addAgent, bob } = setup();
     addAgent("a2", bob.id, { provider: "claude-code", profileId: "office:claude-code" });
     tracker.agentEvent("a2", {
@@ -68,10 +68,10 @@ describe("UsageTracker", () => {
     expect(stored()).toBe(2);
   });
 
-  test("transcripts: robot sessions go to the robot, office-key robots to office, the rest to the human", () => {
+  test("transcripts: henchman sessions go to the henchman, office-key henchmen to office, the rest to the human", () => {
     const { tracker, rows, addAgent, ada, bob } = setup();
     addAgent("mine", ada.id, { session: "s-mine" });
-    addAgent("office-robot", ada.id, { session: "s-office", profileId: "office:claude-code" });
+    addAgent("office-henchman", ada.id, { session: "s-office", profileId: "office:claude-code" });
     addAgent("bobs", bob.id, { session: "s-bob" });
     const at = (session: string, key: string) =>
       usage(
@@ -83,12 +83,12 @@ describe("UsageTracker", () => {
       at("s-mine", "k1"),
       at("s-office", "k2"),
       at("s-terminal", "k3"),
-      // A session id of Bob's robot found in Ada's runner is not Bob's robot.
+      // A session id of Bob's henchman found in Ada's runner is not Bob's henchman.
       at("s-bob", "k4"),
     ]);
     const by = Object.fromEntries(rows().map((r) => [r.dedupeKey?.split(":").at(-1), r]));
     expect(by.k1).toMatchObject({ userId: ada.id, agentId: "mine" });
-    expect(by.k2).toMatchObject({ userId: null, agentId: "office-robot" });
+    expect(by.k2).toMatchObject({ userId: null, agentId: "office-henchman" });
     expect(by.k3).toMatchObject({ userId: ada.id, agentId: null });
     expect(by.k4).toMatchObject({ userId: ada.id, agentId: null });
   });
@@ -154,7 +154,7 @@ describe("UsageTracker", () => {
     expect(human?.userId).toBe(ada.id);
   });
 
-  test("unknown robots are ignored", () => {
+  test("unknown henchmen are ignored", () => {
     const { tracker, rows } = setup();
     tracker.agentEvent("nope", { kind: "usage", ...usage(T, { input: 1 }) });
     expect(rows()).toEqual([]);

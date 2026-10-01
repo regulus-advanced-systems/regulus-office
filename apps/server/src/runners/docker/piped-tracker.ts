@@ -8,7 +8,7 @@
  * so `mountProject` waits a short, bounded time for piped processes to finish
  * before it recreates, and names the ones that did not in `RunnerBusyError`
  * (#126: the spawn dialog's `claude auth status` used to fail the first spawn
- * on a floor).
+ * on an operation).
  *
  * While a mount change is in progress ({@link PipedTracker.hold}), new piped
  * processes wait for it and then start in the new container, instead of

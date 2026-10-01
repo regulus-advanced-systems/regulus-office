@@ -55,7 +55,7 @@ describe("buildSpawn", () => {
     expect(dir.startsWith(`${ctx.home}/.regulus-office/`)).toBe(true);
   });
 
-  test("passes the robot's permission mode; auto mode when none is set (#166)", () => {
+  test("passes the henchman's permission mode; auto mode when none is set (#166)", () => {
     const modeOf = (argv: readonly string[]) => argv[argv.indexOf("--permission-mode") + 1];
     expect(modeOf(adapter.buildSpawn(request(), ctx).argv)).toBe("auto");
     for (const mode of ["auto", "default", "acceptEdits"]) {
@@ -80,7 +80,7 @@ describe("buildSpawn", () => {
     }
   });
 
-  test("a resume keeps the robot's permission mode (#166)", () => {
+  test("a resume keeps the henchman's permission mode (#166)", () => {
     const plan = adapter.buildSpawn(
       request({ resumeSessionId: "abc-123", permissionMode: "acceptEdits" }),
       ctx,

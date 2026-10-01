@@ -14,7 +14,7 @@ export class TemplateError extends Error {
     readonly templateId: string,
     readonly problems: readonly string[],
   ) {
-    super(`floor template "${templateId}" is invalid:\n  - ${problems.join("\n  - ")}`);
+    super(`room template "${templateId}" is invalid:\n  - ${problems.join("\n  - ")}`);
     this.name = "TemplateError";
   }
 }

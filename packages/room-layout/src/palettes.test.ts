@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { LOBBY_PALETTE_ID, PALETTES, paletteById, paletteForFloor } from "./palettes.ts";
+import { LOBBY_PALETTE_ID, PALETTES, paletteById, paletteForOperation } from "./palettes.ts";
 import { PaletteSchema } from "./types.ts";
 
 describe("palettes", () => {
@@ -12,8 +12,8 @@ describe("palettes", () => {
     expect(new Set(PALETTES.map((p) => p.id)).size).toBe(PALETTES.length);
   });
 
-  test("floors cycle through the list and wrap", () => {
-    const ids = [0, 1, 2, 3, 4, 5].map((i) => paletteForFloor(i).id);
+  test("operations cycle through the list and wrap", () => {
+    const ids = [0, 1, 2, 3, 4, 5].map((i) => paletteForOperation(i).id);
     expect(ids).toEqual([
       "teal-cream",
       "oak-sky",
@@ -22,13 +22,13 @@ describe("palettes", () => {
       "oak-sky",
       "lime-mustard",
     ]);
-    expect(paletteForFloor(-1).id).toBe("lime-mustard");
-    expect(paletteForFloor(7.9).id).toBe(paletteForFloor(7).id);
+    expect(paletteForOperation(-1).id).toBe("lime-mustard");
+    expect(paletteForOperation(7.9).id).toBe(paletteForOperation(7).id);
   });
 
-  test("consecutive floors never share a palette", () => {
+  test("consecutive operations never share a palette", () => {
     for (let i = 0; i < 10; i++) {
-      expect(paletteForFloor(i).id).not.toBe(paletteForFloor(i + 1).id);
+      expect(paletteForOperation(i).id).not.toBe(paletteForOperation(i + 1).id);
     }
   });
 

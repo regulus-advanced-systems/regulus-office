@@ -10,7 +10,7 @@
  * - props.ts     corner and wall props; pods.ts desks, clutter, the nook
  * - styles.ts    lair decor styles: palette, materials, lighting, model ids
  * - lighting.ts  pooled lights; measure.ts free floor, overlaps, facing
- * - legacy.ts    seat-id map for floors migrated from the fixed templates
+ * - legacy.ts    seat-id map for operations migrated from the fixed templates
  * - debug-svg.ts top-down SVG of a layout for reviews
  */
 export { BOARD_LIKE, GONG_CLEARANCE } from "./anchors.ts";

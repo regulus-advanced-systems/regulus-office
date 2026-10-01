@@ -1,14 +1,14 @@
 import { afterAll, describe, expect, test } from "bun:test";
 import { TERMINAL_MODES, type UserRole } from "@regulus/protocol";
 import { MEMORY_DB_PATH, openDatabase, runMigrations } from "../db/index.ts";
-import { floorMembers, floors, users } from "../db/schema/index.ts";
-import { dbFloorVisibility, decideTerminalAccess, mayUseTerminal } from "./acl.ts";
+import { operationMembers, operations, users } from "../db/schema/index.ts";
+import { dbOperationVisibility, decideTerminalAccess, mayUseTerminal } from "./acl.ts";
 
-const OWNER_ID = "robot-owner";
-const everyFloor = () => true;
+const OWNER_ID = "henchman-owner";
+const everyOperation = () => true;
 
 describe("terminal ACL (SPEC §8 rule 4, D12, #138)", () => {
-  // role × (is the robot's owner) × mode → allowed
+  // role × (is the henchman's owner) × mode → allowed
   const matrix: [UserRole, boolean, "watch" | "control", boolean][] = [
     ["owner", false, "watch", true],
     ["owner", false, "control", false],
@@ -26,25 +26,25 @@ describe("terminal ACL (SPEC §8 rule 4, D12, #138)", () => {
   ];
 
   for (const [role, isOwner, mode, allowed] of matrix) {
-    test(`${role}${isOwner ? " (robot owner)" : ""} ${mode}: ${allowed ? "allowed" : "denied"}`, () => {
+    test(`${role}${isOwner ? " (henchman owner)" : ""} ${mode}: ${allowed ? "allowed" : "denied"}`, () => {
       const user = { id: isOwner ? OWNER_ID : `u-${role}`, role };
       expect(mayUseTerminal(user, OWNER_ID, mode)).toBe(allowed);
       const decision = decideTerminalAccess(
         user,
-        { ownerUserId: OWNER_ID, floorId: "f1" },
+        { ownerUserId: OWNER_ID, operationId: "f1" },
         mode,
-        everyFloor,
+        everyOperation,
       );
       expect(decision).toEqual(allowed ? { ok: true } : { ok: false, reason: "forbidden" });
     });
   }
 
-  test("an invisible floor hides the robot for every mode", () => {
+  test("an invisible operation hides the henchman for every mode", () => {
     for (const mode of TERMINAL_MODES) {
       expect(
         decideTerminalAccess(
           { id: OWNER_ID, role: "owner" },
-          { ownerUserId: OWNER_ID, floorId: "f1" },
+          { ownerUserId: OWNER_ID, operationId: "f1" },
           mode,
           () => false,
         ),
@@ -53,7 +53,7 @@ describe("terminal ACL (SPEC §8 rule 4, D12, #138)", () => {
   });
 });
 
-describe("dbFloorVisibility", () => {
+describe("dbOperationVisibility", () => {
   const db = openDatabase({ path: MEMORY_DB_PATH });
   runMigrations(db);
   afterAll(() => db.$client.close());
@@ -70,7 +70,7 @@ describe("dbFloorVisibility", () => {
       })
       .run();
   }
-  db.insert(floors)
+  db.insert(operations)
     .values([
       { id: "f1", name: "One", slug: "one", index: 1, paletteId: "p", layoutTemplateId: "t" },
       {
@@ -84,14 +84,14 @@ describe("dbFloorVisibility", () => {
       },
     ])
     .run();
-  db.insert(floorMembers)
+  db.insert(operationMembers)
     .values([
-      { floorId: "f1", userId: "m1", access: "spawn" },
-      { floorId: "f1", userId: "v1", access: "view" },
-      { floorId: "f2", userId: "m1", access: "manage" },
+      { operationId: "f1", userId: "m1", access: "spawn" },
+      { operationId: "f1", userId: "v1", access: "view" },
+      { operationId: "f2", userId: "m1", access: "manage" },
     ])
     .run();
-  const canView = dbFloorVisibility(db);
+  const canView = dbOperationVisibility(db);
 
   test("members need a membership row", () => {
     expect(canView({ id: "m1", role: "member" }, "f1")).toBe(true);
@@ -99,12 +99,12 @@ describe("dbFloorVisibility", () => {
     expect(canView({ id: "v1", role: "viewer" }, "f1")).toBe(true);
   });
 
-  test("office owners and admins see every live floor", () => {
+  test("office owners and admins see every live operation", () => {
     expect(canView({ id: "m2", role: "admin" }, "f1")).toBe(true);
     expect(canView({ id: "m2", role: "owner" }, "f1")).toBe(true);
   });
 
-  test("archived and unknown floors are invisible", () => {
+  test("archived and unknown operations are invisible", () => {
     expect(canView({ id: "m1", role: "member" }, "f2")).toBe(false);
     expect(canView({ id: "m2", role: "owner" }, "f2")).toBe(false);
     expect(canView({ id: "m2", role: "owner" }, "nope")).toBe(false);

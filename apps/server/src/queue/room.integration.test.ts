@@ -1,14 +1,14 @@
 /**
- * The queue over the wire (#37): `queue.*` commands in a real FloorRoom,
+ * The queue over the wire (#37): `queue.*` commands in a real OperationRoom,
  * answered with `queue.result` or `command.rejected`, and the queue and its
- * settings in `FloorState` for everyone on the floor.
+ * settings in `OperationState` for everyone on the operation.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { Client, type Room } from "@colyseus/sdk";
 import {
   COMMAND_REJECTED_MESSAGE,
   type CommandRejected,
-  FloorStateSchema,
+  OperationStateSchema,
   QUEUE_RESULT_MESSAGE,
   type QueueCommandResult,
   ROOM_NAMES,
@@ -16,11 +16,11 @@ import {
 import { createOfficeServer, type OfficeServer } from "../http/server.ts";
 import { createDevHeaderAuth, DEV_USER_HEADER } from "../rooms/auth.ts";
 import { createRooms } from "../rooms/index.ts";
-import { floorQueueCommands } from "./commands.ts";
+import { operationQueueCommands } from "./commands.ts";
 import { TaskQueue } from "./service.ts";
 import { FakeSpawner, logger, roomFixture } from "./test-helpers.ts";
 
-type FloorState = InstanceType<typeof FloorStateSchema>;
+type OperationState = InstanceType<typeof OperationStateSchema>;
 
 const f = roomFixture();
 let server: OfficeServer;
@@ -34,10 +34,10 @@ async function join(user: { id: string; role: string }, name: string) {
   const client = new Client(String(server.url).replace(/\/$/, ""), {
     headers: { [DEV_USER_HEADER]: who(user, name) },
   });
-  const room = await client.joinOrCreate<FloorState>(
-    ROOM_NAMES.floor,
-    { floorId: f.floorId },
-    FloorStateSchema,
+  const room = await client.joinOrCreate<OperationState>(
+    ROOM_NAMES.operation,
+    { operationId: f.operationId },
+    OperationStateSchema,
   );
   opened.push(room);
   return room;
@@ -71,11 +71,11 @@ beforeAll(async () => {
   queue = new TaskQueue({
     db: f.db,
     spawner: new FakeSpawner(f.db),
-    publisher: rooms.floors,
+    publisher: rooms.operations,
     logger,
     tickIntervalMs: 60_000,
   });
-  rooms.floors.setQueueCommands(floorQueueCommands(queue, () => {}));
+  rooms.operations.setQueueCommands(operationQueueCommands(queue, () => {}));
   server = createOfficeServer({
     config: { port: 0, host: "127.0.0.1", webDist: "/nonexistent" },
     logger,
@@ -91,14 +91,14 @@ afterAll(async () => {
   await server.stop(true);
 });
 
-describe("queue commands in the FloorRoom (#37)", () => {
-  test("a member queues a task; everyone on the floor sees it start", async () => {
+describe("queue commands in the OperationRoom (#37)", () => {
+  test("a member queues a task; everyone on the operation sees it start", async () => {
     const member = await join(f.member, "Mia");
     const viewer = await join(f.viewer, "Vic");
     expect(member.state.queueSettings?.maxRunning).toBe(2);
     const result = next<QueueCommandResult>(member, QUEUE_RESULT_MESSAGE);
     member.send("queue.add", {
-      floorId: f.floorId,
+      operationId: f.operationId,
       repoId: f.repoId,
       kind: "freeform",
       prompt: "Write the release notes",
@@ -109,7 +109,7 @@ describe("queue commands in the FloorRoom (#37)", () => {
     expect(type).toBe("queue.add");
     await waitFor(
       () => viewer.state.queue.some((t) => t.id === taskId && t.state === "running"),
-      "the running task on the viewer's floor",
+      "the running task on the viewer's operation",
     );
     const task = viewer.state.queue.find((t) => t.id === taskId);
     expect(task?.title).toBe("Write the release notes");
@@ -121,7 +121,7 @@ describe("queue commands in the FloorRoom (#37)", () => {
     const viewer = await join(f.viewer, "Vic");
     const refusal = next<CommandRejected>(viewer, COMMAND_REJECTED_MESSAGE);
     viewer.send("queue.add", {
-      floorId: f.floorId,
+      operationId: f.operationId,
       repoId: f.repoId,
       kind: "freeform",
       prompt: "no",

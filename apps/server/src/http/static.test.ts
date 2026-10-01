@@ -49,7 +49,7 @@ describe("createStaticHandler", () => {
 
   test("falls back to index.html for SPA routes but 404s missing assets", async () => {
     const h = createStaticHandler({ distDir: dist });
-    const spa = await call(h, "/floors/3", { headers: { accept: "text/html" } });
+    const spa = await call(h, "/operations/3", { headers: { accept: "text/html" } });
     expect(spa.status).toBe(200);
     expect(await spa.text()).toContain("office");
     expect((await call(h, "/assets/missing.js")).status).toBe(404);

@@ -1,6 +1,6 @@
 /**
  * Board sync for the office GitHub connection (SPEC §4.2, D14; #35): the
- * webhook receiver, the poller, the board cache, FloorRoom summaries and the
+ * webhook receiver, the poller, the board cache, OperationRoom summaries and the
  * event bus, wired together.
  *
  * Mode: `webhook` while verified deliveries keep arriving (a delivery within
@@ -8,7 +8,7 @@
  * {@link RECONCILE_MS} to catch missed deliveries. Otherwise `polling` at
  * OFFICE_GITHUB_POLL_SECONDS (default 60), or `off` with OFFICE_GITHUB_POLLING=false.
  *
- *   const sync = createGitHubSync({ db, connection, repos, boards: rooms.floors, ... });
+ *   const sync = createGitHubSync({ db, connection, repos, boards: rooms.operations, ... });
  *   mountGitHubSyncRoutes(server.router, { auth, sync });
  *   sync.start();
  *   sync.events.on("pull_request", (e) => ...); // #155
@@ -21,12 +21,12 @@ import {
 import type { OfficeAuth } from "../auth/auth.ts";
 import { forbidden, unauthorized } from "../auth/errors.ts";
 import type { Db } from "../db/index.ts";
-import { isOfficeManager } from "../floors/access.ts";
 import { json, type RouteHandler, type Router } from "../http/router.ts";
 import type { Logger } from "../logging.ts";
+import { isOfficeManager } from "../operations/access.ts";
 import type { FetchFn } from "./api.ts";
 import { BoardCache } from "./board-cache.ts";
-import { type BoardSink, buildFloorBoard } from "./board-summary.ts";
+import { type BoardSink, buildOperationBoard } from "./board-summary.ts";
 import type { GitHubConnection } from "./connection.ts";
 import { EventApplier } from "./event-apply.ts";
 import { GitHubEventBus, type GitHubEventName, type OfficeAppIdentity } from "./events.ts";
@@ -83,7 +83,7 @@ export class GitHubSync {
       cache: this.cache,
       bus: this.events,
       app: () => this.#appIdentity(),
-      publish: (floorIds) => this.publish(floorIds),
+      publish: (operationIds) => this.publish(operationIds),
       installationChanged: () => this.connectionChanged(),
       now: this.#now,
     });
@@ -103,7 +103,7 @@ export class GitHubSync {
       cache: this.cache,
       client: createPollClient({ apiBase: deps.apiBase, fetch: deps.fetch, now: this.#now }),
       withToken: (repoId, fn) => deps.repos.withRepoCredential(repoId, (c) => fn(c.token)),
-      onBoardChanged: (floorIds) => this.publish(floorIds),
+      onBoardChanged: (operationIds) => this.publish(operationIds),
       onChange: (change) => this.#applier.polled(change),
       logger,
       now: this.#now,
@@ -119,16 +119,16 @@ export class GitHubSync {
     return this.#lastDeliveryAt !== null && this.#now() - this.#lastDeliveryAt < WEBHOOK_LIVE_MS;
   }
 
-  /** Republish the board summaries of these floors from the cache. */
-  publish(floorIds: readonly string[]): void {
-    for (const floorId of new Set(floorIds)) {
+  /** Republish the board summaries of these operations from the cache. */
+  publish(operationIds: readonly string[]): void {
+    for (const operationId of new Set(operationIds)) {
       try {
         this.#deps.boards.publishBoard(
-          floorId,
-          buildFloorBoard(this.#deps.db, floorId, this.#now()),
+          operationId,
+          buildOperationBoard(this.#deps.db, operationId, this.#now()),
         );
       } catch (err) {
-        this.#deps.logger.error({ err, floorId }, "publishing a floor board failed");
+        this.#deps.logger.error({ err, operationId }, "publishing an operation board failed");
       }
     }
   }
@@ -136,7 +136,7 @@ export class GitHubSync {
   /** Boot: boards from the cache, the app's webhook config, then the poll loop. */
   start(): void {
     this.#stopped = false;
-    this.publish(this.cache.followedRepos().flatMap((r) => r.floorIds));
+    this.publish(this.cache.followedRepos().flatMap((r) => r.operationIds));
     void this.#ensureHook();
     this.#schedule(1_000);
   }
@@ -147,9 +147,9 @@ export class GitHubSync {
     this.#timer = null;
   }
 
-  /** A floor or its repos changed: show its board, and poll new repos soon. */
-  floorChanged(floorId: string): void {
-    this.publish([floorId]);
+  /** An operation or its repos changed: show its board, and poll new repos soon. */
+  operationChanged(operationId: string): void {
+    this.publish([operationId]);
     this.#schedule(1_000);
   }
 

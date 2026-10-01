@@ -1,11 +1,11 @@
-/** Room settings over HTTP (#182), and what the FloorRoom publishes after a change. */
+/** Room settings over HTTP (#182), and what the OperationRoom publishes after a change. */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { OperationStateSchema, roomSettingsPath } from "@regulus/protocol";
 import { ROOM_LAYOUT_ID, roomDeskSeatIds } from "@regulus/room-layout";
-import { FloorStateSchema, roomSettingsPath } from "@regulus/protocol";
 import { type Office, startOffice } from "../../auth/test-helpers.ts";
-import { desks, floorMembers, floors } from "../../db/schema/index.ts";
-import { DrizzleFloorRoomSource } from "../floor/source.ts";
-import { writeSnapshot } from "../floor/state.ts";
+import { desks, operationMembers, operations } from "../../db/schema/index.ts";
+import { DrizzleOperationRoomSource } from "../operation/source.ts";
+import { writeSnapshot } from "../operation/state.ts";
 import { mountRoomSettingsRoutes } from "./routes.ts";
 import { RoomSettingsService } from "./service.ts";
 
@@ -14,7 +14,7 @@ let owner: { id: string; cookie: string };
 let member: { id: string; cookie: string };
 let viewer: { id: string; cookie: string };
 const changed: string[] = [];
-const FLOOR = "floor-1";
+const OPERATION = "operation-1";
 
 beforeAll(async () => {
   office = startOffice();
@@ -30,9 +30,9 @@ beforeAll(async () => {
   member = await office.signUp("Mia");
   viewer = await office.signUp("Val");
   office.db
-    .insert(floors)
+    .insert(operations)
     .values({
-      id: FLOOR,
+      id: OPERATION,
       name: "Lair",
       slug: "lair",
       index: 1,
@@ -42,11 +42,11 @@ beforeAll(async () => {
     .run();
   office.db
     .insert(desks)
-    .values(roomDeskSeatIds(1).map((seatId) => ({ floorId: FLOOR, seatId })))
+    .values(roomDeskSeatIds(1).map((seatId) => ({ operationId: OPERATION, seatId })))
     .run();
   office.db
-    .insert(floorMembers)
-    .values({ floorId: FLOOR, userId: viewer.id, access: "view" })
+    .insert(operationMembers)
+    .values({ operationId: OPERATION, userId: viewer.id, access: "view" })
     .run();
 });
 
@@ -54,7 +54,7 @@ afterAll(async () => {
   await office.stop();
 });
 
-const path = roomSettingsPath(FLOOR);
+const path = roomSettingsPath(OPERATION);
 const put = (body: unknown, cookie?: string, origin?: string) =>
   office.request(path, {
     method: "PUT",
@@ -93,7 +93,7 @@ describe("room settings routes", () => {
     expect(tooMany.status).toBe(400);
   });
 
-  test("the owner changes desks and style; the FloorRoom snapshot carries them", async () => {
+  test("the owner changes desks and style; the OperationRoom snapshot carries them", async () => {
     const res = await put({ deskCount: 3, decorStyle: "war_room" }, owner.cookie);
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({
@@ -103,12 +103,12 @@ describe("room settings routes", () => {
       canManage: true,
       size: { width: 8, depth: 8, doorSide: "west" },
     });
-    expect(changed).toEqual([FLOOR]);
+    expect(changed).toEqual([OPERATION]);
 
-    const snap = new DrizzleFloorRoomSource(office.db).loadFloor(FLOOR);
+    const snap = new DrizzleOperationRoomSource(office.db).loadOperation(OPERATION);
     expect(snap).toMatchObject({ deskCount: 3, decorStyle: "war_room" });
     expect(snap?.desks.map((d) => d.seatId).sort()).toEqual(roomDeskSeatIds(3).sort());
-    const state = new FloorStateSchema();
+    const state = new OperationStateSchema();
     if (snap) writeSnapshot(state, snap);
     expect(state.deskCount).toBe(3);
     expect(state.decorStyle).toBe("war_room");

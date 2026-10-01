@@ -1,6 +1,6 @@
 /**
  * Validation of BuildingRoom commands beyond the wire shape: `move` must stay
- * inside the world and `floor.go` must name a floor that exists. Pure
+ * inside the world and `operation.go` must name an operation that exists. Pure
  * functions so they are unit-testable without a transport.
  */
 import {

@@ -1,14 +1,14 @@
 /**
- * Who may use a robot's changes window (#38), the terminal's audience and
+ * Who may use a henchman's changes window (#38), the terminal's audience and
  * rule (SPEC §8 rule 4, D12):
  *
- * - Anyone who can see the robot's floor may view: the file list, diffs and
+ * - Anyone who can see the henchman's operation may view: the file list, diffs and
  *   image previews, read-only. Office owners, admins and viewers included.
- * - Commit and discard are control: the robot's owner only, never a viewer
- *   (`mayControlRobot`). Office owners and admins are refused like anyone else.
- * - Someone who cannot see the floor learns nothing: the robot is 404.
+ * - Commit and discard are control: the henchman's owner only, never a viewer
+ *   (`mayControlHenchman`). Office owners and admins are refused like anyone else.
+ * - Someone who cannot see the operation learns nothing: the henchman is 404.
  */
-import { mayControlRobot, type UserRole } from "@regulus/protocol";
+import { mayControlHenchman, type UserRole } from "@regulus/protocol";
 
 export interface ChangesUser {
   id: string;
@@ -23,16 +23,17 @@ export type ChangesDecision =
 
 export function decideChangesAccess(
   user: ChangesUser,
-  robot: { ownerUserId: string; floorId: string },
+  henchman: { ownerUserId: string; operationId: string },
   want: ChangesAccess,
-  canViewFloor: (user: ChangesUser, floorId: string) => boolean,
+  canViewOperation: (user: ChangesUser, operationId: string) => boolean,
 ): ChangesDecision {
-  if (!canViewFloor(user, robot.floorId)) return { ok: false, status: 404, code: "not_found" };
-  if (want === "view" || mayControlRobot(user, robot.ownerUserId)) return { ok: true };
+  if (!canViewOperation(user, henchman.operationId))
+    return { ok: false, status: 404, code: "not_found" };
+  if (want === "view" || mayControlHenchman(user, henchman.ownerUserId)) return { ok: true };
   return { ok: false, status: 403, code: "owner_only" };
 }
 
 /** Whether the caller gets the commit and discard controls (the UI hint; routes check again). */
 export function mayWriteChanges(user: ChangesUser, ownerUserId: string): boolean {
-  return mayControlRobot(user, ownerUserId);
+  return mayControlHenchman(user, ownerUserId);
 }

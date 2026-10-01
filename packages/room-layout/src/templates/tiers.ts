@@ -11,7 +11,7 @@ export const DESKS_PER_TIER: Readonly<Record<RoomTier, number>> = {
   large: 20,
 };
 
-/** Tiers in growth order; a floor moves to the next one when desks run out. */
+/** Tiers in growth order; an operation moves to the next one when desks run out. */
 export const TIER_ORDER: readonly RoomTier[] = ["small", "medium", "large"];
 
 export const TIER_TEMPLATES: Readonly<Record<RoomTier, RoomTemplate>> = {

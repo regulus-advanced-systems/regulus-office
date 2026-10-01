@@ -1,5 +1,5 @@
 /**
- * Fixtures for worktree tests: a floor cloned from a local bare repo (no
+ * Fixtures for worktree tests: an operation cloned from a local bare repo (no
  * network), agent rows, commits pushed to the remote from elsewhere, and a
  * fake GitHub REST server on port 0 that records every request.
  */
@@ -8,11 +8,11 @@ import { mkdtemp, readdir, readFile, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { agents } from "../db/schema/index.ts";
-import { createFloors } from "../floors/index.ts";
-import { FAKE_PAT, makeBareRepo, testDb } from "../floors/test-helpers.ts";
 import { type GitRunner, gitBaseEnv, runGit } from "../github/git.ts";
 import type { ConnectionTokens } from "../github/repo-access.ts";
 import { createLogger } from "../logging.ts";
+import { createOperations } from "../operations/index.ts";
+import { FAKE_PAT, makeBareRepo, testDb } from "../operations/test-helpers.ts";
 import { humanAreaDir, humanClonePath } from "../runners/layout.ts";
 import { createWorktrees } from "./index.ts";
 
@@ -93,10 +93,10 @@ export function fakeGitHub(respond: (req: RecordedRequest) => Response) {
 }
 
 /**
- * A ready floor `wt-floor` on `octo/hello` (default branch `trunk`, with a
+ * A ready operation `wt-operation` on `octo/hello` (default branch `trunk`, with a
  * stored PAT unless `token: false`), an owner, and the worktrees service.
  */
-export async function setupFloor(
+export async function setupOperation(
   root: string,
   options: {
     token?: boolean;
@@ -112,21 +112,21 @@ export async function setupFloor(
   const bare = join(remotes, "octo", "hello.git");
   const { db, addUser } = testDb();
   const owner = addUser("Olga", "owner");
-  const floors = createFloors({
+  const operations = createOperations({
     db,
     logger,
     config: { projectsDir: join(root, `projects-${id}`), githubRemoteBase: remoteBase },
     keyring: { current: 1, keys: { 1: randomBytes(32) } },
     connection: options.connection,
   });
-  const created = floors.service.create(owner, {
-    name: "WT Floor",
+  const created = operations.service.create(owner, {
+    name: "WT Operation",
     tier: "small",
     repos: [{ repo: "octo/hello", ...(options.token === false ? {} : { token: FAKE_PAT }) }],
   });
   await created.cloned;
-  const floorId = created.floor.floorId;
-  const repo = floors.repos.listFloorRepos(floorId)[0];
+  const operationId = created.operation.operationId;
+  const repo = operations.repos.listOperationRepos(operationId)[0];
   if (!repo || repo.cloneStatus !== "ready") throw new Error("fixture clone failed");
   const worktreesDir = join(root, `worktrees-${id}`);
   const mounts: string[] = [];
@@ -137,7 +137,7 @@ export async function setupFloor(
       db,
       logger,
       config: { worktreesDir, githubApiBase: options.apiBase ?? "http://127.0.0.1:9" },
-      repos: floors.repos,
+      repos: operations.repos,
       runner: {
         async mountProject(_user, ref) {
           mounts.push(ref.workdir);
@@ -163,7 +163,7 @@ export async function setupFloor(
     db.insert(agents)
       .values({
         id: agentId,
-        floorId,
+        operationId,
         repoId: repo.repoId,
         deskSeatId: `desk-${agentId}`,
         ownerUserId: fields.ownerUserId ?? owner.id,
@@ -179,16 +179,16 @@ export async function setupFloor(
     return agentId;
   };
 
-  /** A human's own clone of the floor repo (#114), and their area on the floor. */
+  /** A human's own clone of the operation repo (#114), and their area on the operation. */
   const cloneOf = (userId: string = owner.id) =>
-    humanClonePath(worktreesDir, "wt-floor", userId, basename(repo.workdir));
-  const areaOf = (userId: string = owner.id) => humanAreaDir(worktreesDir, "wt-floor", userId);
+    humanClonePath(worktreesDir, "wt-operation", userId, basename(repo.workdir));
+  const areaOf = (userId: string = owner.id) => humanAreaDir(worktreesDir, "wt-operation", userId);
 
   return {
     db,
     owner,
     addUser,
-    floorId,
+    operationId,
     repo,
     bare,
     worktreesDir,

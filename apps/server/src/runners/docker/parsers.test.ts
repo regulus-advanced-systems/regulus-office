@@ -74,14 +74,14 @@ describe("mounts", () => {
   const rid = runnerId("user-a");
   const other = runnerId("user-b");
 
-  test("a human's clone or worktree mounts that human's area on the floor, nothing wider", () => {
+  test("a human's clone or worktree mounts that human's area on the operation, nothing wider", () => {
     const area = `/srv/office/worktrees/f1/${rid}`;
     expect(humanMountTarget(`${area}/_clones/repo`, roots, "user-a")).toBe(area);
     expect(humanMountTarget(`${area}/agent-1/`, roots, "user-a")).toBe(area);
     expect(humanMountTarget(area, roots, "user-a")).toBe(area);
   });
 
-  test("mirrors, floor dirs and other humans' areas are refused", () => {
+  test("mirrors, operation dirs and other humans' areas are refused", () => {
     for (const path of [
       "/srv/office/projects/f1/repo",
       "/srv/office/worktrees",
@@ -191,7 +191,7 @@ describe("docker backend config", () => {
       memoryBytes: undefined,
       cpus: undefined,
       pidsLimit: 4096,
-      floorRoots: [config.worktreesDir],
+      operationRoots: [config.worktreesDir],
       volumeMap: [],
     });
   });

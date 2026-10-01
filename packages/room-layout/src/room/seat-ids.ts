@@ -1,7 +1,7 @@
 /**
  * Stable seat ids for generated rooms (#182): `d<desk>s<seat>`, desks and
  * seats 1-based. Desk n always has the same four ids, so adding desks never
- * renumbers a seat and a robot keeps its seat when the room grows.
+ * renumbers a seat and a henchman keeps its seat when the room grows.
  *
  * Seat order around a desk: s1 north-west, s2 north-east (both facing
  * south), s3 south-west, s4 south-east (both facing north).

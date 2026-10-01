@@ -9,7 +9,7 @@ const spec = (over: Partial<WorkflowInput>) =>
   Schema.parse({
     name: "w",
     trigger: { kind: "pull_request", actions: ["opened"] },
-    robot: { provider: "claude-code", promptTemplate: "x" },
+    henchman: { provider: "claude-code", promptTemplate: "x" },
     ...over,
   });
 
@@ -24,7 +24,7 @@ function event(name: string, payload: Record<string, unknown>): AnyGitHubEvent {
     receivedAt: 1,
     repo: { owner: "octo", name: "hello", fullName: "octo/hello" },
     repoIds: ["r1"],
-    floorIds: ["f1"],
+    operationIds: ["f1"],
     installationId: 1,
     sender: { login: "alice", id: 1, type: "User" },
     fromOfficeApp: false,

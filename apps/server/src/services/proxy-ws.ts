@@ -2,7 +2,7 @@
  * WebSocket relay for the services proxy (#39): the upstream socket (the
  * app's, e.g. Vite HMR) is opened first, with the same cleaned headers as
  * HTTP; only then is the browser's upgrade accepted, with the subprotocol the
- * app chose. Frames are relayed both ways for the robot's owner; for a
+ * app chose. Frames are relayed both ways for the henchman's owner; for a
  * watcher only app-to-browser frames pass (the terminal's watch mode, D12).
  */
 import type { ServerWebSocket, WebSocketHandler } from "bun";

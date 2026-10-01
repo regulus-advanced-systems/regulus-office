@@ -35,7 +35,7 @@ describe.skipIf(!hasTmux() || !hasBunPty())("terminal bridge (tmux + Bun PTY)", 
   let workdir: string;
   let owner: User;
   let admin: User;
-  let robotOwner: User;
+  let henchmanOwner: User;
   let member: User;
   let viewer: User;
   let outsider: User;
@@ -86,16 +86,20 @@ describe.skipIf(!hasTmux() || !hasBunPty())("terminal bridge (tmux + Bun PTY)", 
     office = await startTerminalOffice({ runner });
     owner = await office.signUp("Owner"); // first account: office owner
     admin = await office.signUp("Admin", "admin");
-    robotOwner = await office.signUp("Rita");
+    henchmanOwner = await office.signUp("Rita");
     member = await office.signUp("Mo");
     viewer = await office.signUp("Vi", "viewer");
     outsider = await office.signUp("Out");
-    office.addFloor("f1", { [robotOwner.id]: "spawn", [member.id]: "view", [viewer.id]: "view" });
-    office.addFloor("f2");
-    office.addAgent("a1", "f1", robotOwner.id);
+    office.addOperation("f1", {
+      [henchmanOwner.id]: "spawn",
+      [member.id]: "view",
+      [viewer.id]: "view",
+    });
+    office.addOperation("f2");
+    office.addAgent("a1", "f1", henchmanOwner.id);
     office.addAgent("a2", "f2", owner.id);
-    office.addAgent("gone", "f1", robotOwner.id);
-    const s1 = await spawnAgent("a1", robotOwner.id);
+    office.addAgent("gone", "f1", henchmanOwner.id);
+    const s1 = await spawnAgent("a1", henchmanOwner.id);
     // Scrollback from before anyone watched (send-keys works while no read-only client is attached).
     await runner.sendKeys(s1, "before-anyone-watched", { enter: true });
     await spawnAgent("a2", owner.id);
@@ -116,13 +120,13 @@ describe.skipIf(!hasTmux() || !hasBunPty())("terminal bridge (tmux + Bun PTY)", 
     );
     expect(feed.messages.some((m) => m.agentId === "a2")).toBe(false);
     const watcher = await connect("a1", "watch", member);
-    const driver = await connect("a1", "control", robotOwner);
+    const driver = await connect("a1", "control", henchmanOwner);
     await driver.waitFor((c) => c.output.includes("FAKE AGENT"), "driver attached");
     driver.type("shown-on-laptop\r");
     await watcher.waitFor((c) => c.controls.some((m) => m.type === "typing"), "typing notice");
     expect(watcher.controls.find((m) => m.type === "typing")).toEqual({
       type: "typing",
-      userId: robotOwner.id,
+      userId: henchmanOwner.id,
       name: "Rita",
     });
     await feed.waitFor(
@@ -140,14 +144,14 @@ describe.skipIf(!hasTmux() || !hasBunPty())("terminal bridge (tmux + Bun PTY)", 
       ["office owner", () => owner, "control", 403],
       ["admin", () => admin, "watch", 101],
       ["admin", () => admin, "control", 403],
-      ["robot owner (member)", () => robotOwner, "watch", 101],
-      ["robot owner (member)", () => robotOwner, "control", 101],
+      ["henchman owner (member)", () => henchmanOwner, "watch", 101],
+      ["henchman owner (member)", () => henchmanOwner, "control", 101],
       ["member", () => member, "watch", 101],
       ["member", () => member, "control", 403],
       ["viewer", () => viewer, "watch", 101],
       ["viewer", () => viewer, "control", 403],
-      ["member without floor access", () => outsider, "watch", 404],
-      ["member without floor access", () => outsider, "control", 404],
+      ["member without operation access", () => outsider, "watch", 404],
+      ["member without operation access", () => outsider, "control", 404],
     ];
     for (const [who, user, mode, expected] of cases) {
       test(`${who} ${mode} → ${expected === 101 ? "attached" : expected}`, async () => {
@@ -163,12 +167,12 @@ describe.skipIf(!hasTmux() || !hasBunPty())("terminal bridge (tmux + Bun PTY)", 
       });
     }
 
-    test("a floor the user cannot see hides the robot", async () => {
+    test("an operation the user cannot see hides the henchman", async () => {
       expect((await office.probe("a2", "watch", { cookie: member.cookie })).status).toBe(404);
     });
   });
 
-  test("rejects foreign origins, missing sessions, bad modes, unknown robots, plain GETs", async () => {
+  test("rejects foreign origins, missing sessions, bad modes, unknown henchmen, plain GETs", async () => {
     const evil = { cookie: owner.cookie, origin: "https://evil.example" };
     expect((await office.probe("a1", "watch", evil)).status).toBe(403);
     expect((await office.probe("a1", "watch")).status).toBe(401);
@@ -200,7 +204,7 @@ describe.skipIf(!hasTmux() || !hasBunPty())("terminal bridge (tmux + Bun PTY)", 
 
   test("control types into the agent; watchers see it but cannot type or resize", async () => {
     const watcher = await connect("a1", "watch", member);
-    const driver = await connect("a1", "control", robotOwner);
+    const driver = await connect("a1", "control", henchmanOwner);
     await driver.waitFor((c) => c.output.includes("FAKE AGENT"), "control attach");
     await watcher.waitFor((c) => c.output.includes("FAKE AGENT"), "watch attach");
 
@@ -210,7 +214,7 @@ describe.skipIf(!hasTmux() || !hasBunPty())("terminal bridge (tmux + Bun PTY)", 
     await watcher.waitFor((c) => c.output.includes("you said: typed-by-owner"), "echo in watch");
     await driver.waitFor((c) => c.output.includes("you said: typed-by-owner"), "echo in control");
     await Bun.sleep(100);
-    const pane = await runner.capturePane({ userId: robotOwner.id, name: "agent-a1" }, 200);
+    const pane = await runner.capturePane({ userId: henchmanOwner.id, name: "agent-a1" }, 200);
     expect(pane).not.toContain("typed-by-watcher");
     // The control client (160x45 minus tmux's status line) sets the size, never the watcher.
     expect(await windowSize("a1")).toBe("160x44");
@@ -226,7 +230,7 @@ describe.skipIf(!hasTmux() || !hasBunPty())("terminal bridge (tmux + Bun PTY)", 
 
   test("five concurrent viewers on one session: counts, fan-out latency, clean teardown", async () => {
     await waitUntil(() => office.bridge.viewerCount("a1") === 0, "earlier viewers gone");
-    const driver = await connect("a1", "control", robotOwner);
+    const driver = await connect("a1", "control", henchmanOwner);
     const viewers: TermClient[] = [];
     for (let i = 0; i < 5; i += 1) viewers.push(await connect("a1", "watch", member));
     for (const v of viewers) await v.waitFor((c) => c.output.includes("FAKE AGENT"), "attach");
@@ -275,7 +279,7 @@ describe.skipIf(!hasTmux() || !hasBunPty())("terminal bridge (tmux + Bun PTY)", 
     }
     expect(await tmux("list-clients", "-t", "=agent-a1")).toBe("");
     expect(office.bridge.viewerCount("a1")).toBe(0);
-    expect(await runner.sessionExists({ userId: robotOwner.id, name: "agent-a1" })).toBe(true);
+    expect(await runner.sessionExists({ userId: henchmanOwner.id, name: "agent-a1" })).toBe(true);
   });
 
   test("Colyseus rooms still work behind the same WsRouter", async () => {

@@ -85,9 +85,9 @@ export const CATCH_UP_MS = 60 * MINUTE;
  * null when none. Slots are whole minutes (ms since epoch).
  */
 export function dueSlot(cron: Cron, after: number, now: number): number | null {
-  const floorMin = (t: number) => Math.floor(t / MINUTE) * MINUTE;
-  const oldest = Math.max(floorMin(after) + MINUTE, floorMin(now - CATCH_UP_MS));
-  for (let t = floorMin(now); t >= oldest; t -= MINUTE) {
+  const operationMin = (t: number) => Math.floor(t / MINUTE) * MINUTE;
+  const oldest = Math.max(operationMin(after) + MINUTE, operationMin(now - CATCH_UP_MS));
+  for (let t = operationMin(now); t >= oldest; t -= MINUTE) {
     if (cronMatches(cron, new Date(t))) return t;
   }
   return null;

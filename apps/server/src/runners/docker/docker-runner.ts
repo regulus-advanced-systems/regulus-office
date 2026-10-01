@@ -8,10 +8,10 @@
  * session sources and deletes before `exec`ing the agent. Piped processes get it
  * as exec-scoped `Env`, kept off the container config and `docker inspect`.
  *
- * Mounts: mounts.ts (the human's own area per floor) and `mountProject`.
+ * Mounts: mounts.ts (the human's own area per operation) and `mountProject`.
  *
- * Sandboxes (D18, #169): with `sandboxes` set, `sandbox()` gives a robot its own
- * container (sandboxes.ts) and every call about that robot runs there
+ * Sandboxes (D18, #169): with `sandboxes` set, `sandbox()` gives a henchman its own
+ * container (sandboxes.ts) and every call about that henchman runs there
  * (exec-router.ts); the runner keeps login terminals and side processes.
  */
 import { randomUUID } from "node:crypto";
@@ -21,8 +21,8 @@ import type { PipedProcess, PlannedFile, SpawnPlan } from "@regulus/agent-adapte
 import type { SandboxSettings } from "../sandbox.ts";
 import type {
   AgentRef,
-  FloorRepoRef,
   MountedProject,
+  OperationRepoRef,
   Runner,
   RunnerHandle,
   RunnerUser,
@@ -33,17 +33,17 @@ import type {
 import { type ContainerSettings, RunnerContainers } from "./containers.ts";
 import { EngineClient } from "./engine.ts";
 import type { Where } from "./exec-router.ts";
-import { removeFloorAreas } from "./floor-cleanup.ts";
 import type { RunnerLog } from "./heal.ts";
 import { startPiped } from "./interactive.ts";
 import {
-  DEFAULT_FLOOR_ROOTS,
+  DEFAULT_OPERATION_ROOTS,
   humanMountTarget,
   isCovered,
   isOwnArea,
   toMountSpec,
   type VolumeMapping,
 } from "./mounts.ts";
+import { removeOperationAreas } from "./operation-cleanup.ts";
 import { PipedTracker } from "./piped-tracker.ts";
 import { type RefreshDeps, refreshIfDrifted } from "./refresh.ts";
 import { type RemountDeps, remount } from "./remount.ts";
@@ -54,18 +54,18 @@ import { envFileContents, shellQuote, writeFileExec } from "./shell.ts";
 export interface DockerRunnerOptions extends ContainerSettings {
   /** Defaults to a client for `DOCKER_HOST` / the local socket. */
   engine?: EngineClient;
-  /** Roots whose `<root>/<floor>/<runner id>` dirs are mounted as a unit (see mounts.ts). */
-  floorRoots?: readonly string[];
+  /** Roots whose `<root>/<operation>/<runner id>` dirs are mounted as a unit (see mounts.ts). */
+  operationRoots?: readonly string[];
   volumeMap?: readonly VolumeMapping[];
   /** How long a recreate waits for piped side processes to finish (default 5 s). */
   pipedDrainMs?: number;
   /** Where runner recreates (#151) are logged, with a redacted reason. */
   logger?: RunnerLog;
-  /** Per-agent sandboxes (#169); without it robots run in their human's runner. */
+  /** Per-agent sandboxes (#169); without it henchmen run in their human's runner. */
   sandboxes?: SandboxSettings;
 }
 
-export { DEFAULT_FLOOR_ROOTS, RunnerBusyError } from "./mounts.ts";
+export { DEFAULT_OPERATION_ROOTS, RunnerBusyError } from "./mounts.ts";
 export { envFileContents, shellQuote } from "./shell.ts";
 
 const sandboxInfo = (s: DockerSandbox): SandboxInfo => ({
@@ -78,7 +78,7 @@ const sandboxInfo = (s: DockerSandbox): SandboxInfo => ({
 
 export class DockerRunner extends DockerSessionOps implements Runner {
   readonly backend = "docker" as const;
-  readonly #floorRoots: readonly string[];
+  readonly #operationRoots: readonly string[];
   readonly #volumeMap: readonly VolumeMapping[];
   readonly #ids: Map<string, string>;
   readonly #piped: PipedTracker;
@@ -101,7 +101,7 @@ export class DockerRunner extends DockerSessionOps implements Runner {
         : undefined,
     );
     this.#ids = this.router.ids;
-    this.#floorRoots = opts.floorRoots ?? DEFAULT_FLOOR_ROOTS;
+    this.#operationRoots = opts.operationRoots ?? DEFAULT_OPERATION_ROOTS;
     this.#hostNetwork = opts.network === "host";
     this.#volumeMap = opts.volumeMap ?? [];
     this.#piped = new PipedTracker(opts.pipedDrainMs);
@@ -112,10 +112,10 @@ export class DockerRunner extends DockerSessionOps implements Runner {
         this.router.tmux({ userId }, ["list-sessions", "-F", "#{session_name}"], false),
     };
     this.#remountDeps = {
-      floorRoots: this.#floorRoots,
+      operationRoots: this.#operationRoots,
       volumeMap: this.#volumeMap,
       piped: this.#piped,
-      // The runner's own sessions only: robots in sandboxes do not keep it busy.
+      // The runner's own sessions only: henchmen in sandboxes do not keep it busy.
       listSessions: (user) => this.runnerSessions(user),
       recreate: async (userId, mounts) => {
         this.#ids.set(userId, (await this.containers.recreate(userId, mounts)).id);
@@ -139,11 +139,11 @@ export class DockerRunner extends DockerSessionOps implements Runner {
     return this.#handle(user.userId, c.id);
   }
 
-  /** Not part of `Runner`: a deleted floor's human areas, removed as the runner uid (#150). */
-  removeFloorAreas(slug: string): Promise<void> {
+  /** Not part of `Runner`: a deleted operation's human areas, removed as the runner uid (#150). */
+  removeOperationAreas(slug: string): Promise<void> {
     const { engine, containers } = this;
     const deps = { ...this.#remountDeps, engine, containers, settings: containers.settings };
-    return removeFloorAreas(deps, slug);
+    return removeOperationAreas(deps, slug);
   }
 
   /** Re-adopt runner containers after an office restart (starting stopped ones). */
@@ -154,7 +154,7 @@ export class DockerRunner extends DockerSessionOps implements Runner {
   }
 
   /**
-   * Remove the human's runner container and robot sandboxes and, with
+   * Remove the human's runner container and henchman sandboxes and, with
    * `removeHome`, their credentials volume.
    */
   async deprovision(user: RunnerUser, opts: { removeHome?: boolean } = {}): Promise<void> {
@@ -164,14 +164,18 @@ export class DockerRunner extends DockerSessionOps implements Runner {
   }
 
   /**
-   * The robot's own container (#169): HOME volume plus the human's area on the
-   * robot's floor, nothing else. Idempotent; null when sandboxes are off.
+   * The henchman's own container (#169): HOME volume plus the human's area on the
+   * henchman's operation, nothing else. Idempotent; null when sandboxes are off.
    */
   async sandbox(agent: AgentRef, spec: SandboxSpec): Promise<SandboxInfo | null> {
     if (!this.sandboxes) return null;
     // The runner owns the HOME volume the sandbox mounts.
     await this.provision({ userId: agent.userId });
-    const area = humanMountTarget(posix.normalize(spec.workdir), this.#floorRoots, agent.userId);
+    const area = humanMountTarget(
+      posix.normalize(spec.workdir),
+      this.#operationRoots,
+      agent.userId,
+    );
     await mkdir(area, { recursive: true }).catch(() => {});
     const mounts = [toMountSpec(area, this.#volumeMap)];
     return sandboxInfo(await this.sandboxes.ensure(agent.userId, agent.agentId, mounts));
@@ -190,23 +194,23 @@ export class DockerRunner extends DockerSessionOps implements Runner {
   }
 
   /**
-   * Docker cannot add a mount to a running container, so a new floor (area,
+   * Docker cannot add a mount to a running container, so a new operation (area,
    * mounts.ts) means recreating the runner: HOME survives, tmux and every process
    * do not. So only an idle runner is recreated: no tmux sessions, and no piped
    * processes once they had `pipedDrainMs` to finish (e.g. the spawn dialog's
    * login check, #126); otherwise {@link RunnerBusyError}. Mounts that are not
    * this human's areas (pre-#114) go in the same recreate; one change at a time.
    */
-  async mountProject(user: RunnerUser, repo: FloorRepoRef): Promise<MountedProject> {
+  async mountProject(user: RunnerUser, repo: OperationRepoRef): Promise<MountedProject> {
     const workdir = posix.normalize(repo.workdir);
-    const target = humanMountTarget(workdir, this.#floorRoots, user.userId);
+    const target = humanMountTarget(workdir, this.#operationRoots, user.userId);
     await this.#piped.hold(user.userId, async () => {
       const c = await this.containers.ensure(user.userId);
       this.#ids.set(user.userId, c.id);
-      // Only the human's own areas count: a stale whole-floor mount covers the path but goes.
-      const own = c.floorMounts.filter((m) => isOwnArea(m, this.#floorRoots, user.userId));
+      // Only the human's own areas count: a stale whole-operation mount covers the path but goes.
+      const own = c.operationMounts.filter((m) => isOwnArea(m, this.#operationRoots, user.userId));
       const missing = isCovered(target, own) ? [] : [target];
-      await remount(this.#remountDeps, user, c.floorMounts, missing, {
+      await remount(this.#remountDeps, user, c.operationMounts, missing, {
         running: true,
         strict: true,
       });
@@ -215,7 +219,7 @@ export class DockerRunner extends DockerSessionOps implements Runner {
   }
 
   /**
-   * Drop mounts that are not this human's own areas (pre-#114 floor mounts),
+   * Drop mounts that are not this human's own areas (pre-#114 operation mounts),
    * recreating the runner if it is idle. Returns false when stale mounts
    * remain because the runner is busy (the next `mountProject` refuses it).
    */
@@ -224,7 +228,7 @@ export class DockerRunner extends DockerSessionOps implements Runner {
       const c = await this.containers.lookup(user.userId);
       if (!c) return true;
       this.#ids.set(user.userId, c.id);
-      return remount(this.#remountDeps, user, c.floorMounts, [], {
+      return remount(this.#remountDeps, user, c.operationMounts, [], {
         running: c.running,
         strict: false,
       });
@@ -290,7 +294,7 @@ export class DockerRunner extends DockerSessionOps implements Runner {
     });
   }
 
-  /** Removes the robot's sandbox (and everything in it); else kills its runner session. */
+  /** Removes the henchman's sandbox (and everything in it); else kills its runner session. */
   async kill(agent: AgentRef): Promise<void> {
     if (this.sandboxes && (await this.sandboxes.remove(agent.agentId))) return;
     const inRunner = { userId: agent.userId };

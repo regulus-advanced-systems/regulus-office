@@ -1,16 +1,16 @@
 import { describe, expect, test } from "bun:test";
-import type { RobotNotice } from "./events.ts";
+import type { HenchmanNotice } from "./events.ts";
 import { discordBody, escapeSlack, slackBody, telegramBody, webhookBody } from "./format.ts";
 
-const notice = (extra: Partial<RobotNotice> = {}): RobotNotice => ({
+const notice = (extra: Partial<HenchmanNotice> = {}): HenchmanNotice => ({
   id: "n1",
   event: "needs_input",
   agentId: "a1",
-  floorId: "f1",
-  floorName: "Web app",
+  operationId: "f1",
+  operationName: "Web app",
   ownerUserId: "u1",
   ownerName: "Olga",
-  robotName: "Olga's Codex henchman",
+  henchmanName: "Olga's Codex henchman",
   provider: "codex",
   taskTitle: "Fix the login page",
   prNumber: 12,

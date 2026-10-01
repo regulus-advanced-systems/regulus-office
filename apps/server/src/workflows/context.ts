@@ -85,7 +85,7 @@ export interface WorkflowContext {
   receivedAt: number;
   repo: { owner: string; name: string; fullName: string } | null;
   repoIds: string[];
-  floorIds: string[];
+  operationIds: string[];
   sender: { login: string; isBot: boolean } | null;
   fromOfficeApp: boolean;
   stale: boolean;
@@ -230,7 +230,7 @@ export function contextFromEvent(event: AnyGitHubEvent): WorkflowContext {
     receivedAt: event.receivedAt,
     repo: event.repo,
     repoIds: event.repoIds,
-    floorIds: event.floorIds,
+    operationIds: event.operationIds,
     sender: event.sender ? { login: event.sender.login, isBot: event.sender.type === "Bot" } : null,
     fromOfficeApp: event.fromOfficeApp,
     stale: event.stale,

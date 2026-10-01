@@ -2,12 +2,12 @@
  * The room build state machine (SPEC §9.1): a new room is `building` for the
  * build phase (OFFICE_ROOM_BUILD_SECONDS) while its repos clone, then
  * `ready`. Only time ends it: a clone that fails still ends the build, and
- * the room shows the floor's usual clone error. Timers are rebuilt from the
+ * the room shows the operation's usual clone error. Timers are rebuilt from the
  * rows at boot, so a restart mid-build finishes on time (or at once).
  */
 import { and, eq, isNull } from "drizzle-orm";
 import type { Db } from "../db/index.ts";
-import { floors } from "../db/schema/index.ts";
+import { operations } from "../db/schema/index.ts";
 import type { Logger } from "../logging.ts";
 
 export interface BuildTimersDeps {
@@ -16,7 +16,7 @@ export interface BuildTimersDeps {
   buildMs: number;
   now: () => number;
   /** A room finished building. */
-  onReady(floorId: string): void;
+  onReady(operationId: string): void;
 }
 
 export class BuildTimers {
@@ -60,29 +60,29 @@ export class BuildTimers {
     }
   }
 
-  #finish(floorId: string, startedAt: number | null): void {
-    this.#timers.delete(floorId);
+  #finish(operationId: string, startedAt: number | null): void {
+    this.#timers.delete(operationId);
     if (this.#closed) return;
     try {
       const done = this.#deps.db
-        .update(floors)
+        .update(operations)
         .set({ buildState: "ready" })
         .where(
           and(
-            eq(floors.id, floorId),
-            eq(floors.buildState, "building"),
+            eq(operations.id, operationId),
+            eq(operations.buildState, "building"),
             startedAt === null
-              ? isNull(floors.buildStartedAt)
-              : eq(floors.buildStartedAt, new Date(startedAt)),
+              ? isNull(operations.buildStartedAt)
+              : eq(operations.buildStartedAt, new Date(startedAt)),
           ),
         )
-        .returning({ id: floors.id })
+        .returning({ id: operations.id })
         .all();
       if (done.length === 0) return;
-      this.#deps.logger.info({ floorId }, "room built");
-      this.#deps.onReady(floorId);
+      this.#deps.logger.info({ operationId }, "room built");
+      this.#deps.onReady(operationId);
     } catch (err) {
-      this.#deps.logger.error({ err, floorId }, "finishing a room build failed");
+      this.#deps.logger.error({ err, operationId }, "finishing a room build failed");
     }
   }
 

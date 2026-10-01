@@ -31,7 +31,7 @@ export interface WorkflowsDeps {
   config: Pick<OfficeConfig, "worktreesDir">;
   logger: Logger;
   connection: Pick<GitHubConnection, "app" | "tokenFor" | "api">;
-  repos: Pick<RepoAccess, "getRepo" | "listFloorRepos">;
+  repos: Pick<RepoAccess, "getRepo" | "listOperationRepos">;
   runner: Runner;
   git?: GitRunner;
   /** The usage tracker (#40): workflow usage is attributed to `office`. */
@@ -82,7 +82,7 @@ export function createWorkflows(deps: WorkflowsDeps): Workflows {
     events,
     repos: deps.repos,
     execute: (row, wf, signal) => executor.execute(row, wf, signal),
-    cleanup: (runId, floorId) => executor.cleanup(runId, floorId),
+    cleanup: (runId, operationId) => executor.cleanup(runId, operationId),
     logger,
     now,
     maxParallel: deps.maxParallel,

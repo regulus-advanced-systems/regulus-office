@@ -22,7 +22,7 @@ describe("ServiceScanner", () => {
       runner: runner.asRunner(),
       registry: new ServiceRegistry(),
       store: new ServiceStore(office.db),
-      publish: (floorId, list) => published.set(floorId, list),
+      publish: (operationId, list) => published.set(operationId, list),
       shared: () => false,
       probeTitle: probe,
       logger: createLogger({ level: "silent" }),
@@ -34,7 +34,7 @@ describe("ServiceScanner", () => {
     runner = new FakeRunner("docker");
     office = await startServicesOffice({ runner: runner.asRunner() });
     owner = (await office.signUp("Owner")).id;
-    office.addFloor("f1", { [owner]: "spawn" });
+    office.addOperation("f1", { [owner]: "spawn" });
     office.addAgent("a1", "f1", owner);
     office.addAgent("gone", "f1", owner, "exited");
     runner.sandboxes.set("a1", {
@@ -96,14 +96,14 @@ describe("ServiceScanner", () => {
     const [after] = published.get("f1") ?? [];
     expect(after?.id).toBe(before?.id ?? "missing");
     expect(after?.firstSeenAt).toBe(before?.firstSeenAt ?? -1);
-    // The robot goes down: its apps go too.
+    // The henchman goes down: its apps go too.
     office.db.update(agents).set({ status: "exited" }).where(eq(agents.id, "a1")).run();
     await second.tick();
     expect(published.get("f1")).toEqual([]);
     expect(office.db.select().from(services).all()).toEqual([]);
   });
 
-  test("a port that closes disappears; quiet robots are scanned less often", async () => {
+  test("a port that closes disappears; quiet henchmen are scanned less often", async () => {
     runner.ports.set("a1", [{ port: 3000, address: "::", pid: 7 }]);
     const s = scanner();
     await s.tick();

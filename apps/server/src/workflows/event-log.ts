@@ -17,15 +17,15 @@ const PRUNE_EVERY = 50;
 type Row = typeof workflowEvents.$inferSelect;
 
 function toView(row: Row): WorkflowEventView {
-  let floorIds: string[] = [];
+  let operationIds: string[] = [];
   try {
-    floorIds = JSON.parse(row.floorIdsJson) as string[];
+    operationIds = JSON.parse(row.operationIdsJson) as string[];
   } catch {
-    floorIds = [];
+    operationIds = [];
   }
   return {
     id: row.id,
-    floorIds,
+    operationIds,
     name: (row.action ? `${row.name}.${row.action}` : row.name).slice(0, 80),
     repo: row.repo,
     summary: row.summary,
@@ -40,7 +40,7 @@ export class EventLog {
   constructor(private readonly db: Db) {}
 
   record(ctx: WorkflowContext): void {
-    if (ctx.floorIds.length === 0) return;
+    if (ctx.operationIds.length === 0) return;
     this.db
       .insert(workflowEvents)
       .values({
@@ -48,7 +48,7 @@ export class EventLog {
         name: ctx.name,
         action: ctx.action,
         repo: ctx.repo?.fullName ?? null,
-        floorIdsJson: JSON.stringify(ctx.floorIds),
+        operationIdsJson: JSON.stringify(ctx.operationIds),
         summary: contextSummary(ctx),
         sender: ctx.sender?.login ?? null,
         eventJson: JSON.stringify(ctx),
@@ -60,8 +60,8 @@ export class EventLog {
     if (this.#writes % PRUNE_EVERY === 0) this.prune(ctx.receivedAt);
   }
 
-  /** Newest first, only those that concern `floorId`. */
-  listForFloor(floorId: string, limit = 50): WorkflowEventView[] {
+  /** Newest first, only those that concern `operationId`. */
+  listForOperation(operationId: string, limit = 50): WorkflowEventView[] {
     const out: WorkflowEventView[] = [];
     const rows = this.db
       .select()
@@ -71,7 +71,7 @@ export class EventLog {
       .all();
     for (const row of rows) {
       const view = toView(row);
-      if (view.floorIds.includes(floorId)) out.push(view);
+      if (view.operationIds.includes(operationId)) out.push(view);
       if (out.length >= limit) break;
     }
     return out;

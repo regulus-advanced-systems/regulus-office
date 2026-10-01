@@ -34,7 +34,7 @@ export interface RoutableChannel {
   id: string;
   kind: WebhookKind;
   chatId: string | null;
-  floorIds: string[] | null;
+  operationIds: string[] | null;
   events: NotificationEvent[];
 }
 
@@ -98,7 +98,7 @@ export class ChannelStore {
       kind: row.kind,
       label: row.label,
       chatId: row.chatId,
-      floorIds: parseList(row.floorIdsJson),
+      operationIds: parseList(row.operationIdsJson),
       events: parseEvents(row.eventsJson),
       enabled: row.enabled,
       lastDelivery:
@@ -131,7 +131,13 @@ export class ChannelStore {
   routable(): RoutableChannel[] {
     return this.list()
       .filter((c) => c.enabled)
-      .map(({ id, kind, chatId, floorIds, events }) => ({ id, kind, chatId, floorIds, events }));
+      .map(({ id, kind, chatId, operationIds, events }) => ({
+        id,
+        kind,
+        chatId,
+        operationIds,
+        events,
+      }));
   }
 
   create(input: CreateNotificationChannel, createdBy: string): NotificationChannelView {
@@ -146,7 +152,7 @@ export class ChannelStore {
         label: input.label,
         encryptedSecret,
         chatId: input.kind === "telegram" ? (input.chatId ?? null) : null,
-        floorIdsJson: input.floorIds === null ? null : JSON.stringify(input.floorIds),
+        operationIdsJson: input.operationIds === null ? null : JSON.stringify(input.operationIds),
         eventsJson: JSON.stringify([...new Set(input.events)]),
         enabled: input.enabled ?? true,
         createdBy,
@@ -162,8 +168,9 @@ export class ChannelStore {
     if (patch.label !== undefined) set.label = patch.label;
     if (patch.secret !== undefined) set.encryptedSecret = this.#seal(id, patch.secret);
     if (patch.chatId !== undefined && row.kind === "telegram") set.chatId = patch.chatId;
-    if (patch.floorIds !== undefined) {
-      set.floorIdsJson = patch.floorIds === null ? null : JSON.stringify(patch.floorIds);
+    if (patch.operationIds !== undefined) {
+      set.operationIdsJson =
+        patch.operationIds === null ? null : JSON.stringify(patch.operationIds);
     }
     if (patch.events !== undefined) set.eventsJson = JSON.stringify([...new Set(patch.events)]);
     if (patch.enabled !== undefined) set.enabled = patch.enabled;

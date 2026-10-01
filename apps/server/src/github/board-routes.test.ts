@@ -10,8 +10,8 @@ import { auditLog, githubIssues, githubPulls } from "../db/schema/index.ts";
 import {
   type BoardRoutesFixture,
   boardRoutesFixture,
-  FLOOR,
   HELLO,
+  OPERATION,
   ORG_PAT,
   REPO_PAT,
   SECRET,
@@ -26,9 +26,9 @@ afterAll(async () => {
 });
 
 const issue7 = (action?: "comment" | "assign" | "merge" | "close") =>
-  boardCardPath(FLOOR, "issue", HELLO, 7, action);
+  boardCardPath(OPERATION, "issue", HELLO, 7, action);
 const pull9 = (action?: "comment" | "assign" | "merge" | "close") =>
-  boardCardPath(FLOOR, "pr", HELLO, 9, action);
+  boardCardPath(OPERATION, "pr", HELLO, 9, action);
 const audits = () =>
   f.office.db
     .select()
@@ -68,15 +68,15 @@ describe("reading a card", () => {
     expect(owner).toMatchObject({ canWrite: true, headBranch: "office/fix-9" });
   });
 
-  test("signed out 401; strangers, unknown cards and other floors' repos 404", async () => {
+  test("signed out 401; strangers, unknown cards and other operations' repos 404", async () => {
     expect((await f.call("GET", issue7())).status).toBe(401);
     expect((await f.call("GET", issue7(), f.people.stranger.cookie)).status).toBe(404);
-    const missing = boardCardPath(FLOOR, "issue", HELLO, 404);
+    const missing = boardCardPath(OPERATION, "issue", HELLO, 404);
     expect((await f.call("GET", missing, f.people.viewer.cookie)).status).toBe(404);
     // #9 is a PR, not an issue.
-    const wrongKind = boardCardPath(FLOOR, "issue", HELLO, 9);
+    const wrongKind = boardCardPath(OPERATION, "issue", HELLO, 9);
     expect((await f.call("GET", wrongKind, f.people.viewer.cookie)).status).toBe(404);
-    const elsewhere = boardCardPath("floor-other", "issue", HELLO, 7);
+    const elsewhere = boardCardPath("operation-other", "issue", HELLO, 7);
     expect((await f.call("GET", elsewhere, f.people.owner.cookie)).status).toBe(404);
   });
 
@@ -84,7 +84,7 @@ describe("reading a card", () => {
     const before = f.gh.calls.length;
     const res = await f.call(
       "GET",
-      boardCardPath(FLOOR, "issue", SECRET, 3),
+      boardCardPath(OPERATION, "issue", SECRET, 3),
       f.people.viewer.cookie,
     );
     const detail = (await res.json()) as BoardCardDetail;
@@ -96,7 +96,7 @@ describe("reading a card", () => {
   });
 
   test("the repo's assignable people", async () => {
-    const res = await f.call("GET", boardAssigneesPath(FLOOR, HELLO), f.people.viewer.cookie);
+    const res = await f.call("GET", boardAssigneesPath(OPERATION, HELLO), f.people.viewer.cookie);
     expect(await res.json()).toEqual({ logins: ["ada", "ben"] });
   });
 });
@@ -135,7 +135,7 @@ describe("write access", () => {
   });
 
   test("a repo without an office credential cannot be written, even with its own PAT", async () => {
-    const path = boardCardPath(FLOOR, "issue", SECRET, 3, "comment");
+    const path = boardCardPath(OPERATION, "issue", SECRET, 3, "comment");
     const res = await f.call("POST", path, f.people.manager.cookie, { body: "hello" });
     expect(res.status).toBe(409);
     expect(((await res.json()) as { error: string }).error).toBe("office_credential_missing");
@@ -143,7 +143,7 @@ describe("write access", () => {
   });
 });
 
-describe("write actions (floor managers, office credential, audited)", () => {
+describe("write actions (operation managers, office credential, audited)", () => {
   test("comment: the human is named, via Regulus Office; the text is not audited", async () => {
     const res = await f.call("POST", issue7("comment"), f.people.manager.cookie, {
       body: "  On it, @ada. **Soon**.  ",
@@ -163,7 +163,7 @@ describe("write actions (floor managers, office credential, audited)", () => {
       targetId: `${HELLO}#7`,
     });
     expect(JSON.parse(entry?.metaJson ?? "{}")).toMatchObject({
-      floorId: FLOOR,
+      operationId: OPERATION,
       repo: "octo/hello",
       kind: "issue",
       number: 7,
@@ -182,7 +182,7 @@ describe("write actions (floor managers, office credential, audited)", () => {
         .where(and(eq(githubIssues.repoId, HELLO), eq(githubIssues.number, 7)))
         .get()?.assignees;
     expect(cached()).toBe('["ada"]');
-    expect(f.published.slice(published)).toEqual([[FLOOR]]);
+    expect(f.published.slice(published)).toEqual([[OPERATION]]);
     res = await f.call("POST", issue7("assign"), f.people.manager.cookie, { remove: ["ada"] });
     expect(res.status).toBe(204);
     expect(cached()).toBe("[]");
@@ -206,7 +206,7 @@ describe("write actions (floor managers, office credential, audited)", () => {
       (
         await f.call(
           "POST",
-          boardCardPath(FLOOR, "issue", HELLO, 7, "merge"),
+          boardCardPath(OPERATION, "issue", HELLO, 7, "merge"),
           f.people.manager.cookie,
           {
             method: "squash",
@@ -232,7 +232,7 @@ describe("write actions (floor managers, office credential, audited)", () => {
     expect(await res.json()).toEqual({ merged: true, sha: "mergesha" });
     const merge = f.boardCalls().findLast((c) => c.method === "PUT");
     expect(merge?.body).toEqual({ merge_method: "squash" });
-    // The merge gong rings at once (#43), for every floor repo row of the repo.
+    // The merge gong rings at once (#43), for every operation repo row of the repo.
     expect(f.merged).toEqual([{ repoIds: [HELLO], number: 9 }]);
     const row = f.office.db
       .select()

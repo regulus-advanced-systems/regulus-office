@@ -2,24 +2,24 @@
  * Rate limit for banging the merge gong by hand (#43). Two rules, both
  * checked before anything is broadcast:
  *
- * - per floor: no bang while the gong still rings from any cause (a merge, a
- *   bang or the queue emptying): `floorCooldownMs` after the last ring;
+ * - per operation: no bang while the gong still rings from any cause (a merge, a
+ *   bang or the queue emptying): `operationCooldownMs` after the last ring;
  * - per human: a token bucket (`burst` bangs, then one every `refillMs`), so
- *   one person cannot keep a floor dancing by waiting out the floor cooldown.
+ *   one person cannot keep an operation dancing by waiting out the operation cooldown.
  *
  * Pure apart from the injected clock; the maps are pruned as they are used,
- * so they stay as small as the set of recently active floors and humans.
+ * so they stay as small as the set of recently active operations and humans.
  */
 
 export interface BangLimits {
-  floorCooldownMs: number;
+  operationCooldownMs: number;
   burst: number;
   refillMs: number;
 }
 
 export const DEFAULT_BANG_LIMITS: Readonly<BangLimits> = {
   // The celebration lasts about 3 s; let it finish before the next one.
-  floorCooldownMs: 4_000,
+  operationCooldownMs: 4_000,
   burst: 3,
   refillMs: 20_000,
 };
@@ -45,24 +45,24 @@ export class BangLimiter {
     this.#now = now;
   }
 
-  /** The gong on `floorId` rang now (any cause): bangs wait for the cooldown. */
-  rang(floorId: string): void {
-    this.#rungAt.set(floorId, this.#now());
+  /** The gong on `operationId` rang now (any cause): bangs wait for the cooldown. */
+  rang(operationId: string): void {
+    this.#rungAt.set(operationId, this.#now());
   }
 
-  /** May `userId` bang the gong on `floorId` now? Records the bang when allowed. */
-  bang(floorId: string, userId: string): BangVerdict {
+  /** May `userId` bang the gong on `operationId` now? Records the bang when allowed. */
+  bang(operationId: string, userId: string): BangVerdict {
     const now = this.#now();
     this.#prune(now);
-    const last = this.#rungAt.get(floorId);
-    if (last !== undefined && now - last < this.#limits.floorCooldownMs) {
+    const last = this.#rungAt.get(operationId);
+    if (last !== undefined && now - last < this.#limits.operationCooldownMs) {
       return { ok: false, reason: GONG_STILL_RINGING };
     }
     const bucket = this.#refilled(userId, now);
     if (bucket.tokens < 1) return { ok: false, reason: GONG_REST };
     bucket.tokens -= 1;
     this.#buckets.set(userId, bucket);
-    this.#rungAt.set(floorId, now);
+    this.#rungAt.set(operationId, now);
     return { ok: true };
   }
 
@@ -78,9 +78,9 @@ export class BangLimiter {
   }
 
   #prune(now: number): void {
-    const { floorCooldownMs, burst, refillMs } = this.#limits;
-    for (const [floorId, at] of this.#rungAt) {
-      if (now - at >= floorCooldownMs) this.#rungAt.delete(floorId);
+    const { operationCooldownMs, burst, refillMs } = this.#limits;
+    for (const [operationId, at] of this.#rungAt) {
+      if (now - at >= operationCooldownMs) this.#rungAt.delete(operationId);
     }
     for (const [userId, bucket] of this.#buckets) {
       if (now - bucket.at >= burst * refillMs) this.#buckets.delete(userId);

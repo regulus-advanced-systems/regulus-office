@@ -1,6 +1,6 @@
 /**
  * Workflow definitions in the office DB (#155). The spec (trigger, filters,
- * robot, actions, limits) is one JSON column validated with the protocol
+ * henchman, actions, limits) is one JSON column validated with the protocol
  * schema on every read, so a row written by an older version still parses
  * (defaults fill new fields) and a broken row is never acted on.
  */
@@ -18,7 +18,7 @@ export type WorkflowRow = typeof workflows.$inferSelect;
 
 export interface StoredWorkflow {
   id: string;
-  floorId: string;
+  operationId: string;
   spec: WorkflowSpec;
   lastScheduledAt: number | null;
   createdBy: string | null;
@@ -48,7 +48,7 @@ function toStored(row: WorkflowRow): StoredWorkflow | null {
   if (!spec) return null;
   return {
     id: row.id,
-    floorId: row.floorId,
+    operationId: row.operationId,
     spec,
     lastScheduledAt: row.lastScheduledAt?.getTime() ?? null,
     createdBy: row.createdBy,
@@ -66,7 +66,7 @@ export function toView(w: StoredWorkflow, today: WorkflowUsageToday): WorkflowVi
   return {
     ...w.spec,
     id: w.id,
-    floorId: w.floorId,
+    operationId: w.operationId,
     createdBy: w.createdBy,
     createdAt: w.createdAt,
     updatedAt: w.updatedAt,
@@ -82,25 +82,25 @@ export class WorkflowStore {
     return row ? toStored(row) : null;
   }
 
-  listForFloor(floorId: string): StoredWorkflow[] {
+  listForOperation(operationId: string): StoredWorkflow[] {
     return this.db
       .select()
       .from(workflows)
-      .where(eq(workflows.floorId, floorId))
+      .where(eq(workflows.operationId, operationId))
       .orderBy(asc(workflows.createdAt))
       .all()
       .map(toStored)
       .filter((w): w is StoredWorkflow => w !== null);
   }
 
-  /** Enabled workflows of these floors (the engine's candidates for one event). */
-  enabledOn(floorIds: readonly string[]): StoredWorkflow[] {
-    if (floorIds.length === 0) return [];
-    return floorIds.flatMap((floorId) =>
+  /** Enabled workflows of these operations (the engine's candidates for one event). */
+  enabledOn(operationIds: readonly string[]): StoredWorkflow[] {
+    if (operationIds.length === 0) return [];
+    return operationIds.flatMap((operationId) =>
       this.db
         .select()
         .from(workflows)
-        .where(and(eq(workflows.floorId, floorId), eq(workflows.enabled, true)))
+        .where(and(eq(workflows.operationId, operationId), eq(workflows.enabled, true)))
         .all()
         .map(toStored)
         .filter((w): w is StoredWorkflow => w !== null),
@@ -118,11 +118,11 @@ export class WorkflowStore {
       .filter((w): w is StoredWorkflow => w !== null && w.spec.trigger.kind === "schedule");
   }
 
-  create(floorId: string, spec: WorkflowSpec, createdBy: string | null): StoredWorkflow {
+  create(operationId: string, spec: WorkflowSpec, createdBy: string | null): StoredWorkflow {
     const row = this.db
       .insert(workflows)
       .values({
-        floorId,
+        operationId,
         name: spec.name,
         enabled: spec.enabled,
         specJson: specJson(spec),

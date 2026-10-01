@@ -56,7 +56,7 @@ export class LoginSessionTargets implements TerminalTargets {
       kind: "login",
       agentId: found.terminalId,
       ownerUserId: found.ownerUserId,
-      floorId: "",
+      operationId: "",
       session: found.session,
       runner: found.runner,
     };

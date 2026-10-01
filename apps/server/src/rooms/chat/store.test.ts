@@ -25,7 +25,7 @@ const line = (n: number): ChatMessage => ({
   id: `m${String(n).padStart(4, "0")}`,
   userId: "u1",
   displayName: "Ada",
-  floorId: "lobby",
+  operationId: "lobby",
   text: `line ${n}`,
   ts: 1_700_000_000_000 + n,
 });

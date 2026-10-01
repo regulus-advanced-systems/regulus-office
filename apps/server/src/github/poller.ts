@@ -1,7 +1,7 @@
 /**
  * Board polling (SPEC §4.2 "polling mode when no inbound URL", D14; #35).
  *
- * For every GitHub repo a live floor follows, one request at a time:
+ * For every GitHub repo a live operation follows, one request at a time:
  * 1. first pass: open issues and open PRs (up to 3 pages each), then the
  *    recent page of step 2, all without events;
  * 2. then: the 50 most recently updated issues and PRs (`state=all`, so closes
@@ -9,7 +9,7 @@
  * 3. reviews of PRs that changed, and check suites of open PRs' heads, also
  *    conditional.
  * Unchanged answers are 304s, which do not count against the rate limit.
- * The token is the floor repo's (the office connection's installation token
+ * The token is the operation repo's (the office connection's installation token
  * or PAT, else the repo's own PAT, via RepoAccess); repos without one are
  * not polled, so public repos never cost unauthenticated quota.
  *
@@ -48,12 +48,12 @@ export interface PollerDeps {
   cache: BoardCache;
   client: PollClient;
   /**
-   * Run `fn` with the floor repo row's token (null: not polled). The token is
+   * Run `fn` with the operation repo row's token (null: not polled). The token is
    * only used inside the callback (RepoAccess.withRepoCredential).
    */
   withToken<T>(repoId: string, fn: (token: string | null) => Promise<T>): Promise<T>;
-  /** Floors whose board changed. */
-  onBoardChanged(floorIds: string[]): void;
+  /** Operations whose board changed. */
+  onBoardChanged(operationIds: string[]): void;
   /** A change after the first pass (for the event bus). */
   onChange(change: PolledChange): void;
   logger: Logger;
@@ -116,7 +116,7 @@ export class BoardPoller {
         );
         state.failures = 0;
         state.nextAt = this.#now() + intervalMs;
-        if (touched) this.#deps.onBoardChanged(repo.floorIds);
+        if (touched) this.#deps.onBoardChanged(repo.operationIds);
       } catch (err) {
         if (err instanceof RateLimitedError) {
           this.#deps.logger.warn({ until: err.until }, "github rate limit reached; polling paused");

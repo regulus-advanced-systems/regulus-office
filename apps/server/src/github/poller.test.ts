@@ -42,20 +42,20 @@ const tick = async (minutes = 1.1) => {
   clock.t += minutes * 60_000;
   await f.sync.pollNow();
 };
-const board = (floorId: string) => f.published.get(floorId) ?? { issues: [], pulls: [] };
+const board = (operationId: string) => f.published.get(operationId) ?? { issues: [], pulls: [] };
 const statuses = (from: number) => f.boards.log.slice(from).map((l) => l.status);
 
 describe("first pass and conditional requests", () => {
-  test("fills the cache and every following floor's board, without events", async () => {
+  test("fills the cache and every following operation's board, without events", async () => {
     seeded();
     await f.sync.pollNow();
-    const alpha = board(f.alpha.floorId);
+    const alpha = board(f.alpha.operationId);
     expect(alpha.issues.map((i) => i.number).sort()).toEqual([1, 2, 4]);
     expect(alpha.pulls).toEqual([
       expect.objectContaining({ number: 10, checksState: "success", reviewState: "approved" }),
     ]);
     expect(
-      board(f.beta.floorId)
+      board(f.beta.operationId)
         .issues.map((i) => i.number)
         .sort(),
     ).toEqual([1, 2]);
@@ -110,7 +110,7 @@ describe("changes", () => {
     Object.assign(hello.pulls[0] as object, { updated_at: at(0) });
     await tick();
 
-    const alpha = board(f.alpha.floorId);
+    const alpha = board(f.alpha.operationId);
     expect(alpha.issues.find((i) => i.number === 1)?.state).toBe("closed");
     expect(alpha.pulls.find((p) => p.number === 11)).toBeDefined();
     expect(alpha.pulls.find((p) => p.number === 10)).toMatchObject({
@@ -120,7 +120,7 @@ describe("changes", () => {
     const seen = f.events.map((e) => `${e.name}.${e.action}.${e.source}`);
     expect(seen).toContain("issues.closed.poll");
     expect(seen).toContain("pull_request.opened.poll");
-    expect(f.events.every((e) => e.floorIds.includes(f.alpha.floorId))).toBe(true);
+    expect(f.events.every((e) => e.operationIds.includes(f.alpha.operationId))).toBe(true);
   });
 
   test("a PR opened and merged between two polls is reported closed, with merged_at", async () => {
@@ -138,7 +138,7 @@ describe("changes", () => {
     expect(
       (event?.payload as { pull_request?: { merged_at?: unknown } }).pull_request?.merged_at,
     ).toBeString();
-    expect(board(f.alpha.floorId).pulls.find((p) => p.number === 12)).toMatchObject({
+    expect(board(f.alpha.operationId).pulls.find((p) => p.number === 12)).toMatchObject({
       merged: true,
     });
   });
@@ -188,7 +188,7 @@ describe("rate limits", () => {
     expect(f.boards.log.length).toBe(before);
     await tick(1.5);
     expect(f.boards.log.length).toBeGreaterThan(before);
-    expect(board(f.alpha.floorId).issues.length).toBeGreaterThan(0);
+    expect(board(f.alpha.operationId).issues.length).toBeGreaterThan(0);
   });
 
   test("a secondary limit backs off a minute; a low remaining count pauses until the reset", async () => {
@@ -213,7 +213,7 @@ describe("rate limits", () => {
     f.boards.rate.forbidden = ["check-suites"];
     await f.sync.pollNow();
     expect(f.sync.status().rateLimitedUntil).toBeNull();
-    expect(board(f.alpha.floorId).pulls[0]).toMatchObject({
+    expect(board(f.alpha.operationId).pulls[0]).toMatchObject({
       checksState: "none",
       reviewState: "approved",
     });
@@ -231,6 +231,6 @@ describe("rate limits", () => {
     expect(f.gh.calls.length).toBe(before);
     f.gh.state.failAll = false;
     await tick(1.1);
-    expect(board(f.alpha.floorId).issues.length).toBeGreaterThan(0);
+    expect(board(f.alpha.operationId).issues.length).toBeGreaterThan(0);
   });
 });

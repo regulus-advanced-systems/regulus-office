@@ -1,6 +1,6 @@
 /**
- * Database lookups for notifications (#42): per-user preferences, floor
- * names, PR links, who the office managers are, which of a human's robots
+ * Database lookups for notifications (#42): per-user preferences, operation
+ * names, PR links, who the office managers are, which of a human's henchmen
  * wait for them (tab badge), and one-time marks (a merged PR notifies once).
  */
 import {
@@ -12,10 +12,10 @@ import { and, eq, inArray } from "drizzle-orm";
 import type { Db } from "../db/index.ts";
 import {
   agents,
-  floorRepos,
-  floors,
   notificationMarks,
   notificationPrefs,
+  operationRepos,
+  operations,
   userProfiles,
 } from "../db/schema/index.ts";
 import { ATTENTION_STATUSES } from "./events.ts";
@@ -61,11 +61,11 @@ export class NotificationDirectory {
     this.#prefs.set(userId, prefs);
   }
 
-  floorName(floorId: string): string {
+  operationName(operationId: string): string {
     const row = this.#db
-      .select({ name: floors.name })
-      .from(floors)
-      .where(eq(floors.id, floorId))
+      .select({ name: operations.name })
+      .from(operations)
+      .where(eq(operations.id, operationId))
       .get();
     return row?.name ?? "";
   }
@@ -74,9 +74,9 @@ export class NotificationDirectory {
   prUrl(repoId: string, prNumber: number): string {
     if (!(prNumber > 0)) return "";
     const repo = this.#db
-      .select({ owner: floorRepos.owner, name: floorRepos.name })
-      .from(floorRepos)
-      .where(eq(floorRepos.id, repoId))
+      .select({ owner: operationRepos.owner, name: operationRepos.name })
+      .from(operationRepos)
+      .where(eq(operationRepos.id, repoId))
       .get();
     if (!repo) return "";
     return `${this.#githubWebBase}/${encodeURIComponent(repo.owner)}/${encodeURIComponent(repo.name)}/pull/${prNumber}`;
@@ -92,7 +92,7 @@ export class NotificationDirectory {
       .map((r) => r.userId);
   }
 
-  /** The human's robots waiting for them now (their tab badge). */
+  /** The human's henchmen waiting for them now (their tab badge). */
   attention(userId: string): string[] {
     return this.#db
       .select({ id: agents.id })

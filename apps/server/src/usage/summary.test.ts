@@ -59,7 +59,7 @@ describe("per-viewer privacy", () => {
     expect(text).not.toContain(bob.id);
 
     const b = summaries.mine(bob.id);
-    // Office-key usage of Bob's robot is the office's, not Bob's.
+    // Office-key usage of Bob's henchman is the office's, not Bob's.
     expect(b.today).toMatchObject({ inputTokens: 9_000, costUsd: 2 });
     expect(b.limits.map((l) => l.usedPct)).toEqual([97]);
 
@@ -68,19 +68,19 @@ describe("per-viewer privacy", () => {
     expect(c.today.costUsd).toBe(0);
   });
 
-  test("shared office state: totals, office keys, and robots by name and owner only", () => {
+  test("shared office state: totals, office keys, and henchmen by name and owner only", () => {
     const { summaries } = office();
     const s = UsageSummary.parse(summaries.office());
     expect(s.todayInputTokens).toBe(10_500);
     expect(s.todayCostUsdEstimate).toBeCloseTo(3.5, 6);
     expect(s.officeKeysCostUsdEstimate).toBeCloseTo(0.5, 6);
     expect(s.activeHumans).toBe(2);
-    expect(s.topRobots.map((r) => [r.name, r.ownerName, r.tokens])).toEqual([
+    expect(s.topHenchmen.map((r) => [r.name, r.ownerName, r.tokens])).toEqual([
       ["Bob's Claude Code henchman", "Bob", 9_000],
       ["Ada's Codex henchman", "Ada", 1_000],
       ["Bob's Claude Code henchman", "Bob", 500],
     ]);
-    for (const r of s.topRobots) {
+    for (const r of s.topHenchmen) {
       expect(Object.keys(r).sort()).toEqual(["agentId", "name", "ownerName", "provider", "tokens"]);
     }
     const text = JSON.stringify(s);
@@ -99,8 +99,8 @@ describe("per-viewer privacy", () => {
     const state = new BuildingStateSchema();
     const s = summaries.office();
     applyUsageSummary(state.usage, s);
-    expect(state.usage.topRobots.length).toBe(3);
-    expect(state.usage.topRobots[0]?.ownerName).toBe("Bob");
+    expect(state.usage.topHenchmen.length).toBe(3);
+    expect(state.usage.topHenchmen[0]?.ownerName).toBe("Bob");
     expect(state.usage.todayCostUsdEstimate).toBeCloseTo(3.5, 6);
     expect(sameUsage(s, { ...s, observedAt: s.observedAt + 1 })).toBe(true);
     expect(sameUsage(s, { ...s, activeHumans: 9 })).toBe(false);

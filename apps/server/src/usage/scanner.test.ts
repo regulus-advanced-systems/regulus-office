@@ -73,10 +73,10 @@ function setup() {
 }
 
 describe("TranscriptScanLoop", () => {
-  test("scans each human with a live Claude robot in their own runner, attributing by session", async () => {
+  test("scans each human with a live Claude henchman in their own runner, attributing by session", async () => {
     const { loop, rows, addAgent, ada, bob, cy, db } = setup();
-    addAgent("ada-robot", ada.id, { session: "s-ada" });
-    addAgent("bob-robot", bob.id, { session: "s-bob", profileId: "office:claude-code" });
+    addAgent("ada-henchman", ada.id, { session: "s-ada" });
+    addAgent("bob-henchman", bob.id, { session: "s-bob", profileId: "office:claude-code" });
     addAgent("cy-codex", cy.id, { provider: "codex" });
     addAgent("cy-old", cy.id, { status: "exited" });
     db.update(agents)
@@ -108,12 +108,12 @@ describe("TranscriptScanLoop", () => {
       expect(s.plan.argv[4]).toBe(`${home}/.claude/projects`);
     }
     const byAgent = rows().map((r) => [r.agentId, r.userId, r.inputTokens, r.model]);
-    expect(byAgent).toContainEqual(["ada-robot", ada.id, 100, "claude-opus-5-5"]);
+    expect(byAgent).toContainEqual(["ada-henchman", ada.id, 100, "claude-opus-5-5"]);
     expect(byAgent).toContainEqual([null, ada.id, 5, "claude-opus-5-5"]);
-    expect(byAgent).toContainEqual(["bob-robot", null, 50, "claude-opus-5-5"]);
+    expect(byAgent).toContainEqual(["bob-henchman", null, 50, "claude-opus-5-5"]);
     expect(rows()).toHaveLength(3);
     // Opus 5.5: 100 in @ $4, 10 out @ $20, 1000 cache reads @ $0.20 per million.
-    const ada1 = rows().find((r) => r.agentId === "ada-robot");
+    const ada1 = rows().find((r) => r.agentId === "ada-henchman");
     expect(ada1?.costUsdEstimate).toBeCloseTo((100 * 4 + 10 * 20 + 1000 * 0.2) / 1e6, 9);
 
     // Scanning again adds nothing: offsets moved on, and the office dedupes anyway.

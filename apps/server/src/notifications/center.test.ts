@@ -11,7 +11,7 @@ import { NotificationCenter, type Schedule } from "./center.ts";
 import { ChannelStore } from "./channels.ts";
 import { WebhookDispatcher } from "./delivery.ts";
 import { NotificationDirectory } from "./directory.ts";
-import type { RobotSnapshot } from "./events.ts";
+import type { HenchmanSnapshot } from "./events.ts";
 import { captureLogger, seededDb, startFakeWebhooks, testKeyring } from "./testing.ts";
 
 const fake = startFakeWebhooks();
@@ -53,12 +53,16 @@ function setup() {
     now: () => clock.t,
     schedule,
   });
-  const robot = (agentId: string, status: RobotSnapshot["status"], floor = 1): RobotSnapshot => {
+  const henchman = (
+    agentId: string,
+    status: HenchmanSnapshot["status"],
+    operation = 1,
+  ): HenchmanSnapshot => {
     db.update(agents).set({ status }).where(eq(agents.id, agentId)).run();
     return {
       agentId,
-      floorId: `floor-${floor}`,
-      repoId: `repo-${floor}`,
+      operationId: `operation-${operation}`,
+      repoId: `repo-${operation}`,
       ownerUserId: member.id,
       ownerName: "Mia",
       provider: "codex",
@@ -85,7 +89,7 @@ function setup() {
     settle,
     sent,
     events,
-    robot,
+    henchman,
     log,
   };
 }
@@ -97,16 +101,16 @@ beforeEach(() => {
 });
 
 describe("personal notifications", () => {
-  test("the tab badge follows the owner's waiting robots, sent to the owner only", () => {
-    s.center.statusChanged(s.robot("a1", "waiting_input"), "working");
-    s.center.statusChanged(s.robot("a2", "waiting_permission", 2), "working");
+  test("the tab badge follows the owner's waiting henchmen, sent to the owner only", () => {
+    s.center.statusChanged(s.henchman("a1", "waiting_input"), "working");
+    s.center.statusChanged(s.henchman("a2", "waiting_permission", 2), "working");
     const badges = s.sent.filter((m) => m.type === NOTIFY_ATTENTION_MESSAGE);
     expect(badges.every((b) => b.userId === s.member.id)).toBe(true);
     expect((badges.at(-1)?.payload as { agentIds: string[] }).agentIds.sort()).toEqual([
       "a1",
       "a2",
     ]);
-    s.center.statusChanged(s.robot("a1", "working"), "waiting_input");
+    s.center.statusChanged(s.henchman("a1", "working"), "waiting_input");
     expect(
       (
         s.sent.filter((m) => m.type === NOTIFY_ATTENTION_MESSAGE).at(-1)?.payload as {
@@ -116,12 +120,12 @@ describe("personal notifications", () => {
     ).toEqual(["a2"]);
   });
 
-  test("events settle: a robot that asks and carries on notifies nobody", () => {
-    s.center.statusChanged(s.robot("a1", "waiting_input"), "working");
-    s.center.statusChanged(s.robot("a1", "working"), "waiting_input");
+  test("events settle: a henchman that asks and carries on notifies nobody", () => {
+    s.center.statusChanged(s.henchman("a1", "waiting_input"), "working");
+    s.center.statusChanged(s.henchman("a1", "working"), "waiting_input");
     s.settle();
     expect(s.events()).toHaveLength(0);
-    s.center.statusChanged(s.robot("a1", "waiting_input"), "working");
+    s.center.statusChanged(s.henchman("a1", "waiting_input"), "working");
     s.settle();
     expect(s.events()).toHaveLength(1);
     const { userId, payload } = s.events()[0]!;
@@ -129,23 +133,23 @@ describe("personal notifications", () => {
     expect(payload).toMatchObject({
       event: "needs_input",
       agentId: "a1",
-      floorName: "Web app",
-      robotName: "Mia's Codex henchman",
+      operationName: "Web app",
+      henchmanName: "Mia's Codex henchman",
       taskTitle: "Fix the login page",
       own: true,
     });
   });
 
-  test("dedupe: one event per robot per cooldown", () => {
+  test("dedupe: one event per henchman per cooldown", () => {
     for (let i = 0; i < 5; i++) {
-      s.center.statusChanged(s.robot("a1", "waiting_input"), "working");
+      s.center.statusChanged(s.henchman("a1", "waiting_input"), "working");
       s.settle();
-      s.center.statusChanged(s.robot("a1", "working"), "waiting_input");
+      s.center.statusChanged(s.henchman("a1", "working"), "waiting_input");
       s.settle();
     }
     expect(s.events()).toHaveLength(1);
     s.clock.t += 61_000;
-    s.center.statusChanged(s.robot("a1", "waiting_input"), "working");
+    s.center.statusChanged(s.henchman("a1", "waiting_input"), "working");
     s.settle();
     expect(s.events()).toHaveLength(2);
   });
@@ -155,14 +159,14 @@ describe("personal notifications", () => {
       ...DEFAULT_NOTIFICATION_PREFS,
       desktop: { ...DEFAULT_NOTIFICATION_PREFS.desktop, done: false },
     });
-    s.center.statusChanged(s.robot("a1", "done"), "working");
+    s.center.statusChanged(s.henchman("a1", "done"), "working");
     s.settle();
     expect(s.events()).toHaveLength(0);
   });
 
   test("errors reach opted-in admins as foreign notices; nobody else", () => {
     s.directory.setPrefs(s.admin.id, { ...DEFAULT_NOTIFICATION_PREFS, adminErrors: true });
-    s.center.statusChanged(s.robot("a1", "error"), "working");
+    s.center.statusChanged(s.henchman("a1", "error"), "working");
     s.settle();
     const byUser = s.events().map((e) => [e.userId, e.payload.own]);
     expect(byUser).toEqual([
@@ -177,7 +181,7 @@ describe("personal notifications", () => {
       ...DEFAULT_NOTIFICATION_PREFS,
       desktop: { ...DEFAULT_NOTIFICATION_PREFS.desktop, pr_opened: true },
     });
-    const view = s.robot("a1", "idle");
+    const view = s.henchman("a1", "idle");
     s.center.pullRequestOpened(view, {
       number: 7,
       url: "https://github.com/octo/web/pull/7",
@@ -201,7 +205,7 @@ describe("team webhooks", () => {
         kind: "slack",
         label: "all",
         secret: fake.slackUrl,
-        floorIds: null,
+        operationIds: null,
         events: ["needs_input", "error"],
       },
       s.owner.id,
@@ -209,9 +213,9 @@ describe("team webhooks", () => {
     s.channels.create(
       {
         kind: "discord",
-        label: "api floor",
+        label: "api operation",
         secret: fake.discordUrl,
-        floorIds: ["floor-2"],
+        operationIds: ["operation-2"],
         events: ["done", "pr_merged"],
       },
       s.owner.id,
@@ -222,7 +226,7 @@ describe("team webhooks", () => {
         label: "tg",
         secret: fake.telegramToken,
         chatId: "-1001",
-        floorIds: null,
+        operationIds: null,
         events: ["pr_merged"],
         enabled: false,
       },
@@ -230,13 +234,13 @@ describe("team webhooks", () => {
     );
   };
 
-  test("routes by event and floor; disabled channels get nothing", async () => {
+  test("routes by event and operation; disabled channels get nothing", async () => {
     addChannels();
-    s.center.statusChanged(s.robot("a1", "waiting_input"), "working");
-    s.center.statusChanged(s.robot("a2", "done", 2), "working");
+    s.center.statusChanged(s.henchman("a1", "waiting_input"), "working");
+    s.center.statusChanged(s.henchman("a2", "done", 2), "working");
     s.settle();
-    s.center.pullRequestMerged({ ...s.robot("a2", "idle", 2), prNumber: 5 });
-    s.center.statusChanged(s.robot("a1", "done"), "waiting_input");
+    s.center.pullRequestMerged({ ...s.henchman("a2", "idle", 2), prNumber: 5 });
+    s.center.statusChanged(s.henchman("a1", "done"), "waiting_input");
     s.settle();
     await s.dispatcher.drain();
     const paths = fake.requests.map((r) => r.path.split("/")[1]);
@@ -247,9 +251,9 @@ describe("team webhooks", () => {
     expect(String(merged.body.content)).toContain("<https://github.com/octo/api/pull/5>");
   });
 
-  test("messages carry only robot, owner, floor, status, task and PR link", async () => {
+  test("messages carry only henchman, owner, operation, status, task and PR link", async () => {
     addChannels();
-    s.center.statusChanged(s.robot("a1", "error"), "working");
+    s.center.statusChanged(s.henchman("a1", "error"), "working");
     s.settle();
     await s.dispatcher.drain();
     const text = String(fake.requests[0]?.body.text);
@@ -264,12 +268,12 @@ describe("team webhooks", () => {
     ]);
   });
 
-  test("a flapping robot is capped per robot", async () => {
+  test("a flapping henchman is capped per henchman", async () => {
     addChannels();
     // Past the 60 s cooldown each time, all within the 10 min window.
     for (let i = 0; i < 9; i++) {
       s.clock.t += 61_000;
-      s.center.statusChanged(s.robot("a1", "waiting_input"), "working");
+      s.center.statusChanged(s.henchman("a1", "waiting_input"), "working");
       s.settle();
     }
     await s.dispatcher.drain();
@@ -290,7 +294,7 @@ describe("team webhooks", () => {
   test("logs never contain a webhook URL or token", async () => {
     addChannels();
     fake.script.push({ status: 404 }, { status: 404 });
-    s.center.statusChanged(s.robot("a1", "error"), "working");
+    s.center.statusChanged(s.henchman("a1", "error"), "working");
     s.settle();
     await s.dispatcher.drain();
     const text = s.log.text();

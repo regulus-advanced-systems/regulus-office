@@ -300,7 +300,7 @@ export interface AgentAdapter {
   ingest?(input: OutOfBandInput, ctx: RunnerContext): AgentEvent[];
   /**
    * Put the CLI's own first-run state in the human's runner in order before
-   * `plan` runs (Claude Code: onboarding complete, and trust for the robot's
+   * `plan` runs (Claude Code: onboarding complete, and trust for the henchman's
    * own office-created worktree when the office allows it). Must not throw
    * and must never touch credentials; a failure only means the CLI shows its
    * first-run screens.
@@ -313,7 +313,7 @@ export interface AgentAdapter {
 }
 
 export interface PrepareSpawnInfo {
-  /** The robot's own worktree in the runner; absent when it works in its owner's clone. */
+  /** The henchman's own worktree in the runner; absent when it works in its owner's clone. */
   worktree?: string;
 }
 

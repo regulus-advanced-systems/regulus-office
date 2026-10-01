@@ -1,4 +1,4 @@
-/** Secret scrubbing of robot output (#155 review): exact secrets in every encoding, key shapes. */
+/** Secret scrubbing of henchman output (#155 review): exact secrets in every encoding, key shapes. */
 import { describe, expect, test } from "bun:test";
 import { findSecret } from "./executor.ts";
 import { SecretScrubber } from "./scrub.ts";
@@ -79,7 +79,7 @@ describe("dry-run preview", () => {
     const spec = WorkflowInput.parse({
       name: "w",
       trigger: { kind: "pull_request", actions: ["opened"] },
-      robot: { provider: "claude-code", promptTemplate: "{{pr.title}}\n{{pr.body}}" },
+      henchman: { provider: "claude-code", promptTemplate: "{{pr.title}}\n{{pr.body}}" },
     });
     const ctx = {
       deliveryId: "d",
@@ -90,7 +90,7 @@ describe("dry-run preview", () => {
       receivedAt: 0,
       repo: { owner: "o", name: "r", fullName: "o/r" },
       repoIds: [],
-      floorIds: ["f"],
+      operationIds: ["f"],
       sender: null,
       fromOfficeApp: false,
       stale: false,

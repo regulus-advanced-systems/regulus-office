@@ -8,7 +8,7 @@
  * Hardening: non-root uid (config refuses uid 0), `IS_SANDBOX=1`, all
  * capabilities dropped, `no-new-privileges`, an init process to reap orphans,
  * optional memory/CPU/pids limits. The Docker socket is never mounted: the only
- * mounts are the HOME volume, the tmpfs and floor directories.
+ * mounts are the HOME volume, the tmpfs and operation directories.
  */
 import { safeReason } from "../../agents/manager/failure.ts";
 import { DockerApiError, type EngineClient } from "./engine.ts";
@@ -44,8 +44,8 @@ export interface RunnerContainer {
   userId: string;
   id: string;
   running: boolean;
-  /** Floor mounts (everything in `HostConfig.Mounts` except HOME). */
-  floorMounts: MountSpec[];
+  /** Operation mounts (everything in `HostConfig.Mounts` except HOME). */
+  operationMounts: MountSpec[];
   /** Docker's state: `running`, `exited`, `created`, `dead`, … (unknown for fresh ones). */
   status?: string;
   /** Id of the image the container was created from. */
@@ -117,7 +117,9 @@ export class RunnerContainers {
       running: info.State.Running,
       status: info.State.Status,
       imageId: info.Image,
-      floorMounts: (info.HostConfig.Mounts ?? []).filter((m) => m.Target !== this.settings.home),
+      operationMounts: (info.HostConfig.Mounts ?? []).filter(
+        (m) => m.Target !== this.settings.home,
+      ),
     };
   }
 
@@ -178,7 +180,7 @@ export class RunnerContainers {
         failure = e;
         const kind = classifyStartFailure(e);
         if (kind === "other") throw e;
-        if (kind === "gone") return this.#start(await this.#create(c.userId, c.floorMounts));
+        if (kind === "gone") return this.#start(await this.#create(c.userId, c.operationMounts));
         if (kind === "broken") break;
       }
     }
@@ -196,13 +198,13 @@ export class RunnerContainers {
       );
       throw err;
     }
-    // Floor mounts are unknown: `mountProject` adds the human's areas back on the next spawn.
-    return this.#replace({ userId, id: row.Id, running: false, floorMounts: [] }, err.message);
+    // Operation mounts are unknown: `mountProject` adds the human's areas back on the next spawn.
+    return this.#replace({ userId, id: row.Id, running: false, operationMounts: [] }, err.message);
   }
 
   /**
    * Remove a container that is not running and create it again from the current image,
-   * with the same floor mounts and the same HOME volume (never removed here).
+   * with the same operation mounts and the same HOME volume (never removed here).
    */
   async #replace(c: RunnerContainer, reason: string): Promise<RunnerContainer> {
     // Last look before removing: a container that runs now is left alone.
@@ -210,7 +212,7 @@ export class RunnerContainers {
     if (now?.running) return now;
     this.#logRecreate(c.userId, reason);
     await this.#remove(c.id);
-    return this.#start(await this.#create(c.userId, c.floorMounts));
+    return this.#start(await this.#create(c.userId, c.operationMounts));
   }
 
   #logRecreate(userId: string, reason: string): void {
@@ -239,16 +241,20 @@ export class RunnerContainers {
   }
 
   /**
-   * Replace the container with one that has `floorMounts`. HOME survives (named
+   * Replace the container with one that has `operationMounts`. HOME survives (named
    * volume); anything running in the old container, tmux included, does not, so
    * callers only do this when the runner is idle.
    */
-  recreate(userId: string, floorMounts: MountSpec[], reason?: string): Promise<RunnerContainer> {
+  recreate(
+    userId: string,
+    operationMounts: MountSpec[],
+    reason?: string,
+  ): Promise<RunnerContainer> {
     return this.#serial(userId, async () => {
       const found = await this.lookup(userId);
       if (reason) this.#logRecreate(userId, reason);
       if (found) await this.#remove(found.id);
-      return this.#start(await this.#create(userId, floorMounts));
+      return this.#start(await this.#create(userId, operationMounts));
     });
   }
 
@@ -336,7 +342,7 @@ export class RunnerContainers {
     };
   }
 
-  async #create(userId: string, floorMounts: MountSpec[]): Promise<RunnerContainer> {
+  async #create(userId: string, operationMounts: MountSpec[]): Promise<RunnerContainer> {
     const s = this.settings;
     const labels = this.labels(userId);
     const volume = this.volumeName(userId);
@@ -351,7 +357,7 @@ export class RunnerContainers {
       Labels: labels,
       HostConfig: {
         Init: true,
-        Mounts: [{ Type: "volume", Source: volume, Target: s.home }, ...floorMounts],
+        Mounts: [{ Type: "volume", Source: volume, Target: s.home }, ...operationMounts],
         Tmpfs: { [TMUX_DIR]: `rw,nosuid,nodev,noexec,mode=0700,uid=${uid},gid=${gid}` },
         RestartPolicy: { Name: "unless-stopped" },
         CapDrop: ["ALL"],
@@ -377,7 +383,7 @@ export class RunnerContainers {
       this.#images.forget(s.image);
       created = await create();
     }
-    return { userId, id: created.Id, running: false, floorMounts };
+    return { userId, id: created.Id, running: false, operationMounts };
   }
 
   async #start(container: RunnerContainer): Promise<RunnerContainer> {
