@@ -226,7 +226,7 @@ Credential rules (hard requirements):
 - **Migration.** Existing floors become ready rooms automatically, placed in a row off the main corridor, keeping their repos, desks, robots and seats.
 
 ### 9.2 Camera and controls
-- Default: perspective camera at a 3/4 overhead angle (pitch about 50°), rotatable (`Q`/`E` or right-drag), zoom with the scroll wheel from a compound overview down to a close third-person view behind the player. Rooms are cutaways: no ceilings, and walls between the camera and the player fade out.
+- Default: perspective camera at a 3/4 overhead angle (pitch about 50°), rotatable (`Z`/`C` or right-drag; `E` only interacts, ADR 0007), zoom with the scroll wheel from a compound overview down to a close third-person view behind the player; the camera starts at a room-level framing. Rooms are cutaways: no ceilings, and walls between the camera and the player fade out.
 - First-person: perspective camera at eye height, pointer-lock, WASD; toggle with `V` or a HUD button; a 300 ms crossfade.
 - Movement: click-to-walk on the compound nav grid (A*), plus WASD relative to the camera's yaw. The player always faces the way they move and turns to follow the cursor when standing.
 - Interaction: hover highlights; `E` interacts with the nearest interactable (desk, board, blast-door button, jukebox, whiteboard, TV, picture frame); a radial context menu on right-click.
@@ -284,7 +284,7 @@ The full island exterior (jungle, paths, volcano, helipad); sky, day-night and w
 Desktop notifications + tab badge for waiting robots (M2). Slack / Discord / Telegram webhook notifications on needs-input, done, PR merged (M2). Self-upgrade from the admin UI: check GitHub releases, pull image, restart; robots survive in tmux (M5). Setup on an existing VM: clone the repo and run one setup script (or `docker compose up`) that checks prerequisites, generates secrets, builds or pulls images and starts the office with Caddy and a domain (M2). No VM provisioning.
 
 ## 11. Non-functional requirements
-- Performance: 60 fps on a 2020 laptop iGPU at 1080p with 20 robots on screen; ≤ 2 live DOM panels; 1x pixel ratio default; hidden tab pauses rendering.
+- Performance: 60 fps on a 2020 laptop iGPU at 1080p with 20 robots on screen; quality presets Low/Medium/High picked automatically from the GPU and changeable in Settings (ADR 0007); ≤ 2 live DOM panels; 1x pixel ratio default; hidden tab pauses rendering.
 - Security: all state changes authorised server-side by role and floor access; terminal control gated per D12; Origin checked on WS; uploads validated by magic bytes; image proxy disabled by default (uploads only); rate limits on auth; audit log for spawn/stop/approve/credential changes; secrets encrypted at rest; agents never receive another human's env.
 - Reliability: tmux keeps agents alive across office-server restarts; agents re-adopted on boot; resume by provider session id after VM reboot; SQLite WAL + nightly backup script.
 - Accessibility: all panels keyboard-navigable; reduced-motion setting disables bubbles/confetti.
