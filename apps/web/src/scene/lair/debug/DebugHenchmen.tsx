@@ -1,14 +1,16 @@
 /**
- * Henchmen (#184) in the debug scene, so the owner sees the characters and
- * the lair together: seated at the main room's desks (placed with the lair
+ * Henchmen (#184) and geniuses (#185) in the debug scene, so the owner sees
+ * the characters and the lair together: seated at the main room's desks (placed with the lair
  * chair's sit anchor and the henchman's seated body), operators at the
  * consoles, one walking up the corridor, builders on the site, and the
- * gallery rooms staffed in their style's skin. Debug only.
+ * gallery rooms staffed in their style's skin, with a genius or two
+ * looking on. Debug only.
  */
 import type { RoomLayout, Seat } from "@regulus/floor-layout";
 import type { AgentStatus, AvatarAnimation } from "@regulus/protocol";
 import { providerLightColor } from "../../avatar/colorSets.ts";
 import { seatedOffset } from "../../avatar/seatedFit.ts";
+import { GeniusAvatar } from "../../geniuses/GeniusAvatar.tsx";
 import { HenchmanAvatar } from "../../henchmen/HenchmanAvatar.tsx";
 import { HENCHMAN_SEATED_BODY } from "../../henchmen/seatedFit.ts";
 import { resolveModelId } from "../generatorModels.ts";
@@ -137,6 +139,73 @@ export function DebugHenchmen({ spots }: { spots: readonly HenchmanSpot[] }) {
           handRaised={s.handRaised}
           skin={s.skin}
           trim={s.trim}
+        />
+      ))}
+    </group>
+  );
+}
+
+export interface GeniusSpot {
+  key: string;
+  name: string;
+  archetype: string;
+  position: readonly [number, number, number];
+  heading: number;
+  animation: AvatarAnimation;
+}
+
+/** The bosses: one in the main room, one by the lounge, one in the lab and war room of the gallery. */
+export function geniusSpots(
+  gallery: readonly { style: string; offset: readonly [number, number] }[],
+): GeniusSpot[] {
+  const spots: GeniusSpot[] = [
+    {
+      key: "boss",
+      name: "The Mastermind",
+      archetype: "mastermind",
+      position: [6.2, 0, 2.6],
+      heading: -2.4,
+      animation: "point",
+    },
+    {
+      key: "tycoon",
+      name: "Mr. Goldfinch",
+      archetype: "tycoon",
+      position: [13.2, 0, 9.4],
+      heading: 2.4,
+      animation: "idle",
+    },
+  ];
+  const by: Record<string, [string, string]> = {
+    lab: ["scientist", "Dr. Volta"],
+    war_room: ["general", "General Brass"],
+  };
+  for (const g of gallery) {
+    const who = by[g.style];
+    if (!who) continue;
+    spots.push({
+      key: g.style,
+      name: who[1],
+      archetype: who[0],
+      position: [g.offset[0] + 9.5, 0, g.offset[1] + 7.8],
+      heading: Math.PI - 0.4,
+      animation: "wave",
+    });
+  }
+  return spots;
+}
+
+export function DebugGeniuses({ spots }: { spots: readonly GeniusSpot[] }) {
+  return (
+    <group name="lair:geniuses">
+      {spots.map((s) => (
+        <GeniusAvatar
+          key={s.key}
+          position={s.position}
+          rotation-y={s.heading}
+          animation={s.animation}
+          name={s.name}
+          look={{ archetype: s.archetype }}
         />
       ))}
     </group>

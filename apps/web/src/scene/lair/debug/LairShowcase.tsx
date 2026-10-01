@@ -24,7 +24,13 @@ import { CORRIDOR_WIDTH, WALL_THICKNESS } from "../dimensions.ts";
 import { PIECES } from "../kit.ts";
 import { LAIR } from "../palette.ts";
 import { Dust, Sparks } from "../particles/BuildParticles.tsx";
-import { DebugHenchmen, extraCrew, roomCrew } from "./DebugHenchmen.tsx";
+import {
+  DebugGeniuses,
+  DebugHenchmen,
+  extraCrew,
+  geniusSpots,
+  roomCrew,
+} from "./DebugHenchmen.tsx";
 import { RoomLooks } from "./RoomLooks.tsx";
 import { corridorOrigin, mainRoom, mainRoomLayout, styleGallery } from "./sampleRooms.ts";
 import { BUILD_SITE, catalogue, sampleBuildSite, sampleCorridors } from "./sampleScene.ts";
@@ -78,6 +84,7 @@ function Scene({
   const rooms = useMemo(() => [main, ...gallery.map((g) => g.scene)], [main, gallery]);
   const origin = useMemo(() => corridorOrigin(main, CORRIDOR_WIDTH, WALL_THICKNESS), [main]);
   const corridors = useMemo(() => sampleCorridors(origin), [origin]);
+  const bosses = useMemo(() => geniusSpots(gallery), [gallery]);
   const crew = useMemo(
     () => [
       ...roomCrew(mainRoomLayout(options.style), "main"),
@@ -155,6 +162,7 @@ function Scene({
       <BlinkingLamps lamps={consoleLamps} />
       <RoomLooks looks={looks} />
       {options.henchmen && <DebugHenchmen spots={crew} />}
+      {options.henchmen && <DebugGeniuses spots={bosses} />}
       <SlidingDoors doors={doors} />
       <Beacons items={beacons} active={alarm} lights={2} />
       <Sparks origin={[BUILD_SITE.x + 7, 2.5, BUILD_SITE.z + 3]} />
