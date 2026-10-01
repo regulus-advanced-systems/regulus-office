@@ -2,7 +2,8 @@
  * M0 smoke test (docs/SPEC.md §10 M0 exit criteria): the owner registers and
  * picks a genius by keyboard in the first-login picker (#185), mints an invite in the UI, a second browser joins through the link, both
  * reach /office and see each other's genius (and a genius changed in Settings at once), one walks and the other sees it move,
- * chat crosses between them and `/` search finds it (#41), the first-person view toggles on V and back,
+ * chat crosses between them, both draw on the lobby whiteboard and the wall shows it (#45),
+ * `/` search finds the chat (#41), the first-person view toggles on V and back,
  * the owner turns to follow the mouse and walks face-first to a click,
  * the owner adds an operation bound to a (local) repo and rides to it, Operation
  * settings and Add operation fit a 1280×720 window with the round X in view
@@ -70,6 +71,7 @@ import {
   screenPointOf,
   waitForScene,
 } from "./probes.ts";
+import { checkWhiteboard } from "./whiteboardChecks.ts";
 
 const run = Date.now().toString(36);
 const owner = { name: "Ada Owner", email: `owner-${run}@example.com`, password: `owner-pw-${run}` };
@@ -257,6 +259,10 @@ test("chat from one browser arrives in the other", async () => {
   ).toBeVisible();
   await input.press("Escape");
   await memberInput.press("Escape");
+});
+
+test("both draw on the lobby whiteboard and see each other's strokes; the wall shows the snapshot (#45)", async () => {
+  await checkWhiteboard(ownerPage, memberPage);
 });
 
 test("/ opens search; chat is found, highlighted, for everyone who saw it (#41)", async () => {

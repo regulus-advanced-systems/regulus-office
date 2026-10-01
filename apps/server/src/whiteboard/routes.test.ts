@@ -29,7 +29,7 @@ const put = (boardId: string, cookie: string, body: Uint8Array, origin?: string)
   fetch(new URL(whiteboardSnapshotPath(boardId), office.server.url), {
     method: "PUT",
     headers: { cookie, origin: origin ?? office.origin, "content-type": "image/png" },
-    body,
+    body: body.slice().buffer as ArrayBuffer,
   });
 const get = (path: string, cookie: string, headers: Record<string, string> = {}) =>
   fetch(new URL(path, office.server.url), { headers: { cookie, ...headers } });

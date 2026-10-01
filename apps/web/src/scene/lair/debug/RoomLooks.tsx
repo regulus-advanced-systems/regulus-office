@@ -1,11 +1,12 @@
 /**
  * The generated rooms' Look anchors (issue and PR boards, queue clipboard,
- * gong) drawn with the lair restyles (looks/LairLooks.tsx), as #186 would
+ * gong, whiteboard) drawn with the lair restyles (looks/LairLooks.tsx), as #186 would
  * pass them to BoardObject / QueueClipboard / GongObject. Debug only: no
  * board texture and no behaviour here.
  */
 import { useRef } from "react";
 import type { Group } from "three";
+import { WhiteboardLook } from "../../whiteboard/WhiteboardLook.tsx";
 import { LairBoardLook, LairClipboardLook, LairGongLook } from "../looks/LairLooks.tsx";
 import type { LookItem } from "../roomScene.ts";
 
@@ -41,6 +42,9 @@ export function RoomLooks({ looks }: { looks: readonly LookItem[] }) {
             <LairClipboardLook w={item.w} h={item.h} texture={null} highlighted={false} />
           )}
           {item.look === "gong" && <GongItem item={item} />}
+          {item.look === "whiteboard" && (
+            <WhiteboardLook w={item.w} h={item.h} texture={null} highlighted={false} />
+          )}
         </group>
       ))}
     </group>

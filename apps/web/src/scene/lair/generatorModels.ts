@@ -5,7 +5,7 @@
  * and `lair/common/<kind>` otherwise. `resolveModelId` turns any of them into
  * a binding: a kit model (piece, fit and sit points), or one of the
  * swappable Looks for the anchors that keep their own behaviour (boards,
- * queue clipboard, gong). `ROOM_MATERIAL_PIECES` does the same for the
+ * queue clipboard, gong, whiteboard). `ROOM_MATERIAL_PIECES` does the same for the
  * style's floor and wall material ids. generatorModels.test.ts runs the
  * generator over every style and size and checks every id resolves.
  */
@@ -20,7 +20,7 @@ import { LEATHER_SEAT, STOOL_SEAT } from "./geometry/styleProps.ts";
 import type { PieceId } from "./kit.ts";
 import { LAIR_CHAIR, LAIR_MODELS, type LairModel } from "./models.ts";
 
-export type LookId = "board" | "clipboard" | "gong";
+export type LookId = "board" | "clipboard" | "gong" | "whiteboard";
 
 export type LairBinding = { readonly model: LairModel } | { readonly look: LookId };
 
@@ -45,6 +45,8 @@ const LOOKS: Readonly<Partial<Record<WallAnchorKind, LookId>>> = {
   pr_board: "board",
   queue_clipboard: "clipboard",
   gong: "gong",
+  // The live whiteboard (#45) draws its own frame and snapshot (scene/whiteboard).
+  whiteboard: "whiteboard",
 };
 
 /** Desk clutter (`template.decor`), standing on its furniture's top. */

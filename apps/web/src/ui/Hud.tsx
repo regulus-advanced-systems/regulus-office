@@ -35,6 +35,7 @@ import { SpawnDialogHost } from "./spawn/SpawnDialog.tsx";
 import { TerminalModalHost } from "./terminal/TerminalModal.tsx";
 import { Toaster } from "./toast/Toaster.tsx";
 import { useMyUsagePolling } from "./usage/usageStore.ts";
+import { WhiteboardHost } from "./whiteboard/WhiteboardHost.tsx";
 import { WorkflowsPanelHost } from "./workflows/WorkflowsPanel.tsx";
 
 export function HudDialogs() {
@@ -118,6 +119,7 @@ export function Hud() {
       <BoardsHost />
       <QueueHost />
       <JukeboxHost />
+      <WhiteboardHost />
       <NotificationsHost />
       <Toaster />
     </div>
