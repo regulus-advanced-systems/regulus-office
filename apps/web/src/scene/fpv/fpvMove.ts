@@ -17,9 +17,10 @@ export const NAV_CELL_SIZE = 0.25;
 /** Eye height as a fraction of ROBOT_HEIGHT. */
 export const EYE_HEIGHT_RATIO = 0.9;
 
-export type MoveAction = "forward" | "back" | "left" | "right";
+/** A direction, or `run` (Shift held, #223). */
+export type MoveAction = "forward" | "back" | "left" | "right" | "run";
 
-/** `KeyboardEvent.code` to action: WASD and the arrow keys, layout independent. */
+/** `KeyboardEvent.code` to action: WASD, the arrow keys and Shift, layout independent. */
 export const KEY_ACTIONS: Readonly<Record<string, MoveAction>> = {
   KeyW: "forward",
   ArrowUp: "forward",
@@ -29,6 +30,8 @@ export const KEY_ACTIONS: Readonly<Record<string, MoveAction>> = {
   ArrowLeft: "left",
   KeyD: "right",
   ArrowRight: "right",
+  ShiftLeft: "run",
+  ShiftRight: "run",
 };
 
 export function actionForCode(code: string): MoveAction | null {

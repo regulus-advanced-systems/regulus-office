@@ -27,7 +27,8 @@ export function createPlayerBinding(store: StoreApi): PlayerBinding {
       // A click-to-walk target from third person must not keep pulling the avatar.
       if (s.path || s.target) s.clearTarget();
       const moving = dx !== 0 || dz !== 0;
-      if (moving) store.getState().applyInput(dx, dz, dt);
+      // The rig already chose walk or run (#223): keep its pace.
+      if (moving) store.getState().applyInput(dx, dz, dt, dt > 0 ? Math.hypot(dx, dz) / dt : 0);
       else if (s.animation === "walk") s.setAnimation("idle");
       const now = store.getState();
       if (Math.abs(now.heading - yaw) > YAW_EPSILON) now.setPose(now.x, now.z, yaw);

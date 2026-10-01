@@ -3,7 +3,9 @@
  * pose to draw each frame: the avatar is rendered `INTERP_DELAY_MS` in the
  * past and interpolated between the two samples around that time, and
  * extrapolated for a short while when the next sample is late. `moving`
- * drives the walk animation so a remote avatar walks exactly while it moves.
+ * drives the walk animation so a remote avatar walks exactly while it moves,
+ * and `speed` lets it pick a walk or a run (#223, gait.ts) with no gait on
+ * the wire.
  */
 import { lerpHeading, type Pose } from "./kinematics.ts";
 
@@ -25,6 +27,8 @@ export interface PoseSample extends Pose {
 
 export interface SampledPose extends Pose {
   readonly moving: boolean;
+  /** Ground speed around the drawn time, m/s (0 while standing). */
+  readonly speed: number;
 }
 
 export interface PoseBuffer {
@@ -43,6 +47,23 @@ function speedBetween(a: PoseSample, b: PoseSample): number {
   const dt = (b.t - a.t) / 1000;
   if (dt <= 0) return 0;
   return Math.hypot(b.x - a.x, b.z - a.z) / dt;
+}
+
+/**
+ * Average speed over every buffered sample (path length over the time
+ * span), steadier than one patch interval when patches arrive unevenly.
+ */
+function windowSpeed(samples: readonly PoseSample[]): number {
+  const first = samples[0];
+  const last = samples[samples.length - 1];
+  if (!first || !last || last.t <= first.t) return 0;
+  let length = 0;
+  for (let i = 1; i < samples.length; i++) {
+    const a = samples[i - 1] as PoseSample;
+    const b = samples[i] as PoseSample;
+    length += Math.hypot(b.x - a.x, b.z - a.z);
+  }
+  return length / ((last.t - first.t) / 1000);
 }
 
 export function createPoseBuffer(options: PoseBufferOptions = {}): PoseBuffer {
@@ -72,21 +93,23 @@ export function createPoseBuffer(options: PoseBufferOptions = {}): PoseBuffer {
       const first = samples[0] as PoseSample;
       const last = samples[samples.length - 1] as PoseSample;
       if (renderT <= first.t || samples.length === 1) {
-        return { x: first.x, z: first.z, heading: first.heading, moving: false };
+        return { x: first.x, z: first.z, heading: first.heading, moving: false, speed: 0 };
       }
       if (renderT >= last.t) {
         const prev = samples[samples.length - 2] as PoseSample;
         const speed = speedBetween(prev, last);
         const ahead = Math.min(renderT - last.t, maxExtrapolation);
         if (speed < MOVING_SPEED_EPS || last.t - prev.t > MAX_GAP_MS) {
-          return { x: last.x, z: last.z, heading: last.heading, moving: false };
+          return { x: last.x, z: last.z, heading: last.heading, moving: false, speed: 0 };
         }
         const k = ahead / (last.t - prev.t);
+        const moving = renderT - last.t < maxExtrapolation;
         return {
           x: last.x + (last.x - prev.x) * k,
           z: last.z + (last.z - prev.z) * k,
           heading: last.heading,
-          moving: renderT - last.t < maxExtrapolation,
+          moving,
+          speed: moving ? speed : 0,
         };
       }
       for (let i = 1; i < samples.length; i++) {
@@ -95,14 +118,16 @@ export function createPoseBuffer(options: PoseBufferOptions = {}): PoseBuffer {
         const a = samples[i - 1] as PoseSample;
         const span = b.t - a.t;
         const t = span > 0 ? (renderT - a.t) / span : 1;
+        const moving = speedBetween(a, b) >= MOVING_SPEED_EPS;
         return {
           x: a.x + (b.x - a.x) * t,
           z: a.z + (b.z - a.z) * t,
           heading: lerpHeading(a.heading, b.heading, t),
-          moving: speedBetween(a, b) >= MOVING_SPEED_EPS,
+          moving,
+          speed: moving ? windowSpeed(samples) : 0,
         };
       }
-      return { x: last.x, z: last.z, heading: last.heading, moving: false };
+      return { x: last.x, z: last.z, heading: last.heading, moving: false, speed: 0 };
     },
   };
 }

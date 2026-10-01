@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { buildNavGrid, HEADING, lobbyTemplate, NavGrid } from "@regulus/floor-layout";
+import { RUN_SPEED } from "../movement/kinematics.ts";
 import {
   actionForCode,
   BODY_RADIUS,
@@ -25,6 +26,9 @@ describe("key mapping", () => {
     expect(actionForCode("KeyS")).toBe("back");
     expect(actionForCode("KeyA")).toBe("left");
     expect(actionForCode("ArrowRight")).toBe("right");
+    expect(actionForCode("ShiftLeft")).toBe("run");
+    expect(actionForCode("ShiftRight")).toBe("run");
+    expect(moveVector(new Set(["run"] as const), 0)).toEqual({ x: 0, z: 0 });
     expect(actionForCode("KeyV")).toBeNull();
     expect(actionForCode("Space")).toBeNull();
   });
@@ -129,5 +133,18 @@ describe("collision", () => {
     }
     expect(pz).toBeGreaterThan(lobbyTemplate.elevator.rect.d);
     expect(pz).toBeLessThan(z);
+  });
+});
+
+describe("running in first person (#223)", () => {
+  test("one clamped frame at run speed cannot tunnel through the thinnest wall", () => {
+    const step = RUN_SPEED * MAX_FRAME_DT;
+    // A one-cell wall plus the body on both sides is wider than the longest step.
+    expect(step).toBeLessThan(NAV_CELL_SIZE + 2 * BODY_RADIUS);
+    const grid = new NavGrid(4, 4, NAV_CELL_SIZE);
+    grid.blockRect({ x: 2, z: 0, w: NAV_CELL_SIZE, d: 4 });
+    let x = 1.2;
+    for (let i = 0; i < 20; i++) x = stepWithCollision(grid, x, 2, step, 0).x;
+    expect(x).toBeLessThan(2);
   });
 });

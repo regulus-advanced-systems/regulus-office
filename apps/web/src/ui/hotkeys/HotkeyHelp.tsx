@@ -1,5 +1,5 @@
 /** Help overlay content: every registered shortcut, grouped. */
-import { type HotkeyBinding, hotkeys } from "./registry.ts";
+import { type HotkeyBinding, hotkeys, MOVEMENT_HELP } from "./registry.ts";
 
 export function keyLabel(key: string): string {
   return key.length === 1 ? key.toUpperCase() : key;
@@ -15,7 +15,12 @@ export function groupBindings(list: readonly HotkeyBinding[]): [string, HotkeyBi
   return Array.from(groups.entries());
 }
 
-export function HotkeyList({ bindings = hotkeys.list() }: { bindings?: readonly HotkeyBinding[] }) {
+/** Everything the help overlay lists: movement first, then the registered hotkeys. */
+export function helpBindings(registered: readonly HotkeyBinding[] = hotkeys.list()) {
+  return [...MOVEMENT_HELP, ...registered];
+}
+
+export function HotkeyList({ bindings = helpBindings() }: { bindings?: readonly HotkeyBinding[] }) {
   return (
     <div style={{ display: "grid", gap: 14 }}>
       {groupBindings(bindings).map(([group, items]) => (

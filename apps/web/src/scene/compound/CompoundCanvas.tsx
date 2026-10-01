@@ -64,6 +64,8 @@ const SEA_BACKGROUND = "#163A6A";
 const NO_EXTRA_DOORS: never[] = [];
 
 const playerBinding = createPlayerBinding(usePlayerStore);
+/** Shift belongs to build mode while placing (Shift+R turns the door back): no running then (#223). */
+const canRun = () => useBuildModeStore.getState().intent === null;
 
 export interface CompoundCanvasProps {
   world: CompoundWorld;
@@ -171,6 +173,7 @@ function Scene({ world, avatars, presence, send, children }: CompoundCanvasProps
           active={firstPerson}
           getPose={spawned ? playerBinding.getPose : undefined}
           onMove={spawned ? playerBinding.onMove : undefined}
+          canRun={canRun}
         />
       )}
       <hemisphereLight args={["#B4C2D4", "#5A4A3A", 1.7]} />
@@ -205,7 +208,14 @@ function Scene({ world, avatars, presence, send, children }: CompoundCanvasProps
         <BuildLayer world={world} visible={visibleRooms} playing={playing} />
       </LairKit>
       <Culling rooms={rooms} chunks={chunks} />
-      <MovementController grid={grid} spawn={spawn} spawnKey="compound" plane={plane} send={send} />
+      <MovementController
+        grid={grid}
+        spawn={spawn}
+        spawnKey="compound"
+        plane={plane}
+        send={send}
+        canRun={canRun}
+      />
       <RoomPresence world={world} target={presence} />
       <Suspense fallback={null}>
         <RoomLayers rooms={rooms} />

@@ -8,6 +8,8 @@ import { headingFacing, type Vec2 } from "@regulus/floor-layout";
 
 /** Walking speed of a human avatar, metres per second. */
 export const WALK_SPEED = 2.4;
+/** Running speed (#223, Shift or a double-click), metres per second: 2.2 times the walk. */
+export const RUN_SPEED = WALK_SPEED * 2.2;
 /** How fast an avatar turns toward its travel direction, radians per second. */
 export const TURN_RATE = 12;
 

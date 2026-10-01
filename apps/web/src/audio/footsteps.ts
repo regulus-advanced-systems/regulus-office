@@ -2,12 +2,13 @@
  * Footstep hook (issue #15): watches the local player's distance walked and,
  * every stride, dispatches a `regulus:footstep` event on `window` and plays
  * the generated click unless reduced motion is on (SPEC §11; the settings
- * store mirrors the flag to `<html data-reduced-motion>`).
+ * store mirrors the flag to `<html data-reduced-motion>`). Running strides
+ * are longer but quicker, so steps come faster while running (#223).
  */
 import { useEffect } from "react";
 import { usePlayerStore } from "../state/player.ts";
 import { selectReducedMotion, useUiStore } from "../state/ui.ts";
-import { createFootstepCadence } from "./footstepCadence.ts";
+import { createFootstepCadence, RUN_STRIDE_METRES, STRIDE_METRES } from "./footstepCadence.ts";
 import { playFootstep } from "./footstepSound.ts";
 
 export const FOOTSTEP_EVENT = "regulus:footstep";
@@ -39,7 +40,10 @@ export function watchFootsteps(options: FootstepsOptions = {}): () => void {
   cadence.reset(store.getState().distanceWalked);
   return store.subscribe((s, prev) => {
     if (s.distanceWalked === prev.distanceWalked) return;
-    const steps = cadence.advance(s.distanceWalked);
+    const steps = cadence.advance(
+      s.distanceWalked,
+      s.gait === "run" ? RUN_STRIDE_METRES : STRIDE_METRES,
+    );
     if (steps === 0) return;
     const detail: FootstepEventDetail = { x: s.x, z: s.z };
     target.dispatchEvent(new CustomEvent(FOOTSTEP_EVENT, { detail }));

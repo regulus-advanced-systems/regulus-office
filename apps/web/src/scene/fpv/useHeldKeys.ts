@@ -1,5 +1,5 @@
 /**
- * Tracks which movement actions (WASD / arrows) are held while `enabled`.
+ * Tracks which movement actions (WASD / arrows, Shift to run) are held while `enabled`.
  * Text fields, modifier chords and repeats are ignored; blur and a hidden
  * tab clear the set so no key sticks. The set is a ref: `useFrame` reads it
  * without re-rendering.
@@ -18,7 +18,7 @@ export function useHeldKeys(enabled: boolean, target: Window = window): RefObjec
       const action = actionForCode(e.code);
       if (!action || e.ctrlKey || e.metaKey || e.altKey || isEditableTarget(e.target)) return;
       set.add(action);
-      e.preventDefault();
+      if (action !== "run") e.preventDefault(); // Shift keeps its default
     };
     const onKeyUp = (e: KeyboardEvent) => {
       const action = actionForCode(e.code);

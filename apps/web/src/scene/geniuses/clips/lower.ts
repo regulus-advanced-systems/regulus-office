@@ -47,6 +47,40 @@ export function walking(style: MotionStyle, phase: number): Pose {
   };
 }
 
+/** Thigh swing of a run, from the archetype's walking stride (degrees). */
+export const runStride = (style: MotionStyle): number => Math.min(48, style.stride * 1.5 + 8);
+/** Arm swing of a run: everyone pumps their arms, even the hands-behind walkers. */
+export const runArmSwing = (style: MotionStyle): number => Math.max(34, style.armSwing * 2.2);
+
+/**
+ * One run cycle (two strides, #223): the walk's shape, bigger. Longer
+ * thigh swing, knees fold high behind, the body pitches forward, the hips
+ * bounce harder, and bent arms pump against the legs.
+ */
+export function running(style: MotionStyle, phase: number): Pose {
+  const s = wave(phase);
+  const c = wave(phase, 1, 0.25);
+  const lift = (x: number) => Math.max(0, x);
+  const stride = runStride(style);
+  const arm = runArmSwing(style);
+  return {
+    hips: [0, style.bob * 2 * (0.5 - 0.5 * Math.cos(2 * Math.PI * 2 * phase)), 0],
+    rot: {
+      hips: [0, 8 * s, style.sway * 0.5 * c],
+      spine: [style.lean * 0.5 + 14, -12 * s, -style.sway * 0.3 * c],
+      head: [-style.lean * 0.4 - 8, 4 * s, 0],
+      thighL: [-stride * s, 0, 0],
+      shinL: [lift(-c) * 95 + 12, 0, 0],
+      thighR: [stride * s, 0, 0],
+      shinR: [lift(c) * 95 + 12, 0, 0],
+      armL: [arm * s, 0, 10],
+      foreL: [-78 - 12 * lift(-s), 0, 0],
+      armR: [-arm * s, 0, -10],
+      foreR: [-78 - 12 * lift(s), 0, 0],
+    },
+  };
+}
+
 /** Hips position in the seated pose, model space (facing +z, back toward -z). */
 export function seatedHips(body: Body): Vec3 {
   const underside = SEATED_HIPS.up - SEATED_SIT_DROP;

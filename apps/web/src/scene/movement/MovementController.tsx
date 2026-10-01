@@ -4,6 +4,9 @@
  * harnesses), spawns at the spawn pose, turns WASD into steps relative to
  * the camera's yaw, turns floor clicks into A* paths, follows
  * them each frame and relays the pose as `move` at no more than 20 Hz.
+ * Holding Shift runs (WASD or a click path) and a double-click runs to the
+ * spot (#223): the first click of the pair already set off walking, the
+ * double-click upgrades the same path to a run.
  * While standing in third person the robot turns toward the floor point
  * under the mouse (#119); that heading-only change goes out as `move` too.
  * Mount as a child of <OfficeCanvas>; the avatar itself is drawn by
@@ -21,6 +24,7 @@ import { usePlayerStore } from "../../state/player.ts";
 import { useUiStore } from "../../state/ui.ts";
 import { useViewStore } from "../../state/view.ts";
 import { groundPointFromRay } from "./cursorFacing.ts";
+import { selectSpeed } from "./gait.ts";
 import type { Pose } from "./kinematics.ts";
 import { createMoveThrottle } from "./moveThrottle.ts";
 import { navGridFor, nearestWalkable, planPath } from "./navigation.ts";
@@ -41,7 +45,11 @@ export interface MovementControllerProps {
   plane: Rect;
   /** Where poses go; defaults to the shared office client. */
   send?: (pose: Pose) => void;
+  /** Whether running is allowed right now (not in build mode, where Shift is taken). */
+  canRun?: () => boolean;
 }
+
+const always = () => true;
 
 function sendMove(pose: Pose): void {
   try {
@@ -81,6 +89,7 @@ export function MovementController({
   spawnKey,
   plane,
   send = sendMove,
+  canRun = always,
 }: MovementControllerProps) {
   const keys = useWasdInput();
   const throttle = useMemo(() => createMoveThrottle({ send }), [send]);
@@ -114,10 +123,12 @@ export function MovementController({
     // In first person the FPV rig (scene/fpv) drives the store with camera-relative WASD.
     const firstPerson = useViewStore.getState().mode === "first_person";
     if (!firstPerson) {
+      const shift = keys.current.run && canRun();
       const input = inputVector(keys.current, (cameraView.yaw * 180) / Math.PI);
-      if (input.x !== 0 || input.z !== 0) store.applyInput(input.x, input.z, dt);
+      if (input.x !== 0 || input.z !== 0)
+        store.applyInput(input.x, input.z, dt, selectSpeed({ shift, pathRun: false }));
       else {
-        store.advance(dt);
+        store.advance(dt, shift);
         // Standing still: face the floor point under the cursor.
         const ndc = cursor.active({
           overlayOpen: useUiStore.getState().overlay !== null,
@@ -140,6 +151,13 @@ export function MovementController({
     usePlayerStore.getState().setTarget(event.point.x, event.point.z);
   };
 
+  // The pair's clicks already set off walking there; the double-click upgrades it to a run.
+  const onDoubleClick = (event: ThreeEvent<MouseEvent>) => {
+    if (event.nativeEvent.button !== 0) return;
+    if (useViewStore.getState().mode === "first_person") return;
+    usePlayerStore.getState().setTarget(event.point.x, event.point.z, canRun());
+  };
+
   return (
     <mesh
       name="walk-plane"
@@ -148,6 +166,7 @@ export function MovementController({
       rotation-x={-Math.PI / 2}
       position={[plane.x + plane.w / 2, 0.001, plane.z + plane.d / 2]}
       onClick={onClick}
+      onDoubleClick={onDoubleClick}
     >
       <planeGeometry args={[plane.w, plane.d]} />
       <meshBasicMaterial transparent opacity={0} depthWrite={false} />

@@ -5,12 +5,16 @@
  * `move`. First-person controls (#17) share it through `applyInput` /
  * `setPose`, so both views move the same avatar. In third person the
  * standing avatar turns toward the cursor through `faceToward` (#119).
+ * Running (#223): `advance` and `applyInput` take a speed or the Shift
+ * state, and a path set with `run` (a double-click) is walked at a run
+ * until it ends or is replaced; `gait` tells the avatar which cycle to play.
  */
 
 import type { Vec2 } from "@regulus/floor-layout";
 import type { AvatarAnimation } from "@regulus/protocol";
 import { create } from "zustand";
 import { cursorHeading } from "../scene/movement/cursorFacing.ts";
+import { type Gait, gaitForSpeed, selectSpeed } from "../scene/movement/gait.ts";
 import {
   headingOfTravel,
   type Pose,
@@ -35,6 +39,10 @@ export interface PlayerStore extends Pose {
   target: Vec2 | null;
   /** Waypoints still ahead on the way to `target`. */
   path: Vec2[] | null;
+  /** The current path was set to be run (a double-click, #223). */
+  pathRun: boolean;
+  /** Walking or running, while `animation` is "walk". */
+  gait: Gait;
   /** True once `spawnAt` placed the avatar on a floor. */
   spawned: boolean;
   /** Which floor the avatar was spawned on (see MovementController `floorKey`). */
@@ -47,13 +55,22 @@ export interface PlayerStore extends Pose {
   spawnAt: (pose: Pose, key?: string) => void;
   setPose: (x: number, z: number, heading: number) => void;
   setAnimation: (animation: AvatarAnimation) => void;
-  /** Walk to a point; returns false (and clears any target) when unreachable. */
-  setTarget: (x: number, z: number) => boolean;
+  /**
+   * Walk (or with `run`, run) to a point; returns false (and clears any
+   * target) when unreachable. A new target replaces the old one and its pace.
+   */
+  setTarget: (x: number, z: number, run?: boolean) => boolean;
   clearTarget: () => void;
-  /** Direct control: move along the ground direction `(dx, dz)` for `dt` seconds. */
-  applyInput: (dx: number, dz: number, dt: number) => void;
-  /** Follow the current path for `dt` seconds; settles to idle when there is none. */
-  advance: (dt: number) => void;
+  /**
+   * Direct control: move along the ground direction `(dx, dz)` for `dt`
+   * seconds at `speed` (default walking). Drops any click path.
+   */
+  applyInput: (dx: number, dz: number, dt: number, speed?: number) => void;
+  /**
+   * Follow the current path for `dt` seconds, running while `shift` is held
+   * or the path was set to run; settles to idle when there is none.
+   */
+  advance: (dt: number, shift?: boolean) => void;
   /**
    * Third person (#119): while standing, turn toward the floor point `(x, z)`
    * under the cursor at TURN_RATE for `dt` seconds. Does nothing while a
@@ -73,6 +90,8 @@ const INITIAL = {
   animation: "idle" as AvatarAnimation,
   target: null,
   path: null,
+  pathRun: false,
+  gait: "walk" as Gait,
   spawned: false,
   spawnKey: null,
   distanceWalked: 0,
@@ -92,29 +111,31 @@ export function createPlayerStore() {
         spawnKey: key ?? null,
         target: null,
         path: null,
+        pathRun: false,
+        gait: "walk",
         animation: "idle",
       }),
     setPose: (x, z, heading) => set({ x, z, heading }),
     setAnimation: (animation) => set((s) => (s.animation === animation ? {} : { animation })),
-    setTarget: (x, z) => {
+    setTarget: (x, z, run = false) => {
       const s = get();
       const target = { x, z };
       const path = s.navigation ? s.navigation.plan({ x: s.x, z: s.z }, target) : [target];
       if (!path) {
-        set({ target: null, path: null });
+        set({ target: null, path: null, pathRun: false });
         return false;
       }
-      set({ target, path });
+      set({ target, path, pathRun: run });
       return true;
     },
-    clearTarget: () => set({ target: null, path: null }),
-    applyInput: (dx, dz, dt) => {
+    clearTarget: () => set({ target: null, path: null, pathRun: false }),
+    applyInput: (dx, dz, dt, speed = WALK_SPEED) => {
       const len = Math.hypot(dx, dz);
       if (!(len > 0) || !(dt > 0)) return;
       const s = get();
       const ux = dx / len;
       const uz = dz / len;
-      const step = WALK_SPEED * dt;
+      const step = speed * dt;
       const walkable = s.navigation?.walkable ?? alwaysWalkable;
       const next = stepWithCollision(walkable, s, ux * step, uz * step);
       const moved = Math.hypot(next.x - s.x, next.z - s.z);
@@ -124,26 +145,31 @@ export function createPlayerStore() {
         z: next.z,
         heading,
         animation: moved > 0 ? "walk" : "idle",
+        gait: moved > 0 ? gaitForSpeed(moved / dt, s.gait) : "walk",
         target: null,
         path: null,
+        pathRun: false,
         distanceWalked: s.distanceWalked + moved,
       });
     },
-    advance: (dt) => {
+    advance: (dt, shift = false) => {
       const s = get();
       if (!s.path || s.path.length === 0) {
         if (s.path || s.target || s.animation === "walk")
-          set({ path: null, target: null, animation: "idle" });
+          set({ path: null, target: null, pathRun: false, gait: "walk", animation: "idle" });
         return;
       }
-      const result = followPath(s, s.path, dt);
+      const speed = selectSpeed({ shift, pathRun: s.pathRun });
+      const result = followPath(s, s.path, dt, { speed });
       set({
         x: result.pose.x,
         z: result.pose.z,
         heading: result.pose.heading,
         path: result.arrived ? null : result.path,
         target: result.arrived ? null : s.target,
+        pathRun: result.arrived ? false : s.pathRun,
         animation: result.arrived ? "idle" : "walk",
+        gait: result.arrived ? "walk" : gaitForSpeed(speed),
         distanceWalked: s.distanceWalked + result.moved,
       });
     },

@@ -4,7 +4,9 @@
  * pushed into the buffer straight from the building store subscription and
  * applied in useFrame, so a 20 Hz patch stream causes no React renders; only
  * the name, look and seat/doing/animation fields are subscribed. A seated
- * human sits on its seat's sit anchor like a robot does (#163).
+ * human sits on its seat's sit anchor like a robot does (#163). Whether it
+ * walks or runs (#223) is read from its interpolated speed (gait.ts), so
+ * running needs nothing on the wire.
  */
 import { useFrame } from "@react-three/fiber";
 import type { AvatarAnimation } from "@regulus/protocol";
@@ -18,6 +20,7 @@ import { roomArt } from "../compound/interiors.ts";
 import { lairAnchors } from "../compound/lairAnchors.ts";
 import { roomAt } from "../compound/world.ts";
 import { GeniusAvatar } from "../geniuses/GeniusAvatar.tsx";
+import { createGaitTracker, type Gait } from "../movement/gait.ts";
 import { createPoseBuffer } from "../movement/remoteInterpolation.ts";
 import { robotPlacement } from "../robots/seatPlacement.ts";
 
@@ -30,6 +33,8 @@ export function RemoteAvatar({ sessionId }: RemoteAvatarProps) {
   const buffer = useMemo(() => createPoseBuffer(), []);
   const walkingRef = useRef(false);
   const [walking, setWalking] = useState(false);
+  const tracker = useMemo(() => createGaitTracker(), []);
+  const [gait, setGait] = useState<Gait>("walk");
   const info = useBuildingStore(
     useShallow((s) => {
       const h = s.state?.humans[sessionId];
@@ -77,7 +82,7 @@ export function RemoteAvatar({ sessionId }: RemoteAvatarProps) {
     return useBuildingStore.subscribe(push);
   }, [sessionId, buffer]);
 
-  useFrame(() => {
+  useFrame((_, delta) => {
     const g = group.current;
     if (!g) return;
     const p = buffer.sampleAt(performance.now());
@@ -93,6 +98,10 @@ export function RemoteAvatar({ sessionId }: RemoteAvatarProps) {
       walkingRef.current = p.moving;
       setWalking(p.moving);
     }
+    const before = tracker.gait;
+    if (p.moving) tracker.update(p.speed, delta);
+    else tracker.reset();
+    if (tracker.gait !== before) setGait(tracker.gait);
   });
 
   if (!info) return null;
@@ -103,6 +112,7 @@ export function RemoteAvatar({ sessionId }: RemoteAvatarProps) {
         look={info}
         animation={animation}
         seated={seated !== null && !walking}
+        gait={gait}
         name={info.name}
       />
     </group>
