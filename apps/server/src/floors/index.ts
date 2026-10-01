@@ -8,6 +8,7 @@
  *   void floors.cloner.resumePending();
  * #31 uses `floors.repos.withRepoCredential(repoId, fn)` for server-side git.
  */
+import type { RoomPlacer } from "../compound/service.ts";
 import type { OfficeConfig } from "../config.ts";
 import type { Db } from "../db/index.ts";
 import { RepoCredentialVault } from "../github/credentials.ts";
@@ -41,6 +42,8 @@ export interface FloorsDeps {
   dirs?: FloorDirRemover;
   /** A floor was created, archived, restored or deleted, or one of its repos finished cloning. */
   onChange?(floorId: string): void;
+  /** Places new floors in the compound (#181). */
+  placer?: RoomPlacer;
   git?: GitRunner;
   /**
    * The office GitHub connection (#141): its token is used for repos it
@@ -79,6 +82,7 @@ export function createFloors(deps: FloorsDeps): Floors {
     cloner,
     projectsDir: deps.config.projectsDir,
     onChange: deps.onChange,
+    placer: deps.placer,
   });
   const roots = [deps.config.projectsDir, deps.config.worktreesDir].filter(
     (d): d is string => typeof d === "string",

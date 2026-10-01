@@ -3,12 +3,20 @@
  * channel 1, §9.1). Counters come from the `agents` table and are zero until
  * M1 spawns robots; `BuildingRoom.refreshFloors()` re-reads them on demand.
  */
-import { type AgentStatus, type FloorSummary, LOBBY_FLOOR_ID } from "@regulus/protocol";
+import {
+  type AgentStatus,
+  type FloorSummary,
+  LOBBY_FLOOR_ID,
+  type RoomSummaryFields,
+} from "@regulus/protocol";
 import { count, isNull } from "drizzle-orm";
 import { agents, type Db, floors } from "../../db/index.ts";
 
-/** Floor rows without the presence counter, which the room computes itself. */
-export type FloorRecord = Omit<FloorSummary, "humansPresent">;
+/**
+ * Floor rows without the presence counter, which the room computes itself,
+ * and without the placement fields, which come from the compound (#181).
+ */
+export type FloorRecord = Omit<FloorSummary, "humansPresent" | keyof RoomSummaryFields>;
 
 export interface FloorSource {
   /** Every non-archived floor, lobby first, ordered by elevator index. */

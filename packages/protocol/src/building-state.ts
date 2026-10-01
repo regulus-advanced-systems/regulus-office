@@ -5,6 +5,7 @@
  */
 import { z } from "zod";
 import { Count, Id, TimestampMs, WorldPos } from "./common.ts";
+import { CompoundState, DOOR_SIDES, ROOM_BUILD_STATES } from "./compound.ts";
 import {
   AVATAR_ANIMATIONS,
   JUKEBOX_SOURCES,
@@ -41,7 +42,14 @@ export const HumanPresence = z.object({
 });
 export type HumanPresence = z.infer<typeof HumanPresence>;
 
-/** Elevator panel entry: one per floor, ordered by `index`. */
+/** Tile coordinate of a room; -1 only for a floor not yet placed (briefly, at boot). */
+const RoomTile = z.number().int().min(-1);
+
+/**
+ * One room of the compound (project room, or the lobby under its fixed id):
+ * the elevator/quick-travel entry, counters for its closed door, and its
+ * placement (compound.ts has the grid conventions).
+ */
 export const FloorSummary = z.object({
   floorId: Id,
   name: z.string().max(80),
@@ -52,8 +60,45 @@ export const FloorSummary = z.object({
   robotsWaiting: Count,
   robotsTotal: Count,
   humansPresent: Count,
+  gridX: RoomTile,
+  gridY: RoomTile,
+  width: Count,
+  depth: Count,
+  doorSide: z.enum(DOOR_SIDES),
+  doorX: RoomTile,
+  doorY: RoomTile,
+  buildState: z.enum(ROOM_BUILD_STATES),
+  /** When the build phase ends (server ms); 0 when ready. */
+  buildEndsAt: TimestampMs,
 });
 export type FloorSummary = z.infer<typeof FloorSummary>;
+
+/** The placement and build fields of a `FloorSummary`. */
+export type RoomSummaryFields = Pick<
+  FloorSummary,
+  | "gridX"
+  | "gridY"
+  | "width"
+  | "depth"
+  | "doorSide"
+  | "doorX"
+  | "doorY"
+  | "buildState"
+  | "buildEndsAt"
+>;
+
+/** Placement fields of a room not on the compound map yet (the schema defaults). */
+export const UNPLACED_ROOM: RoomSummaryFields = {
+  gridX: -1,
+  gridY: -1,
+  width: 0,
+  depth: 0,
+  doorSide: "south",
+  doorX: -1,
+  doorY: -1,
+  buildState: "ready",
+  buildEndsAt: 0,
+};
 
 export const ChatMessage = z.object({
   id: Id,
@@ -149,5 +194,7 @@ export const BuildingState = z.object({
   jukebox: JukeboxState,
   usage: UsageSummary,
   pm: PmState,
+  /** Compound grid, special rooms and corridors (SPEC §9.1); rooms are in `floors`. */
+  compound: CompoundState,
 });
 export type BuildingState = z.infer<typeof BuildingState>;
