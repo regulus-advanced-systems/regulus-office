@@ -75,6 +75,25 @@ export const DEFAULT_HOTKEYS: readonly HotkeyBinding[] = [
   { id: "help", key: "?", description: "Show keyboard shortcuts", group: "Help" },
 ];
 
+/**
+ * Shown in the help overlay but not dispatched: held keys and mouse
+ * gestures the scene handles itself (running, #223).
+ */
+export const MOVEMENT_HELP: readonly HotkeyBinding[] = [
+  {
+    id: "run",
+    key: "Shift",
+    description: "Hold while walking (WASD or a clicked path) to run",
+    group: "Movement",
+  },
+  {
+    id: "runThere",
+    key: "Double-click",
+    description: "Run to that spot",
+    group: "Movement",
+  },
+];
+
 /** Binding ids that move keyboard focus to the chat input (ui/chat). */
 export const FOCUS_CHAT_HOTKEYS: ReadonlySet<string> = new Set(["focusChat", "focusChatEnter"]);
 

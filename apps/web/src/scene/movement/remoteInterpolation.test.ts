@@ -6,8 +6,8 @@ describe("remote pose buffer", () => {
     const b = createPoseBuffer();
     expect(b.sampleAt(0)).toBeNull();
     b.push({ t: 0, x: 1, z: 2, heading: 0.5 });
-    expect(b.sampleAt(0)).toEqual({ x: 1, z: 2, heading: 0.5, moving: false });
-    expect(b.sampleAt(500)).toEqual({ x: 1, z: 2, heading: 0.5, moving: false });
+    expect(b.sampleAt(0)).toEqual({ x: 1, z: 2, heading: 0.5, moving: false, speed: 0 });
+    expect(b.sampleAt(500)).toEqual({ x: 1, z: 2, heading: 0.5, moving: false, speed: 0 });
   });
 
   test("interpolates between the two samples around the delayed render time", () => {
@@ -35,7 +35,7 @@ describe("remote pose buffer", () => {
   test("a standing human reads as not moving even while patches keep arriving", () => {
     const b = createPoseBuffer({ delayMs: 100 });
     for (let t = 0; t <= 300; t += 50) b.push({ t, x: 3, z: 3, heading: 1 });
-    expect(b.sampleAt(275)).toEqual({ x: 3, z: 3, heading: 1, moving: false });
+    expect(b.sampleAt(275)).toEqual({ x: 3, z: 3, heading: 1, moving: false, speed: 0 });
   });
 
   test("a move after a long silence lerps over one patch interval, not the silence", () => {

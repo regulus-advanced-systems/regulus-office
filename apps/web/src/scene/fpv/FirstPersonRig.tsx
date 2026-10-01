@@ -37,7 +37,7 @@ import {
   polarLimits,
   safeAspect,
 } from "../camera/perspective.ts";
-import { WALK_SPEED } from "../movement/kinematics.ts";
+import { selectSpeed } from "../movement/gait.ts";
 import { clampDt, EYE_HEIGHT_RATIO, moveVector, stepWithCollision } from "./fpvMove.ts";
 import { exitPointerLock, requestPointerLock } from "./pointerLock.ts";
 import { useHeldKeys } from "./useHeldKeys.ts";
@@ -70,7 +70,11 @@ export interface FirstPersonRigProps {
   /** Every active frame: collision-resolved step in metres (0 when standing) and the camera yaw. */
   onMove?: (dx: number, dz: number, dt: number, yaw: number) => void;
   eyeHeight?: number;
+  /** Whether Shift may run right now (#223); default always. */
+  canRun?: () => boolean;
 }
+
+const always = () => true;
 
 /** Local fallback poses, one per world, so toggling in and out resumes in place. */
 const localPoses = new Map<string, PlayerPose>();
@@ -92,6 +96,7 @@ export function FirstPersonRig({
   getPose,
   onMove,
   eyeHeight = EYE_HEIGHT,
+  canRun = always,
 }: FirstPersonRigProps) {
   const gl = useThree((s) => s.gl);
   const scene = useThree((s) => s.scene);
@@ -232,7 +237,8 @@ export function FirstPersonRig({
       const dir = moveVector(held.current, yaw);
       const p = currentPose();
       const frame = clampDt(dt);
-      const step = WALK_SPEED * frame;
+      const shift = held.current.has("run") && canRun();
+      const step = selectSpeed({ shift, pathRun: false }) * frame;
       const s = stepWithCollision(grid, p.x, p.z, dir.x * step, dir.z * step);
       const move = binding.current.onMove;
       if (move) move(s.dx, s.dz, frame, yaw);

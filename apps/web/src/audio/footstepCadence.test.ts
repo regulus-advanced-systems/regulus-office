@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { createFootstepCadence, STRIDE_METRES } from "./footstepCadence.ts";
+import { RUN_SPEED, WALK_SPEED } from "../scene/movement/kinematics.ts";
+import { createFootstepCadence, RUN_STRIDE_METRES, STRIDE_METRES } from "./footstepCadence.ts";
 
 describe("footstep cadence", () => {
   test("fires one step per stride, accumulating partial frames", () => {
@@ -26,5 +27,17 @@ describe("footstep cadence", () => {
     expect(c.advance(11)).toBe(1);
     expect(STRIDE_METRES).toBeGreaterThan(0);
     expect(() => createFootstepCadence(0)).toThrow();
+  });
+});
+
+describe("running footsteps (#223)", () => {
+  test("a run steps more often than a walk", () => {
+    expect(RUN_SPEED / RUN_STRIDE_METRES).toBeGreaterThan(WALK_SPEED / STRIDE_METRES);
+  });
+
+  test("a per-call stride overrides the default", () => {
+    const c = createFootstepCadence(0.6);
+    expect(c.advance(1.2)).toBe(2);
+    expect(c.advance(3.4, 1.1)).toBe(2);
   });
 });

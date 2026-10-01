@@ -1,6 +1,7 @@
 /**
  * The local human's genius (#185), positioned every frame from the player store
- * (no React re-render per frame: only the animation enum is subscribed).
+ * (no React re-render per frame: only the animation enum and the walk or run
+ * gait, #223, are subscribed).
  * Look and name come from our own presence once the server publishes it,
  * with the session's display name as a fallback before that.
  */
@@ -16,6 +17,7 @@ import { GeniusAvatar } from "../geniuses/GeniusAvatar.tsx";
 export function LocalAvatar() {
   const group = useRef<Group>(null);
   const animation = usePlayerStore((s) => s.animation);
+  const gait = usePlayerStore((s) => s.gait);
   const spawned = usePlayerStore((s) => s.spawned);
   const self = useBuildingStore(
     useShallow((s) => {
@@ -39,7 +41,7 @@ export function LocalAvatar() {
   const name = self?.name ?? sessionName ?? undefined;
   return (
     <group ref={group} name="local-human">
-      <GeniusAvatar look={self ?? sessionLook} animation={animation} name={name} />
+      <GeniusAvatar look={self ?? sessionLook} animation={animation} gait={gait} name={name} />
     </group>
   );
 }

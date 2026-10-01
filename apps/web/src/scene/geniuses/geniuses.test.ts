@@ -10,6 +10,7 @@ import {
   accessoriesFor,
   DEFAULT_GENIUS_LOOK,
   GENIUS_ARCHETYPES,
+  type GeniusArchetype,
 } from "@regulus/protocol";
 import { AnimationMixer, Box3, Group, Vector3 } from "three";
 import { SEATED_HIPS, SEATED_SIT_DROP } from "../avatar/seatedFit.ts";
@@ -19,7 +20,7 @@ import { GENIUS_CLIP_NAMES, geniusClipName, geniusClips } from "./clips/index.ts
 import { seatedHips } from "./clips/lower.ts";
 import { createGenius, geniusGeometry } from "./model.ts";
 import { SLOT, slotU } from "./palette.ts";
-import { BONES, boneNodeName } from "./rig.ts";
+import { BONES, type BoneName, boneNodeName } from "./rig.ts";
 
 /** Most triangles one genius may have (SPEC §11: a few humans next to 20 robots on an iGPU). */
 export const GENIUS_TRIANGLE_BUDGET = 2000;
@@ -93,6 +94,9 @@ describe("genius clips", () => {
     expect(geniusClipName("wave", true)).toBe("wave.seated");
     expect(geniusClipName("idle", true)).toBe("sit_idle");
     expect(geniusClipName("walk", false)).toBe("walk");
+    expect(geniusClipName("walk", false, "run")).toBe("run");
+    expect(geniusClipName("idle", false, "run")).toBe("idle");
+    expect(GENIUS_CLIP_NAMES).toContain("run");
   });
 
   test("every clip drives every bone, and loops seamlessly", () => {
@@ -124,6 +128,30 @@ describe("genius clips", () => {
     const a = thigh?.quaternion.clone();
     mixer.update(walk.duration / 2);
     expect(a?.angleTo(thigh?.quaternion ?? a)).toBeGreaterThan(0.5);
+  });
+
+  test("the run (#223) is a quicker cycle with a longer stride and pumping arms", () => {
+    const swing = (archetype: GeniusArchetype, name: string, bone: BoneName) => {
+      const genius = createGenius(DEFAULT_GENIUS_LOOK); // same bones for every archetype
+      const mixer = new AnimationMixer(genius.mesh);
+      const clip = geniusClips(ARCHETYPE_MODELS[archetype]).find((c) => c.name === name);
+      if (!clip) throw new Error(`${name} missing`);
+      mixer.clipAction(clip).play();
+      const node = genius.mesh.getObjectByName(boneNodeName(bone));
+      mixer.update(clip.duration / 4);
+      const a = node?.quaternion.clone();
+      mixer.update(clip.duration / 2);
+      return { duration: clip.duration, angle: a?.angleTo(node?.quaternion ?? a) ?? 0 };
+    };
+    for (const archetype of GENIUS_ARCHETYPES) {
+      const walk = swing(archetype, "walk", "thighL");
+      const run = swing(archetype, "run", "thighL");
+      expect(run.duration).toBeLessThan(walk.duration);
+      expect(run.angle).toBeGreaterThan(walk.angle);
+      expect(swing(archetype, "run", "armL").angle).toBeGreaterThan(
+        swing(archetype, "walk", "armL").angle,
+      );
+    }
   });
 
   test("seated hips sit where a seated robot's do, so seats fit (avatar/seatedFit.ts)", () => {

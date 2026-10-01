@@ -19,6 +19,7 @@ import { type AnimationAction, AnimationMixer } from "three";
 import { CROSSFADE_SECONDS } from "../avatar/clips.ts";
 import { NamePlate } from "../avatar/NamePlate.tsx";
 import { HUMAN_PLATE_STYLE, type NamePlateStyle } from "../avatar/namePlateTexture.ts";
+import type { Gait } from "../movement/gait.ts";
 import { ARCHETYPE_MODELS } from "./archetypes.ts";
 import { geniusClipName, geniusClips } from "./clips/index.ts";
 import { createGenius } from "./model.ts";
@@ -29,6 +30,8 @@ export type GeniusAvatarProps = Omit<ThreeElements["group"], "ref" | "children">
   animation?: AvatarAnimation;
   /** Keep the legs folded for emotes (a human on a seat). */
   seated?: boolean;
+  /** Walking or running while `animation` is "walk" (#223). */
+  gait?: Gait;
   /** Floating name plate text. Omit to hide the plate (picker preview). */
   name?: string;
   plateStyle?: NamePlateStyle;
@@ -41,6 +44,7 @@ export function GeniusAvatar({
   look: lookProp,
   animation = "idle",
   seated = false,
+  gait = "walk",
   name,
   plateStyle = HUMAN_PLATE_STYLE,
   ...groupProps
@@ -54,7 +58,7 @@ export function GeniusAvatar({
   genius.root.userData.genius = look;
   genius.root.userData.mixer = mixer;
 
-  const clipName = geniusClipName(animation, seated);
+  const clipName = geniusClipName(animation, seated, gait);
   const current = useRef<{ action: AnimationAction; name: string } | null>(null);
   useEffect(() => {
     const clip = geniusClips(model).find((c) => c.name === clipName);
