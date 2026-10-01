@@ -60,10 +60,16 @@ export function NowPlaying({
   };
   const { current } = jukebox;
   const loaded = current.entryId !== "";
+  // A track ending or skipped takes its focused button away: keep focus in the panel (Escape, Tab).
+  const section = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const lost = document.activeElement === null || document.activeElement === document.body;
+    if (lost) section.current?.focus();
+  }, [loaded, jukebox.playing]);
 
   if (!loaded) {
     return (
-      <section className="rg-jukebox__now" aria-label="Now playing">
+      <section className="rg-jukebox__now" aria-label="Now playing" ref={section} tabIndex={-1}>
         <p className="rg-jukebox__idle">The jukebox is quiet.</p>
         {controls.use && (
           <Button variant="primary" onClick={() => send("jukebox.play", {})}>
@@ -78,7 +84,7 @@ export function NowPlaying({
     ? undefined
     : `Only ${current.addedByName || "who queued it"} or an admin can change this track.`;
   return (
-    <section className="rg-jukebox__now" aria-label="Now playing">
+    <section className="rg-jukebox__now" aria-label="Now playing" ref={section} tabIndex={-1}>
       <div className="rg-jukebox__track">
         <span
           className={`rg-lamp rg-jukebox__lamp${jukebox.playing ? " is-on" : ""}`}

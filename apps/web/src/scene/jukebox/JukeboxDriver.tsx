@@ -30,7 +30,7 @@ import { JUKEBOX_REACH, jukeboxSpot } from "./spot.ts";
 
 const LEVEL_EVERY_S = 0.2;
 /** On top of the arch (the lair kit's jukebox, scaled to 1.5 m tall). */
-const LAMP_HEIGHT = 1.49;
+const LAMP_HEIGHT = 1.53;
 
 export function JukeboxDriver({ world, grid }: { world: CompoundWorld; grid: NavGrid }) {
   const spot = useMemo(() => jukeboxSpot(world), [world]);
@@ -117,7 +117,7 @@ export function JukeboxDriver({ world, grid }: { world: CompoundWorld; grid: Nav
         <meshBasicMaterial transparent opacity={0} depthWrite={false} colorWrite={false} />
       </mesh>
       <mesh ref={lamp} name="jukebox-lamp" position={[0, LAMP_HEIGHT, 0]}>
-        <sphereGeometry args={[0.055, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2]} />
+        <sphereGeometry args={[0.08, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2]} />
         <meshBasicMaterial color={playing ? "#F2C200" : "#4A3B22"} toneMapped={false} />
       </mesh>
     </group>
