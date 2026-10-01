@@ -20,7 +20,16 @@ export const AUDIT_ACTIONS = {
   floorDelete: "floor.delete",
   floorMemberSet: "floor.member_set",
   floorMemberRemove: "floor.member_remove",
+  /** A room manager changed the room's desk count or decor style (#182). */
+  floorRoomSettings: "floor.room_settings",
   floorRepoClone: "floor_repo.clone",
+  /** The compound row was created and pre-compound floors laid out as rooms (#181). */
+  compoundCreate: "compound.create",
+  /** Rooms without a valid spot (restored, or never placed) were placed automatically. */
+  compoundRoomsPlaced: "compound.rooms_placed",
+  /** An owner/admin placed a new room, or moved/resized one (#181). */
+  compoundRoomPlace: "compound.room_place",
+  compoundRoomMove: "compound.room_move",
   agentPullRequest: "agent.pull_request",
   worktreesPrune: "worktrees.prune",
   agentSpawn: "agent.spawn",
@@ -68,6 +77,7 @@ export interface AuditEntry {
     | "invite"
     | "floor"
     | "floor_repo"
+    | "compound"
     | "agent"
     | "worktrees"
     | "credential_profile"

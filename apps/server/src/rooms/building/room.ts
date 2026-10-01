@@ -20,6 +20,11 @@ import {
   LOBBY_FLOOR_ID,
   type UsageSummary,
 } from "@regulus/protocol";
+import {
+  applyCompoundState,
+  applyRoomFields,
+  type CompoundSnapshot,
+} from "../../compound/room-state.ts";
 import type { Logger } from "../../logging.ts";
 import { applyUsageSummary } from "../../usage/room-state.ts";
 import type { RoomAuthUser } from "../auth.ts";
@@ -59,6 +64,8 @@ export interface BuildingRoom extends RoomDefinition<BuildingState, BuildingJoin
   sendToUser(userId: string, type: string, payload: unknown): void;
   /** Office usage totals and leaderboard for the usage wall (#40); never per-human data. */
   setUsage(summary: UsageSummary): void;
+  /** Compound layout and each room's placement and build state (#181). */
+  setCompound(snapshot: CompoundSnapshot): void;
 }
 
 interface ClientBookkeeping {
@@ -73,6 +80,7 @@ export function createBuildingRoom(deps: BuildingRoomDeps): BuildingRoom {
   const books = new Map<string, ClientBookkeeping>();
   let known: FloorRecord[] = [];
   let usage: UsageSummary | undefined;
+  let compound: CompoundSnapshot | undefined;
   let handle: RoomHandle<BuildingState> | undefined;
 
   const reject = (client: RoomClient, type: string, reason: string) => {
@@ -108,6 +116,7 @@ export function createBuildingRoom(deps: BuildingRoomDeps): BuildingRoom {
       entry.robotsWorking = f.robotsWorking;
       entry.robotsWaiting = f.robotsWaiting;
       entry.robotsTotal = f.robotsTotal;
+      applyRoomFields(entry, compound?.rooms.get(f.floorId));
       if (!handle.state.floors.has(f.floorId)) handle.state.floors.set(f.floorId, entry);
     }
     for (const id of [...handle.state.floors.keys()])
@@ -228,6 +237,7 @@ export function createBuildingRoom(deps: BuildingRoomDeps): BuildingRoom {
       await refreshFloors();
       for (const line of await chat.recent(CHAT_REPLAY)) room.state.chat.push(toSchema(line));
       if (usage) applyUsageSummary(room.state.usage, usage);
+      if (compound) applyCompoundState(room.state.compound, compound.state);
       room.setInterval(sweep, SWEEP_MS);
       logger.info({ roomId: room.roomId, floors: known.length }, "building room created");
     },
@@ -282,6 +292,15 @@ export function createBuildingRoom(deps: BuildingRoomDeps): BuildingRoom {
     setUsage(summary) {
       usage = summary;
       if (handle) applyUsageSummary(handle.state.usage, summary);
+    },
+
+    setCompound(snapshot) {
+      compound = snapshot;
+      if (!handle) return;
+      applyCompoundState(handle.state.compound, snapshot.state);
+      handle.state.floors.forEach((entry, floorId) =>
+        applyRoomFields(entry, snapshot.rooms.get(floorId)),
+      );
     },
   };
 }

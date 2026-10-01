@@ -352,6 +352,17 @@ test("the owner adds a floor from a repo and rides the elevator to it and back",
   await expect(ownerPage.locator(".rg-topbar__floor")).toHaveText("Lobby");
   await expect.poll(() => floorSize(ownerPage)).toBe(lobbySize);
   await expect.poll(() => remoteHumans(memberPage)).toHaveLength(1);
+
+  // The compound (#181): Apollo got a room on the map, which finishes its build phase.
+  const apolloRoom = async () => {
+    const res = await ownerPage.request.get("/api/compound");
+    const body = (await res.json()) as {
+      rooms: Array<{ name: string; gridX: number; buildState: string }>;
+    };
+    return body.rooms.find((r) => r.name === "Apollo");
+  };
+  await expect.poll(async () => (await apolloRoom())?.buildState).toBe("ready");
+  expect((await apolloRoom())?.gridX).toBeGreaterThanOrEqual(0);
 });
 
 test("Floor settings and Add floor fit a 1280×720 window with the X in view", async () => {

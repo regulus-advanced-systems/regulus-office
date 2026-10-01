@@ -5,6 +5,7 @@
  * - enums.ts           string-literal enums + type guards
  * - common.ts          shared zod primitives (ids, timestamps, positions)
  * - building-state.ts  BuildingRoom state shapes (zod + inferred types)
+ * - compound.ts        compound grid conventions, room placement, layout state and REST (#181)
  * - floor-state.ts     FloorRoom state shapes (zod + inferred types)
  * - floors-api.ts      REST shapes for floors, repos and floor members
  * - boards-api.ts      REST shapes for the issue/PR board panel and its write actions (#36)
@@ -20,6 +21,7 @@
  * - acl.ts             who may control a robot, who may emergency-stop it (D12)
  * - permission-modes.ts per-provider robot permission modes (#166)
  * - queue-api.ts       room task queue: limits, results, who may queue/reorder/retry (#37)
+ * - room-settings-api.ts room desk count and decor style (#182)
  * - search-api.ts     search across chat and terminal scrollback (#41)
  * - schema/            @colyseus/schema classes mirroring the state shapes
  * - terminal.ts        terminal WebSocket control messages and constants
@@ -36,6 +38,7 @@ export * from "./celebrations.ts";
 export * from "./changes-api.ts";
 export * from "./commands/index.ts";
 export * from "./common.ts";
+export * from "./compound.ts";
 export * from "./credentials-api.ts";
 export * from "./enums.ts";
 export * from "./floor-state.ts";
@@ -45,6 +48,7 @@ export * from "./notifications.ts";
 export * from "./permission-modes.ts";
 export * from "./provider-connect.ts";
 export * from "./queue-api.ts";
+export * from "./room-settings-api.ts";
 export * from "./rooms.ts";
 export * from "./schema/index.ts";
 export * from "./search-api.ts";

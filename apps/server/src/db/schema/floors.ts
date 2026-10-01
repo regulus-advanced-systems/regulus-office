@@ -2,7 +2,14 @@
  * Floors (= projects), their repos and membership (SPEC §5, §9.1). Desks are
  * in desks.ts because they reference agents.
  */
-import { FLOOR_ACCESSES, REPO_CLONE_STATUSES } from "@regulus/protocol";
+import {
+  DECOR_STYLES,
+  DOOR_SIDES,
+  FLOOR_ACCESSES,
+  REPO_CLONE_STATUSES,
+  ROOM_BUILD_STATES,
+} from "@regulus/protocol";
+import { sql } from "drizzle-orm";
 import { check, index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 import { enumText, id, inEnum, timestampMs, timestamps } from "./_columns.ts";
 import { users } from "./users.ts";
@@ -17,10 +24,49 @@ export const floors = sqliteTable(
     index: integer("index").notNull(),
     paletteId: text("palette_id").notNull(),
     layoutTemplateId: text("layout_template_id").notNull(),
+    /**
+     * Placement in the compound (SPEC §9.1, #181), in tiles. `gridX`/`gridY`
+     * are null only until the compound places the room (boot migration of
+     * pre-compound floors). Enums are checked in code: adding a CHECK here
+     * would make SQLite rebuild `floors`, and dropping it cascades.
+     */
+    gridX: integer("grid_x"),
+    gridY: integer("grid_y"),
+    width: integer("width").notNull().default(10),
+    depth: integer("depth").notNull().default(10),
+    doorSide: enumText("door_side", DOOR_SIDES).notNull().default("south"),
+    buildState: enumText("build_state", ROOM_BUILD_STATES).notNull().default("ready"),
+    buildStartedAt: timestampMs("build_started_at"),
+    /**
+     * Room settings (#182): desks in the generated interior and its lair decor
+     * style. Floors migrated from a template get enough desks for its seats.
+     */
+    deskCount: integer("desk_count").notNull().default(1),
+    decorStyle: enumText("decor_style", DECOR_STYLES).notNull().default("ops_room"),
     archivedAt: timestampMs("archived_at"),
     ...timestamps(),
   },
   (t) => [uniqueIndex("floors_slug_unique").on(t.slug), index("floors_index_idx").on(t.index)],
+);
+
+/**
+ * The compound (SPEC §5, §9.1): one row, id `main`. Grid bounds and the
+ * lobby's footprint; special rooms and corridors derive from these and the
+ * rooms' placements. The blast door's state is live-only.
+ */
+export const compound = sqliteTable(
+  "compound",
+  {
+    id: text("id").primaryKey(),
+    width: integer("width").notNull(),
+    depth: integer("depth").notNull(),
+    lobbyGridX: integer("lobby_grid_x").notNull(),
+    lobbyGridY: integer("lobby_grid_y").notNull(),
+    lobbyWidth: integer("lobby_width").notNull(),
+    lobbyDepth: integer("lobby_depth").notNull(),
+    ...timestamps(),
+  },
+  () => [check("compound_single_row_check", sql.raw(`"id" = 'main'`))],
 );
 
 /** A floor has 1..n repos; desks, worktrees and boards bind to one repo. */

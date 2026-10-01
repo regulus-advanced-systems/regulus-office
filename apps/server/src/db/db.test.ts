@@ -20,6 +20,7 @@ const SPEC_TABLES = [
   "user_profiles",
   "invites",
   "floors",
+  "compound",
   "floor_repos",
   "floor_members",
   "desks",

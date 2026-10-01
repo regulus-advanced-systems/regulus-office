@@ -3,6 +3,9 @@
  * FloorRoom's Colyseus schema instances. Pure helpers; no transport.
  */
 import {
+  DEFAULT_DECOR_STYLE,
+  DEFAULT_DESK_COUNT,
+  type DecorStyle,
   DeskStateSchema,
   type FloorStateSchema,
   type RepoSummary,
@@ -21,6 +24,9 @@ export interface FloorSnapshot {
   slug: string;
   paletteId: string;
   layoutTemplateId: string;
+  /** Room settings (#182); absent in older fixtures: 1 desk, the default style. */
+  deskCount?: number;
+  decorStyle?: DecorStyle;
   repos: RepoSummary[];
   /** Desk seats of the template, with the occupying agent id or "". */
   desks: Array<{ seatId: string; agentId: string }>;
@@ -60,6 +66,8 @@ export function writeSnapshot(state: FloorRoomState, snap: FloorSnapshot): void 
   state.slug = snap.slug;
   state.paletteId = snap.paletteId;
   state.layoutTemplateId = snap.layoutTemplateId;
+  state.deskCount = snap.deskCount ?? DEFAULT_DESK_COUNT;
+  state.decorStyle = snap.decorStyle ?? DEFAULT_DECOR_STYLE;
 
   state.repos.clear();
   for (const repo of snap.repos) {

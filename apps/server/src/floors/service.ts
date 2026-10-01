@@ -7,19 +7,26 @@
  */
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
-import { paletteById, paletteForFloor, templateForTier } from "@regulus/floor-layout";
+import {
+  legacyDeskCount,
+  paletteById,
+  paletteForFloor,
+  templateForTier,
+} from "@regulus/floor-layout";
 import type {
   FloorAccess,
   FloorInfo,
   FloorMemberInfo,
   FloorRepoInfo,
   OfficeUserInfo,
+  RoomPlacement,
 } from "@regulus/protocol";
 import { CreateFloorRequest, hasFloorAccess } from "@regulus/protocol";
 import { and, asc, eq, isNull, max } from "drizzle-orm";
 import type { z } from "zod";
 import { AUDIT_ACTIONS, writeAudit } from "../auth/audit.ts";
 import { AuthHttpError, forbidden } from "../auth/errors.ts";
+import type { RoomPlacer } from "../compound/service.ts";
 import type { Db } from "../db/index.ts";
 import { desks, floorMembers, floorRepos, floors, userProfiles } from "../db/schema/index.ts";
 import type { RepoCredentialVault } from "../github/credentials.ts";
@@ -40,6 +47,8 @@ export interface FloorServiceDeps {
   projectsDir: string;
   /** Floor list or a floor's repos changed (create, archive, clone settled). */
   onChange?(floorId: string): void;
+  /** Places new floors in the compound (#181); without it floors are created unplaced. */
+  placer?: RoomPlacer;
 }
 
 type FloorRow = typeof floors.$inferSelect;
@@ -75,7 +84,12 @@ export class FloorService {
     return floorAccessFor(this.#db, actor, floorId);
   }
 
-  create(actor: FloorActor, input: CreateFloorInput): { floor: FloorInfo; cloned: Promise<void> } {
+  /** Create a floor; `placement` is where to build its room (else the compound picks a spot). */
+  create(
+    actor: FloorActor,
+    input: CreateFloorInput,
+    placement?: RoomPlacement,
+  ): { floor: FloorInfo; cloned: Promise<void> } {
     if (!isOfficeManager(actor.role)) throw forbidden("owner_or_admin_required");
     const refs: RepoRef[] = input.repos.map((r, i) => {
       const parsed = parseRepoRef(r.repo);
@@ -110,6 +124,8 @@ export class FloorService {
         );
         const slug = uniqueSlug(slugify(input.name), taken);
         const floorId = randomUUID();
+        if (placement && !this.#deps.placer) throw new AuthHttpError(503, "compound_unavailable");
+        const room = this.#deps.placer?.claim(tx, actor, floorId, placement, deskSeats.length);
         tx.insert(floors)
           .values({
             id: floorId,
@@ -118,6 +134,9 @@ export class FloorService {
             index,
             paletteId: input.paletteId ?? paletteForFloor(index).id,
             layoutTemplateId: template.id,
+            ...room,
+            // Enough generated desks for the template's seats (#182).
+            deskCount: legacyDeskCount(template.id) ?? 1,
           })
           .run();
         const repoIds = refs.map((ref, i) => {

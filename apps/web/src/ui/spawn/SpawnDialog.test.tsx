@@ -33,6 +33,8 @@ const floorState = (robots: Record<string, RobotState> = {}): FloorState => ({
   whiteboardVersion: 0,
   carriedCards: {},
   queueSettings: { maxRunning: 2, maxPerOwner: 2 },
+  deskCount: 1,
+  decorStyle: "ops_room",
 });
 
 const robot = (seatId: string, ownerUserId: string): RobotState => ({

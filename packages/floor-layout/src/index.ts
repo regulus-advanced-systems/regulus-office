@@ -11,13 +11,17 @@
  * - astar.ts        small A* over the grid
  * - validate.ts     parse + structural + navigation checks (`loadTemplate`)
  * - templates/      lobby, small, office-l2 (medium), large, tier registry
+ * - compound/       the compound: placement rules, corridor routing, nav grid (#181)
+ * - room/           generated room interiors: `generateRoom`, decor styles, stable seat ids (#182)
  */
 export * from "./astar.ts";
+export * from "./compound/index.ts";
 export * from "./facing.ts";
 export * from "./geometry.ts";
 export * from "./nav-grid.ts";
 export * from "./palettes.ts";
 export * from "./query.ts";
+export * from "./room/index.ts";
 export { largeTemplate, largeTemplateInput } from "./templates/large.ts";
 export { lobbyTemplate, lobbyTemplateInput } from "./templates/lobby.ts";
 export { officeL2Template, officeL2TemplateInput } from "./templates/office-l2.ts";

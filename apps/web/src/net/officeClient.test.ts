@@ -1,5 +1,11 @@
 import { beforeEach, describe, expect, test } from "bun:test";
-import type { BuildingState, CommandRejected, FloorState } from "@regulus/protocol";
+import {
+  type BuildingState,
+  type CommandRejected,
+  EMPTY_COMPOUND,
+  type FloorState,
+  UNPLACED_ROOM,
+} from "@regulus/protocol";
 import { useBuildingStore } from "../state/building.ts";
 import { useConnectionStore } from "../state/connection.ts";
 import { useFloorStore } from "../state/floor.ts";
@@ -21,6 +27,7 @@ const emptyBuilding = (): BuildingState => ({
       robotsWaiting: 0,
       robotsTotal: 0,
       humansPresent: 0,
+      ...UNPLACED_ROOM,
     },
   },
   chat: [],
@@ -54,6 +61,7 @@ const emptyBuilding = (): BuildingState => ({
     targetAgentId: "",
     lastBriefAt: 0,
   },
+  compound: EMPTY_COMPOUND,
 });
 
 const emptyFloor = (floorId: string): FloorState => ({
@@ -73,6 +81,8 @@ const emptyFloor = (floorId: string): FloorState => ({
   whiteboardVersion: 0,
   carriedCards: {},
   queueSettings: { maxRunning: 2, maxPerOwner: 2 },
+  deskCount: 1,
+  decorStyle: "ops_room",
 });
 
 // ---- fake transport ---------------------------------------------------------

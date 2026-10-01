@@ -16,6 +16,12 @@ import {
 } from "./auth/index.ts";
 import { createCelebrations, watchQueueEmptied } from "./celebrations/index.ts";
 import { ChangesService, mountChangesRoutes } from "./changes/index.ts";
+import {
+  CompoundConfigError,
+  CompoundService,
+  loadCompoundConfig,
+  mountCompoundRoutes,
+} from "./compound/index.ts";
 import { ConfigError, loadConfig, redactConfig } from "./config.ts";
 import { mountCredentialPanel } from "./credentials/panel.ts";
 import { closeDatabase, databasePathFor, openDatabase, runMigrations } from "./db/index.ts";
@@ -38,6 +44,7 @@ import {
   createSessionRoomAuth,
   type RoomAuth,
 } from "./rooms/index.ts";
+import { mountRoomSettingsRoutes, RoomSettingsService } from "./rooms/settings/index.ts";
 import { createSearch } from "./search/index.ts";
 import { loadMasterKeyring, type MasterKeyring } from "./secrets/index.ts";
 import { createServices, type Services } from "./services/index.ts";
@@ -80,10 +87,12 @@ function selectRoomAuth(
 
 async function main(): Promise<void> {
   let config: ReturnType<typeof loadConfig>;
+  let compoundConfig: ReturnType<typeof loadCompoundConfig>;
   try {
     config = loadConfig();
+    compoundConfig = loadCompoundConfig();
   } catch (err) {
-    if (err instanceof ConfigError) {
+    if (err instanceof ConfigError || err instanceof CompoundConfigError) {
       console.error(err.message);
       process.exit(2);
     }
@@ -211,6 +220,21 @@ async function main(): Promise<void> {
   // Runner backend from OFFICE_RUNNER_BACKEND (SPEC §8): agents run only in their human's runner.
   const runner = await createRunner(config, production, logger);
   logger.info({ backend: config.runnerBackend }, "agent runner backend selected");
+  // The compound (#181): room placement, build phase, layout in the BuildingRoom.
+  const compound = new CompoundService({
+    db,
+    logger: logger.child({ module: "compound" }),
+    config: compoundConfig,
+    publish: (snapshot) => rooms.building.setCompound(snapshot),
+    onRoomsChanged: (floorIds) => {
+      for (const floorId of floorIds) {
+        rooms.floorChanged(floorId).catch((err) => logger.error({ err }, "room refresh failed"));
+      }
+    },
+  });
+  // First boot after the upgrade: floors become ready rooms in rows off the main corridor.
+  compound.boot();
+  shutdown.register("compound", () => compound.close());
   const floors = createFloors({
     db,
     logger,
@@ -224,7 +248,9 @@ async function main(): Promise<void> {
       runner,
       logger,
     }),
+    placer: compound,
     onChange: (floorId) => {
+      compound.floorChanged(floorId);
       rooms.floorChanged(floorId).catch((err) => logger.error({ err }, "floor refresh failed"));
       githubSync?.floorChanged(floorId);
     },
@@ -280,6 +306,22 @@ async function main(): Promise<void> {
     auth,
     floors: floors.service,
     lifecycle: floors.lifecycle,
+  });
+  mountCompoundRoutes(server.router, {
+    auth,
+    compound,
+    floors: floors.service,
+    lifecycle: floors.lifecycle,
+  });
+  // Room settings (#182): desk count and decor style, republished to the FloorRoom.
+  mountRoomSettingsRoutes(server.router, {
+    auth,
+    settings: new RoomSettingsService({
+      db,
+      onChange: (floorId) => {
+        rooms.floorChanged(floorId).catch((err) => logger.error({ err }, "floor refresh failed"));
+      },
+    }),
   });
   logger.info({ projectsDir: config.projectsDir }, "floor repos clone here");
   // Per-agent worktrees + one-click PR (#31). The AgentManager (#26) takes
