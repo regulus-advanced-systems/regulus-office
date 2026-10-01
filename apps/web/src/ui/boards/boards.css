@@ -83,6 +83,22 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.rg-board__labels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.rg-board__label {
+  padding: 0 6px;
+  border: 1px solid var(--rg-color-ink-muted);
+  border-radius: var(--rg-radius-chip);
+  color: var(--rg-color-ink-muted);
+  font-size: 11px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .rg-board__people {
   color: var(--rg-color-ink-muted);
 }

@@ -4,7 +4,14 @@
  * Opened from the 3D board (click or `E`); cards come from the OperationRoom
  * state (#35 summaries), so the panel updates live.
  */
-import type { CardKind, HenchmanState, IssueCard, PullCard, RepoSummary } from "@regulus/protocol";
+import type {
+  CardKind,
+  HenchmanState,
+  IssueCard,
+  PullCard,
+  QueueTask,
+  RepoSummary,
+} from "@regulus/protocol";
 import { hasOperationAccess } from "@regulus/protocol";
 import { useEffect, useMemo } from "react";
 import { useShallow } from "zustand/react/shallow";
@@ -22,12 +29,19 @@ const NO_ISSUES: Readonly<Record<string, IssueCard>> = {};
 const NO_PULLS: Readonly<Record<string, PullCard>> = {};
 const NO_REPOS: readonly RepoSummary[] = [];
 const NO_HENCHMEN: Readonly<Record<string, HenchmanState>> = {};
+const NO_QUEUE: readonly QueueTask[] = [];
 
 function Badge({ tone, children }: { tone: string; children: string }) {
   return <span className={`rg-board__badge rg-board__badge--${tone}`}>{children}</span>;
 }
 
-function CardButton({ card, onOpen }: { card: BoardCardView; onOpen: (key: string) => void }) {
+export function CardButton({
+  card,
+  onOpen,
+}: {
+  card: BoardCardView;
+  onOpen: (key: string) => void;
+}) {
   return (
     <li>
       <button
@@ -41,11 +55,23 @@ function CardButton({ card, onOpen }: { card: BoardCardView; onOpen: (key: strin
           {card.repoChip && <span className="rg-board__chip">{card.repoChip}</span>}
         </span>
         <span className="rg-board__card-title">{card.title}</span>
+        {card.labels.length > 0 && (
+          <span className="rg-board__labels" aria-label="Labels">
+            {card.labels.map((l) => (
+              <span key={l} className="rg-board__label">
+                {l}
+              </span>
+            ))}
+          </span>
+        )}
         <span className="rg-board__card-foot">
+          {card.queued && <Badge tone="amber">Queued</Badge>}
           {card.checks && <Badge tone={card.checks.tone}>{card.checks.label}</Badge>}
           {card.review && <Badge tone={card.review.tone}>{card.review.label}</Badge>}
           {card.assignees.length > 0 && (
-            <span className="rg-board__people">{card.assignees.map((a) => `@${a}`).join(" ")}</span>
+            <span className="rg-board__people" aria-label="Assignees">
+              {card.assignees.map((a) => `@${a}`).join(" ")}
+            </span>
           )}
         </span>
       </button>
@@ -98,6 +124,7 @@ export function BoardPanel({ kind, api }: { kind: CardKind; api?: BoardsApi }) {
       pulls: s.state?.pulls ?? NO_PULLS,
       repos: s.state?.repos ?? NO_REPOS,
       henchmen: s.state?.henchmen ?? NO_HENCHMEN,
+      queue: s.state?.queue ?? NO_QUEUE,
     })),
   );
   const access = useOperationsStore(
@@ -110,6 +137,7 @@ export function BoardPanel({ kind, api }: { kind: CardKind; api?: BoardsApi }) {
         pulls: board.pulls,
         repos: board.repos,
         henchmen: Object.values(board.henchmen),
+        queue: board.queue,
       }),
     [kind, board],
   );

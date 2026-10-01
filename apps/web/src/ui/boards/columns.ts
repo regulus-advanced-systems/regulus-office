@@ -3,22 +3,27 @@
  * review state read. Pure; the 3D boards (scene/boards) and the 2D panel
  * both use it.
  *
- * Issue board: Open / In progress / Closed. An open issue is in progress
- * when someone is assigned, it carries an "in progress"-style label, or a
- * henchman on this operation works on it.
+ * Issue board: Open / In progress / Closed. An open issue is In progress
+ * only while a henchman on this operation, bound to it (repo + number), is
+ * in an active status (`AGENT_ACTIVE_STATUSES`: starting, working, waiting
+ * for permission or input; #237). Assignees and labels never move a card;
+ * the card shows them instead. A queued task for the issue does not count
+ * until a henchman picks it up; the card shows a "Queued" chip meanwhile.
  *
  * PR board: Draft / In review / Approved / Merged / Closed. An open PR is
  * Draft while it is a draft, Approved once reviews approve it (and nobody
  * asks for changes), else In review.
  */
-import type {
-  CardKind,
-  ChecksState,
-  HenchmanState,
-  IssueCard,
-  PullCard,
-  RepoSummary,
-  ReviewState,
+import {
+  type CardKind,
+  type ChecksState,
+  type HenchmanState,
+  type IssueCard,
+  isActiveAgentStatus,
+  type PullCard,
+  type QueueTask,
+  type RepoSummary,
+  type ReviewState,
 } from "@regulus/protocol";
 
 export type IssueColumn = "open" | "in_progress" | "closed";
@@ -44,23 +49,41 @@ export const PULL_COLUMNS: readonly ColumnSpec<PullColumn>[] = [
   { id: "closed", title: "Closed" },
 ];
 
-const IN_PROGRESS_LABEL = /^(in[\s_-]?progress|wip|doing|started|working)$/i;
+type IssueRef = `${string}#${number}`;
+const issueRef = (repoId: string, number: number): IssueRef => `${repoId}#${number}`;
 
-/** `${repoId}#${number}` of the issues henchmen on this operation are working on. */
-export function workedIssues(henchmen: readonly Pick<HenchmanState, "repoId" | "issueNumber">[]) {
+/**
+ * `${repoId}#${number}` of the issues a henchman on this operation is working
+ * on right now: bound to the issue and in an active status. A henchman that
+ * is done, idle, in error, exited or sent home no longer counts.
+ */
+export function workedIssues(
+  henchmen: readonly Pick<HenchmanState, "repoId" | "issueNumber" | "status">[],
+): Set<string> {
   return new Set(
-    henchmen.filter((r) => r.issueNumber > 0).map((r) => `${r.repoId}#${r.issueNumber}`),
+    henchmen
+      .filter((h) => h.issueNumber > 0 && isActiveAgentStatus(h.status))
+      .map((h) => issueRef(h.repoId, h.issueNumber)),
+  );
+}
+
+/** `${repoId}#${number}` of the issues with a task still waiting in the queue. */
+export function queuedIssues(
+  queue: readonly Pick<QueueTask, "kind" | "repoId" | "refNumber" | "state">[],
+): Set<string> {
+  return new Set(
+    queue
+      .filter((t) => t.kind === "issue" && t.refNumber > 0 && t.state === "queued")
+      .map((t) => issueRef(t.repoId, t.refNumber)),
   );
 }
 
 export function issueColumn(
-  card: Pick<IssueCard, "state" | "assignees" | "labels" | "repoId" | "number">,
+  card: Pick<IssueCard, "state" | "repoId" | "number">,
   worked: ReadonlySet<string> = new Set(),
 ): IssueColumn {
   if (card.state !== "open") return "closed";
-  if (card.assignees.length > 0) return "in_progress";
-  if (card.labels.some((l) => IN_PROGRESS_LABEL.test(l.trim()))) return "in_progress";
-  if (worked.has(`${card.repoId}#${card.number}`)) return "in_progress";
+  if (worked.has(issueRef(card.repoId, card.number))) return "in_progress";
   return "open";
 }
 
@@ -120,6 +143,8 @@ export interface BoardCardView {
   repoChip: string;
   assignees: string[];
   labels: string[];
+  /** An open issue with a task waiting in the queue and no henchman on it yet. */
+  queued: boolean;
   checks: StatusBadge | null;
   review: StatusBadge | null;
   updatedAt: number;
@@ -146,7 +171,8 @@ export function buildBoard(
     issues: Readonly<Record<string, IssueCard>>;
     pulls: Readonly<Record<string, PullCard>>;
     repos: readonly RepoSummary[];
-    henchmen?: readonly Pick<HenchmanState, "repoId" | "issueNumber">[];
+    henchmen?: readonly Pick<HenchmanState, "repoId" | "issueNumber" | "status">[];
+    queue?: readonly Pick<QueueTask, "kind" | "repoId" | "refNumber" | "state">[];
   },
 ): BoardColumnView[] {
   const chips = repoChips(input.repos);
@@ -156,6 +182,7 @@ export function buildBoard(
   );
   if (kind === "issue") {
     const worked = workedIssues(input.henchmen ?? []);
+    const queued = queuedIssues(input.queue ?? []);
     for (const [key, c] of Object.entries(input.issues)) {
       const column = issueColumn(c, worked);
       columns.get(column)?.cards.push({
@@ -168,6 +195,7 @@ export function buildBoard(
         repoChip: chips.get(c.repoId) ?? "",
         assignees: c.assignees,
         labels: c.labels,
+        queued: column === "open" && queued.has(issueRef(c.repoId, c.number)),
         checks: null,
         review: null,
         updatedAt: c.updatedAt,
@@ -186,6 +214,7 @@ export function buildBoard(
         repoChip: chips.get(c.repoId) ?? "",
         assignees: c.assignees,
         labels: c.labels,
+        queued: false,
         checks: column === "merged" || column === "closed" ? null : checksBadge(c.checksState),
         review: reviewBadge(c.reviewState),
         updatedAt: c.updatedAt,

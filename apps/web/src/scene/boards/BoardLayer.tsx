@@ -5,7 +5,7 @@
  * cards being carried around the operation (CarriedCards).
  */
 
-import type { HenchmanState, IssueCard, PullCard, RepoSummary } from "@regulus/protocol";
+import type { HenchmanState, IssueCard, PullCard, QueueTask, RepoSummary } from "@regulus/protocol";
 import type { RoomTemplate } from "@regulus/room-layout";
 import { useCallback, useMemo } from "react";
 import { useShallow } from "zustand/react/shallow";
@@ -24,6 +24,7 @@ const NO_ISSUES: Readonly<Record<string, IssueCard>> = {};
 const NO_PULLS: Readonly<Record<string, PullCard>> = {};
 const NO_REPOS: readonly RepoSummary[] = [];
 const NO_HENCHMEN: Readonly<Record<string, HenchmanState>> = {};
+const NO_QUEUE: readonly QueueTask[] = [];
 
 export interface BoardLayerProps {
   template: RoomTemplate;
@@ -42,6 +43,7 @@ export function BoardLayer({ template, look, carried = true }: BoardLayerProps) 
       pulls: s.state?.pulls ?? NO_PULLS,
       repos: s.state?.repos ?? NO_REPOS,
       henchmen: s.state?.henchmen ?? NO_HENCHMEN,
+      queue: s.state?.queue ?? NO_QUEUE,
     })),
   );
   const columns = useMemo(() => {
