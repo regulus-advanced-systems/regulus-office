@@ -1,15 +1,18 @@
 /*
  * Base styles. Design tokens (--rg-*) are declared at runtime by App.tsx
  * from theme.ts (themeCssText); the fallbacks below only cover the moment
- * before React mounts. Component classes live in components.css.
+ * before React mounts. Component classes live in components.css (panels,
+ * dialogs), controls.css (buttons, switches) and feedback.css (lamps, toasts).
  */
 @import "./components.css";
+@import "./controls.css";
+@import "./feedback.css";
 @import "./hud.css";
 
 :root {
-  font-family: var(--rg-font-ui, "Open Sans", "Segoe UI", system-ui, sans-serif);
-  color: var(--rg-color-ink, #333333);
-  font-size: 14px;
+  font-family: var(--rg-font-ui, "Barlow", "Segoe UI", system-ui, sans-serif);
+  color: var(--rg-color-ink, #1f1b15);
+  font-size: 15px;
   line-height: 1.4;
   -webkit-font-smoothing: antialiased;
 }
@@ -21,8 +24,17 @@ body,
   height: 100%;
 }
 
+/* Bare rock: the page behind the canvas and the login screens. */
 body {
-  background: radial-gradient(ellipse at center, var(--rg-color-cream, #fff6d9) 55%, #f0e3bd 100%);
+  background:
+    radial-gradient(ellipse at 50% 40%, transparent 45%, rgba(0, 0, 0, 0.25) 100%),
+    radial-gradient(
+      ellipse at center,
+      var(--rg-color-page, #d8d0be) 55%,
+      var(--rg-color-page-edge, #a89e88) 100%
+    );
+  background-color: var(--rg-color-page, #d8d0be);
+  background-attachment: fixed;
 }
 
 *,
@@ -39,11 +51,17 @@ textarea {
   color: inherit;
 }
 
-/* One visible focus ring everywhere; panels are keyboard-navigable (SPEC §11). */
+/* One visible focus ring everywhere; panels are keyboard-navigable (SPEC §11).
+   Console teal, apart from the brass frames and yellow keys it sits next to
+   (at least 3:1 against every panel face, theme/contrast.ts). */
 :focus-visible {
-  outline: 3px solid var(--rg-color-blue, #1e6fe0);
+  outline: 3px solid var(--rg-color-blue, #0a6860);
   outline-offset: 2px;
   border-radius: 4px;
+}
+
+a {
+  color: var(--rg-color-blue);
 }
 
 .centered {

@@ -1,8 +1,8 @@
 /**
- * GDT-style modal (SPEC §12, research 03 §5): centred, warm off-white
- * `#FFF9EF` with a thick golden `#F5C542` border and cream glow, large light
- * title over a thin navy rule, round X overlapping the top-right corner.
- * The scene behind dims with a cream overlay and slight blur. Focus is
+ * Lair console dialog (SPEC §12 "UI", #189): centred riveted plate in a
+ * thick brass frame, the title a stencilled nameplate over a hazard stripe,
+ * a round close dial overlapping the top-right corner (components.css).
+ * The scene behind dims with a dark overlay and slight blur. Focus is
  * trapped, Escape closes, and focus returns to the opener.
  */
 import { type CSSProperties, type ReactNode, type RefObject, useId, useRef } from "react";

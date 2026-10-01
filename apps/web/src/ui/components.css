@@ -1,11 +1,37 @@
-/* Component classes for the GDT-styled HUD (SPEC §12, research 03 §5). */
+/* Panels and dialogs of the retro lair control panel (#189, SPEC §12 "UI"):
+   dark gunmetal (or, in the light scheme, cream enamel) plates in brass
+   frames with riveted corners; dialog titles are stencilled nameplates over a
+   hazard stripe. Colours are tokens (theme.ts, theme/lairPalette.ts).
+   Buttons, switches and the close dial live in controls.css; toasts and
+   lamps in feedback.css. */
 
-/* ---------- Panel: white, rounded, 1 px grey border ---------- */
+:root {
+  /* One rivet: a domed brass head with a lit top-left and a shadowed rim. */
+  --rg-rivet: radial-gradient(
+    circle at 42% 38%,
+    var(--rg-color-frame-light) 0 0.8px,
+    var(--rg-color-rivet) 1.4px 2.2px,
+    var(--rg-color-frame-shadow) 2.6px 3px,
+    transparent 3.4px
+  );
+  /* Four rivets, one per corner; add `var(--rg-rivets),` in front of a background. */
+  --rg-rivets:
+    var(--rg-rivet) left 3px top 3px / 8px 8px no-repeat,
+    var(--rg-rivet) right 3px top 3px / 8px 8px no-repeat,
+    var(--rg-rivet) left 3px bottom 3px / 8px 8px no-repeat,
+    var(--rg-rivet) right 3px bottom 3px / 8px 8px no-repeat;
+  /* Brushed-plate sheen over a face colour. */
+  --rg-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.05) 0%, rgba(0, 0, 0, 0.07) 100%);
+}
+
+/* ---------- Panel: riveted plate in a brass frame ---------- */
 .rg-panel {
-  background: var(--rg-color-panel-surface);
-  border: 1px solid var(--rg-color-panel-border);
+  background: var(--rg-rivets), var(--rg-sheen), var(--rg-color-panel-surface);
+  border: 2px solid var(--rg-color-gold);
   border-radius: var(--rg-radius-panel);
-  box-shadow: var(--rg-shadow-panel);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    var(--rg-shadow-panel);
   padding: 12px 14px;
   color: var(--rg-color-ink);
 }
@@ -15,169 +41,35 @@
 .rg-panel__title {
   margin: 0 0 8px;
   font-size: 15px;
-  font-weight: 600;
 }
 .rg-panel--muted {
   opacity: 0.3;
 }
 
-/* ---------- Buttons ---------- */
-.rg-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  min-height: 34px;
-  padding: 6px 16px;
-  border-radius: var(--rg-radius-button);
-  border: 1px solid transparent;
-  font-weight: 600;
-  line-height: 1.2;
-  cursor: pointer;
-  user-select: none;
-  transition:
-    filter 120ms ease,
-    transform 120ms ease,
-    box-shadow 120ms ease;
-}
-.rg-btn:hover:not(:disabled) {
-  filter: brightness(1.06);
-}
-.rg-btn:active:not(:disabled) {
-  transform: translateY(1px);
-}
-.rg-btn:disabled {
-  cursor: not-allowed;
-  opacity: 0.55;
-  filter: saturate(0.6);
-}
-.rg-btn--sm {
-  min-height: 26px;
-  padding: 2px 10px;
-  font-size: 12px;
-}
-.rg-btn--lg {
-  min-height: 42px;
-  padding: 8px 24px;
-  font-size: 16px;
-}
-.rg-btn--primary {
-  background: var(--rg-gradient-primary);
-  border-color: #d9812a;
-  color: #fff;
-  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.18);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
-}
-.rg-btn--destructive {
-  background: var(--rg-gradient-destructive);
-  border-color: #8f2447;
-  color: #fff;
-  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.18);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3);
-}
-.rg-btn--secondary {
-  background: linear-gradient(180deg, #ffffff 0%, #f1f1f1 100%);
-  border-color: var(--rg-color-panel-border);
-  color: var(--rg-color-ink);
-}
-.rg-btn--ghost {
-  background: transparent;
-  color: var(--rg-color-blue);
-}
-.rg-btn--ghost:hover:not(:disabled) {
-  background: rgba(30, 111, 224, 0.08);
-}
-.rg-btn--block {
-  display: flex;
-  width: 100%;
+/* Stencil headings wherever a panel or dialog has one. The extra class in
+   front outranks the feature stylesheets' own heading rules. */
+:is(body, .rg-panel, .rg-modal)
+:is(
+  .rg-panel__title,
+  .rg-chat__title,
+  .rg-board__column-title,
+  .rg-card__section,
+  .rg-floor-settings__heading,
+  .rg-providers__heading,
+  .rg-queue__heading,
+  .rg-search__group-title,
+  .rg-usage__title,
+  .rg-usage__h,
+  .rg-workflows__heading
+) {
+  font-family: var(--rg-font-stencil);
+  font-weight: 400;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--rg-color-heading);
 }
 
-/* Round white "X" with an orange rim (modal close). */
-.rg-close {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  border: 3px solid var(--rg-color-orange-red);
-  background: #fff;
-  color: var(--rg-color-orange-red);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
-  padding: 0;
-}
-.rg-close:hover {
-  background: #fff3e8;
-}
-.rg-close--sm {
-  width: 26px;
-  height: 26px;
-  border-width: 2px;
-}
-
-/* ---------- Switch (settings toggles) ---------- */
-.rg-switch {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  padding: 0;
-  border: 0;
-  background: none;
-  cursor: pointer;
-  text-align: left;
-}
-.rg-switch__track {
-  width: 40px;
-  height: 22px;
-  border-radius: var(--rg-radius-chip);
-  background: #cfcfcf;
-  position: relative;
-  transition: background 150ms ease;
-  flex: none;
-}
-.rg-switch__knob {
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
-  transition: transform 150ms ease;
-}
-.rg-switch[aria-checked="true"] .rg-switch__track {
-  background: var(--rg-color-blue);
-}
-.rg-switch[aria-checked="true"] .rg-switch__knob {
-  transform: translateX(18px);
-}
-.rg-switch:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.rg-field {
-  display: grid;
-  gap: 4px;
-  margin: 10px 0;
-}
-.rg-field__label {
-  font-weight: 600;
-}
-.rg-field__hint {
-  color: var(--rg-color-ink-muted);
-  font-size: 12px;
-}
-.rg-range {
-  width: 100%;
-  /* Chrome's default 2px side margin would poke past a 100% wide parent. */
-  margin-inline: 0;
-  accent-color: var(--rg-color-blue);
-}
-
-/* ---------- Modal: golden border on warm off-white with cream glow ----------
+/* ---------- Modal: brass-framed console with a nameplate title ----------
    Layout (#149): the frame never scrolls and never clips, so the round X that
    overlaps its top-right corner is always whole. Title and footer stay put;
    only the body scrolls, vertically, and nothing in it may push it sideways. */
@@ -189,7 +81,7 @@
      than push the title off the top (margin: auto on the frame, not centring). */
   overflow: auto;
   padding: 24px;
-  background: rgba(240, 227, 189, 0.55);
+  background: var(--rg-color-backdrop);
   backdrop-filter: blur(2px);
   animation: rg-fade-in var(--rg-motion-fade) ease both;
   z-index: 100;
@@ -202,10 +94,20 @@
   width: min(100%, var(--rg-modal-width, 520px));
   min-width: min(360px, 100%);
   overflow: visible;
-  background: var(--rg-color-modal-surface);
+  color: var(--rg-color-ink);
+  /* Three rivets: the close dial sits on the fourth corner. A flat face (no
+     sheen), so the scroll-shadow covers below match it exactly. */
+  background:
+    var(--rg-rivet) left 5px top 5px / 8px 8px no-repeat,
+    var(--rg-rivet) left 5px bottom 5px / 8px 8px no-repeat,
+    var(--rg-rivet) right 5px bottom 5px / 8px 8px no-repeat,
+    var(--rg-color-modal-surface);
   border: 4px solid var(--rg-color-gold);
-  border-radius: 14px;
-  box-shadow: var(--rg-shadow-modal-glow);
+  border-radius: 8px;
+  box-shadow:
+    inset 0 0 0 1px var(--rg-color-frame-shadow),
+    inset 0 2px 0 1px rgba(255, 255, 255, 0.06),
+    var(--rg-shadow-modal-glow);
   padding: 22px 26px 22px;
   animation: rg-pop var(--rg-motion-fade) ease both;
 }
@@ -219,15 +121,25 @@
   right: -16px;
   z-index: 1;
 }
+/* Nameplate: dark plate, yellow stencil letters, a hazard stripe along the foot. */
 .rg-modal__title {
   flex: none;
-  margin: 0 0 12px;
-  padding-bottom: 8px;
-  font-size: 32px;
-  font-weight: 300;
+  margin: 0 0 14px;
+  padding: 7px 14px 12px;
+  font-family: var(--rg-font-stencil);
+  font-size: 24px;
+  font-weight: 400;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   line-height: 1.15;
-  color: var(--rg-color-ink);
-  border-bottom: 1px solid var(--rg-color-navy);
+  color: var(--rg-color-plate-ink);
+  background:
+    var(--rg-gradient-hazard) left bottom / 100% 5px no-repeat,
+    var(--rg-color-plate);
+  border-radius: 4px;
+  box-shadow:
+    inset 0 0 0 1px var(--rg-color-frame-shadow),
+    0 1px 0 rgba(255, 255, 255, 0.08);
   overflow-wrap: anywhere;
 }
 .rg-modal__body {
@@ -240,21 +152,21 @@
   /* Room for focus rings at the edges of the scrolling area. */
   margin: -4px -8px;
   padding: 4px 8px;
-  font-size: 14px;
+  font-size: 15px;
   overflow-wrap: break-word;
 }
 /* Soft shadows at the top/bottom edge of a scroller while there is more to scroll. */
 .rg-modal__body,
 .rg-scroll-shadows {
   background:
-    linear-gradient(var(--rg-color-modal-surface) 30%, rgba(255, 249, 239, 0)) center top / 100%
-    28px no-repeat local,
-    linear-gradient(rgba(255, 249, 239, 0), var(--rg-color-modal-surface) 70%) center bottom / 100%
-    28px no-repeat local,
-    radial-gradient(farthest-side at 50% 0, rgba(28, 36, 72, 0.14), transparent) center top / 100%
-    10px no-repeat scroll,
-    radial-gradient(farthest-side at 50% 100%, rgba(28, 36, 72, 0.14), transparent) center bottom /
-    100% 10px no-repeat scroll;
+    linear-gradient(var(--rg-color-modal-surface) 30%, transparent) center top / 100% 28px no-repeat
+    local,
+    linear-gradient(transparent, var(--rg-color-modal-surface) 70%) center bottom / 100% 28px
+    no-repeat local,
+    radial-gradient(farthest-side at 50% 0, rgba(0, 0, 0, 0.3), transparent) center top / 100% 10px
+    no-repeat scroll,
+    radial-gradient(farthest-side at 50% 100%, rgba(0, 0, 0, 0.3), transparent) center bottom / 100%
+    10px no-repeat scroll;
 }
 /* Wide children shrink or wrap instead of widening the body. */
 .rg-modal__body :where(img, video, canvas, svg, table, pre, input, select, textarea) {
@@ -272,67 +184,21 @@
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 10px;
-  margin-top: 18px;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--rg-color-panel-border);
 }
 @media (max-height: 640px), (max-width: 520px) {
   .rg-modal {
     padding: 16px 20px;
   }
   .rg-modal__title {
-    font-size: 26px;
+    font-size: 20px;
     margin-bottom: 10px;
   }
   .rg-modal__footer {
-    margin-top: 14px;
+    margin-top: 12px;
   }
-}
-
-/* ---------- Toasts: small golden-bordered cards with an icon ---------- */
-.rg-toasts {
-  position: absolute;
-  right: 16px;
-  bottom: 16px;
-  display: grid;
-  gap: 8px;
-  width: min(360px, calc(100vw - 32px));
-  z-index: 90;
-}
-.rg-toast {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  gap: 10px;
-  align-items: start;
-  background: var(--rg-color-modal-surface);
-  border: 3px solid var(--rg-color-gold);
-  border-radius: 12px;
-  box-shadow: var(--rg-shadow-toast);
-  padding: 10px 12px;
-  animation: rg-slide-in var(--rg-motion-toast) ease both;
-}
-.rg-toast__icon {
-  width: 22px;
-  height: 22px;
-  display: inline-flex;
-  color: var(--rg-color-blue);
-  margin-top: 1px;
-}
-.rg-toast--success .rg-toast__icon {
-  color: var(--rg-color-green);
-}
-.rg-toast--warning .rg-toast__icon {
-  color: var(--rg-color-amber);
-}
-.rg-toast--error .rg-toast__icon {
-  color: var(--rg-color-crimson);
-}
-.rg-toast--error {
-  border-color: var(--rg-color-crimson);
-}
-.rg-toast__title {
-  font-weight: 700;
-}
-.rg-toast__text {
-  color: var(--rg-color-ink);
 }
 
 @keyframes rg-fade-in {
@@ -351,15 +217,5 @@
   to {
     opacity: 1;
     transform: scale(1);
-  }
-}
-@keyframes rg-slide-in {
-  from {
-    opacity: 0;
-    transform: translateX(24px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
   }
 }

@@ -133,7 +133,7 @@ export function TeamWebhooksSection({ api }: { api: NotificationsApi }) {
           <div
             key={c.id}
             className="rg-notify-channel"
-            style={{ borderTop: "1px solid #ddd", paddingTop: 6 }}
+            style={{ borderTop: "1px solid var(--rg-color-panel-border)", paddingTop: 6 }}
           >
             <Switch
               checked={c.enabled}

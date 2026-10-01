@@ -1,6 +1,6 @@
 /**
- * White rounded panel with a 1 px grey border (SPEC §12). `heading` renders a
- * title; `muted` greys the panel to ~30% the way GDT shows "No Project".
+ * Riveted console plate in a brass frame (SPEC §12 "UI", #189). `title`
+ * renders a stencil heading; `muted` greys the panel to ~30%.
  * Pass `as="section"` with `aria-label` for landmark panels.
  */
 import type { CSSProperties, ReactNode } from "react";

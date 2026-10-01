@@ -26,7 +26,7 @@
   padding: 6px 8px;
   border: 1px solid var(--rg-color-panel-border);
   border-radius: 6px;
-  background: #fff;
+  background: var(--rg-color-raised);
 }
 .rg-floor-repo__status {
   font-size: 12px;
@@ -62,7 +62,7 @@
   padding: 6px 8px;
   border: 1px solid var(--rg-color-panel-border);
   border-radius: 6px;
-  background: #fff;
+  background: var(--rg-color-raised);
 }
 .rg-member__name {
   display: grid;
@@ -89,12 +89,12 @@
   padding: 6px 8px;
   border: 1px solid var(--rg-color-panel-border);
   border-radius: 6px;
-  background: #fff;
+  background: var(--rg-color-raised);
   cursor: pointer;
 }
 .rg-member-pick:has(input:checked) {
   border-color: var(--rg-color-blue);
-  background: #eaf2ff;
+  background: var(--rg-color-selected);
 }
 .rg-member-add {
   display: flex;
@@ -123,7 +123,7 @@
   overflow-y: auto;
   border: 1px solid var(--rg-color-panel-border);
   border-radius: 6px;
-  background: #fff;
+  background: var(--rg-color-raised);
 }
 .rg-repo-picker__row {
   display: grid;
@@ -134,7 +134,7 @@
   cursor: pointer;
 }
 .rg-repo-picker__row:hover {
-  background: rgba(0, 0, 0, 0.04);
+  background: var(--rg-color-hover);
 }
 .rg-repo-picker__name {
   font-weight: 600;
@@ -185,6 +185,6 @@
   padding: 6px 8px;
   border: 1px solid var(--rg-color-panel-border);
   border-radius: 6px;
-  background: #fff;
+  background: var(--rg-color-raised);
   margin-bottom: 6px;
 }

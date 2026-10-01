@@ -38,6 +38,10 @@
   margin: 0;
   overflow-wrap: anywhere;
 }
+/* The robot's status lamp, the same colour as the light on the henchman (#189). */
+.rg-agent-facts__lamp {
+  margin: 0 8px 0 3px;
+}
 .rg-agent-prompt {
   display: grid;
   gap: 4px;
@@ -68,7 +72,7 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   font-size: 13px;
-  background: #fff;
+  background: var(--rg-color-raised);
   border: 1px solid var(--rg-color-panel-border);
   border-left: 4px solid var(--rg-color-orange-red);
   border-radius: 6px;

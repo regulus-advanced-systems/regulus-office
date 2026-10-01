@@ -17,6 +17,7 @@ import { CloseButton } from "../components/CloseButton.tsx";
 import { Panel } from "../Panel.tsx";
 import { permissionModeLabel } from "../spawn/permissionModes.ts";
 import { useTerminalModal } from "../terminal/terminalStore.ts";
+import { AGENT_LAMPS, lampBlinks, lampStyle } from "../theme/lamps.ts";
 import { useAgentSender } from "./agentCommands.ts";
 import { flightKey, useAgentStore } from "./agentStore.ts";
 import { EmergencyStop } from "./EmergencyStop.tsx";
@@ -45,7 +46,17 @@ function Facts({ robot }: { robot: RobotState }) {
       {rows.map(([k, v]) => (
         <div key={k} className="rg-agent-facts__row" data-key={k.toLowerCase()}>
           <dt>{k}</dt>
-          <dd>{v}</dd>
+          <dd>
+            {k === "Status" && (
+              <span
+                className="rg-lamp rg-agent-facts__lamp"
+                data-blink={lampBlinks(robot.status)}
+                style={lampStyle(AGENT_LAMPS[robot.status])}
+                aria-hidden="true"
+              />
+            )}
+            {v}
+          </dd>
         </div>
       ))}
     </dl>

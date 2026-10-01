@@ -35,11 +35,12 @@
   border-radius: var(--rg-radius-chip, 999px);
   font-size: 11px;
   font-weight: 700;
-  color: #fff;
-  background: var(--rg-color-blue, #2d7ff9);
+  color: var(--rg-color-plate-ink);
+  background: var(--rg-color-plate);
+  border: 1px solid var(--rg-color-frame-shadow);
 }
 .rg-search__kind--scrollback {
-  background: var(--rg-color-navy, #1f2a44);
+  color: var(--rg-color-plate-text);
 }
 .rg-search__hits {
   list-style: none;
@@ -56,7 +57,7 @@
   padding: 6px 10px;
   border: 1px solid var(--rg-color-panel-border, #d9d2c3);
   border-radius: var(--rg-radius-button, 8px);
-  background: #fff;
+  background: var(--rg-color-raised);
   color: var(--rg-color-ink, #1f2233);
   cursor: pointer;
   font: inherit;
@@ -64,7 +65,7 @@
 .rg-search__hit:hover,
 .rg-search__hit:focus-visible {
   border-color: var(--rg-color-blue, #2d7ff9);
-  background: #eaf2ff;
+  background: var(--rg-color-selected);
   outline: none;
 }
 .rg-search__meta {
@@ -78,8 +79,8 @@
   overflow-wrap: anywhere;
 }
 .rg-search__snippet mark {
-  background: var(--rg-color-gold, #f5c542);
-  color: inherit;
+  background: var(--rg-color-hench-yellow);
+  color: var(--rg-color-plate);
   border-radius: 2px;
 }
 .rg-search__help {

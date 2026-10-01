@@ -1,4 +1,7 @@
-/** Buttons per SPEC §12: orange gradient primary, red destructive, plus secondary and ghost. */
+/**
+ * Push buttons of the lair console (SPEC §12, #189; controls.css): henchman-yellow
+ * primary, alarm-red destructive, painted-steel secondary and a flat ghost.
+ */
 import type { ButtonHTMLAttributes, ReactNode, Ref } from "react";
 
 export type ButtonVariant = "primary" | "destructive" | "secondary" | "ghost";
