@@ -125,6 +125,13 @@ function build(p: PartBuilder): void {
     [head.hx * 2 + 0.02, 0.08, head.hz * 2 + 0.02],
     onHead(head, 0, head.hy, 0),
   );
+  // Short back and sides.
+  p.box(
+    "head",
+    SLOT.hair,
+    [head.hx * 2 + 0.025, head.hy, head.hz * 1.4],
+    onHead(head, 0, head.hy * 0.5, -head.hz * 0.32),
+  );
   face(p, head, {
     eyeY: head.hy * 0.18,
     browSize: [0.14, 0.04, 0.04],
