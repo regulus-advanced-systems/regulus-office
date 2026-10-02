@@ -93,8 +93,14 @@ export function SeatLayer() {
         }
         const seat = nearestFreeSeat(seats, p, takenSet);
         if (!seat) return;
-        detail.handled = true;
-        sitOn(seat);
+        // Sitting is the fallback: every other `E` listener (desk, board, whiteboard, door
+        // button) runs in the same synchronous dispatch, so after it one of them may have
+        // taken the press, whatever order the listeners were registered in.
+        queueMicrotask(() => {
+          if (detail.handled) return;
+          detail.handled = true;
+          sitOn(seat);
+        });
       },
       [seats, takenSet, mySeat],
     ),
