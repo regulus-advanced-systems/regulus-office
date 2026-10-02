@@ -20,7 +20,9 @@
  * blast door button: it opens for the member's browser too, the owner walks out onto the dock,
  * the door shuts by itself after the (shortened) open time and the beach is cut off again (#188).
  * Last, both walk up to the lobby jukebox, the owner queues a track and both browsers play it
- * at the same playhead within a tolerance (#47).
+ * at the same playhead within a tolerance (#47). Then the owner hangs a picture uploaded from
+ * the PC on a free wall of Apollo, the member (given view access) sees it without a reload,
+ * and the owner removes it again (#46).
  *
  * Runs against office-server in production mode (see playwright.config.ts),
  * so room joins are authorised by the Better Auth session cookie only.
@@ -56,6 +58,7 @@ import { createRemoteRepo } from "./gitRemote.ts";
 import { checkMergeGong } from "./gongChecks.ts";
 import { checkJukebox } from "./jukeboxChecks.ts";
 import { reportFramePerf } from "./perfProbe.ts";
+import { checkWallPictures } from "./pictureChecks.ts";
 import {
   angleBetween,
   cameraName,
@@ -916,4 +919,10 @@ test("the blast door opens for everyone, the owner walks out onto the dock, it s
 test("the jukebox: E opens it, a queued track plays in both browsers at the same playhead (#47)", async () => {
   test.setTimeout(240_000);
   await checkJukebox(ownerPage, memberPage);
+});
+
+test("wall pictures: uploaded, hung on a free wall, seen by the other browser, removed (#46)", async () => {
+  test.skip(!process.env.E2E_DATA_DIR, "needs the locally started server (Apollo from build mode)");
+  test.setTimeout(240_000);
+  await checkWallPictures(ownerPage, memberPage, "Apollo");
 });
