@@ -5,6 +5,7 @@
 import type { OfficeConfig } from "../config.ts";
 import type { Logger } from "../logging.ts";
 import { UPGRADED } from "../rooms/transport.ts";
+import { MAX_REQUEST_BODY_BYTES } from "./body.ts";
 import { Health } from "./health.ts";
 import { safeLogPath } from "./log-path.ts";
 import { MetricsRegistry, PROMETHEUS_CONTENT_TYPE } from "./metrics.ts";
@@ -94,6 +95,8 @@ export function createOfficeServer(options: OfficeServerOptions): OfficeServer {
     port: config.port,
     hostname: config.host,
     development: false,
+    // The outer bound on any body (#240); routes cap their own bodies far lower.
+    maxRequestBodySize: MAX_REQUEST_BODY_BYTES,
     websocket: attach?.websocket ?? NO_WEBSOCKETS,
     async fetch(request, bun) {
       const url = new URL(request.url);

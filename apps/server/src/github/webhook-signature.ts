@@ -18,33 +18,8 @@ export const MAX_WEBHOOK_BYTES = 4 * 1024 * 1024;
 
 const SIGNATURE_RE = /^sha256=([0-9a-f]{64})$/;
 
-export type CappedBody = { ok: true; bytes: Uint8Array } | { ok: false; reason: "too_large" };
-
-export async function readCappedBody(request: Request, maxBytes: number): Promise<CappedBody> {
-  const declared = request.headers.get("content-length");
-  if (declared !== null && Number(declared) > maxBytes) return { ok: false, reason: "too_large" };
-  if (!request.body) return { ok: true, bytes: new Uint8Array(0) };
-  const reader = request.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let total = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    total += value.byteLength;
-    if (total > maxBytes) {
-      await reader.cancel().catch(() => undefined);
-      return { ok: false, reason: "too_large" };
-    }
-    chunks.push(value);
-  }
-  const bytes = new Uint8Array(total);
-  let offset = 0;
-  for (const chunk of chunks) {
-    bytes.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return { ok: true, bytes };
-}
+/** The shared capped reader (http/body.ts), under the name the webhook route uses. */
+export { type CappedBytes as CappedBody, readCappedBytes as readCappedBody } from "../http/body.ts";
 
 /** `sha256=<hex>` for `body` under `secret` (what GitHub sends; also used by tests). */
 export function signWebhookBody(secret: string, body: Uint8Array | string): string {

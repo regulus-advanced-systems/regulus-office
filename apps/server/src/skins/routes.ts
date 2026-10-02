@@ -15,9 +15,9 @@ import type { OfficeAuth } from "../auth/auth.ts";
 import { AuthHttpError, forbidden, unauthorized } from "../auth/errors.ts";
 import { checkOrigin } from "../auth/origin.ts";
 import type { Db } from "../db/index.ts";
+import { readJsonBody } from "../http/body.ts";
 import { json, type RouteContext, type Router } from "../http/router.ts";
 import { isOfficeManager, type OperationActor } from "../operations/access.ts";
-import { readBody } from "../operations/routes.ts";
 import { SkinRuleError, type SkinRuleStore } from "./store.ts";
 
 export interface SkinRoutesDeps {
@@ -72,7 +72,7 @@ export function mountSkinRoutes(router: Router, deps: SkinRoutesDeps): void {
   router.post(
     SKIN_RULES_API_PATH,
     handle(async (ctx, actor) => {
-      const input = await readBody(ctx.request, CreateSkinRule);
+      const input = await readJsonBody(ctx.request, CreateSkinRule);
       const rule = rules.create(input, actor.id);
       audit(actor, AUDIT_ACTIONS.skinRuleCreate, rule.id, input);
       return json(rule, { status: 201 });
@@ -84,7 +84,7 @@ export function mountSkinRoutes(router: Router, deps: SkinRoutesDeps): void {
     RULE,
     handle(async (ctx, actor) => {
       const id = ctx.params.id ?? "";
-      const patch = await readBody(ctx.request, UpdateSkinRule);
+      const patch = await readJsonBody(ctx.request, UpdateSkinRule);
       const rule = rules.update(id, patch);
       audit(actor, AUDIT_ACTIONS.skinRuleUpdate, id, patch);
       return json(rule);

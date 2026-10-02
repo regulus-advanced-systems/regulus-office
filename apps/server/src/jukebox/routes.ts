@@ -23,12 +23,15 @@ import {
 import type { OfficeAuth, SessionUser } from "../auth/auth.ts";
 import { AuthHttpError, forbidden, unauthorized } from "../auth/errors.ts";
 import { checkOrigin } from "../auth/origin.ts";
+import { declaresTooLarge, readCappedForm, readJsonBody } from "../http/body.ts";
 import { json, type RouteContext, type Router } from "../http/router.ts";
 import type { Logger } from "../logging.ts";
-import { readBody } from "../operations/routes.ts";
 import { mimeForFile } from "./audio-sniff.ts";
 import type { JukeboxLibrary } from "./library.ts";
-import { bodyTooLarge, checkUpload, readCappedForm, storeUpload } from "./upload.ts";
+import { checkUpload, storeUpload, UPLOAD_BODY_MAX_BYTES } from "./upload.ts";
+
+/** A YouTube link and a title: a few hundred bytes. */
+const YOUTUBE_BODY_MAX_BYTES = 8 * 1024;
 
 export interface JukeboxRoutesDeps {
   auth: Pick<OfficeAuth, "getSessionFromRequest" | "publicUrl" | "allowedOrigins">;
@@ -116,13 +119,13 @@ export function mountJukeboxRoutes(router: Router, deps: JukeboxRoutesDeps): voi
   router.post(
     JUKEBOX_TRACKS_API_PATH,
     handle(async (ctx, user) => {
-      if (bodyTooLarge(ctx.request.headers.get("content-length"))) return refuse("too_large", 413);
+      if (declaresTooLarge(ctx.request, UPLOAD_BODY_MAX_BYTES)) return refuse("too_large", 413);
       if (library.uploadsBy(user.id) >= JUKEBOX_LIMITS.uploadsPerUser)
         return refuse("too_many_uploads", 409);
       let form: FormData | null;
       try {
         // Capped while reading: a chunked body has no length to check up front.
-        form = await readCappedForm(ctx.request);
+        form = await readCappedForm(ctx.request, UPLOAD_BODY_MAX_BYTES);
       } catch {
         return refuse("not_audio");
       }
@@ -149,7 +152,9 @@ export function mountJukeboxRoutes(router: Router, deps: JukeboxRoutesDeps): voi
   router.post(
     JUKEBOX_YOUTUBE_API_PATH,
     handle(async (ctx, user) => {
-      const body = await readBody(ctx.request, AddYouTubeTrack);
+      const body = await readJsonBody(ctx.request, AddYouTubeTrack, {
+        maxBytes: YOUTUBE_BODY_MAX_BYTES,
+      });
       const videoId = parseYouTubeId(body.url);
       if (!videoId) return refuse("not_youtube");
       const known = library.list().find((t) => t.source === "youtube" && t.videoId === videoId);

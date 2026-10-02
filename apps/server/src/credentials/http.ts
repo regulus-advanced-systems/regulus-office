@@ -9,6 +9,7 @@ import type { OfficeAuth } from "../auth/auth.ts";
 import { AuthHttpError, forbidden, unauthorized } from "../auth/errors.ts";
 import { checkOrigin } from "../auth/origin.ts";
 import { rateLimitedResponse, type TokenBucketLimiter } from "../auth/rate-limit.ts";
+import { readJsonBody } from "../http/body.ts";
 import { json, type RouteContext, type RouteHandler } from "../http/router.ts";
 
 export interface CredentialActor {
@@ -21,29 +22,11 @@ export type CredentialAuth = Pick<
   "getSessionFromRequest" | "publicUrl" | "allowedOrigins"
 >;
 
-/** A key request is tiny; anything bigger is refused before parsing. */
+/** A key request is tiny; anything bigger is refused while reading (#240). */
 const MAX_BODY_BYTES = 8 * 1024;
 
-export async function readBody<S extends z.ZodType>(
-  request: Request,
-  schema: S,
-): Promise<z.output<S>> {
-  const text = await request.text();
-  if (text.length > MAX_BODY_BYTES) throw new AuthHttpError(413, "body_too_large");
-  let raw: unknown;
-  try {
-    raw = text.length === 0 ? {} : JSON.parse(text);
-  } catch {
-    throw new AuthHttpError(400, "invalid_json");
-  }
-  const parsed = schema.safeParse(raw);
-  if (!parsed.success) {
-    // Field paths only: zod messages could quote the input, and the input may be a key.
-    const fields = [...new Set(parsed.error.issues.map((i) => i.path.join(".") || "body"))];
-    throw new AuthHttpError(400, "invalid_body", { fields });
-  }
-  return parsed.data;
-}
+export const readBody = <S extends z.ZodType>(request: Request, schema: S): Promise<z.output<S>> =>
+  readJsonBody(request, schema, { maxBytes: MAX_BODY_BYTES });
 
 export const noStore = (body: unknown, status = 200): Response =>
   json(body, { status, headers: { "cache-control": "no-store" } });

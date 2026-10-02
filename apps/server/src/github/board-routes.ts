@@ -37,10 +37,10 @@ import { AuthHttpError, forbidden, unauthorized } from "../auth/errors.ts";
 import { checkOrigin } from "../auth/origin.ts";
 import type { Db } from "../db/index.ts";
 import { githubIssues, githubPulls, operationRepos } from "../db/schema/index.ts";
+import { readJsonBody } from "../http/body.ts";
 import { json, type RouteContext, type Router } from "../http/router.ts";
 import type { Logger } from "../logging.ts";
 import { operationAccessFor } from "../operations/access.ts";
-import { readBody } from "../operations/routes.ts";
 import { type BoardGitHub, officeCommentBody, type RepoName } from "./board-actions.ts";
 import type { BoardCache } from "./board-cache.ts";
 import { normalizeIssue, normalizePull } from "./board-normalize.ts";
@@ -290,7 +290,7 @@ export function mountBoardRoutes(router: Router, deps: BoardRoutesDeps): void {
         t,
         token,
         body: request,
-      } = await writer(ctx, user, (r) => readBody(r, BoardCommentRequest));
+      } = await writer(ctx, user, (r) => readJsonBody(r, BoardCommentRequest));
       const body = request.body;
       try {
         const comment = await github.comment(
@@ -317,7 +317,7 @@ export function mountBoardRoutes(router: Router, deps: BoardRoutesDeps): void {
         t,
         token,
         body: change,
-      } = await writer(ctx, user, (r) => readBody(r, BoardAssignRequest));
+      } = await writer(ctx, user, (r) => readJsonBody(r, BoardAssignRequest));
       try {
         await github.assign(token, t.repo, t.number, change);
       } catch (err) {
@@ -334,7 +334,7 @@ export function mountBoardRoutes(router: Router, deps: BoardRoutesDeps): void {
     handle(async (ctx, user) => {
       if (ctx.params.kind !== "pr") throw new AuthHttpError(400, "not_a_pull_request");
       const { t, token, row, body } = await writer(ctx, user, (r) =>
-        readBody(r, BoardMergeRequest),
+        readJsonBody(r, BoardMergeRequest),
       );
       const method = body.method;
       if (row.state !== "open") {
