@@ -13,10 +13,10 @@ import {
   jukeboxAudioPath,
 } from "@regulus/protocol";
 import { type Office, startOffice } from "../auth/test-helpers.ts";
+import { readCappedForm } from "../http/body.ts";
 import { createLogger } from "../logging.ts";
 import { parseRange } from "./routes.ts";
 import { createJukebox, type Jukebox } from "./setup.ts";
-import { readCappedForm } from "./upload.ts";
 
 let office: Office;
 let jukebox: Jukebox;

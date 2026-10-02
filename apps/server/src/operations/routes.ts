@@ -27,38 +27,22 @@ import {
   RetryCloneRequest,
   SetOperationMemberRequest,
 } from "@regulus/protocol";
-import type { z } from "zod";
 import type { OfficeAuth } from "../auth/auth.ts";
 import { AuthHttpError, forbidden, unauthorized } from "../auth/errors.ts";
 import { checkOrigin } from "../auth/origin.ts";
+import { readJsonBody } from "../http/body.ts";
 import { json, type RouteContext, type RouteHandler, type Router } from "../http/router.ts";
 import type { OperationActor } from "./access.ts";
 import type { OperationLifecycle } from "./lifecycle.ts";
 import type { OperationService } from "./service.ts";
 
-/** Largest accepted JSON body; a create request with 8 repos and PATs is ~5 KB. */
-const MAX_BODY_BYTES = 64 * 1024;
-
-export async function readBody<S extends z.ZodType>(
-  request: Request,
-  schema: S,
-): Promise<z.output<S>> {
-  const text = await request.text();
-  if (text.length > MAX_BODY_BYTES) throw new AuthHttpError(413, "body_too_large");
-  let raw: unknown;
-  try {
-    raw = text.length === 0 ? {} : JSON.parse(text);
-  } catch {
-    throw new AuthHttpError(400, "invalid_json");
-  }
-  const parsed = schema.safeParse(raw);
-  if (!parsed.success) {
-    // Field paths only: zod messages could quote input, and input may hold a token.
-    const fields = [...new Set(parsed.error.issues.map((i) => i.path.join(".") || "body"))];
-    throw new AuthHttpError(400, "invalid_body", { fields });
-  }
-  return parsed.data;
-}
+/**
+ * Bodies go through the shared capped reader (http/body.ts), 64 KB by default
+ * (a create request with 8 repos and PATs is ~5 KB). `readBody` stays exported
+ * from here for routes on other branches that still import it; new code
+ * imports `readJsonBody` from http/body.ts.
+ */
+export { readJsonBody as readBody };
 
 export function mountOperationRoutes(
   router: Router,
@@ -106,7 +90,7 @@ export function mountOperationRoutes(
   router.post(
     OPERATIONS_API_PATH,
     route(async (ctx, actor) => {
-      const body = await readBody(ctx.request, CreateOperationRequest);
+      const body = await readJsonBody(ctx.request, CreateOperationRequest);
       const { operation } = operations.create(actor, body);
       return json(operation, { status: 201 });
     }, true),
@@ -149,7 +133,7 @@ export function mountOperationRoutes(
     "PUT",
     `${OPERATIONS_API_PATH}/:operationId/members/:userId`,
     route(async (ctx, actor) => {
-      const body = await readBody(ctx.request, SetOperationMemberRequest);
+      const body = await readJsonBody(ctx.request, SetOperationMemberRequest);
       operations.setMember(actor, param(ctx, "operationId"), param(ctx, "userId"), body.access);
       return new Response(null, { status: 204 });
     }, true),
@@ -167,7 +151,7 @@ export function mountOperationRoutes(
   router.post(
     `${OPERATIONS_API_PATH}/:operationId/repos/:repoId/clone`,
     route(async (ctx, actor) => {
-      const body = await readBody(ctx.request, RetryCloneRequest);
+      const body = await readJsonBody(ctx.request, RetryCloneRequest);
       const { repo } = operations.retryClone(
         actor,
         param(ctx, "operationId"),
@@ -202,7 +186,7 @@ function mountLifecycleRoutes(router: Router, route: Route, lifecycle: Operation
     "DELETE",
     `${OPERATIONS_API_PATH}/:operationId`,
     route(async (ctx, actor) => {
-      const body = await readBody(ctx.request, DeleteOperationRequest);
+      const body = await readJsonBody(ctx.request, DeleteOperationRequest);
       await lifecycle.delete(actor, operationId(ctx), body.confirmName);
       return new Response(null, { status: 204 });
     }, true),

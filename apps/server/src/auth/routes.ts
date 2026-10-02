@@ -7,6 +7,7 @@ import { USER_ROLES } from "@regulus/protocol";
 import { count, eq } from "drizzle-orm";
 import { z } from "zod";
 import { users } from "../db/schema/index.ts";
+import { bodyTooLarge, readJsonBody, withCappedBody } from "../http/body.ts";
 import { json, type RouteContext, type RouteHandler, type Router } from "../http/router.ts";
 import { AUTH_BASE_PATH, type OfficeAuth, type SessionUser } from "./auth.ts";
 import { AuthHttpError, forbidden, unauthorized } from "./errors.ts";
@@ -46,20 +47,13 @@ const joinBody = z.object({
   name: z.string().trim().min(1).max(80),
 });
 
-async function readBody<T>(request: Request, schema: z.ZodType<T>): Promise<T> {
-  let raw: unknown;
-  try {
-    raw = await request.json();
-  } catch {
-    throw new AuthHttpError(400, "invalid_json");
-  }
-  const parsed = schema.safeParse(raw);
-  if (!parsed.success) {
-    const fields = [...new Set(parsed.error.issues.map((i) => i.path.join(".") || "body"))];
-    throw new AuthHttpError(400, "invalid_body", { fields });
-  }
-  return parsed.data;
-}
+/** Invite, role and join bodies are a few hundred bytes. */
+const AUTH_BODY_MAX_BYTES = 8 * 1024;
+/** Better Auth's own JSON bodies (sign-in, sign-up, sign-out): a few hundred bytes. */
+const BETTER_AUTH_BODY_MAX_BYTES = 64 * 1024;
+
+const readBody = <T>(request: Request, schema: z.ZodType<T>): Promise<T> =>
+  readJsonBody(request, schema, { maxBytes: AUTH_BODY_MAX_BYTES, emptyAsObject: false });
 
 /** Turn thrown {@link AuthHttpError}s into responses; anything else propagates to the 500 handler. */
 const guarded =
@@ -105,7 +99,11 @@ export function mountAuthRoutes(
   };
 
   // ---- Better Auth -------------------------------------------------------
-  const passthrough: RouteHandler = (ctx) => auth.handler(ctx.request);
+  // Better Auth reads the body itself; hand it a copy read through the cap.
+  const passthrough: RouteHandler = async (ctx) => {
+    const request = await withCappedBody(ctx.request, BETTER_AUTH_BODY_MAX_BYTES);
+    return request ? auth.handler(request) : bodyTooLarge().toResponse();
+  };
   const betterAuthRoute: RouteHandler = (ctx) => {
     const rest = ctx.params["*"] ?? "";
     const isLogin = ctx.request.method === "POST" && LOGIN_PREFIXES.some((p) => rest.startsWith(p));

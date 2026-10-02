@@ -26,9 +26,9 @@ import type { OfficeAuth } from "../auth/auth.ts";
 import { AuthHttpError, forbidden, unauthorized } from "../auth/errors.ts";
 import { checkOrigin } from "../auth/origin.ts";
 import type { Db } from "../db/index.ts";
+import { readJsonBody } from "../http/body.ts";
 import { json, type RouteContext, type Router } from "../http/router.ts";
 import { isOfficeManager, type OperationActor } from "../operations/access.ts";
-import { readBody } from "../operations/routes.ts";
 import type { NotificationCenter } from "./center.ts";
 import { type ChannelStore, ChannelStoreError } from "./channels.ts";
 import type { NotificationDirectory } from "./directory.ts";
@@ -123,7 +123,7 @@ export function mountNotificationRoutes(router: Router, deps: NotificationRoutes
     NOTIFICATION_PREFS_API_PATH,
     handle(
       async (ctx, actor) => {
-        const prefs = await readBody(ctx.request, NotificationPrefs);
+        const prefs = await readJsonBody(ctx.request, NotificationPrefs);
         // Other henchmen's errors are only for owners and admins.
         if (!isOfficeManager(actor.role)) prefs.adminErrors = false;
         directory.setPrefs(actor.id, prefs);
@@ -142,7 +142,7 @@ export function mountNotificationRoutes(router: Router, deps: NotificationRoutes
     NOTIFICATION_CHANNELS_API_PATH,
     handle(
       async (ctx, actor) => {
-        const input = await readBody(ctx.request, CreateNotificationChannel);
+        const input = await readJsonBody(ctx.request, CreateNotificationChannel);
         if (!channels.canStore) throw new AuthHttpError(400, "master_key_required");
         checkSecret(input.kind, input.secret);
         const view = channels.create(input, actor.id);
@@ -164,7 +164,7 @@ export function mountNotificationRoutes(router: Router, deps: NotificationRoutes
     handle(
       async (ctx, actor) => {
         const id = ctx.params.id ?? "";
-        const patch = await readBody(ctx.request, UpdateNotificationChannel);
+        const patch = await readJsonBody(ctx.request, UpdateNotificationChannel);
         const existing = channels.get(id);
         if (!existing) throw new AuthHttpError(404, "not_found");
         if (patch.secret !== undefined) {

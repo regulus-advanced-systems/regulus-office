@@ -34,9 +34,9 @@ import { checkOrigin } from "../auth/origin.ts";
 import type { Db } from "../db/index.ts";
 import type { GitHubConnection } from "../github/connection.ts";
 import type { RepoAccess } from "../github/repo-access.ts";
+import { readJsonBody } from "../http/body.ts";
 import { json, type RouteContext, type Router } from "../http/router.ts";
 import { isOfficeManager, type OperationActor, operationAccessFor } from "../operations/access.ts";
-import { readBody } from "../operations/routes.ts";
 import { CronError, parseCron } from "./cron.ts";
 import { dryRun } from "./dry-run.ts";
 import type { WorkflowEngine } from "./engine.ts";
@@ -44,6 +44,9 @@ import type { EventLog } from "./event-log.ts";
 import { hasOfficeKey } from "./office-key.ts";
 import type { RunStore } from "./runs.ts";
 import { type StoredWorkflow, toView, type WorkflowStore } from "./store.ts";
+
+/** A workflow carries a prompt of up to 20,000 characters (up to 4 bytes each in UTF-8). */
+const WORKFLOW_BODY_MAX_BYTES = 256 * 1024;
 
 export interface WorkflowRoutesDeps {
   auth: Pick<OfficeAuth, "getSessionFromRequest" | "publicUrl" | "allowedOrigins">;
@@ -195,7 +198,9 @@ export function mountWorkflowRoutes(router: Router, deps: WorkflowRoutesDeps): v
   router.post(
     WORKFLOWS_API_PATH,
     handle(async (ctx, actor) => {
-      const { operationId, ...spec } = await readBody(ctx.request, CreateWorkflowRequest);
+      const { operationId, ...spec } = await readJsonBody(ctx.request, CreateWorkflowRequest, {
+        maxBytes: WORKFLOW_BODY_MAX_BYTES,
+      });
       require(actor, operationId, "manage");
       validate(actor, operationId, spec);
       const wf = store.create(operationId, spec, actor.id);
@@ -209,7 +214,9 @@ export function mountWorkflowRoutes(router: Router, deps: WorkflowRoutesDeps): v
     `${WORKFLOWS_API_PATH}/:id`,
     handle(async (ctx, actor) => {
       const previous = workflowFor(actor, ctx.params.id ?? "", "manage");
-      const spec = await readBody(ctx.request, WorkflowInput);
+      const spec = await readJsonBody(ctx.request, WorkflowInput, {
+        maxBytes: WORKFLOW_BODY_MAX_BYTES,
+      });
       validate(actor, previous.operationId, spec, previous);
       const wf = store.update(previous.id, spec);
       if (!wf) throw new AuthHttpError(404, "not_found");
@@ -233,7 +240,9 @@ export function mountWorkflowRoutes(router: Router, deps: WorkflowRoutesDeps): v
     `${WORKFLOWS_API_PATH}/:id/dry-run`,
     handle(async (ctx, actor) => {
       const wf = workflowFor(actor, ctx.params.id ?? "", "manage");
-      const body = await readBody(ctx.request, WorkflowDryRunRequest);
+      const body = await readJsonBody(ctx.request, WorkflowDryRunRequest, {
+        maxBytes: WORKFLOW_BODY_MAX_BYTES,
+      });
       const event = events.get(body.eventId);
       if (!event || !event.view.operationIds.includes(wf.operationId)) {
         throw new AuthHttpError(404, "event_not_found");

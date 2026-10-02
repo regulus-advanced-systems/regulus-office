@@ -33,10 +33,10 @@ import type { OfficeAuth } from "../auth/auth.ts";
 import { AuthHttpError, forbidden, unauthorized } from "../auth/errors.ts";
 import { checkOrigin } from "../auth/origin.ts";
 import type { Db } from "../db/index.ts";
+import { readJsonBody } from "../http/body.ts";
 import { json, type RouteContext, type Router } from "../http/router.ts";
 import type { Logger } from "../logging.ts";
 import { isOfficeManager, type OperationActor } from "../operations/access.ts";
-import { readBody } from "../operations/routes.ts";
 import type { GitHubConnection } from "./connection.ts";
 import { appRequirements, ExistingAppError, verifyExistingApp } from "./existing-app.ts";
 import { buildManifest, convertManifest, type ManifestStates, manifestAction } from "./manifest.ts";
@@ -127,7 +127,7 @@ export function mountGitHubRoutes(router: Router, deps: GitHubRoutesDeps): void 
     GITHUB_PAT_API_PATH,
     handle(async (ctx, actor) => {
       assertChangeable();
-      const { token } = await readBody(ctx.request, ConnectPatRequest);
+      const { token } = await readJsonBody(ctx.request, ConnectPatRequest);
       let checked: { login: string | null; repoCount: number };
       try {
         checked = await connection.verifyPat(token);
@@ -160,7 +160,7 @@ export function mountGitHubRoutes(router: Router, deps: GitHubRoutesDeps): void 
     GITHUB_MANIFEST_API_PATH,
     handle(async (ctx, actor) => {
       assertChangeable();
-      const { org } = await readBody(ctx.request, StartManifestRequest);
+      const { org } = await readJsonBody(ctx.request, StartManifestRequest);
       const state = states.issue(actor.id);
       return json({
         action: manifestAction(deps.webBase, state, org),
@@ -179,7 +179,7 @@ export function mountGitHubRoutes(router: Router, deps: GitHubRoutesDeps): void 
     GITHUB_EXISTING_APP_API_PATH,
     handle(async (ctx, actor) => {
       assertChangeable();
-      const body = await readBody(ctx.request, ConnectExistingAppRequest);
+      const body = await readJsonBody(ctx.request, ConnectExistingAppRequest);
       let verified: Awaited<ReturnType<typeof verifyExistingApp>>;
       try {
         verified = await verifyExistingApp(

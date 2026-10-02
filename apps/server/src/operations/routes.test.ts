@@ -166,3 +166,46 @@ describe("operation routes", () => {
     expect(list.operations).toEqual([]);
   });
 });
+
+describe("body caps (#240)", () => {
+  /** A chunked body (no Content-Length) that would be 32 MB; counts what was produced. */
+  const chunked = () => {
+    const state = { produced: 0 };
+    const stream = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (state.produced >= 32 * 1024 * 1024) return controller.close();
+        state.produced += 16 * 1024;
+        controller.enqueue(new Uint8Array(16 * 1024).fill(0x20));
+      },
+    });
+    return { state, stream };
+  };
+
+  test("a chunked oversize create is refused with 413 before it is buffered", async () => {
+    const body = chunked();
+    const res = await office.request("/api/operations", {
+      method: "POST",
+      body: body.stream,
+      cookie: owner.cookie,
+    });
+    expect(res.status).toBe(413);
+    expect(await res.json()).toEqual({ error: "body_too_large" });
+    expect(body.state.produced).toBeLessThan(8 * 1024 * 1024);
+  });
+
+  test("a declared oversize create is refused with 413", async () => {
+    const res = await send("POST", "/api/operations", { pad: "x".repeat(70 * 1024) }, owner.cookie);
+    expect(res.status).toBe(413);
+    expect(await res.json()).toEqual({ error: "body_too_large" });
+  });
+
+  test("Better Auth bodies are capped too", async () => {
+    const body = chunked();
+    const res = await office.request("/api/auth/sign-in/email", {
+      method: "POST",
+      body: body.stream,
+    });
+    expect(res.status).toBe(413);
+    expect(body.state.produced).toBeLessThan(8 * 1024 * 1024);
+  });
+});

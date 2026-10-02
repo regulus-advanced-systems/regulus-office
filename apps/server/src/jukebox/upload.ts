@@ -30,46 +30,6 @@ export type UploadCheck =
 /** Most bytes an upload request may carry: the file plus its multipart framing. */
 export const UPLOAD_BODY_MAX_BYTES = JUKEBOX_LIMITS.uploadMaxBytes + MULTIPART_SLACK_BYTES;
 
-/** Refuse an oversized body before reading it, by its declared length. */
-export function bodyTooLarge(contentLength: string | null): boolean {
-  const n = Number(contentLength);
-  return contentLength !== null && Number.isFinite(n) && n > UPLOAD_BODY_MAX_BYTES;
-}
-
-/**
- * The request's multipart form, read through a byte cap: a chunked body (no
- * Content-Length) or one that lies about its length is cut off as soon as it
- * passes `maxBytes`, never buffered whole. Null when it is too big.
- */
-export async function readCappedForm(
-  request: Request,
-  maxBytes: number = UPLOAD_BODY_MAX_BYTES,
-): Promise<FormData | null> {
-  const chunks: Uint8Array[] = [];
-  let total = 0;
-  if (request.body) {
-    const reader = request.body.getReader();
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      total += value.byteLength;
-      if (total > maxBytes) {
-        await reader.cancel().catch(() => undefined);
-        return null;
-      }
-      chunks.push(value);
-    }
-  }
-  const body = new Uint8Array(total);
-  let at = 0;
-  for (const c of chunks) {
-    body.set(c, at);
-    at += c.byteLength;
-  }
-  const type = request.headers.get("content-type") ?? "";
-  return new Response(body, { headers: { "content-type": type } }).formData();
-}
-
 const text = (v: FormDataEntryValue | null) => (typeof v === "string" ? v.trim() : "");
 
 /** A title from a file name: no extension, separators as spaces. */

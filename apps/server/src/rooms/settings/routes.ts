@@ -13,9 +13,9 @@ import { UpdateRoomSettingsRequest } from "@regulus/protocol";
 import type { OfficeAuth } from "../../auth/auth.ts";
 import { AuthHttpError, forbidden, unauthorized } from "../../auth/errors.ts";
 import { checkOrigin } from "../../auth/origin.ts";
+import { readJsonBody } from "../../http/body.ts";
 import { json, type RouteContext, type Router } from "../../http/router.ts";
 import type { OperationActor } from "../../operations/access.ts";
-import { readBody } from "../../operations/routes.ts";
 import type { RoomSettingsService } from "./service.ts";
 
 export const ROOM_SETTINGS_ROUTE = "/api/operations/:operationId/room-settings";
@@ -56,7 +56,7 @@ export function mountRoomSettingsRoutes(
     "PUT",
     ROOM_SETTINGS_ROUTE,
     handle(true, async (ctx, actor) => {
-      const body = await readBody(ctx.request, UpdateRoomSettingsRequest);
+      const body = await readJsonBody(ctx.request, UpdateRoomSettingsRequest);
       return settings.update(actor, ctx.params.operationId ?? "", body);
     }),
   );

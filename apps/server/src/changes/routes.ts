@@ -21,13 +21,16 @@ import type { OfficeAuth, SessionUser } from "../auth/auth.ts";
 import { AuthHttpError, unauthorized } from "../auth/errors.ts";
 import { checkOrigin } from "../auth/origin.ts";
 import type { Db } from "../db/index.ts";
+import { readJsonBody } from "../http/body.ts";
 import { json, type RouteContext, type Router } from "../http/router.ts";
 import type { Logger } from "../logging.ts";
 import { operationAccessFor } from "../operations/access.ts";
-import { readBody } from "../operations/routes.ts";
 import { type ChangesAccess, decideChangesAccess, mayWriteChanges } from "./acl.ts";
 import { ChangesHttpError } from "./paths.ts";
 import type { AgentRow, ChangesService } from "./service.ts";
+
+/** A commit lists up to 500 file paths with their signatures; well over 64 KB in a big change. */
+const CHANGES_BODY_MAX_BYTES = 1024 * 1024;
 
 export const CHANGES_ROUTE = "/api/agents/:agentId/changes";
 
@@ -117,7 +120,9 @@ export function mountChangesRoutes(router: Router, deps: ChangesRoutesDeps): voi
   router.post(
     `${CHANGES_ROUTE}/commit`,
     guarded("write", async ({ request }, user, row) => {
-      const body = await readBody(request, CommitChangesRequest);
+      const body = await readJsonBody(request, CommitChangesRequest, {
+        maxBytes: CHANGES_BODY_MAX_BYTES,
+      });
       const result = await changes.commit(row, body, {
         name: user.displayName || "Regulus Office user",
         email: user.email,
@@ -136,7 +141,9 @@ export function mountChangesRoutes(router: Router, deps: ChangesRoutesDeps): voi
   router.post(
     `${CHANGES_ROUTE}/discard`,
     guarded("write", async ({ request }, user, row) => {
-      const body = await readBody(request, DiscardChangeRequest);
+      const body = await readJsonBody(request, DiscardChangeRequest, {
+        maxBytes: CHANGES_BODY_MAX_BYTES,
+      });
       await changes.discard(row, body);
       writeAudit(db, {
         userId: user.id,

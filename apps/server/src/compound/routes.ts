@@ -21,10 +21,10 @@ import {
 import type { OfficeAuth } from "../auth/auth.ts";
 import { AuthHttpError, forbidden, unauthorized } from "../auth/errors.ts";
 import { checkOrigin } from "../auth/origin.ts";
+import { readJsonBody } from "../http/body.ts";
 import { json, type RouteContext, type RouteHandler, type Router } from "../http/router.ts";
 import type { OperationActor } from "../operations/access.ts";
 import type { OperationLifecycle } from "../operations/lifecycle.ts";
-import { readBody } from "../operations/routes.ts";
 import type { OperationService } from "../operations/service.ts";
 import type { CompoundService } from "./service.ts";
 
@@ -70,7 +70,7 @@ export function mountCompoundRoutes(router: Router, deps: CompoundRouteDeps): vo
   router.post(
     COMPOUND_CHECK_API_PATH,
     route(async (ctx, actor) => {
-      const body = await readBody(ctx.request, CheckPlacementRequest);
+      const body = await readJsonBody(ctx.request, CheckPlacementRequest);
       return json(compound.check(actor, body.placement, body.operationId));
     }, true),
   );
@@ -78,7 +78,7 @@ export function mountCompoundRoutes(router: Router, deps: CompoundRouteDeps): vo
   router.post(
     COMPOUND_ROOMS_API_PATH,
     route(async (ctx, actor) => {
-      const { placement, ...input } = await readBody(ctx.request, PlaceRoomRequest);
+      const { placement, ...input } = await readJsonBody(ctx.request, PlaceRoomRequest);
       const { operation } = operations.create(actor, input, placement);
       const room = compound
         .layoutResponse()
@@ -91,7 +91,7 @@ export function mountCompoundRoutes(router: Router, deps: CompoundRouteDeps): vo
     "PATCH",
     `${COMPOUND_ROOMS_API_PATH}/:operationId`,
     route(async (ctx, actor) => {
-      const body = await readBody(ctx.request, MoveRoomRequest);
+      const body = await readJsonBody(ctx.request, MoveRoomRequest);
       return json(compound.move(actor, operationId(ctx), body.placement));
     }, true),
   );
@@ -100,7 +100,7 @@ export function mountCompoundRoutes(router: Router, deps: CompoundRouteDeps): vo
     "DELETE",
     `${COMPOUND_ROOMS_API_PATH}/:operationId`,
     route(async (ctx, actor) => {
-      const body = await readBody(ctx.request, DeleteOperationRequest);
+      const body = await readJsonBody(ctx.request, DeleteOperationRequest);
       await lifecycle.delete(actor, operationId(ctx), body.confirmName);
       return new Response(null, { status: 204 });
     }, true),
