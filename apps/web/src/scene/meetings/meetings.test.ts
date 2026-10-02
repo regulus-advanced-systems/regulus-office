@@ -75,14 +75,14 @@ describe("hologram and door sign text (#50)", () => {
   test("who has the floor, the round and the budget", () => {
     expect(boardText(meeting({}))).toEqual({
       pattern: "REVIEW PANEL",
-      round: "ROUND 2 / 3",
+      round: "ROUND 2/3",
       floor: "REVIEWER 1 HAS THE FLOOR",
       status: "running",
       budget: 0.9,
     });
     expect(boardText(meeting({ speaking: [0, 1, 2] })).floor).toBe("3 SPEAKING AT ONCE");
     expect(boardText(meeting({ status: "paused" })).floor).toBe("PAUSED");
-    expect(boardText(meeting({ status: "starting", round: 0 })).round).toBe("ROUND 1 / 3");
+    expect(boardText(meeting({ status: "starting", round: 0 })).round).toBe("ROUND 1/3");
   });
 
   test("the door says whether the meeting is on or paused", () => {

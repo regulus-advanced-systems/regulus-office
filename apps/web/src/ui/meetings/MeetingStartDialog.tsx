@@ -122,31 +122,35 @@ export function MeetingStartDialog({
           The henchmen run as you, share one worktree on a meeting branch and take turns at a desk
           pod of this room ({freeDesks} free {freeDesks === 1 ? "desk" : "desks"}).
         </p>
-        <fieldset className="rg-meeting-form__patterns" disabled={pending}>
+        <fieldset className="rg-spawn__group" disabled={pending}>
           <legend className="rg-field__label">Pattern</legend>
-          {MEETING_PATTERNS.map((p) => (
-            <label
-              key={p}
-              className="rg-meeting-form__pattern"
-              data-checked={draft.pattern === p || undefined}
-            >
-              <input
-                type="radio"
-                name="meeting-pattern"
-                value={p}
-                checked={draft.pattern === p}
-                onChange={() => setDraft((d) => withPattern(d, p))}
-              />
-              <span className="rg-meeting-form__pattern-name">{MEETING_PATTERN_LABELS[p]}</span>
-              <span className="rg-meeting-form__pattern-blurb">{MEETING_PATTERN_BLURBS[p]}</span>
-            </label>
-          ))}
+          <div className="rg-spawn__segments">
+            {MEETING_PATTERNS.map((p) => (
+              <label
+                key={p}
+                className="rg-spawn__segment"
+                data-checked={draft.pattern === p ? "true" : undefined}
+              >
+                <input
+                  type="radio"
+                  name="meeting-pattern"
+                  value={p}
+                  checked={draft.pattern === p}
+                  onChange={() => setDraft((d) => withPattern(d, p))}
+                />
+                {MEETING_PATTERN_LABELS[p]}
+              </label>
+            ))}
+          </div>
+          <p className="rg-field__hint rg-meeting-form__blurb">
+            {MEETING_PATTERN_BLURBS[draft.pattern]}
+          </p>
         </fieldset>
         <label className="rg-field">
           <span className="rg-field__label">Task</span>
           <textarea
             className="rg-input rg-meeting-form__topic"
-            rows={3}
+            rows={2}
             value={draft.topic}
             disabled={pending}
             placeholder="What should they decide, build or review?"

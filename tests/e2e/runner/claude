@@ -106,7 +106,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --settings) settings="$2"; shift 2 ;;
     --session-id|--resume) session="$2"; shift 2 ;;
-    --model|--effort) shift 2 ;;
+    --model|--effort|--permission-mode) shift 2 ;;
     -*) shift ;;
     *) prompt="$1"; shift ;;
   esac
@@ -147,6 +147,13 @@ if [ -z "$prompt" ]; then
     notes=$(printf '%s' "$line" | sed -n 's/.*`\(\.meeting\/turns\/[^`]*\)`.*/\1/p')
     trace "meeting turn: ${who:-?} -> ${notes:-no notes file}"
     sleep 2
+    # While the spec keeps `.meeting/hold` in the worktree, the closing turn waits (the spec
+    # watches the meeting in session first); two minutes at most.
+    case "$line" in *"commit the change on the current branch"*)
+      ticks=600
+      while [ -e .meeting/hold ] && [ "$ticks" -gt 0 ]; do sleep 0.2; ticks=$((ticks - 1)); done
+      trace "closing turn goes ahead" ;;
+    esac
     if [ -n "$notes" ]; then
       mkdir -p "$(dirname "$notes")"
       printf '%s (fake, not Claude Code): keep the board sync cache in memory, five minutes per entry.\n' "${who:-Henchman}" > "$notes"

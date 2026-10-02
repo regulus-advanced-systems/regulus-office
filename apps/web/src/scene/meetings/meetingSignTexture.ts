@@ -11,7 +11,6 @@ export const BOARD_PX = { w: 512, h: 256 } as const;
 export const DOOR_PX = { w: 512, h: 128 } as const;
 
 const HOLO = "#7FF3E6";
-const HOLO_DIM = "#2EC4B6";
 
 export interface BoardText {
   pattern: string;
@@ -45,7 +44,7 @@ export function boardText(m: MeetingSummary): BoardText {
             : `${speakers.join(" + ").toUpperCase()} HAS THE FLOOR`;
   return {
     pattern: MEETING_PATTERN_LABELS[m.pattern].toUpperCase(),
-    round: `ROUND ${Math.max(1, m.round)} / ${m.rounds}`,
+    round: `ROUND ${Math.max(1, m.round)}/${m.rounds}`,
     floor,
     status: m.status,
     budget: m.tokenBudget > 0 ? Math.min(1, m.tokensUsed / m.tokenBudget) : 0,
@@ -64,36 +63,39 @@ type Ctx = Pick<
   | "strokeRect"
   | "fillText"
   | "clearRect"
+  | "shadowColor"
+  | "shadowBlur"
 >;
 
 export function paintBoard(ctx: Ctx, t: BoardText): void {
   const { w, h } = BOARD_PX;
   ctx.clearRect(0, 0, w, h);
-  ctx.fillStyle = "rgba(8, 40, 44, 0.55)";
+  // A bright, see-through console-teal pane with a glowing frame: a projection, not a sign.
+  ctx.fillStyle = "rgba(46, 196, 182, 0.30)";
   ctx.fillRect(0, 0, w, h);
-  ctx.strokeStyle = HOLO_DIM;
-  ctx.lineWidth = 4;
-  ctx.strokeRect(6, 6, w - 12, h - 12);
+  ctx.shadowColor = HOLO;
+  ctx.shadowBlur = 12;
+  ctx.strokeStyle = HOLO;
+  ctx.lineWidth = 5;
+  ctx.strokeRect(8, 8, w - 16, h - 16);
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  const inside = w - 40;
-  ctx.fillStyle = HOLO;
-  ctx.font = "bold 40px 'Courier New', monospace";
-  ctx.fillText(`MEETING · ${t.pattern}`, w / 2, 46, inside);
-  ctx.font = "bold 30px 'Courier New', monospace";
-  ctx.fillStyle = t.status === "paused" ? "#F2B33D" : HOLO_DIM;
-  ctx.fillText(t.round, w / 2, 98, inside);
+  const inside = w - 44;
+  ctx.fillStyle = "#E9FFFC";
+  ctx.font = "bold 38px 'Courier New', monospace";
+  ctx.fillText(`${t.pattern} · ${t.round}`, w / 2, 50, inside);
   ctx.fillStyle = t.status === "running" ? "#FFFFFF" : "#F2B33D";
-  ctx.font = "bold 30px 'Courier New', monospace";
-  ctx.fillText(t.floor, w / 2, 150, inside);
+  ctx.font = "bold 46px 'Courier New', monospace";
+  ctx.fillText(t.floor, w / 2, 124, inside);
   // Token budget: a bar that turns alarm red past 80%.
-  const x = 40;
-  const barW = w - 80;
-  ctx.strokeStyle = HOLO_DIM;
+  ctx.shadowBlur = 0;
+  const x = 44;
+  const barW = w - 88;
+  ctx.strokeStyle = HOLO;
   ctx.lineWidth = 3;
-  ctx.strokeRect(x, 196, barW, 22);
+  ctx.strokeRect(x, 186, barW, 26);
   ctx.fillStyle = t.budget >= 0.8 ? LAIR.red : HOLO;
-  ctx.fillRect(x + 4, 200, Math.max(0, (barW - 8) * t.budget), 14);
+  ctx.fillRect(x + 5, 191, Math.max(0, (barW - 10) * t.budget), 16);
 }
 
 export function doorLines(m: Pick<MeetingSummary, "status" | "pattern" | "round" | "rounds">) {

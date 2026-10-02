@@ -13,16 +13,24 @@ import {
   type MeetingDetail,
   type MeetingStatus,
   type MeetingSummary,
+  type ProviderId,
 } from "@regulus/protocol";
 import { useState } from "react";
 import { FormAlert } from "../auth/AuthCard.tsx";
 import { Button } from "../components/Button.tsx";
 import { Modal } from "../components/Modal.tsx";
+import { findModel, providerPreset } from "../spawn/models.ts";
 import { createMeetingsApi, describeMeetingError, type MeetingsApi } from "./api.ts";
 import { OUTPUT_LABELS, tokens } from "./meetingForm.ts";
 import { useMeetingStore } from "./meetingStore.ts";
 
 const defaultApi = createMeetingsApi();
+
+/** "Claude Code · Opus"; ids as they are when the presets do not know them. */
+export function modelLabel(provider: ProviderId, model: string): string {
+  const p = providerPreset(provider);
+  return `${p?.label ?? provider} · ${findModel(provider, model)?.label ?? model}`;
+}
 
 export const STATUS_LABELS: Readonly<Record<MeetingStatus, string>> = {
   starting: "Convening",
@@ -78,9 +86,7 @@ function Members({ m }: { m: MeetingSummary }) {
               aria-hidden="true"
             />
             <strong>{member.name}</strong>
-            <span className="rg-meeting__meta">
-              {member.provider} · {member.model}
-            </span>
+            <span className="rg-meeting__meta">{modelLabel(member.provider, member.model)}</span>
             {speaking && <span className="rg-meeting__floor">has the floor</span>}
           </li>
         );
@@ -94,7 +100,8 @@ function Transcript({ detail }: { detail: MeetingDetail }) {
   if (detail.turns.length === 0) {
     return <p className="rg-meeting__meta">No turns yet: the henchmen are taking their seats.</p>;
   }
-  const last = detail.turns.length - 1;
+  // The latest notes stay open, and whoever is speaking; earlier turns fold away.
+  const lastDone = detail.turns.findLastIndex((t) => t.status === "done");
   return (
     <ol className="rg-meeting__turns">
       {detail.turns.map((t, i) => (
@@ -102,7 +109,7 @@ function Transcript({ detail }: { detail: MeetingDetail }) {
           key={`${t.step}-${t.position}`}
           className={`rg-meeting__turn rg-meeting__turn--${t.status}`}
         >
-          <details open={i === last || t.status === "running"}>
+          <details open={i === lastDone || t.status === "running"}>
             <summary>
               <span className="rg-meeting__meta">Round {t.round}</span>{" "}
               <strong>{names.get(t.position) ?? "?"}</strong> {MEETING_TURN_LABELS[t.kind]}

@@ -11,7 +11,7 @@
  * harness (tests/e2e/agentOffice.ts) and test runner image. With E2E_SCREENSHOTS_DIR set, it
  * saves the meeting UI and the room during the meeting by day and by night there.
  */
-import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { type BrowserContext, expect, type Page, test } from "@playwright/test";
@@ -25,9 +25,8 @@ import {
   sh,
 } from "./agentOffice.ts";
 import { henchmen, scenePoint } from "./agentProbes.ts";
-import { travelInto } from "./compoundProbes.ts";
+import { navPose, roomNamed, walkTo, walkToSeat, wheelZoomTo } from "./compoundProbes.ts";
 import { type FakeGitHub, startFakeGitHub } from "./fakeGitHub.ts";
-import { pickGenius } from "./geniusChecks.ts";
 import { createRemoteRepo } from "./gitRemote.ts";
 import { OFFICE_PROBE_PATH, waitForScene } from "./probes.ts";
 
@@ -111,11 +110,13 @@ async function register(page: Page, who: typeof owner, submit: string): Promise<
   await page.getByLabel("Confirm password").fill(who.password);
   await page.getByRole("button", { name: submit }).click();
   await expect(page).toHaveURL(/\/office/);
-  // The picker opens once the office connects, which takes a while on a loaded machine.
-  await expect(page.getByRole("dialog", { name: "Choose your genius" })).toBeVisible({
-    timeout: 60_000,
-  });
-  await pickGenius(page, "Mastermind");
+  // The first-login genius picker (#185), with room for a loaded machine: it opens once the
+  // office connects and closes once the choice is saved.
+  const picker = page.getByRole("dialog", { name: "Choose your genius" });
+  await expect(picker).toBeVisible({ timeout: 60_000 });
+  await picker.getByText("Mastermind", { exact: true }).click();
+  await picker.getByRole("button", { name: "Enter the lair" }).click();
+  await expect(picker).toBeHidden({ timeout: 60_000 });
 }
 
 async function api(page: Page, method: string, path: string, data?: unknown): Promise<unknown> {
@@ -127,6 +128,55 @@ async function api(page: Page, method: string, path: string, data?: unknown): Pr
   expect(res.ok(), `${method} ${path} -> ${res.status()}`).toBe(true);
   const text = await res.text();
   return text ? JSON.parse(text) : null;
+}
+
+/** The meeting's shared worktree (`<worktrees>/<operation>/<runner id>/<meetingId>`), once made. */
+function meetingWorktree(): string | null {
+  const root = office.worktreesDir;
+  for (const operation of readdirSync(root)) {
+    for (const area of readdirSync(join(root, operation))) {
+      const dir = join(root, operation, area, meetingId);
+      if (existsSync(dir)) return dir;
+    }
+  }
+  return null;
+}
+
+/** While `.meeting/hold` exists the fake's closing turn waits (tests/e2e/runner/claude). */
+function holdTheFloor(hold: boolean): void {
+  const dir = meetingWorktree();
+  if (!dir) throw new Error("no meeting worktree");
+  const file = join(dir, ".meeting", "hold");
+  if (hold) {
+    mkdirSync(join(dir, ".meeting"), { recursive: true });
+    writeFileSync(file, "the spec is watching\n");
+  } else {
+    rmSync(file, { force: true });
+  }
+}
+
+/**
+ * Quick travel (`F`) to the room's door and step in. Unlike `travelInto` it does not walk on to
+ * the middle: software GL on a loaded machine draws so few frames that the walk can take minutes.
+ */
+async function enter(page: Page, name: string): Promise<void> {
+  await page.bringToFront();
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  await page.keyboard.press("f");
+  const travel = page.getByRole("dialog", { name: "Quick travel" });
+  await travel
+    .getByRole("list", { name: "Rooms you can enter" })
+    .getByRole("button", { name: new RegExp(`^${name}`) })
+    .click();
+  await expect(travel).toHaveCount(0);
+  const room = await roomNamed(page, name);
+  await expect(async () => {
+    const pose = await navPose(page);
+    if (pose.room === room.id && pose.operationId === room.id) return;
+    if (!pose.walking) expect(await walkTo(page, room.inside.x, room.inside.z)).toBe(true);
+    throw new Error(`walking into ${name}`);
+  }).toPass({ timeout: 180_000, intervals: [500, 1_000] });
+  await expect(page.locator(".rg-topbar__operation")).toHaveText(name, { timeout: 60_000 });
 }
 
 const meeting = async (page: Page) =>
@@ -184,10 +234,10 @@ test("the owner and a member sign in; the owner adds the operation and lets the 
   // Quick travel to the door: software GL on a loaded machine draws few frames to walk with.
   await memberPage.goto(OFFICE_PROBE_PATH);
   await waitForScene(memberPage);
-  await travelInto(memberPage, OPERATION);
+  await enter(memberPage, OPERATION);
   await ownerPage.goto(OFFICE_PROBE_PATH);
   await waitForScene(ownerPage);
-  await travelInto(ownerPage, OPERATION);
+  await enter(ownerPage, OPERATION);
 });
 
 test("the owner calls a debate of three henchmen from the Rooms panel", async () => {
@@ -217,6 +267,9 @@ test("the owner calls a debate of three henchmen from the Rooms panel", async ()
   };
   meetingId = summary.meetings[0]?.id ?? "";
   expect(meetingId).not.toBe("");
+  // Keep the closing turn waiting while the next step watches the meeting in session.
+  await expect.poll(() => meetingWorktree(), { timeout: 60_000 }).not.toBeNull();
+  holdTheFloor(true);
   // Three henchmen of the owner sit down at one pod.
   await expect
     .poll(async () => Object.values(await henchmen(ownerPage)).length, { timeout: 120_000 })
@@ -232,25 +285,45 @@ test("the room shows the meeting; a member watches the transcript without contro
     .poll(() => scenePoint(ownerPage, "meeting-hologram"), { timeout: 30_000 })
     .not.toBeNull();
   await expect.poll(() => scenePoint(ownerPage, `meeting-door-sign-${operationId}`)).not.toBeNull();
-  // Wait for the first notes so the transcript has something to show.
+  // Proposer and Challenger have spoken; the Judge has the floor (held, see holdTheFloor).
   await expect
-    .poll(async () => (await meeting(ownerPage)).turns.filter((t) => t.status === "done").length, {
+    .poll(async () => (await meeting(ownerPage)).turns.map((t) => t.status).join(","), {
       timeout: 120_000,
     })
-    .toBeGreaterThan(0);
+    .toBe("done,done,running");
   const live = ownerPage.getByRole("dialog", { name: "Meeting" });
-  await expect(live.getByText("Proposer (fake, not Claude Code)", { exact: false })).toBeVisible();
+  // Earlier turns fold away under the latest one; their notes are in the transcript.
+  await expect(live.locator(".rg-meeting__turn").first()).toContainText(
+    "Proposer (fake, not Claude Code)",
+  );
   await expect(live.getByRole("button", { name: "Pause" })).toBeVisible();
   await shoot(ownerPage, "meeting-panel");
   await live.getByRole("button", { name: "Close" }).first().click();
   await expect(live).toHaveCount(0);
+  if (SHOTS) {
+    // Up to the pod and closer in, so the pictures show the hologram and who has the floor.
+    const judge = (await meeting(ownerPage)).members[2]?.seatId ?? "";
+    if (await walkToSeat(ownerPage, operationId, judge)) {
+      await expect
+        .poll(async () => (await navPose(ownerPage)).walking, { timeout: 120_000 })
+        .toBe(false);
+    }
+    await wheelZoomTo(ownerPage, 0.3);
+  }
   await shoot(ownerPage, "room-during-meeting");
 
   await memberPage.bringToFront();
+  if (SHOTS) {
+    // The member stands just inside the door: the sign over it and the pod behind.
+    await wheelZoomTo(memberPage, 0.35);
+    await shoot(memberPage, "door-sign");
+  }
   const rooms = memberPage.getByRole("navigation", { name: "Rooms" });
   await rooms.getByRole("button", { name: "Meeting in session…" }).click();
   const watch = memberPage.getByRole("dialog", { name: "Meeting" });
-  await expect(watch.getByText("Proposer (fake, not Claude Code)", { exact: false })).toBeVisible();
+  await expect(watch.locator(".rg-meeting__turn").first()).toContainText(
+    "Proposer (fake, not Claude Code)",
+  );
   await expect(watch.getByRole("button", { name: "Pause" })).toHaveCount(0);
   await expect(watch.getByRole("button", { name: /stop/i })).toHaveCount(0);
   const refused = await memberPage.request.post(`/api/meetings/${meetingId}/stop`, {
@@ -261,6 +334,7 @@ test("the room shows the meeting; a member watches the transcript without contro
 
 test("the meeting ends in a draft PR from the shared worktree; the henchmen go home", async () => {
   await ownerPage.bringToFront();
+  holdTheFloor(false);
   await expect
     .poll(async () => (await meeting(ownerPage)).status, { timeout: 180_000 })
     .toBe("done");

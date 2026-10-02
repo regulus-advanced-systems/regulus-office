@@ -16,8 +16,8 @@ import { scopedName, useRoomScope } from "../roomScope.ts";
 import { meetingAnchor } from "./meetingAnchor.ts";
 import { BOARD_PX, boardText, canvasTexture, paintBoard } from "./meetingSignTexture.ts";
 
-const HOLO_Y = 2.45;
-const HOLO_W = 1.7;
+const HOLO_Y = 2.75;
+const HOLO_W = 2.6;
 const HOLO_H = (HOLO_W * BOARD_PX.h) / BOARD_PX.w;
 const TABLE_TOP = 0.78;
 const MARKER_Y = 1.95;
@@ -35,7 +35,7 @@ function SpeakerMarker({ x, z, still }: { x: number; z: number; still: boolean }
   return (
     <group ref={ref} position={[x, MARKER_Y, z]} raycast={() => null}>
       <mesh rotation={[Math.PI, 0, 0]} raycast={() => null}>
-        <coneGeometry args={[0.12, 0.22, 4]} />
+        <coneGeometry args={[0.17, 0.3, 4]} />
         <meshBasicMaterial color={CYAN} toneMapped={false} />
       </mesh>
     </group>
@@ -68,11 +68,11 @@ export function MeetingTable({
   return (
     <group name={scopedName(scope, "meeting-table")}>
       <mesh position={[anchor.x, TABLE_TOP + beam / 2, anchor.z]} raycast={() => null}>
-        <cylinderGeometry args={[0.05, 0.32, beam, 12, 1, true]} />
+        <cylinderGeometry args={[0.08, 0.45, beam, 12, 1, true]} />
         <meshBasicMaterial
           color={CYAN}
           transparent
-          opacity={0.18}
+          opacity={0.28}
           depthWrite={false}
           blending={AdditiveBlending}
           toneMapped={false}
