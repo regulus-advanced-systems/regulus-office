@@ -13,7 +13,7 @@
  * bump goes out through the room state (`OperationState.whiteboardVersion`,
  * or `BuildingState.lobbyWhiteboardVersion` for the lobby board).
  * Refusals: 401 no session, 404 no such board or no access, 403 read-only or
- * cross-origin, 400 not a PNG, 413 too big.
+ * cross-origin, 400 not a PNG, 413 `body_too_large` (read through http/body.ts's cap).
  */
 import { rename, unlink } from "node:fs/promises";
 import { join } from "node:path";
@@ -24,6 +24,7 @@ import {
 } from "@regulus/protocol";
 import { AuthHttpError, forbidden, unauthorized } from "../auth/errors.ts";
 import { checkOrigin } from "../auth/origin.ts";
+import { bodyTooLarge, readCappedBytes } from "../http/body.ts";
 import { json, type RouteContext, type Router } from "../http/router.ts";
 import type { BoardAccessCheck, BoardUser } from "./access.ts";
 import type { WhiteboardStore } from "./store.ts";
@@ -115,12 +116,9 @@ export function mountWhiteboardRoutes(router: Router, deps: WhiteboardRouteDeps)
       const access = deps.access(user, boardId);
       if (!access) throw notFound();
       if (access !== "edit") throw forbidden("read_only");
-      const declared = Number(ctx.request.headers.get("content-length") ?? 0);
-      if (declared > WHITEBOARD_SNAPSHOT_MAX_BYTES) throw new AuthHttpError(413, "too_large");
-      const bytes = new Uint8Array(await ctx.request.arrayBuffer());
-      if (bytes.byteLength > WHITEBOARD_SNAPSHOT_MAX_BYTES) {
-        throw new AuthHttpError(413, "too_large");
-      }
+      const read = await readCappedBytes(ctx.request, WHITEBOARD_SNAPSHOT_MAX_BYTES);
+      if (!read.ok) throw bodyTooLarge();
+      const bytes = read.bytes;
       const size = pngSize(bytes);
       if (!size || size.width < 1 || size.height < 1) throw new AuthHttpError(400, "not_png");
       if (size.width > SNAPSHOT_MAX_SIDE || size.height > SNAPSHOT_MAX_SIDE) {
