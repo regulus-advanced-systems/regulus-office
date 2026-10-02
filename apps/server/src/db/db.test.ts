@@ -54,6 +54,9 @@ const EXTRA_TABLES = [
   "workflow_runs",
   "workflow_events",
   "operation_queue_settings",
+  "meetings",
+  "meeting_members",
+  "meeting_turns",
 ] as const;
 
 /** Better Auth's remaining core tables (`users` is in SPEC_TABLES); see schema/auth.ts. */

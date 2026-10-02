@@ -10,9 +10,9 @@
  */
 import { readdir, rm, rmdir, stat } from "node:fs/promises";
 import { join } from "node:path";
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNotNull } from "drizzle-orm";
 import type { Db } from "../db/index.ts";
-import { agents, operationRepos } from "../db/schema/index.ts";
+import { agents, meetings, operationRepos } from "../db/schema/index.ts";
 import type { RepoAccess } from "../github/repo-access.ts";
 import type { Logger } from "../logging.ts";
 import { CLONES_DIR } from "../runners/layout.ts";
@@ -62,12 +62,15 @@ export async function pruneWorktrees(deps: {
     const live = new Set(
       names.length === 0
         ? []
-        : db
-            .select({ id: agents.id })
-            .from(agents)
-            .where(inArray(agents.id, names))
-            .all()
-            .map((r) => r.id),
+        : [
+            ...db.select({ id: agents.id }).from(agents).where(inArray(agents.id, names)).all(),
+            // A meeting's shared worktree (#50) is named after the meeting.
+            ...db
+              .select({ id: meetings.id })
+              .from(meetings)
+              .where(and(inArray(meetings.id, names), isNotNull(meetings.workdir)))
+              .all(),
+          ].map((r) => r.id),
     );
     for (const name of names) {
       if (live.has(name) || workspaces.isActive(name)) continue;

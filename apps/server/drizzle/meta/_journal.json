@@ -134,6 +134,13 @@
       "when": 1790820000000,
       "tag": "0018_operations_henchmen",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1790903346563,
+      "tag": "0019_meetings",
+      "breakpoints": true
     }
   ]
 }

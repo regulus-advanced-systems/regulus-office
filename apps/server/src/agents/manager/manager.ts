@@ -21,7 +21,11 @@ import { eq } from "drizzle-orm";
 import { AUDIT_ACTIONS } from "../../auth/audit.ts";
 import { operationRepos } from "../../db/schema/index.ts";
 import type { OperationActor } from "../../operations/access.ts";
-import { LEGACY_WORKSPACE_MESSAGE, type Workspaces } from "../../worktrees/types.ts";
+import {
+  LEGACY_WORKSPACE_MESSAGE,
+  type PreparedWorkspace,
+  type Workspaces,
+} from "../../worktrees/types.ts";
 import { adoptAll } from "./adopt.ts";
 import { AgentManagerError } from "./errors.ts";
 import { setStatus } from "./henchman.ts";
@@ -62,11 +66,14 @@ export class AgentManager extends AgentRuntime {
   /**
    * `hooks.onAdmitted` runs once the agent row and desk are claimed, before
    * anything starts (the task queue links its task to the henchman, #37).
+   * `hooks.workspace` is a worktree prepared for several henchmen of the same
+   * owner (a meeting's shared worktree, #50); it is used as is, in place of
+   * a worktree of the henchman's own.
    */
   async spawn(
     actor: OperationActor,
     input: SpawnInput,
-    hooks?: { onAdmitted?(agentId: string): void },
+    hooks?: { onAdmitted?(agentId: string): void; workspace?: PreparedWorkspace },
   ): Promise<{ agentId: string; seatId: string }> {
     const admitted = admitSpawn(
       {
@@ -94,11 +101,13 @@ export class AgentManager extends AgentRuntime {
       };
       // Without a worktree the agent works in its owner's own clone (#114).
       const clones = this.opts.clones;
-      const workspace = input.autoWorktree
-        ? await this.#workspaces().prepare(prepare)
-        : clones
-          ? await clones.prepareClone(prepare)
-          : await this.#repoWorkspaces.prepare(prepare);
+      const workspace = hooks?.workspace
+        ? hooks.workspace
+        : input.autoWorktree
+          ? await this.#workspaces().prepare(prepare)
+          : clones
+            ? await clones.prepareClone(prepare)
+            : await this.#repoWorkspaces.prepare(prepare);
       this.store.update(agentId, { workdir: workspace.workdir, worktreeBranch: workspace.branch });
       live.view.worktreeBranch = workspace.branch;
       await this.#launch(live, { prompt: input.prompt });
