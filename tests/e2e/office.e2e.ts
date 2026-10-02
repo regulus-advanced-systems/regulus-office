@@ -1,12 +1,12 @@
 /**
- * M0 smoke test (docs/SPEC.md §10 M0 exit criteria): the owner registers and
- * picks a genius by keyboard in the first-login picker (#185), mints an invite in the UI, a second browser joins through the link, both
- * reach /office and see each other's genius (and a genius changed in Settings at once), one walks and the other sees it move,
+ * M0 smoke test (docs/SPEC.md §10 M0 exit criteria). The `setup` project (office.setup.ts)
+ * registers the owner, who picks a genius by keyboard (#185) and mints an invite in the UI, and a
+ * second browser joins through the link. Here both reach /office and see each other's genius (and
+ * a genius changed in Settings at once), one walks and the other sees it move,
  * chat crosses between them and `/` search finds it (#41), a chat line floats as a bubble, an emote
  * from the wheel, sitting on the sofa and "Who's where" reach the other browser (#49),
+ * both draw on the lobby whiteboard and the wall shows it (#45),
  * the first-person view toggles on V and back,
- * chat crosses between them, both draw on the lobby whiteboard and the wall shows it (#45),
- * `/` search finds the chat (#41), the first-person view toggles on V and back,
  * the owner turns to follow the mouse and walks face-first to a click,
  * the owner adds an operation bound to a (local) repo and rides to it, Operation
  * settings and Add operation fit a 1280×720 window with the round X in view
@@ -24,17 +24,29 @@
  * the PC on a free wall of Apollo, the member (given view access) sees it without a reload,
  * and the owner removes it again (#46).
  *
+ * Structure (#248): the steps run in order in one worker and share two browsers opened from the
+ * sessions the setup saved (officeSession.ts), but they are not serial: a failed step does not
+ * skip the ones after it. Playwright then restarts the worker, and `beforeAll` opens the office
+ * again for both sessions (a fresh pair of pages, both in the lobby). So each step stands on the
+ * shared setup alone: a step that needs what an earlier step made (the Apollo operation) makes
+ * sure of it itself (`ensureApollo`), and a step starts by going where it needs to be (or the
+ * step before leaves people where it found them). To add a step, add a `test()` at the end (or
+ * where it fits) that calls its `xxxChecks.ts` function with `ownerPage` and `memberPage`; give it
+ * `test.setTimeout` if it needs more than 90 s. A new spec file that needs the two signed-in
+ * browsers opens them with `openOffice` in its own `beforeAll` (and runs after the setup, too).
+ *
  * Runs against office-server in production mode (see playwright.config.ts),
  * so room joins are authorised by the Better Auth session cookie only.
  */
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { type BrowserContext, expect, type Page, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 import { checkBlastDoor } from "./blastDoorChecks.ts";
 import {
   addDeskInRoomSettings,
   aimAt,
   buildProbe,
+  ensureOperation,
   middleOf,
   openBuildMode,
   settledVerdict,
@@ -53,10 +65,11 @@ import {
 } from "./compoundProbes.ts";
 import { insideViewport, settledDialogLayout } from "./dialogLayout.ts";
 import { type FakeGitHub, startFakeGitHub } from "./fakeGitHub.ts";
-import { type GeniusLook, geniusOf, pickGenius, pickGeniusByKeyboard } from "./geniusChecks.ts";
-import { createRemoteRepo } from "./gitRemote.ts";
+import { type GeniusLook, geniusOf } from "./geniusChecks.ts";
+import { ensureRemoteRepo } from "./gitRemote.ts";
 import { checkMergeGong } from "./gongChecks.ts";
 import { checkJukebox } from "./jukeboxChecks.ts";
+import { loadOwnerGenius, type OfficeSession, openOffice, owner } from "./officeSession.ts";
 import { reportFramePerf } from "./perfProbe.ts";
 import { checkWallPictures } from "./pictureChecks.ts";
 import {
@@ -71,11 +84,9 @@ import {
   headingToward,
   humans,
   localPose,
-  OFFICE_PROBE_PATH,
   remoteHumans,
   sampleLocalPoses,
   screenPointOf,
-  waitForScene,
 } from "./probes.ts";
 import {
   backToLobbyMiddle,
@@ -87,95 +98,36 @@ import {
 import { checkWhiteboard } from "./whiteboardChecks.ts";
 
 const run = Date.now().toString(36);
-const owner = { name: "Ada Owner", email: `owner-${run}@example.com`, password: `owner-pw-${run}` };
-const member = {
-  name: "Ben Member",
-  email: `member-${run}@example.com`,
-  password: `member-pw-${run}`,
-};
 
-test.describe.configure({ mode: "serial" });
-
-let ownerCtx: BrowserContext;
-let memberCtx: BrowserContext;
+let session: OfficeSession | undefined;
 let ownerPage: Page;
 let memberPage: Page;
-let inviteUrl = "";
 /** The desk the spawn step used. */
 let spawnSeat = "";
 /** The owner's genius as picked at first login (#185). */
 let ownerGenius: GeniusLook;
 
+// Once per worker: at the start, and again after a failed step (Playwright restarts the worker).
 test.beforeAll(async ({ browser }) => {
-  ownerCtx = await browser.newContext();
-  memberCtx = await browser.newContext();
-  ownerPage = await ownerCtx.newPage();
-  memberPage = await memberCtx.newPage();
+  // Two scenes loading in software GL on a loaded runner.
+  test.setTimeout(120_000);
+  session = await openOffice(browser);
+  ({ ownerPage, memberPage } = session);
+  ownerGenius = loadOwnerGenius();
 });
 
 test.afterAll(async () => {
-  await ownerCtx?.close();
-  await memberCtx?.close();
+  await session?.ownerCtx.close();
+  await session?.memberCtx.close();
 });
 
-async function register(page: Page, who: typeof owner, submit: string): Promise<void> {
-  await page.getByLabel("Display name").fill(who.name);
-  await page.getByLabel("Email").fill(who.email);
-  await page.getByLabel("Password", { exact: true }).fill(who.password);
-  await page.getByLabel("Confirm password").fill(who.password);
-  await page.getByRole("button", { name: submit }).click();
-  await expect(page).toHaveURL(/\/office/);
+/** The operation the operation steps work in: built by the build-mode step, or here if that failed. */
+async function ensureApollo(): Promise<void> {
+  ensureRemoteRepo(process.env.E2E_DATA_DIR ?? "", "octo", "hello");
+  await ensureOperation(ownerPage, "Apollo", "octo/hello");
 }
 
-test("the first account becomes the owner", async () => {
-  await ownerPage.goto("/login");
-  await expect(ownerPage.getByRole("heading", { name: "Set up your office" })).toBeVisible();
-  await register(ownerPage, owner, "Create the owner account");
-  const me = await ownerPage.request.get("/api/me");
-  expect(await me.json()).toMatchObject({ displayName: owner.name, role: "owner" });
-});
-
-test("the first-login genius picker works by keyboard; the server keeps the pick (#185)", async () => {
-  const picked = await pickGeniusByKeyboard(ownerPage);
-  ownerGenius = picked;
-  expect(await (await ownerPage.request.get("/api/me")).json()).toMatchObject({
-    avatar: picked,
-    avatarChosen: true,
-  });
-  // Chosen once: the picker does not come back on the next visit.
-  await ownerPage.reload();
-  await expect(ownerPage.getByRole("button", { name: "Settings" })).toBeVisible();
-  await expect(ownerPage.getByRole("dialog", { name: "Choose your genius" })).toBeHidden();
-});
-
-test("the owner creates an invite link in the UI", async () => {
-  await ownerPage.getByRole("button", { name: "Settings" }).click();
-  await ownerPage.getByRole("tab", { name: "You" }).click();
-  await ownerPage.getByRole("button", { name: "Invite someone…" }).click();
-  const dialog = ownerPage.getByRole("dialog", { name: "Invite someone" });
-  await dialog.getByRole("button", { name: "Create invite link" }).click();
-  const link = dialog.getByLabel(/Invite link for member/);
-  await expect(link).toHaveValue(/\/join\/[\w-]+$/);
-  inviteUrl = await link.inputValue();
-  expect(new URL(inviteUrl).origin).toBe(new URL(ownerPage.url()).origin);
-  await dialog.getByRole("button", { name: "Done" }).click();
-  await expect(dialog).toBeHidden();
-});
-
-test("a second browser joins through the invite", async () => {
-  await memberPage.goto(inviteUrl);
-  await expect(memberPage.getByRole("heading", { name: "You're invited" })).toBeVisible();
-  await register(memberPage, member, "Create account and join");
-  const me = await memberPage.request.get("/api/me");
-  expect(await me.json()).toMatchObject({ displayName: member.name, role: "member" });
-  await pickGenius(memberPage, "Diva");
-});
-
 test("both reach the office and see each other's avatar", async () => {
-  await ownerPage.goto(OFFICE_PROBE_PATH);
-  await memberPage.goto(OFFICE_PROBE_PATH);
-  await waitForScene(ownerPage);
-  await waitForScene(memberPage);
   await expect.poll(() => remoteHumans(ownerPage)).toHaveLength(1);
   await expect.poll(() => remoteHumans(memberPage)).toHaveLength(1);
   // Each sees the other's chosen genius (#185), and their own.
@@ -493,7 +445,7 @@ test("the player turns to follow the cursor and walks face-first to a click", as
 
 test("the owner adds an operation in build mode: a refused spot, then placed, built and walked into (#186, #187)", async () => {
   test.skip(!process.env.E2E_DATA_DIR, "needs the locally started server (local git remotes)");
-  createRemoteRepo(process.env.E2E_DATA_DIR ?? "", "octo", "hello");
+  ensureRemoteRepo(process.env.E2E_DATA_DIR ?? "", "octo", "hello");
   await ownerPage.bringToFront();
   // Add operation continues into build mode (#187): the ghost starts on a free spot.
   const first = await openBuildMode(ownerPage, "Apollo", "octo/hello");
@@ -612,7 +564,8 @@ test("the owner adds an operation in build mode: a refused spot, then placed, bu
 });
 
 test("Operation settings and Add operation fit a 1280×720 window with the X in view", async () => {
-  test.skip(!process.env.E2E_DATA_DIR, "needs the operation from the previous step");
+  test.skip(!process.env.E2E_DATA_DIR, "needs the locally started server (local git remotes)");
+  await ensureApollo();
   await ownerPage.bringToFront();
   await ownerPage.setViewportSize({ width: 1280, height: 720 });
   const rooms = ownerPage.getByRole("navigation", { name: "Rooms" });
@@ -693,7 +646,8 @@ test("Settings: tabs by keyboard, and a skin rule picked from the thumbnail gall
 });
 
 test("clicking a free desk opens the spawn dialog and the server answers agent.spawn", async () => {
-  test.skip(!process.env.E2E_DATA_DIR, "needs the operation from the previous step");
+  test.skip(!process.env.E2E_DATA_DIR, "needs the locally started server (local git remotes)");
+  await ensureApollo();
   await ownerPage.bringToFront();
   // Quick travel to Apollo's door and walk in; the HUD counters appear once its OperationRoom is in.
   await travelInto(ownerPage, "Apollo");
@@ -722,7 +676,8 @@ test("clicking a free desk opens the spawn dialog and the server answers agent.s
 });
 
 test("a room manager adds a desk in room settings; the room shows it live (#187)", async () => {
-  test.skip(!process.env.E2E_DATA_DIR, "needs the operation from the previous step");
+  test.skip(!process.env.E2E_DATA_DIR, "needs the locally started server (local git remotes)");
+  await ensureApollo();
   await ownerPage.bringToFront();
   const apollo = await walkInto(ownerPage, "Apollo");
   await addDeskInRoomSettings(ownerPage, apollo.id, "Apollo");
@@ -731,6 +686,7 @@ test("a room manager adds a desk in room settings; the room shows it live (#187)
 test("the owner archives, restores and deletes an operation; its files go with it", async () => {
   test.skip(!process.env.E2E_DATA_DIR, "needs the locally started server (local git remotes)");
   const dataDir = process.env.E2E_DATA_DIR ?? "";
+  await ensureApollo();
   await ownerPage.bringToFront();
   const rooms = ownerPage.getByRole("navigation", { name: "Rooms" });
   const travel = ownerPage.getByRole("dialog", { name: "Quick travel" });
@@ -815,6 +771,7 @@ test("the owner archives, restores and deletes an operation; its files go with i
 
 test("a card from the issue board carried to a free desk opens the spawn dialog prefilled", async () => {
   test.skip(!process.env.E2E_DATA_DIR, "needs the locally started server and its fake GitHub");
+  await ensureApollo();
   const orgToken = "github_pat_E2Eboards_0123456789abcdefghij";
   const issue = {
     number: 7,
@@ -905,6 +862,7 @@ test("a card from the issue board carried to a free desk opens the spawn dialog 
 
 test("a PR merged on the board rings the gong; henchmen cheer and sit back as they were (#43)", async () => {
   test.skip(!process.env.E2E_DATA_DIR, "needs the locally started server and its fake GitHub");
+  await ensureApollo();
   await checkMergeGong(ownerPage, {
     githubPort: Number(process.env.E2E_GITHUB_PORT),
     operation: "Apollo",

@@ -50,6 +50,14 @@ if (!noWebServer && !process.env.E2E_RUN_ID) process.env.E2E_RUN_ID = newRunId()
 const runnerPrefix = noWebServer ? "" : officeRunnerPrefix(process.env.E2E_RUN_ID);
 /** Throwaway per-run secrets unless the caller provides them (CI generates its own). */
 const secret = () => randomBytes(32).toString("base64");
+/** Signs in the office flow's two browsers before its steps (tests/e2e/officeSession.ts). */
+const OFFICE_SETUP = "**/office.setup.ts";
+const browserUse = {
+  ...devices["Desktop Chrome"],
+  viewport: { width: 1280, height: 800 },
+  // Software WebGL for the R3F scene on GPU-less CI runners.
+  launchOptions: { args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] },
+};
 
 export default defineConfig({
   testDir: "tests/e2e",
@@ -74,17 +82,15 @@ export default defineConfig({
     screenshot: "only-on-failure",
     viewport: { width: 1280, height: 800 },
   },
-  projects: [
-    {
-      name: "chromium",
-      use: {
-        ...devices["Desktop Chrome"],
-        viewport: { width: 1280, height: 800 },
-        // Software WebGL for the R3F scene on GPU-less CI runners.
-        launchOptions: { args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] },
-      },
-    },
-  ],
+  // The office flow (#248): `setup` registers the owner and the member once (office.setup.ts)
+  // and saves their sessions; the steps (office.e2e.ts and any other office spec) open two
+  // browsers from them, so one failed step does not skip the rest. The agents spec runs alone.
+  projects: agents
+    ? [{ name: "chromium", use: browserUse }]
+    : [
+        { name: "setup", testMatch: OFFICE_SETUP, use: browserUse },
+        { name: "chromium", dependencies: ["setup"], use: browserUse },
+      ],
   webServer: noWebServer
     ? undefined
     : {

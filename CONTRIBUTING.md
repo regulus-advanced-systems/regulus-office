@@ -27,6 +27,10 @@ bun run e2e          # Playwright: the main office flow
 bun run e2e:agents   # Playwright: the henchman flow (needs Docker)
 ```
 
+### The office e2e flow
+
+The `setup` project (`tests/e2e/office.setup.ts`) registers the owner and a member once per run and saves both sessions; the steps in `tests/e2e/office.e2e.ts` then run in order in two browsers opened from those sessions. The steps are not serial: when one fails, Playwright opens the two browsers again and the next step still runs, so each step must not rely on an earlier one having passed (a step that needs the Apollo operation calls `ensureApollo()`). Add a step as a `test()` that calls its `tests/e2e/xxxChecks.ts` function with `ownerPage` and `memberPage`. One step can run on its own, also repeatedly: `bunx playwright test -g "rings the gong" --repeat-each 5` (after `bun run build:web`).
+
 ### E2E runners and cleanup
 
 Each e2e run gives its office its own runner prefix, so parallel runs (and your own `office`) never list, recover or reap each other's containers:

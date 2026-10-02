@@ -5,7 +5,7 @@
  * rings it, `E` at the gong rings it again once the ring is over, and a second bang at once is
  * refused (rate limit).
  */
-import { expect, type Page } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 import { scenePoint } from "./agentProbes.ts";
 import { clickInScene, navPose, walkInto } from "./compoundProbes.ts";
 import { startFakeGitHub } from "./fakeGitHub.ts";
@@ -17,26 +17,30 @@ import {
   poseDrift,
   sampleGong,
 } from "./gongProbes.ts";
+import { recordToasts, toastsSeen } from "./probes.ts";
 
 const GONG = "gong-hotspot-gong";
 
 export async function checkMergeGong(page: Page, opts: { githubPort: number; operation: string }) {
   const orgToken = "github_pat_E2Egong_0123456789abcdefghijk";
+  // The office rings once per merge (celebrations/merges.ts): a repeated run (`--repeat-each`)
+  // merges another PR.
+  const number = 12 + test.info().repeatEachIndex;
   const pull = {
-    number: 12,
+    number,
     title: "Hang the gong",
     state: "open",
     labels: [],
     assignees: [],
     user: { login: "olga" },
-    html_url: "https://github.com/octo/hello/pull/12",
+    html_url: `https://github.com/octo/hello/pull/${number}`,
     body: "Bong.",
     updated_at: new Date().toISOString(),
     draft: false,
     merged_at: null,
     requested_reviewers: [],
     requested_teams: [],
-    head: { ref: "office/gong", sha: "e2e12" },
+    head: { ref: "office/gong", sha: `e2e${number}` },
     base: { ref: "trunk" },
   };
   const gh = await startFakeGitHub(
@@ -60,17 +64,21 @@ export async function checkMergeGong(page: Page, opts: { githubPort: number; ope
     // Merge from the PR board: the office rings at once, without waiting for a poll.
     const panel = page.getByRole("dialog", { name: "PR board" });
     await clickInScene(page, "board-hotspot-pr-board", panel);
-    const card = panel.getByRole("button", { name: `#12 ${pull.title}` });
+    const card = panel.getByRole("button", { name: `#${number} ${pull.title}` });
     await expect(card).toBeVisible({ timeout: 45_000 });
     await card.click();
     await panel.getByRole("button", { name: "Merge…" }).click();
+    // The toast comes with the ring (the same `pr.merged` message) and is up for 4 s, while the
+    // sample below runs 2.5 s from when the scene has drawn the ring, at a few frames a second
+    // on a loaded runner: often longer than 4 s from the toast (#248). Note it as it shows.
+    await recordToasts(page);
     await panel.getByRole("button", { name: "Confirm merge" }).click();
     // Sample from when the ring arrives: the merge goes through the server and (fake) GitHub
     // first, which takes seconds on a loaded runner.
     const ringing = await sampleGong(page, 2_500, { afterStrikes: strikes, waitMs: 30_000 });
-    await expect(
-      page.locator(".rg-toast", { hasText: "Pull request merged" }).filter({ hasText: "#12" }),
-    ).toBeVisible();
+    await expect
+      .poll(() => toastsSeen(page))
+      .toContainEqual(expect.stringContaining(`Pull request merged#${number} ${pull.title}`));
     expect(ringing.strikes, JSON.stringify(ringing)).toBe(strikes + 1);
     // The disc swings: a new ring whose swing animation reaches a real angle, and that the page
     // drew off centre. Read from the gong's own record, not from frames sampled at 1-3 fps.
