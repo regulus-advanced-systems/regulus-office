@@ -3,13 +3,15 @@
  * when the page is opened with `?stats` (like `__regulusR3F`): the e2e
  * flows read where the player is and which room they are in, and walk by
  * nav state instead of screen points. `walkTo` does what a floor click does;
- * `walkToSeat` walks up behind a desk's chair; `terminalDesk`
+ * `walkToSeat` walks up behind a desk's chair; `humanSeat` is where a chair
+ * or couch humans may take is (#49); `terminalDesk`
  * is the desk `E` would open (the same rule the live laptop panel uses).
  */
 import { cameraView, useCameraStore } from "../../state/camera.ts";
 import { useOperationStore } from "../../state/operation.ts";
 import { usePlayerStore } from "../../state/player.ts";
 import { terminalDeskAt } from "../laptops/focus.ts";
+import { seatByKey } from "../social/seats.ts";
 import { roomArt } from "./interiors.ts";
 import { roomLayout } from "./layouts.ts";
 import { type CompoundWorld, roomAt, roomById } from "./world.ts";
@@ -43,6 +45,8 @@ export interface NavProbe {
   seat(operationId: string, seatId: string): { x: number; z: number } | null;
   walkTo(x: number, z: number): boolean;
   walkToSeat(operationId: string, seatId: string): boolean;
+  /** A human seat (`<roomId>/<seatId>`, #49) in compound metres, or null. */
+  humanSeat(key: string): { x: number; z: number } | null;
   /** The occupied desk `E` opens the terminal of, here and now (#205). */
   terminalDesk(): string | null;
   /** The 3/4 camera: the yaw and zoom it shows and the ones asked for (radians, 0..1). */
@@ -106,6 +110,11 @@ export function createNavProbe(getWorld: () => CompoundWorld | null): NavProbe {
       }));
     },
     seat: (operationId, seatId) => seatOf(operationId, seatId),
+    humanSeat(key) {
+      const world = getWorld();
+      const seat = world ? seatByKey(world, key) : null;
+      return seat ? { x: seat.x, z: seat.z } : null;
+    },
     walkTo: (x, z) => usePlayerStore.getState().setTarget(x, z),
     walkToSeat(operationId, seatId) {
       // Just behind the chair, where someone stands to look over the sitter's shoulder.

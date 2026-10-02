@@ -1,0 +1,88 @@
+/* Emote wheel (#49): a ring of six plates round a hub, centred on the screen. */
+
+.rg-emotes {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  z-index: 40;
+}
+.rg-emotes__wheel {
+  position: relative;
+  width: 320px;
+  height: 320px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--rg-color-panel-surface) 92%, transparent) 0 46%,
+    color-mix(in srgb, var(--rg-color-panel-surface) 55%, transparent) 47% 100%
+  );
+  border: 3px solid var(--rg-color-gold);
+  box-shadow: 0 8px 28px rgb(0 0 0 / 0.35);
+  pointer-events: auto;
+}
+.rg-emotes__slice {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 92px;
+  height: 64px;
+  margin: -32px 0 0 -46px;
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 2px;
+  border: 2px solid var(--rg-color-panel-border);
+  border-radius: var(--rg-radius-panel);
+  background: var(--rg-color-raised);
+  color: var(--rg-color-ink);
+  font: inherit;
+  cursor: pointer;
+}
+.rg-emotes__slice[aria-checked="true"] {
+  background: var(--rg-color-hench-yellow);
+  border-color: var(--rg-color-ink);
+  color: #1f1b15;
+}
+.rg-emotes__icon {
+  font-size: 24px;
+  line-height: 1;
+}
+.rg-emotes__label {
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.rg-emotes__key {
+  display: inline-block;
+  min-width: 14px;
+  margin-right: 4px;
+  border-radius: 3px;
+  background: var(--rg-color-plate);
+  color: var(--rg-color-plate-text);
+  font-size: 10px;
+  text-align: center;
+}
+.rg-emotes__hub {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 116px;
+  transform: translate(-50%, -50%);
+  display: grid;
+  gap: 2px;
+  text-align: center;
+  color: var(--rg-color-ink);
+  font-size: 13px;
+}
+.rg-emotes__hub strong {
+  font-family: var(--rg-font-stencil);
+  font-size: 15px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.rg-emotes__hub small {
+  color: var(--rg-color-ink-muted);
+  font-size: 11px;
+}

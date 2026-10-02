@@ -1,6 +1,7 @@
 /**
  * Keyboard shortcut registry (SPEC §9.2: F operation quick menu, V view toggle,
- * E interact, Z / C turn the camera; T / Enter focus the lobby chat; / search, #41).
+ * E interact, Z / C turn the camera; T / Enter focus the lobby chat; / search, #41;
+ * hold G for the emote wheel, #49).
  * Since #190 `E` only interacts; the camera turns on Z and C, which double as
  * nothing else (SPEC §9.2 says Q/E, but E is interact). The registry is pure: it maps a key press to a binding id and
  * `dispatchHotkey` publishes a `regulus:hotkey` CustomEvent on `window`. The
@@ -60,8 +61,15 @@ export const DEFAULT_HOTKEYS: readonly HotkeyBinding[] = [
     id: "interact",
     key: "e",
     description:
-      "Interact with what is in reach: desk, laptop, board, clipboard, gong, door button",
+      "Interact with what is in reach: desk, laptop, board, clipboard, gong, door button; sit down or stand up",
     group: "World",
+  },
+  {
+    id: "emoteWheel",
+    key: "g",
+    description:
+      "Hold for the emote wheel; point or use the arrows, let go to emote (tap: keep it open)",
+    group: "Social",
   },
   { id: "focusChat", key: "t", description: "Focus the chat input", group: "Chat" },
   {
@@ -91,6 +99,25 @@ export const MOVEMENT_HELP: readonly HotkeyBinding[] = [
     key: "Double-click",
     description: "Run to that spot",
     group: "Movement",
+  },
+];
+
+/**
+ * Shown after the registered hotkeys, in their Social group: keys the emote
+ * wheel and the whereabouts panel handle themselves (#49).
+ */
+export const SOCIAL_HELP: readonly HotkeyBinding[] = [
+  {
+    id: "emotePick",
+    key: "1-6",
+    description: "With the emote wheel open: wave, thumbs up, clap, dance, point, facepalm",
+    group: "Social",
+  },
+  {
+    id: "walkToTeammate",
+    key: "Click a name",
+    description: "In Who's where: walk to that teammate (stops at a door you may not open)",
+    group: "Social",
   },
 ];
 

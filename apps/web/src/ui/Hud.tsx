@@ -1,7 +1,7 @@
 /**
  * HUD layered over the office canvas: top bar, operation work counters, status box, rooms panel,
- * lobby chat, the jukebox strip and panel (#47), corner buttons for settings and shortcut help,
- * build mode and room settings
+ * lobby chat, the jukebox strip and panel (#47), who's where and the emote wheel (#49),
+ * corner buttons for settings and shortcut help, build mode and room settings
  * (docked bottom right, #187), dialogs and toasts.
  * The container ignores pointer events so the scene stays clickable
  * between panels.
@@ -14,6 +14,7 @@ import { ChatPanel } from "./chat/ChatPanel.tsx";
 import { Button } from "./components/Button.tsx";
 import { GearIcon, QuestionIcon } from "./components/icons.tsx";
 import { Modal } from "./components/Modal.tsx";
+import { EmoteWheel } from "./emotes/EmoteWheel.tsx";
 import { HotkeyList } from "./hotkeys/HotkeyHelp.tsx";
 import { useGlobalHotkeys } from "./hotkeys/useHotkeys.ts";
 import { QuickTravelDialog, useQuickTravelHotkey } from "./hud/QuickTravel.tsx";
@@ -35,6 +36,8 @@ import { SpawnDialogHost } from "./spawn/SpawnDialog.tsx";
 import { TerminalModalHost } from "./terminal/TerminalModal.tsx";
 import { Toaster } from "./toast/Toaster.tsx";
 import { useMyUsagePolling } from "./usage/usageStore.ts";
+import { useDoingSync } from "./whereabouts/useDoingSync.ts";
+import { WhereaboutsPanel } from "./whereabouts/WhereaboutsPanel.tsx";
 import { WhiteboardHost } from "./whiteboard/WhiteboardHost.tsx";
 import { WorkflowsPanelHost } from "./workflows/WorkflowsPanel.tsx";
 
@@ -81,6 +84,7 @@ export function Hud() {
   useGlobalHotkeys();
   useQuickTravelHotkey();
   useMyUsagePolling();
+  useDoingSync();
   const openOverlay = useUiStore((s) => s.openOverlay);
   return (
     <div className="rg-hud">
@@ -89,6 +93,7 @@ export function Hud() {
       <StatusBox />
       <div className="rg-hud__left">
         <RoomsPanel />
+        <WhereaboutsPanel />
         <RunningApps />
       </div>
       <ChatPanel />
@@ -121,6 +126,7 @@ export function Hud() {
       <JukeboxHost />
       <WhiteboardHost />
       <NotificationsHost />
+      <EmoteWheel />
       <Toaster />
     </div>
   );

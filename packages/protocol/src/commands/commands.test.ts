@@ -46,7 +46,8 @@ const SPEC_COMMANDS = [
  * are the task queue's retry and concurrency settings (#37);
  * `gong.bang` is the manual bang of the merge gong (#43, D9);
  * `blast_door.press` is the lobby's blast door button (SPEC §9.4, #188);
- * `jukebox.remove|volume|duration` and the clock sync's `clock.ping` belong to the jukebox (#47).
+ * `jukebox.remove|volume|duration` and the clock sync's `clock.ping` belong to the jukebox (#47);
+ * `doing` is the whereabouts status (#49).
  */
 const EXTENSION_COMMANDS = [
   "agent.interrupt",
@@ -61,6 +62,7 @@ const EXTENSION_COMMANDS = [
   "jukebox.volume",
   "jukebox.duration",
   "clock.ping",
+  "doing",
 ] as const;
 
 const valid: Record<ClientCommandType, Record<string, unknown>> = {
@@ -118,6 +120,7 @@ const valid: Record<ClientCommandType, Record<string, unknown>> = {
   "screen.share.stop": {},
   "pm.ask": { text: "what is everyone doing?" },
   "blast_door.press": {},
+  doing: { doing: "at the boards" },
 };
 
 describe("ClientCommand", () => {
@@ -160,6 +163,8 @@ describe("ClientCommand", () => {
     expect(parseClientCommand("move", { x: 1 }).success).toBe(false);
     expect(parseClientCommand("move", { x: Number.NaN, z: 0, heading: 0 }).success).toBe(false);
     expect(parseClientCommand("emote", { emote: "moonwalk" }).success).toBe(false);
+    expect(parseClientCommand("emote", { emote: "thumbs_up" }).success).toBe(true);
+    expect(parseClientCommand("doing", { doing: "x".repeat(81) }).success).toBe(false);
     expect(parseClientCommand("chat", { text: "   " }).success).toBe(false);
     expect(parseClientCommand("chat", { text: "x".repeat(2001) }).success).toBe(false);
     expect(

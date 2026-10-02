@@ -12,11 +12,21 @@ import type { Gait } from "../../movement/gait.ts";
 import { RUN_SPEED } from "../../movement/kinematics.ts";
 import type { ArchetypeModel } from "../bodies/types.ts";
 import { running, seated, standing, walking } from "./lower.ts";
-import { layer, sampleClip } from "./pose.ts";
+import { layer, type Pose, sampleClip, wave } from "./pose.ts";
 import { emoteArms, idleArms, lapArms, typingArms } from "./upper.ts";
 
-/** Emotes with a standing and a seated clip. */
-export const GENIUS_EMOTES = ["read", "think", "celebrate", "facepalm", "wave", "point"] as const;
+/** Emotes with a standing and a seated clip (the emote wheel's six, #49, among them). */
+export const GENIUS_EMOTES = [
+  "read",
+  "think",
+  "celebrate",
+  "facepalm",
+  "wave",
+  "point",
+  "thumbs_up",
+  "clap",
+  "dance",
+] as const;
 
 export const SEATED_SUFFIX = ".seated";
 
@@ -80,11 +90,26 @@ export function geniusClips(model: ArchetypeModel): AnimationClip[] {
   return clips;
 }
 
-/** Celebrations hop. */
-function bounce(emote: string, phase: number) {
+/** Celebrations hop; a dance sways the hips and bends the knees to the beat. */
+function bounce(emote: string, phase: number): Pose {
+  if (emote === "dance") {
+    const s = wave(phase, 2);
+    const beat = Math.abs(wave(phase, 4));
+    return {
+      hips: [0.05 * s, -0.04 * beat, 0],
+      rot: {
+        hips: [0, 14 * s, 6 * s],
+        spine: [4, -10 * s, -8 * s],
+        thighL: [-14 * beat, 0, 4],
+        shinL: [24 * beat, 0, 0],
+        thighR: [-14 * beat, 0, -4],
+        shinR: [24 * beat, 0, 0],
+      },
+    };
+  }
   if (emote !== "celebrate") return { rot: {} };
   return {
-    hips: [0, 0.07 * Math.abs(Math.sin(Math.PI * 4 * phase)), 0] as [number, number, number],
+    hips: [0, 0.07 * Math.abs(Math.sin(Math.PI * 4 * phase)), 0],
     rot: {},
   };
 }

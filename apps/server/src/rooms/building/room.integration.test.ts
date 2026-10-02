@@ -11,14 +11,19 @@ import { join } from "node:path";
 import { Client, type Room } from "@colyseus/sdk";
 import {
   BuildingStateSchema,
+  CHAT_BURST,
   type ChatMessage,
   COMMAND_REJECTED_MESSAGE,
   type CommandRejected,
+  type CompoundState,
   DEFAULT_GENIUS_LOOK,
+  EMPTY_COMPOUND,
   type GeniusLookValue,
   LOBBY_OPERATION_ID,
   ROOM_NAMES,
+  seatKey,
 } from "@regulus/protocol";
+import { specialRoomSeats } from "@regulus/room-layout";
 import { closeDatabase, type Db, openDatabase, runMigrations, schema } from "../../db/index.ts";
 import { createOfficeServer, type OfficeServer } from "../../http/server.ts";
 import { createLogger } from "../../logging.ts";
@@ -31,6 +36,24 @@ type BuildingState = InstanceType<typeof BuildingStateSchema>;
 type BuildingRoom = Room<unknown, BuildingState>;
 
 const logger = createLogger({ level: "silent" });
+/** A published compound with just the lobby (12×8 tiles), for the seat checks. */
+const LOBBY_ROOM = { gridX: 26, gridY: 56, width: 12, depth: 8 };
+const COMPOUND: CompoundState = {
+  ...EMPTY_COMPOUND,
+  width: 64,
+  depth: 64,
+  version: 3,
+  specialRooms: [{ kind: "lobby", ...LOBBY_ROOM, doorSide: "north", doorX: 31, doorY: 56 }],
+};
+const SOFA_KEY = seatKey(LOBBY_OPERATION_ID, "sofa-2");
+const SOFA = (() => {
+  const m = COMPOUND.tileMetres;
+  const seat = specialRoomSeats("lobby", LOBBY_ROOM.width * m, LOBBY_ROOM.depth * m).find(
+    (s) => s.id === "sofa-2",
+  );
+  if (!seat) throw new Error("no sofa");
+  return { x: LOBBY_ROOM.gridX * m + seat.pose.x, z: LOBBY_ROOM.gridY * m + seat.pose.z };
+})();
 let dataDir: string;
 let db: Db;
 let rooms: Rooms;
@@ -237,16 +260,70 @@ describe("BuildingRoom over the wire", () => {
     expect((await rejected).reason).toBe("unknown operation nope");
   });
 
-  test("emote and sit drive the animation state", async () => {
+  test("emote and sit drive the animation state; a seat holds one human (#49)", async () => {
+    rooms.building.setCompound({ state: COMPOUND, rooms: new Map() });
     const ada = await joinAs(user("u-ada5", "Ada"));
-    await waitFor(() => ada.state.humans.has(ada.sessionId), "own presence");
-    ada.send("emote", { emote: "wave" });
-    await waitFor(() => ada.state.humans.get(ada.sessionId)?.animation === "wave", "wave");
-    ada.send("sit", { seatId: "couch-1" });
-    await waitFor(() => ada.state.humans.get(ada.sessionId)?.seatId === "couch-1", "seated");
-    expect(ada.state.humans.get(ada.sessionId)?.animation).toBe("sit_idle");
-    ada.send("sit", { seatId: null });
-    await waitFor(() => ada.state.humans.get(ada.sessionId)?.animation === "idle", "stood up");
+    const bob = await joinAs(user("u-bob5", "Bob"));
+    await waitFor(() => bob.state.humans.has(ada.sessionId), "Ada visible");
+    ada.send("emote", { emote: "thumbs_up" });
+    await waitFor(
+      () => bob.state.humans.get(ada.sessionId)?.animation === "thumbs_up",
+      "Bob sees the emote",
+    );
+    const tooSoon = nextRejection(ada);
+    ada.send("emote", { emote: "clap" });
+    expect(await tooSoon).toEqual({ type: "emote", reason: "one emote at a time" });
+
+    // Too far from the sofa: refused. Walk up, then both ask for the same seat at once.
+    const far = nextRejection(ada);
+    ada.send("sit", { seatId: SOFA_KEY });
+    expect((await far).reason).toMatch(/too far/);
+    ada.send("move", { x: SOFA.x, z: SOFA.z - 1, heading: 0 });
+    bob.send("move", { x: SOFA.x + 0.5, z: SOFA.z - 1, heading: 0 });
+    await waitFor(
+      () => bob.state.humans.get(ada.sessionId)?.position.z === SOFA.z - 1,
+      "Ada at the sofa",
+    );
+    await Bun.sleep(80);
+    const bobRefused = nextRejection(bob);
+    ada.send("sit", { seatId: SOFA_KEY });
+    bob.send("sit", { seatId: SOFA_KEY });
+    expect(await bobRefused).toEqual({ type: "sit", reason: "someone is already sitting there" });
+    await waitFor(() => bob.state.humans.get(ada.sessionId)?.seatId === SOFA_KEY, "Ada seated");
+    expect(bob.state.humans.get(bob.sessionId)?.seatId).toBe("");
+    expect(bob.state.humans.get(ada.sessionId)?.animation).toBe("sit_idle");
+
+    // Turning in the seat keeps it; walking off stands up and frees it for Bob.
+    await Bun.sleep(60);
+    ada.send("move", { x: SOFA.x, z: SOFA.z - 1, heading: 1 });
+    await Bun.sleep(120);
+    expect(bob.state.humans.get(ada.sessionId)?.seatId).toBe(SOFA_KEY);
+    ada.send("move", { x: SOFA.x, z: SOFA.z - 2, heading: 1 });
+    await waitFor(() => bob.state.humans.get(ada.sessionId)?.seatId === "", "Ada stood up");
+    bob.send("sit", { seatId: SOFA_KEY });
+    await waitFor(() => bob.state.humans.get(bob.sessionId)?.seatId === SOFA_KEY, "Bob seated");
+    bob.send("sit", { seatId: null });
+    await waitFor(() => bob.state.humans.get(bob.sessionId)?.animation === "idle", "stood up");
+
+    // A desk seat is a henchman's, never a human's.
+    const desk = nextRejection(bob);
+    bob.send("sit", { seatId: `${LOBBY_OPERATION_ID}/d1s1` });
+    expect((await desk).reason).toBe(`no seat ${LOBBY_OPERATION_ID}/d1s1`);
+  });
+
+  test("doing is published; chat floods are refused (#49)", async () => {
+    const ada = await joinAs(user("u-ada9", "Ada"));
+    const bob = await joinAs(user("u-bob9", "Bob"));
+    await waitFor(() => bob.state.humans.has(ada.sessionId), "Ada visible");
+    ada.send("doing", { doing: "  at the boards " });
+    await waitFor(
+      () => bob.state.humans.get(ada.sessionId)?.doing === "at the boards",
+      "Bob sees what Ada is doing",
+    );
+    const flood = nextRejection(ada);
+    for (let i = 0; i <= CHAT_BURST; i++) ada.send("chat", { text: `line ${i}` });
+    expect((await flood).reason).toMatch(/too fast/);
+    await waitFor(() => bob.state.chat.at(-1)?.text === `line ${CHAT_BURST - 1}`, "the burst");
   });
 
   test("agent.* commands are validated but not handled here", async () => {

@@ -128,6 +128,39 @@ export function emoteArms(emote: string, phase: number): Pose {
           head: [6, 0, -12],
         },
       };
+    case "thumbs_up": {
+      // Right fist forward and up, thumb to the sky; a small proud nod.
+      const nod = Math.max(0, wave(phase, 2));
+      return {
+        rot: {
+          armL: [6, 0, 6],
+          foreL: [-15, 0, 0],
+          armR: [-62, 0, -14],
+          foreR: [-78, 30, 0],
+          head: [-6 + 6 * nod, -6, 0],
+        },
+      };
+    }
+    case "clap": {
+      // Hands in front of the chest, meeting six times in the two seconds.
+      const open = 0.5 + 0.5 * wave(phase, 6);
+      const armL: Rot = [-52, 0, -6 + 16 * open];
+      const foreL: Rot = [-48, -58 + 22 * open, 0];
+      return { rot: { ...arms(armL, foreL, m(armL), m(foreL)).rot, head: [-8, 0, 0] } };
+    }
+    case "dance": {
+      // Arms up in turn, as if to a disco beat.
+      const a = wave(phase, 2);
+      return {
+        rot: {
+          armL: [-20, 0, 120 + 35 * a],
+          foreL: [-30 - 20 * Math.max(0, -a), 0, 0],
+          armR: [-20, 0, -120 + 35 * a],
+          foreR: [-30 - 20 * Math.max(0, a), 0, 0],
+          head: [-6, 10 * a, 6 * a],
+        },
+      };
+    }
     case "read":
       return {
         rot: {

@@ -1,8 +1,9 @@
 /**
  * BuildingRoom (SPEC §6 channel 1): one per office. Human presence, chat,
  * the operation list with counters, the office usage summary (#40), the lobby
- * jukebox and its clock-sync pings (#47). PM state is part of the schema but
- * stays at its defaults until its milestone.
+ * jukebox and its clock-sync pings (#47), emotes, seats and `doing` (#49,
+ * rules in social.ts). PM state is part of the schema but stays at its
+ * defaults until its milestone.
  *
  * Written against `RoomDefinition`, not Colyseus; see ../transport.ts.
  */
@@ -11,12 +12,12 @@ import {
   BuildingJoinOptions,
   BuildingStateSchema,
   type ChatMessage,
-  ChatMessageSchema,
   CLOCK_PONG_MESSAGE,
   type ClientCommand,
   type ClockPong,
   COMMAND_REJECTED_MESSAGE,
   type CommandRejected,
+  EMOTE_MS,
   type GeniusLookValue,
   HumanPresenceSchema,
   LOBBY_OPERATION_ID,
@@ -38,6 +39,8 @@ import { type BlastDoorOptions, createBlastDoor } from "./blast-door.ts";
 import { checkCommand, wrapHeading } from "./commands.ts";
 import { isKnownOperation, type OperationRecord, type OperationSource } from "./operations.ts";
 import { RateLimiter } from "./rate-limiter.ts";
+import { applyLook, chatLine } from "./schema-copy.ts";
+import { createSocialRules } from "./social.ts";
 
 export type BuildingState = InstanceType<typeof BuildingStateSchema>;
 type Human = InstanceType<typeof HumanPresenceSchema>;
@@ -48,8 +51,8 @@ export const MOVE_MAX_HZ = 20;
 export const PATCH_RATE_MS = 50;
 /** A walking avatar goes idle this long after its last move. */
 export const WALK_IDLE_MS = 400;
-/** One-shot emote animations return to idle after this long. */
-export const EMOTE_MS = 2000;
+/** A `move` this close (metres) to where the human already is keeps them seated (heading only). */
+const STILL_EPSILON = 0.01;
 /** Animation bookkeeping sweep period. */
 const SWEEP_MS = 100;
 
@@ -81,17 +84,6 @@ export interface BuildingRoom extends RoomDefinition<BuildingState, BuildingJoin
   setLobbyWhiteboard(version: number): void;
 }
 
-/** Copy a (validated) genius look onto a presence; only changed fields make a patch. */
-function applyLook(human: Human, look: GeniusLookValue): void {
-  const avatar = human.avatar;
-  if (avatar.archetype !== look.archetype) avatar.archetype = look.archetype;
-  if (avatar.outfit !== look.outfit) avatar.outfit = look.outfit;
-  if (avatar.trim !== look.trim) avatar.trim = look.trim;
-  if (avatar.skin !== look.skin) avatar.skin = look.skin;
-  if (avatar.hair !== look.hair) avatar.hair = look.hair;
-  if (avatar.accessory !== look.accessory) avatar.accessory = look.accessory;
-}
-
 interface ClientBookkeeping {
   lastMoveAt: number;
   emoteUntil: number;
@@ -102,6 +94,7 @@ export function createBuildingRoom(deps: BuildingRoomDeps): BuildingRoom {
   const now = deps.now ?? (() => Date.now());
   const moveLimiter = new RateLimiter({ maxHz: MOVE_MAX_HZ, now: () => performance.now() });
   const books = new Map<string, ClientBookkeeping>();
+  const social = createSocialRules({ now, canVisit: deps.canVisit });
   let known: OperationRecord[] = [];
   let usage: UsageSummary | undefined;
   let compound: CompoundSnapshot | undefined;
@@ -155,17 +148,6 @@ export function createBuildingRoom(deps: BuildingRoomDeps): BuildingRoom {
     recountHumans();
   };
 
-  const toSchema = (m: ChatMessage) => {
-    const line = new ChatMessageSchema();
-    line.id = m.id;
-    line.userId = m.userId;
-    line.displayName = m.displayName;
-    line.operationId = m.operationId;
-    line.text = m.text;
-    line.ts = m.ts;
-    return line;
-  };
-
   const setAnimation = (human: Human, animation: AvatarAnimation) => {
     if (human.animation !== animation) human.animation = animation;
   };
@@ -201,26 +183,51 @@ export function createBuildingRoom(deps: BuildingRoomDeps): BuildingRoom {
       case "move": {
         if (!moveLimiter.allow(client.sessionId)) return; // dropped, not an error
         const moved = human.position.x !== command.x || human.position.z !== command.z;
+        const away =
+          Math.hypot(human.position.x - command.x, human.position.z - command.z) > STILL_EPSILON;
         human.position.x = command.x;
         human.position.z = command.z;
         human.position.heading = wrapHeading(command.heading);
         book.lastMoveAt = now();
-        if (human.seatId) human.seatId = "";
+        // Walking off stands the human up; turning in the seat does not.
+        if (human.seatId && away) human.seatId = "";
         if (book.emoteUntil === 0) setAnimation(human, moved ? "walk" : "idle");
         return;
       }
       case "sit": {
-        human.seatId = command.seatId ?? "";
+        const key = command.seatId ?? "";
+        if (key && key !== human.seatId) {
+          const check = social.checkSit(
+            room.state,
+            room.state.humans,
+            client.sessionId,
+            client.user,
+            key,
+          );
+          if (!check.ok) {
+            reject(client, command.type, check.reason);
+            return;
+          }
+        }
+        if (human.seatId !== key) human.seatId = key;
         book.emoteUntil = 0;
         setAnimation(human, restingAnimation(human));
         return;
       }
       case "emote": {
+        if (!social.allowEmote(client.sessionId)) {
+          reject(client, command.type, "one emote at a time");
+          return;
+        }
         book.emoteUntil = now() + EMOTE_MS;
         setAnimation(human, command.emote);
         return;
       }
       case "chat": {
+        if (!social.allowChat(client.sessionId)) {
+          reject(client, command.type, "You are sending messages too fast. Wait a moment.");
+          return;
+        }
         const line: ChatMessage = {
           id: crypto.randomUUID(),
           userId: human.userId,
@@ -229,9 +236,14 @@ export function createBuildingRoom(deps: BuildingRoomDeps): BuildingRoom {
           text: command.text,
           ts: now(),
         };
-        room.state.chat.push(toSchema(line));
+        room.state.chat.push(chatLine(line));
         while (room.state.chat.length > CHAT_REPLAY) room.state.chat.shift();
         chat.append(line).catch((err) => logger.error({ err }, "chat persistence failed"));
+        return;
+      }
+      case "doing": {
+        if (!social.allowDoing(client.sessionId)) return; // dropped, the next one carries it
+        if (human.doing !== command.doing) human.doing = command.doing;
         return;
       }
       case "operation.go": {
@@ -304,7 +316,7 @@ export function createBuildingRoom(deps: BuildingRoomDeps): BuildingRoom {
     async onCreate(room) {
       handle = room;
       await refreshOperations();
-      for (const line of await chat.recent(CHAT_REPLAY)) room.state.chat.push(toSchema(line));
+      for (const line of await chat.recent(CHAT_REPLAY)) room.state.chat.push(chatLine(line));
       if (usage) applyUsageSummary(room.state.usage, usage);
       if (compound) applyCompoundState(room.state.compound, compound.state);
       deps.jukebox?.restore(room.state.jukebox);
@@ -333,6 +345,7 @@ export function createBuildingRoom(deps: BuildingRoomDeps): BuildingRoom {
       room.state.humans.delete(client.sessionId);
       books.delete(client.sessionId);
       moveLimiter.forget(client.sessionId);
+      social.forget(client.sessionId);
       recountHumans();
       logger.info({ sessionId: client.sessionId, userId: client.user.userId }, "human left");
     },

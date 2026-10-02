@@ -21,6 +21,9 @@ describe("animation selection", () => {
       facepalm: HENCHMAN_CLIPS.facepalm,
       wave: HENCHMAN_CLIPS.wave,
       point: HENCHMAN_CLIPS.point,
+      thumbs_up: HENCHMAN_CLIPS.point,
+      clap: HENCHMAN_CLIPS.celebrate,
+      dance: HENCHMAN_CLIPS.celebrate,
     };
     for (const a of AVATAR_ANIMATIONS)
       expect<string[]>([a, henchmanClip(a, false)]).toEqual([a, want[a]]);
