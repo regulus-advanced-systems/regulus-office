@@ -28,7 +28,7 @@ import type { Logger } from "../logging.ts";
 import { readBody } from "../operations/routes.ts";
 import { mimeForFile } from "./audio-sniff.ts";
 import type { JukeboxLibrary } from "./library.ts";
-import { bodyTooLarge, checkUpload, storeUpload } from "./upload.ts";
+import { bodyTooLarge, checkUpload, readCappedForm, storeUpload } from "./upload.ts";
 
 export interface JukeboxRoutesDeps {
   auth: Pick<OfficeAuth, "getSessionFromRequest" | "publicUrl" | "allowedOrigins">;
@@ -119,12 +119,14 @@ export function mountJukeboxRoutes(router: Router, deps: JukeboxRoutesDeps): voi
       if (bodyTooLarge(ctx.request.headers.get("content-length"))) return refuse("too_large", 413);
       if (library.uploadsBy(user.id) >= JUKEBOX_LIMITS.uploadsPerUser)
         return refuse("too_many_uploads", 409);
-      let form: FormData;
+      let form: FormData | null;
       try {
-        form = await ctx.request.formData();
+        // Capped while reading: a chunked body has no length to check up front.
+        form = await readCappedForm(ctx.request);
       } catch {
         return refuse("not_audio");
       }
+      if (!form) return refuse("too_large", 413);
       const check = await checkUpload(form);
       if (!check.ok) return refuse(check.error, check.error === "too_large" ? 413 : 400);
       const ref = await storeUpload(library.dataDir, check.upload);

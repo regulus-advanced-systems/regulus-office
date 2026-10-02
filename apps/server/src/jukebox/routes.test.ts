@@ -16,6 +16,7 @@ import { type Office, startOffice } from "../auth/test-helpers.ts";
 import { createLogger } from "../logging.ts";
 import { parseRange } from "./routes.ts";
 import { createJukebox, type Jukebox } from "./setup.ts";
+import { readCappedForm } from "./upload.ts";
 
 let office: Office;
 let jukebox: Jukebox;
@@ -148,6 +149,71 @@ describe("jukebox uploads", () => {
       403,
     );
     expect(await readdir(join(dataDir, "jukebox"))).toHaveLength(1);
+  });
+});
+
+/** POST a multipart body as a stream: chunked transfer, no Content-Length. */
+async function uploadChunked(who: { cookie: string }, file: Blob) {
+  const form = new FormData();
+  form.set("file", file, "song.mp3");
+  form.set("durationMs", "180000");
+  const encoded = new Response(form);
+  const type = encoded.headers.get("content-type") ?? "";
+  const source = encoded.body;
+  if (!source) throw new Error("no body");
+  const reader = source.getReader();
+  let sent = 0;
+  const body = new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      const { done, value } = await reader.read();
+      if (done) controller.close();
+      else {
+        sent += value.byteLength;
+        controller.enqueue(value);
+      }
+    },
+  });
+  const res = await fetch(url(JUKEBOX_TRACKS_API_PATH), {
+    method: "POST",
+    body,
+    headers: { cookie: who.cookie, origin: office.origin, "content-type": type },
+  });
+  return { res, sent: () => sent };
+}
+
+describe("jukebox uploads without a Content-Length", () => {
+  test("a chunked body past the limit is cut off and refused, nothing stored", async () => {
+    const before = (await readdir(join(dataDir, "jukebox"))).length;
+    const big = new Blob([mp3, new Uint8Array(JUKEBOX_LIMITS.uploadMaxBytes + 200 * 1024)]);
+    const { res } = await uploadChunked(member, big);
+    expect(res.status).toBe(413);
+    expect(await res.json()).toEqual({ error: "too_large" });
+    expect(await readdir(join(dataDir, "jukebox"))).toHaveLength(before);
+  });
+
+  test("a chunked body under the limit is taken", async () => {
+    const { res } = await uploadChunked(member, new Blob([mp3]));
+    expect(res.status).toBe(201);
+  });
+});
+
+describe("readCappedForm", () => {
+  test("stops reading at the cap", async () => {
+    let pulled = 0;
+    const stream = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pulled += 1;
+        controller.enqueue(new Uint8Array(1024));
+        if (pulled > 10_000) controller.close();
+      },
+    });
+    const request = new Request("http://x/", {
+      method: "POST",
+      body: stream,
+      headers: { "content-type": "multipart/form-data; boundary=x" },
+    });
+    expect(await readCappedForm(request, 8 * 1024)).toBeNull();
+    expect(pulled).toBeLessThan(20);
   });
 });
 
