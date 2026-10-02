@@ -137,6 +137,13 @@ jobs:
               -e "s|^OFFICE_MASTER_KEY=.*|OFFICE_MASTER_KEY=$key|" .env.example > .env
           # The backup service's host directory, as in the README Quickstart.
           sudo install -d -m 700 -o 1000 -g 1000 backups
+      # #48: the media profile's generated livekit.yaml and port mapping, without starting it here.
+      - name: Media profile config
+        run: |
+          out="$(LIVEKIT_API_KEY=APIci LIVEKIT_API_SECRET="$(openssl rand -hex 32)" docker compose --profile media config)"
+          grep -q 'udp_port: 7882' <<<"$out"
+          grep -q 'tcp_port: 7881' <<<"$out"
+          grep -q 'image: livekit/livekit-server:v' <<<"$out"
       - run: docker compose build
       - run: docker compose up -d --wait --wait-timeout 120
       - name: /healthz through Caddy
@@ -270,6 +277,28 @@ jobs:
           scripts/setup.sh --non-interactive
           grep -E '^(BETTER_AUTH_SECRET|OFFICE_MASTER_KEY)=' deploy/.env | sha256sum -c "$RUNNER_TEMP/secrets.sha"
           sudo sha256sum -c "$RUNNER_TEMP/backups.sha"
+      # #48: --media generates the LiveKit key pair (never printed), turns the profile on for later
+      # runs, and LiveKit answers through Caddy at /livekit. No browsers here: the media flow
+      # itself is checked by hand (docs/deploy/media.md "Verify").
+      - name: Media profile
+        run: |
+          scripts/setup.sh --non-interactive --media | tee "$RUNNER_TEMP/media.txt"
+          test "$(stat -c %a deploy/.env)" = 600
+          key="$(sed -n 's/^LIVEKIT_API_KEY=//p' deploy/.env)"
+          secret="$(sed -n 's/^LIVEKIT_API_SECRET=//p' deploy/.env)"
+          echo "::add-mask::$secret"
+          [[ "$key" =~ ^API[0-9a-f]{16}$ && "$secret" =~ ^[0-9a-f]{64}$ ]]
+          if grep -qF "$secret" "$RUNNER_TEMP/media.txt"; then echo "setup printed the secret" >&2; exit 1; fi
+          grep -q '^COMPOSE_PROFILES=media$' deploy/.env
+          test "$(docker compose -f deploy/docker-compose.yml ps --status running -q livekit | wc -l)" = 1
+          curl -fsSk https://localhost/livekit/ | grep -q OK
+          if docker compose -f deploy/docker-compose.yml exec -T livekit cat /etc/livekit.yaml | grep -qF "$secret"; then
+            echo "livekit.yaml holds the secret" >&2; exit 1
+          fi
+          grep -E '^LIVEKIT_API_(KEY|SECRET)=' deploy/.env | sha256sum > "$RUNNER_TEMP/livekit.sha"
+          scripts/setup.sh --non-interactive
+          grep -E '^LIVEKIT_API_(KEY|SECRET)=' deploy/.env | sha256sum -c "$RUNNER_TEMP/livekit.sha"
+          test "$(docker compose -f deploy/docker-compose.yml ps --status running -q livekit | wc -l)" = 1
       - name: A truncated secret is refused, not replaced
         run: |
           cp deploy/.env "$RUNNER_TEMP/env.bak"
