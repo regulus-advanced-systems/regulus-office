@@ -28,6 +28,11 @@ export interface SpecialDressing {
   extras: PiecePlacement[];
   /** Live usage screen on a wall (the lobby's usage wall), centre and facing. */
   usage?: { position: Vec3; rotationY: number; w: number; h: number };
+  /**
+   * The lounge TV (#48): a console set on legs facing the sofa, its footprint
+   * (blocks the nav grid) and its screen (size, centre height).
+   */
+  tv?: { rect: Rect; facing: DoorSide; screen: { w: number; h: number; y: number } };
   /** The compound-wide whiteboard (#45): centre, facing, size and where to stand to use it. */
   whiteboard?: {
     position: Vec3;
@@ -114,6 +119,12 @@ function lobby(w: number, d: number): SpecialDressing {
       const p = wallPiece("usage_panel", "north", w / 2 + 4.5, 1.65, size);
       return { position: p.position, rotationY: p.rotationY ?? 0, w: 2.4, h: 1.35 };
     })(),
+    // Across the coffee table from the sofa, centred on it (#48).
+    tv: {
+      rect: R(w - 6.8, d - 8.6, 2.4, 0.6),
+      facing: "south",
+      screen: { w: 2, h: 1.12, y: 1.36 },
+    },
     // West of the corridor door, between the poster and the clock (#45).
     whiteboard: (() => {
       const along = Math.min(6, w / 2 - 4.5);

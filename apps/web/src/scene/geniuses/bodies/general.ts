@@ -190,6 +190,7 @@ function accessory(p: PartBuilder, id: string): void {
 export const general: ArchetypeModel = {
   id: "general",
   body,
+  head,
   style: {
     idle: "hands_behind",
     lean: -7,

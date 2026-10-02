@@ -5,7 +5,7 @@
  * (clips/) and crossfade like the henchmen's. The model faces the group's
  * heading (MODEL_YAW), so callers set `rotation.y = heading` exactly as
  * they did for the robot-model avatar before them: face-first walking and cursor turning are
- * unchanged.
+ * unchanged. With `voice` (a LiveKit identity, #48) the mouth moves while that human speaks.
  */
 import { type ThreeElements, useFrame } from "@react-three/fiber";
 import {
@@ -16,6 +16,7 @@ import {
 } from "@regulus/protocol";
 import { type ReactNode, useEffect, useMemo, useRef } from "react";
 import { type AnimationAction, AnimationMixer } from "three";
+import { voiceOf } from "../../media/store.ts";
 import { CROSSFADE_SECONDS } from "../avatar/clips.ts";
 import { NamePlate } from "../avatar/NamePlate.tsx";
 import { HUMAN_PLATE_STYLE, type NamePlateStyle } from "../avatar/namePlateTexture.ts";
@@ -24,6 +25,7 @@ import { ARCHETYPE_MODELS } from "./archetypes.ts";
 import { geniusClipName, geniusClips } from "./clips/index.ts";
 import { seatedHips } from "./clips/lower.ts";
 import { createGenius } from "./model.ts";
+import { attachMouth, mouthOpening } from "./mouth.ts";
 
 export type GeniusAvatarProps = Omit<ThreeElements["group"], "ref" | "children"> & {
   /** Archetype, colours and accessory; unknown values fall back (protocol resolveGeniusLook). */
@@ -43,6 +45,8 @@ export type GeniusAvatarProps = Omit<ThreeElements["group"], "ref" | "children">
   still?: boolean;
   /** Drawn just above the name plate: speech bubble, emote badge (#49). */
   overhead?: ReactNode;
+  /** Voice identity (building session id, #48): the mouth moves while it speaks. */
+  voice?: string;
 };
 
 /** Where in its clip a held (`still`) emote stops: a quarter in, mid-gesture. */
@@ -62,6 +66,7 @@ export function GeniusAvatar({
   plateStyle = HUMAN_PLATE_STYLE,
   still = false,
   overhead,
+  voice,
   ...groupProps
 }: GeniusAvatarProps) {
   const look = resolveGeniusLook(lookProp);
@@ -110,8 +115,15 @@ export function GeniusAvatar({
     [mixer, genius],
   );
 
-  useFrame((_, delta) => {
+  const mouth = useMemo(() => attachMouth(genius.bones, model), [genius, model]);
+  useEffect(() => () => mouth?.dispose(), [mouth]);
+
+  useFrame((state, delta) => {
     mixer.update(Math.min(delta, 0.1));
+    if (mouth) {
+      const v = voice ? voiceOf(voice) : null;
+      mouth.set(v?.speaking ? mouthOpening(v.level, state.clock.elapsedTime) : 0);
+    }
   });
 
   return (

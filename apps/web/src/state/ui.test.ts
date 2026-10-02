@@ -60,6 +60,9 @@ describe("ui store", () => {
       fpvFov: 60,
       mouseSensitivity: 1,
       graphics: "auto",
+      voiceVolume: 1,
+      pushToTalk: false,
+      micDeviceId: "",
     });
     store.getState().updateSettings({ volume: 0.1 });
     expect(createUiStore({ storage }).getState().settings.volume).toBe(0.1);

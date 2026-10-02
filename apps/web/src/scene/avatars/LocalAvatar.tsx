@@ -40,6 +40,7 @@ export function LocalAvatar() {
       return { userId: h?.userId ?? "", seatId: h?.seatId ?? "", animation: h?.animation ?? "" };
     }),
   );
+  const selfSessionId = useBuildingStore((s) => s.sessionId);
   const sessionName = useSessionStore((s) => s.user?.displayName ?? null);
   const sessionUserId = useSessionStore((s) => s.user?.id ?? "");
   // Before our presence arrives (or right after a save), the session's look.
@@ -80,7 +81,14 @@ export function LocalAvatar() {
         gait={gait}
         name={name}
         still={reducedMotion && emote !== null}
-        overhead={<Overhead userId={presence.userId || sessionUserId} emote={emote} />}
+        voice={selfSessionId ?? undefined}
+        overhead={
+          <Overhead
+            userId={presence.userId || sessionUserId}
+            emote={emote}
+            sessionId={selfSessionId ?? undefined}
+          />
+        }
       />
     </group>
   );
