@@ -16,20 +16,16 @@ describe("snapshot fitting", () => {
     expect(containRect(0, 0, 100, 100).w).toBe(0);
   });
 
-  test("the face is painted white, then the image, or a hint when blank", () => {
+  test("the face is painted white, then the image fitted in", () => {
     const calls: string[] = [];
     const ctx = {
       fillRect: (x: number, y: number, w: number, h: number) =>
         calls.push(`rect ${x},${y},${w},${h}`),
       drawImage: (_i: unknown, x: number, y: number, w: number, h: number) =>
         calls.push(`image ${x},${y},${w},${h}`),
-      fillText: (text: string) => calls.push(`text ${text}`),
     } as unknown as SnapshotCanvas;
     paintSnapshot(ctx, 1000, 500, { width: 2000, height: 500 } as unknown as ImageBitmap);
     expect(calls).toEqual(["rect 0,0,1000,500", "image 20,130,960,240"]);
-    calls.length = 0;
-    paintSnapshot(ctx, 1000, 500, null);
-    expect(calls[1]).toContain("press E");
   });
 
   test("uploads are at most 1600 px on the long side, small sketches at most 2x", () => {

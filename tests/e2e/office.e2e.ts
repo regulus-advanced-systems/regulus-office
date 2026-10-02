@@ -262,6 +262,8 @@ test("chat from one browser arrives in the other", async () => {
 });
 
 test("both draw on the lobby whiteboard and see each other's strokes; the wall shows the snapshot (#45)", async () => {
+  // Two editors load in software GL, plus walking to the board: more than the default 90 s.
+  test.setTimeout(240_000);
   await checkWhiteboard(ownerPage, memberPage);
 });
 

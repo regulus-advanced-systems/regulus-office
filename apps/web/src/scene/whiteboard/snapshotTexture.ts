@@ -3,11 +3,11 @@
  * textures"): the board's last snapshot PNG (uploaded by whoever drew last,
  * at most every 2 s) painted into a canvas texture with the board's aspect,
  * fitted inside a margin on the board's white face. Version 0 (never drawn
- * on) paints a blank face with a hint. The texture is reloaded only when the
+ * on) has no texture: the look shows its plain face. It is reloaded only when the
  * version in the room state changes.
  */
 import { whiteboardSnapshotPath } from "@regulus/protocol";
-import { useEffect, useMemo } from "react";
+import { useEffect, useState } from "react";
 import { CanvasTexture, LinearFilter, SRGBColorSpace } from "three";
 import { WHITEBOARD_FACE } from "./WhiteboardLook.tsx";
 
@@ -32,30 +32,19 @@ export function containRect(iw: number, ih: number, W: number, H: number, margin
   return { x: (W - w) / 2, y: (H - h) / 2, w, h };
 }
 
-export type SnapshotCanvas = Pick<
-  CanvasRenderingContext2D,
-  "fillStyle" | "fillRect" | "drawImage" | "font" | "textAlign" | "textBaseline" | "fillText"
->;
+export type SnapshotCanvas = Pick<CanvasRenderingContext2D, "fillStyle" | "fillRect" | "drawImage">;
 
-/** Paint the face: the snapshot fitted in, or a blank board with a hint. */
+/** Paint the face: white, with the snapshot fitted in. */
 export function paintSnapshot(
   ctx: SnapshotCanvas,
   W: number,
   H: number,
-  image: (CanvasImageSource & { width: number; height: number }) | null,
+  image: CanvasImageSource & { width: number; height: number },
 ): void {
   ctx.fillStyle = WHITEBOARD_FACE;
   ctx.fillRect(0, 0, W, H);
-  if (image) {
-    const r = containRect(image.width, image.height, W, H, Math.round(W * 0.02));
-    ctx.drawImage(image, r.x, r.y, r.w, r.h);
-    return;
-  }
-  ctx.fillStyle = "#A8ADB3";
-  ctx.font = `${Math.round(H * 0.075)}px sans-serif`;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText("Whiteboard: click or press E to draw", W / 2, H / 2);
+  const r = containRect(image.width, image.height, W, H, Math.round(W * 0.02));
+  ctx.drawImage(image, r.x, r.y, r.w, r.h);
 }
 
 /** Load the snapshot PNG of `boardId` at `version` (the session cookie rides along). */
@@ -72,51 +61,53 @@ export async function loadSnapshot(
   return createImageBitmap(await res.blob());
 }
 
-/** A canvas texture showing `boardId`'s snapshot at `version`, `w × h` metres. */
+/**
+ * A canvas texture showing `boardId`'s snapshot at `version`, `w × h` metres;
+ * null while the board has no snapshot (the look shows its plain face), so a
+ * board nobody drew on costs no texture at all.
+ */
 export function useSnapshotTexture(
   boardId: string,
   version: number,
   w: number,
   h: number,
-): CanvasTexture {
-  const surface = useMemo(() => {
-    const canvas = document.createElement("canvas");
-    canvas.width = SNAPSHOT_TEXTURE_WIDTH;
-    canvas.height = Math.max(1, Math.round((SNAPSHOT_TEXTURE_WIDTH * h) / Math.max(w, 0.01)));
-    const texture = new CanvasTexture(canvas);
-    texture.colorSpace = SRGBColorSpace;
-    texture.minFilter = LinearFilter;
-    texture.generateMipmaps = false;
-    texture.name = `whiteboard:${boardId}`;
-    return { canvas, texture, ctx: canvas.getContext("2d") };
-  }, [boardId, w, h]);
-  useEffect(() => () => surface.texture.dispose(), [surface]);
+): CanvasTexture | null {
+  const [texture, setTexture] = useState<CanvasTexture | null>(null);
+  // A new board or size starts over (the old texture is disposed below).
+  useEffect(() => () => setTexture(null), [boardId, w, h]);
+  useEffect(() => () => texture?.dispose(), [texture]);
   useEffect(() => {
-    const { canvas, ctx, texture } = surface;
-    if (!ctx) return;
-    const paint = (image: ImageBitmap | null) => {
-      paintSnapshot(ctx, canvas.width, canvas.height, image);
-      texture.userData.version = image ? version : 0;
-      texture.needsUpdate = true;
-    };
-    if (version <= 0) {
-      paint(null);
-      return;
-    }
+    if (version <= 0) return;
     const abort = new AbortController();
     loadSnapshot(boardId, version, abort.signal)
       .then((image) => {
-        if (abort.signal.aborted) return image?.close();
-        // A snapshot that fails to load keeps whatever the board showed before.
-        if (image) {
-          paint(image);
-          image.close();
-        } else if (texture.userData.version === undefined) paint(null);
+        if (!image) return;
+        if (abort.signal.aborted) return image.close();
+        setTexture((current) => {
+          const next = current ?? createSnapshotTexture(boardId, w, h);
+          const canvas = next.image as HTMLCanvasElement;
+          const ctx = canvas.getContext("2d");
+          if (ctx) paintSnapshot(ctx, canvas.width, canvas.height, image);
+          next.userData.version = version;
+          next.needsUpdate = true;
+          return next;
+        });
       })
-      .catch(() => {
-        if (!abort.signal.aborted && texture.userData.version === undefined) paint(null);
-      });
+      // A snapshot that fails to load keeps whatever the board showed before.
+      .catch(() => {});
     return () => abort.abort();
-  }, [surface, boardId, version]);
-  return surface.texture;
+  }, [boardId, version, w, h]);
+  return version > 0 ? texture : null;
+}
+
+function createSnapshotTexture(boardId: string, w: number, h: number): CanvasTexture {
+  const canvas = document.createElement("canvas");
+  canvas.width = SNAPSHOT_TEXTURE_WIDTH;
+  canvas.height = Math.max(1, Math.round((SNAPSHOT_TEXTURE_WIDTH * h) / Math.max(w, 0.01)));
+  const texture = new CanvasTexture(canvas);
+  texture.colorSpace = SRGBColorSpace;
+  texture.minFilter = LinearFilter;
+  texture.generateMipmaps = false;
+  texture.name = `whiteboard:${boardId}`;
+  return texture;
 }
