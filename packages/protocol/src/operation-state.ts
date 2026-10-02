@@ -71,6 +71,11 @@ export const DeskState = z.object({
 });
 export type DeskState = z.infer<typeof DeskState>;
 
+/**
+ * A picture (or later other decor) on a wall of the room (#46, wall-pictures.ts):
+ * `wallId` is the room layout's wall, `x` metres along it to the centre, `y` the
+ * centre's height, `w × h` the size.
+ */
 export const DecorState = z.object({
   id: Id,
   kind: z.enum(DECOR_KINDS),
@@ -81,7 +86,8 @@ export const DecorState = z.object({
   h: z.number().positive(),
   /** Server-relative URL of the uploaded image. */
   imageUrl: z.string().max(512),
-  placedBy: Id,
+  /** Who hung it; empty once their account is gone (managers still edit it). */
+  placedBy: z.string().max(128),
 });
 export type DecorState = z.infer<typeof DecorState>;
 

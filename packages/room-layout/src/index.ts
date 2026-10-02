@@ -11,6 +11,7 @@
  * - astar.ts        small A* over the grid
  * - validate.ts     parse + structural + navigation checks (`loadTemplate`)
  * - templates/      lobby, small, office-l2 (medium), large, tier registry
+ * - wall-pictures.ts where a wall picture may hang (#46)
  * - compound/       the compound: placement rules, corridor routing, nav grid (#181)
  * - room/           generated room interiors: `generateRoom`, decor styles, stable seat ids (#182)
  */
@@ -30,3 +31,4 @@ export { smallTemplate, smallTemplateInput } from "./templates/small.ts";
 export * from "./templates/tiers.ts";
 export * from "./types.ts";
 export * from "./validate.ts";
+export * from "./wall-pictures.ts";
