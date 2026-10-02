@@ -17,6 +17,7 @@ import {
   planMeeting,
   type StartMeetingRequest,
 } from "@regulus/protocol";
+import { type AccessByProvider, providerUsable } from "../spawn/credentials.ts";
 import { PROVIDER_PRESETS } from "../spawn/models.ts";
 
 export interface MemberDraft {
@@ -54,6 +55,16 @@ const preset = (provider: ProviderId) => PROVIDER_PRESETS.find((p) => p.id === p
 
 export function defaultMember(provider: ProviderId = "claude-code"): MemberDraft {
   return { provider, model: preset(provider)?.defaultModel ?? "", profileId: "" };
+}
+
+/** Members on a provider the caller cannot use move to the first one they can (if any). */
+export function usableMembers(members: MemberDraft[], access: AccessByProvider): MemberDraft[] {
+  const usable = PROVIDER_PRESETS.find((p) => providerUsable(access[p.id]));
+  if (!usable) return members;
+  const fixed = members.map((m) =>
+    providerUsable(access[m.provider]) ? m : defaultMember(usable.id),
+  );
+  return fixed.every((m, i) => m === members[i]) ? members : fixed;
 }
 
 export function defaultDraft(repoId: string): MeetingDraft {

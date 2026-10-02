@@ -67,7 +67,7 @@ export class MeetingEngine {
       return;
     }
     try {
-      if (row.status === "starting") await convene(this.ctx, row, starter);
+      if (row.status === "starting") await convene(this.ctx, row, starter, abort.signal);
       await runAgenda(this.ctx, meetingId, starter, abort.signal, (status, reason) =>
         this.halt(meetingId, status, reason),
       );

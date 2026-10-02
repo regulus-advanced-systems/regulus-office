@@ -18,7 +18,15 @@ import { closeMeeting } from "./close.ts";
 import type { MeetingHenchmen, MeetingOutputs, MeetingWorkspaces } from "./ports.ts";
 import { turnFile, turnPrompt } from "./prompt.ts";
 import type { MeetingRow, MeetingStore, MemberRow, TurnRow } from "./store.ts";
-import { BUSY, RESTING, readyVerdict, TurnError, type TurnWatch, turnVerdicts } from "./turns.ts";
+import {
+  BUSY,
+  MeetingAborted,
+  RESTING,
+  readyVerdict,
+  TurnError,
+  type TurnWatch,
+  turnVerdicts,
+} from "./turns.ts";
 import { progress, title } from "./views.ts";
 
 export interface RunContext {
@@ -42,7 +50,12 @@ const branchSlug = (row: MeetingRow) =>
     .slice(0, 40)}`.replace(/-$/, "");
 
 /** Shared worktree and member henchmen; `starting` → `running`. */
-export async function convene(ctx: RunContext, row: MeetingRow, starter: OperationActor) {
+export async function convene(
+  ctx: RunContext,
+  row: MeetingRow,
+  starter: OperationActor,
+  signal: AbortSignal,
+) {
   const base =
     row.pattern === "review_panel" && row.prNumber
       ? ctx.workspaces.pullBase(row.repoId, row.prNumber)
@@ -63,6 +76,8 @@ export async function convene(ctx: RunContext, row: MeetingRow, starter: Operati
   const waiting = ctx.store.members(row.id).filter((m) => !m.agentId);
   const seats = ctx.henchmen.freeSeats(row.operationId, waiting.length);
   for (const [i, member] of waiting.entries()) {
+    // Paused or stopped while convening: the rest stay unspawned (a resume spawns them).
+    if (signal.aborted) throw new MeetingAborted("the meeting was interrupted");
     await ctx.henchmen.spawn(
       starter,
       {
@@ -83,6 +98,7 @@ export async function convene(ctx: RunContext, row: MeetingRow, starter: Operati
     );
     ctx.publish(row.id);
   }
+  if (signal.aborted || ctx.store.get(row.id)?.status !== "starting") return;
   ctx.store.setStatus(row.id, "running");
   ctx.publish(row.id);
 }

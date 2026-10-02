@@ -311,6 +311,19 @@ describe("failures and resuming", () => {
     again.close();
   });
 
+  test("paused while convening: nobody else is spawned, it stays paused; resume convenes", async () => {
+    const f = await meetingFixture();
+    const summary = start(f, f.owner);
+    await f.meetings.service.pause(f.owner, summary.id);
+    await Bun.sleep(30);
+    expect(f.meetings.store.get(summary.id)?.status).toBe("paused");
+    expect(f.fake.agents.size).toBe(0);
+    expect(f.meetings.service.resume(f.owner, summary.id).status).toBe("starting");
+    const row = await finished(f, summary.id);
+    expect(row.status).toBe("done");
+    expect(f.fake.agents.size).toBe(3);
+  });
+
   test("a meeting that was starting when the office stopped convenes the missing members", async () => {
     const f = await meetingFixture();
     const input = StartMeetingRequest.parse(startInput(f.operationId, f.repoId));

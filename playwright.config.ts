@@ -11,9 +11,10 @@
  * instead (e.g. https://localhost from deploy/docker-compose.yml); the first
  * step registers the owner, so the office must have no users yet.
  *
- * E2E_AGENTS=1 (`bun run e2e:agents`) runs only tests/e2e/agents.e2e.ts, the M1
- * henchman flow. That spec starts and restarts its own office-server (docker runner
- * backend, fake `claude` in a test runner image), so no webServer is started.
+ * E2E_AGENTS=1 (`bun run e2e:agents`) runs only the henchman flows: tests/e2e/agents.e2e.ts
+ * (M1) and tests/e2e/meetings.e2e.ts (the meeting room, #50). They start and restart their own
+ * office-server (docker runner backend, fake `claude` in a test runner image), so no webServer
+ * is started.
  *
  * Runners (#215): the office this config starts gets its own runner prefix, `rgo2e-<run>`,
  * so it never lists, recovers or reaps another office's runners, and the global teardown
@@ -37,7 +38,7 @@ const githubPort = Number(process.env.E2E_GITHUB_PORT);
 const baseURL = external ?? `http://127.0.0.1:${port}`;
 const ci = Boolean(process.env.CI);
 const agents = process.env.E2E_AGENTS === "1";
-const AGENTS_SPEC = "**/agents.e2e.ts";
+const AGENTS_SPECS = ["**/agents.e2e.ts", "**/meetings.e2e.ts"];
 /** No webServer: an external office, or the agents spec, which runs its own. */
 const noWebServer = Boolean(external) || agents;
 
@@ -52,8 +53,8 @@ const secret = () => randomBytes(32).toString("base64");
 
 export default defineConfig({
   testDir: "tests/e2e",
-  testMatch: agents ? AGENTS_SPEC : "**/*.e2e.ts",
-  testIgnore: agents ? [] : [AGENTS_SPEC],
+  testMatch: agents ? AGENTS_SPECS : "**/*.e2e.ts",
+  testIgnore: agents ? [] : AGENTS_SPECS,
   globalSetup: "./tests/e2e/global-setup.ts",
   globalTeardown: "./tests/e2e/global-teardown.ts",
   fullyParallel: false,

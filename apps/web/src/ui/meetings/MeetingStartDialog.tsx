@@ -13,7 +13,7 @@ import {
   MEETING_ROUNDS_MAX,
   type ProviderId,
 } from "@regulus/protocol";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useOperationStore } from "../../state/operation.ts";
 import { useOperationsStore } from "../../state/operations.ts";
 import { FormAlert } from "../auth/AuthCard.tsx";
@@ -39,6 +39,7 @@ import {
   outputsFor,
   TOKEN_BUDGETS,
   tokens,
+  usableMembers,
   withPattern,
 } from "./meetingForm.ts";
 import { useMeetingStore } from "./meetingStore.ts";
@@ -59,7 +60,7 @@ export function MeetingStartDialog({
   const info = useOperationsStore((s) => s.operations?.find((o) => o.operationId === operationId));
   const repos = useMemo(() => spawnRepoOptions(info, state), [info, state]);
   const freeDesks = Object.values(state?.desks ?? {}).filter((d) => !d.agentId).length;
-  const { access } = useProviderAccess(profiles);
+  const { access, loaded } = useProviderAccess(profiles);
   const [draft, setDraft] = useState<MeetingDraft>(() =>
     defaultDraft((repos.find((r) => r.isPrimary && r.ready) ?? repos[0])?.repoId ?? ""),
   );
@@ -69,6 +70,11 @@ export function MeetingStartDialog({
   const errors = touched ? draftErrors(draft) : {};
   const names = memberLabels(draft.pattern, draft.members.length);
   const patch = (p: Partial<MeetingDraft>) => setDraft((d) => ({ ...d, ...p }));
+  // Once logins are known, default members on a provider the caller cannot use move to one they can.
+  useEffect(() => {
+    if (!loaded) return;
+    setDraft((d) => ({ ...d, members: usableMembers(d.members, access) }));
+  }, [loaded, access]);
   if (!operationId) return null;
 
   const submit = async () => {
