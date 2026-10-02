@@ -23,6 +23,7 @@ import { StatusBox } from "./hud/StatusBox.tsx";
 import { TopBar } from "./hud/TopBar.tsx";
 import { WorkCounters } from "./hud/WorkCounters.tsx";
 import { JukeboxHost, JukeboxStrip } from "./jukebox/JukeboxHost.tsx";
+import { MeetingHost } from "./meetings/MeetingHost.tsx";
 import { NotificationsHost } from "./notifications/NotificationsHost.tsx";
 import { AddOperationDialogHost } from "./operations/AddOperationDialog.tsx";
 import { OperationSettingsDialogHost } from "./operations/OperationSettingsDialog.tsx";
@@ -123,6 +124,7 @@ export function Hud() {
       <AgentHost />
       <BoardsHost />
       <QueueHost />
+      <MeetingHost />
       <JukeboxHost />
       <WhiteboardHost />
       <NotificationsHost />
