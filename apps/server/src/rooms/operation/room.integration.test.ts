@@ -277,13 +277,67 @@ describe("OperationRoom over the wire", () => {
     await waitFor(() => watcher.state.carriedCards.size === 0, "put back on leave");
   });
 
-  test("operation commands are rejected until their issues land", async () => {
+  test("decor.* is refused while the wall pictures are not wired (#46)", async () => {
     const room = await joinOperation(users.member, operationId);
     const rejected = new Promise<CommandRejected>((resolve) =>
       room.onMessage(COMMAND_REJECTED_MESSAGE, (m: CommandRejected) => resolve(m)),
     );
     room.send("decor.remove", { decorId: "d1" });
     expect((await rejected).type).toBe("decor.remove");
+  });
+
+  test("decor.* goes to the wall pictures; what they publish is in everyone's state (#46)", async () => {
+    const calls: string[] = [];
+    rooms.operations.setDecorCommands({
+      async run(actor, opId, command) {
+        calls.push(`${actor.id}:${opId}:${command.type}`);
+        if (command.type !== "decor.place") return { ok: false, reason: "not yours" };
+        rooms.operations.publishDecor(opId, [
+          {
+            id: "d1",
+            kind: "picture",
+            wallId: command.wallId,
+            x: command.x,
+            y: command.y,
+            w: command.w,
+            h: command.h,
+            imageUrl: `/api/operations/${opId}/pictures/d1`,
+            placedBy: actor.id,
+          },
+        ]);
+        return { ok: true, decorId: "d1" };
+      },
+    });
+    try {
+      const placer = await joinOperation(users.member, operationId);
+      const watcher = await joinOperation(users.owner, operationId);
+      const rejected: CommandRejected[] = [];
+      placer.onMessage(COMMAND_REJECTED_MESSAGE, (m: CommandRejected) => rejected.push(m));
+      placer.send("decor.place", {
+        kind: "picture",
+        wallId: "north",
+        uploadId: "u1",
+        x: 6.6,
+        y: 2.5,
+        w: 0.6,
+        h: 0.4,
+      });
+      await waitFor(() => watcher.state.decor.has("d1"), "picture in the other's state");
+      expect(watcher.state.decor.get("d1")?.wallId).toBe("north");
+      placer.send("decor.remove", { decorId: "d1" });
+      await waitFor(() => rejected.length === 1, "refusal");
+      expect(rejected[0]).toMatchObject({ type: "decor.remove", reason: "not yours" });
+      expect(calls).toEqual([
+        `${users.member.userId}:${operationId}:decor.place`,
+        `${users.member.userId}:${operationId}:decor.remove`,
+      ]);
+      rooms.operations.publishDecor(operationId, []);
+      await waitFor(() => watcher.state.decor.size === 0, "picture gone");
+      await placer.leave();
+      await watcher.leave();
+    } finally {
+      rooms.operations.setDecorCommands(undefined);
+    }
   });
 
   test("agent.spawn is validated, scoped to the room's operation and forwarded", async () => {

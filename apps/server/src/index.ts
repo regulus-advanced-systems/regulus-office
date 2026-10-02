@@ -47,6 +47,7 @@ import {
 import { createMeetings } from "./meetings/index.ts";
 import { createNotifications } from "./notifications/setup.ts";
 import { createOperations, mountOperationRoutes } from "./operations/index.ts";
+import { createWallPictures } from "./pictures/index.ts";
 import { mountProfileRoutes } from "./profile/routes.ts";
 import { allObservers, createTaskQueue } from "./queue/index.ts";
 import {
@@ -193,6 +194,13 @@ async function main(): Promise<void> {
   });
   rooms.building.setLobbyWhiteboard(whiteboards.store.load(LOBBY_WHITEBOARD_ID)?.version ?? 0);
   whiteboards.pruneSnapshots().catch((err) => logger.warn({ err }, "snapshot prune failed"));
+  // Wall pictures (#46): uploads under the data dir, decor.* through the operation rooms.
+  const pictures = createWallPictures({
+    db,
+    dataDir: config.dataDir,
+    logger,
+    operations: rooms.operations,
+  });
   // Running apps proxy (#39): first in the router, so app hosts never reach the office's routes.
   let services: Services;
   try {
@@ -230,6 +238,7 @@ async function main(): Promise<void> {
     presence: (sessionId) => rooms.building.presence(sessionId),
     logger: logger.child({ module: "media" }),
   });
+  pictures.mount(server.router, auth);
   // Genius avatars (#185): the picker saves here; the building room shows the change at once.
   mountProfileRoutes(server.router, {
     auth,

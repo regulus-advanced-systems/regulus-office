@@ -3,13 +3,14 @@
  * `operationId` join option. Joining needs a session (the transport's RoomAuth)
  * and at least `view` access to the live operation. State is the protocol
  * `OperationState`: operation metadata, repos, desks from the layout template,
- * henchmen published through {@link OperationRooms}, decor (empty until M2).
+ * henchmen published through {@link OperationRooms}, decor (wall pictures, #46).
  * `agent.spawn` and the henchman controls (agent-commands.ts) are validated with
  * the protocol schema and forwarded to the AgentManager (`setAgentCommands`);
  * failures come back as `command.rejected`, results as `agent.result`.
  * Pending permission requests go only to the henchman's controllers
  * (permissions.ts, SPEC §8 rule 4). `gong.bang` goes to the merge gong
- * (#43, `setGong`), which rings through `broadcast`.
+ * (#43, `setGong`), which rings through `broadcast`. `decor.*` goes to the
+ * wall pictures (#46, `setDecorCommands`), which publish through `publishDecor`.
  *
  * The returned {@link OperationRooms} is also the registry the AgentManager
  * (#26) uses: `publishHenchman(operationId, henchman)` / `removeHenchman(operationId, id)`.
@@ -21,6 +22,7 @@
 import {
   type ClientCommand,
   COMMAND_REJECTED_MESSAGE,
+  type DecorState,
   type HenchmanSkinId,
   HenchmanState,
   OperationJoinOptions,
@@ -48,6 +50,13 @@ import {
 } from "./agent-commands.ts";
 import { type BoardCards, parseBoard, syncBoard } from "./board.ts";
 import { dropCarriedOnLeave, handleCardCommand, isCardCommand } from "./cards.ts";
+import {
+  isDecorCommand,
+  type OperationDecorCommands,
+  parseDecor,
+  runDecorCommand,
+  syncDecor,
+} from "./decor.ts";
 import { OperationPermissions } from "./permissions.ts";
 import { parseServices, syncServices } from "./services.ts";
 import type { OperationRoomSource } from "./source.ts";
@@ -123,6 +132,10 @@ export interface OperationRooms {
   setSkins(resolver: SkinResolver | undefined): void;
   /** The operation's whiteboard has a new wall snapshot (#45). */
   publishWhiteboard(operationId: string, version: number): void;
+  /** Replace an operation's wall pictures (#46; validated against the protocol shape). */
+  publishDecor(operationId: string, decor: readonly DecorState[]): void;
+  /** Route `decor.*` to the wall pictures (#46). */
+  setDecorCommands(commands: OperationDecorCommands | undefined): void;
 }
 
 export interface OperationRoomsDeps {
@@ -136,6 +149,8 @@ export function createOperationRooms(deps: OperationRoomsDeps): OperationRooms {
   const henchmen = new Map<string, Map<string, HenchmanState>>();
   const boards = new Map<string, BoardCards>();
   const services = new Map<string, ServiceState[]>();
+  const decor = new Map<string, DecorState[]>();
+  let decorCommands: OperationDecorCommands | undefined;
   const queues = new Map<string, { tasks: readonly QueueTask[]; settings: QueueSettings }>();
   let queueCommands: OperationQueueCommands | undefined;
   let skinFor: SkinResolver | undefined;
@@ -199,6 +214,8 @@ export function createOperationRooms(deps: OperationRoomsDeps): OperationRooms {
       if (board) syncBoard(room.state, board);
       const apps = services.get(snap.operationId);
       if (apps) syncServices(room.state, apps);
+      const pictures = decor.get(snap.operationId);
+      if (pictures) syncDecor(room.state, pictures);
       const queue = queues.get(snap.operationId);
       if (queue) syncQueue(room.state, queue.tasks, queue.settings);
       logger.info({ roomId: room.roomId, operationId: snap.operationId }, "operation room created");
@@ -234,6 +251,10 @@ export function createOperationRooms(deps: OperationRoomsDeps): OperationRooms {
         const operationId = room.state.operationId;
         const access = source.accessOf?.(client.user, operationId) ?? null;
         handleCardCommand({ state: room.state, client, access }, parsed.data);
+        return;
+      }
+      if (parsed.success && isDecorCommand(parsed.data)) {
+        runDecorCommand(decorCommands, room.state.operationId, client, parsed.data, logger);
         return;
       }
       if (parsed.success && isQueueCommand(parsed.data)) {
@@ -362,6 +383,18 @@ export function createOperationRooms(deps: OperationRoomsDeps): OperationRooms {
     publishWhiteboard(operationId, version) {
       const room = live.get(operationId);
       if (room && room.state.whiteboardVersion !== version) room.state.whiteboardVersion = version;
+    },
+
+    publishDecor(operationId, list) {
+      const parsed = parseDecor(list);
+      if (parsed.length > 0) decor.set(operationId, parsed);
+      else decor.delete(operationId);
+      const room = live.get(operationId);
+      if (room) syncDecor(room.state, parsed);
+    },
+
+    setDecorCommands(commands) {
+      decorCommands = commands;
     },
 
     setSkins(resolver) {

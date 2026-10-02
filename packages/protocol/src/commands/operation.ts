@@ -86,6 +86,11 @@ export const GongBangCommand = z.object({
   type: z.literal("gong.bang"),
 });
 
+/**
+ * Where a decor item hangs (#46, wall-pictures.ts): `x` metres along the
+ * wall from its `from` end to the centre, `y` the centre's height, `w`/`h`
+ * its size. The server checks it against the room layout.
+ */
 const decorRect = {
   x: z.number().finite(),
   y: z.number().finite(),
@@ -93,7 +98,7 @@ const decorRect = {
   h: z.number().positive().max(20),
 };
 
-/** Place an already uploaded image (`uploadId` from the REST upload endpoint). */
+/** Place an already uploaded image (`uploadId` from the REST upload endpoint); only `picture` for now. */
 export const DecorPlaceCommand = z.object({
   type: z.literal("decor.place"),
   kind: z.enum(DECOR_KINDS),
