@@ -12,6 +12,7 @@ import type { Logger } from "../logging.ts";
 import type { RoomAuth } from "./auth.ts";
 import { DrizzleOperationSource } from "./building/operations.ts";
 import { type BuildingRoom, createBuildingRoom } from "./building/room.ts";
+import { createScreenShareRules } from "./building/screen-share.ts";
 import { DrizzleChatStore } from "./chat/store.ts";
 import { ColyseusRoomTransport } from "./colyseus/transport.ts";
 import { createOperationRooms, type OperationRooms } from "./operation/room.ts";
@@ -46,6 +47,8 @@ export interface RoomsOptions {
   blastDoorMs?: number;
   /** The lobby jukebox the building room runs (#47). */
   jukebox?: JukeboxPlayer;
+  /** LiveKit is configured (#48): the lounge TV may be shared. */
+  mediaEnabled?: boolean;
 }
 
 export interface Rooms {
@@ -60,7 +63,7 @@ export interface Rooms {
 }
 
 export function createRooms(options: RoomsOptions): Rooms {
-  const { db, logger, auth, publicUrl, production, blastDoorMs, jukebox } = options;
+  const { db, logger, auth, publicUrl, production, blastDoorMs, jukebox, mediaEnabled } = options;
   const transport = new ColyseusRoomTransport({
     auth,
     logger,
@@ -73,6 +76,22 @@ export function createRooms(options: RoomsOptions): Rooms {
     logger: logger.child({ room: ROOM_NAMES.building }),
     canVisit: (user, operationId) => operationSource.canEnter(user, operationId),
     jukebox,
+    screenShare: createScreenShareRules({
+      enabled: mediaEnabled ?? false,
+      audit: (takedown) => {
+        try {
+          writeAudit(db, {
+            userId: takedown.byUserId,
+            action: AUDIT_ACTIONS.mediaScreenShareStop,
+            targetKind: "user",
+            targetId: takedown.userId,
+            meta: { sessionId: takedown.sessionId },
+          });
+        } catch (err) {
+          logger.error({ err }, "screen share audit failed");
+        }
+      },
+    }),
     blastDoor: {
       openMs: blastDoorMs,
       audit: (press) => {

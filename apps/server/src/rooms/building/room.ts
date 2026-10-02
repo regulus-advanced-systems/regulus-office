@@ -2,7 +2,7 @@
  * BuildingRoom (SPEC §6 channel 1): one per office. Human presence, chat,
  * the operation list with counters, the office usage summary (#40), the lobby
  * jukebox and its clock-sync pings (#47), emotes, seats and `doing` (#49,
- * rules in social.ts). PM state is part of the schema but stays at its
+ * rules in social.ts), who has the lounge TV (#48, screen-share.ts). PM state is part of the schema but stays at its
  * defaults until its milestone.
  *
  * Written against `RoomDefinition`, not Colyseus; see ../transport.ts.
@@ -40,6 +40,7 @@ import { checkCommand, wrapHeading } from "./commands.ts";
 import { isKnownOperation, type OperationRecord, type OperationSource } from "./operations.ts";
 import { RateLimiter } from "./rate-limiter.ts";
 import { applyLook, chatLine } from "./schema-copy.ts";
+import { createScreenShareRules, type ScreenShareRules } from "./screen-share.ts";
 import { createSocialRules } from "./social.ts";
 
 export type BuildingState = InstanceType<typeof BuildingStateSchema>;
@@ -67,6 +68,8 @@ export interface BuildingRoomDeps {
   blastDoor?: BlastDoorOptions;
   /** The lobby jukebox (#47): playhead, queue and permissions; absent = refused. */
   jukebox?: JukeboxPlayer;
+  /** The lounge TV (#48); absent = media off, `screen.share.start` refused. */
+  screenShare?: ScreenShareRules;
 }
 
 export interface BuildingRoom extends RoomDefinition<BuildingState, BuildingJoinOptions> {
@@ -82,6 +85,8 @@ export interface BuildingRoom extends RoomDefinition<BuildingState, BuildingJoin
   setCompound(snapshot: CompoundSnapshot): void;
   /** The lobby whiteboard has a new wall snapshot (#45). */
   setLobbyWhiteboard(version: number): void;
+  /** Whose connected session this is (media tokens, #48); null when it is not connected. */
+  presence(sessionId: string): { userId: string } | null;
 }
 
 interface ClientBookkeeping {
@@ -101,6 +106,7 @@ export function createBuildingRoom(deps: BuildingRoomDeps): BuildingRoom {
   let lobbyWhiteboard = 0;
   let handle: RoomHandle<BuildingState> | undefined;
   const blastDoor = createBlastDoor(deps.blastDoor ?? {}, now);
+  const screen = deps.screenShare ?? createScreenShareRules({ enabled: false });
 
   const reject = (client: RoomClient, type: string, reason: string) => {
     const notice: CommandRejected = { type, reason };
@@ -303,6 +309,12 @@ export function createBuildingRoom(deps: BuildingRoomDeps): BuildingRoom {
         if (!result.ok) reject(client, command.type, result.reason);
         return;
       }
+      case "screen.share.start":
+      case "screen.share.stop": {
+        const result = screen.apply(room.state.humans, client.sessionId, client.user, command);
+        if (!result.ok) reject(client, command.type, result.reason);
+        return;
+      }
       default:
         reject(client, command.type, "not handled by the building room");
     }
@@ -385,6 +397,11 @@ export function createBuildingRoom(deps: BuildingRoomDeps): BuildingRoom {
     setUsage(summary) {
       usage = summary;
       if (handle) applyUsageSummary(handle.state.usage, summary);
+    },
+
+    presence(sessionId) {
+      const human = handle?.state.humans.get(sessionId);
+      return human ? { userId: human.userId } : null;
     },
 
     setLobbyWhiteboard(version) {

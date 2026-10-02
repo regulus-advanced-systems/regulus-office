@@ -38,6 +38,12 @@ import { WsRouter } from "./http/ws-router.ts";
 import { createJukebox } from "./jukebox/setup.ts";
 import { createShutdownController, installSignalHandlers } from "./lifecycle.ts";
 import { createLogger } from "./logging.ts";
+import {
+  describeMediaConfig,
+  loadMediaConfig,
+  MediaConfigError,
+  mountMediaRoutes,
+} from "./media/index.ts";
 import { createMeetings } from "./meetings/index.ts";
 import { createNotifications } from "./notifications/setup.ts";
 import { createOperations, mountOperationRoutes } from "./operations/index.ts";
@@ -96,11 +102,17 @@ function selectRoomAuth(
 async function main(): Promise<void> {
   let config: ReturnType<typeof loadConfig>;
   let compoundConfig: ReturnType<typeof loadCompoundConfig>;
+  let mediaConfig: ReturnType<typeof loadMediaConfig>;
   try {
     config = loadConfig();
     compoundConfig = loadCompoundConfig();
+    mediaConfig = loadMediaConfig(process.env, config.publicUrl);
   } catch (err) {
-    if (err instanceof ConfigError || err instanceof CompoundConfigError) {
+    if (
+      err instanceof ConfigError ||
+      err instanceof CompoundConfigError ||
+      err instanceof MediaConfigError
+    ) {
       console.error(err.message);
       process.exit(2);
     }
@@ -109,7 +121,10 @@ async function main(): Promise<void> {
 
   const logger = createLogger({ level: config.logLevel });
   const version = await readVersion();
-  logger.info({ version, config: redactConfig(config) }, "office-server starting");
+  logger.info(
+    { version, config: redactConfig(config), media: describeMediaConfig(mediaConfig) },
+    "office-server starting",
+  );
   for (const use of config.deprecatedEnv ?? []) logger.warn(deprecatedEnvMessage(use));
   if (!config.masterKey) {
     logger.warn(
@@ -154,6 +169,7 @@ async function main(): Promise<void> {
     publicUrl: config.publicUrl,
     production,
     blastDoorMs: compoundConfig.blastDoorMs,
+    mediaEnabled: mediaConfig !== null,
   });
   // Terminal bridge (#24). The AgentManager registers its runner below.
   const terminals = createTerminals({
@@ -207,6 +223,13 @@ async function main(): Promise<void> {
   mountAuthRoutes(server.router, auth);
   jukebox.mount(server.router, auth);
   whiteboards.mount(server.router, auth);
+  // Voice and the lounge TV (#48): LiveKit tokens only; media never passes through this process.
+  mountMediaRoutes(server.router, {
+    auth,
+    config: mediaConfig,
+    presence: (sessionId) => rooms.building.presence(sessionId),
+    logger: logger.child({ module: "media" }),
+  });
   // Genius avatars (#185): the picker saves here; the building room shows the change at once.
   mountProfileRoutes(server.router, {
     auth,
