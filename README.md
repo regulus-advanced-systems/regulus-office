@@ -182,7 +182,7 @@ Other requirements:
 
 - **OS:** Ubuntu 24.04 LTS or any recent Linux with systemd and Docker 27+. x86-64 or arm64.
 - **Disk:** NVMe/SSD. Budget disk for every project checkout plus one git worktree per active agent, container images (~3 GB for the runner image), and terminal scrollback.
-- **Network:** a public IPv4 or IPv6 address and a domain name for automatic TLS. Inbound TCP 80 and 443. With the optional media profile (LiveKit) also TCP 7881, UDP 3478 and UDP 50000-60000. Outbound HTTPS to GitHub and the AI provider APIs. Behind NAT or on a LAN, run it on a Tailscale/private network and use GitHub polling instead of webhooks.
+- **Network:** a public IPv4 or IPv6 address and a domain name for automatic TLS. Inbound TCP 80 and 443. With the optional media profile (LiveKit: voice and the lounge TV, `scripts/setup.sh --media`) also TCP 7881 and UDP 7882; UDP 3478 only with the optional TURN relay ([docs/deploy/media.md](docs/deploy/media.md)). Outbound HTTPS to GitHub and the AI provider APIs. Behind NAT or on a LAN, run it on a Tailscale/private network and use GitHub polling instead of webhooks.
 - **Swap:** enable 2-4 GB of swap; agent memory use is spiky.
 - **Backups:** the `backup` service copies the SQLite database nightly to `deploy/backups/`, outside the data volume ([Backups and restore](#backups-and-restore)); copy that directory and `deploy/.env` off the machine as well. Project repos live on GitHub anyway.
 
