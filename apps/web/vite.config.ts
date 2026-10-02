@@ -1,6 +1,7 @@
 import { fileURLToPath } from "node:url";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
+import { excalidrawFonts } from "./excalidrawFonts.ts";
 
 /**
  * Vite config for the web client. `build` writes to apps/web/dist, which
@@ -15,7 +16,7 @@ import { defineConfig } from "vite";
  */
 const devServer = process.env.OFFICE_DEV_SERVER ?? "http://localhost:4600";
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), excalidrawFonts()],
   resolve: {
     alias: [
       {

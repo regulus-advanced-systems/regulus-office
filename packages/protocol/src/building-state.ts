@@ -254,5 +254,7 @@ export const BuildingState = z.object({
   compound: CompoundState,
   /** The lobby's blast door (#188): shared, opened by a button, shuts on a timer. */
   blastDoor: BlastDoorState,
+  /** Snapshot version of the lobby's compound-wide whiteboard (#45); 0 until first drawn on. */
+  lobbyWhiteboardVersion: Count,
 });
 export type BuildingState = z.infer<typeof BuildingState>;

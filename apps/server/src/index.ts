@@ -4,6 +4,7 @@
  * attach agents and the rest to the same process.
  */
 import { mkdir } from "node:fs/promises";
+import { LOBBY_WHITEBOARD_ID } from "@regulus/protocol";
 import { sql } from "drizzle-orm";
 import { createAgents } from "./agents/manager/boot.ts";
 import { createRunner } from "./agents/manager/runner-backend.ts";
@@ -54,6 +55,7 @@ import { createServices, type Services } from "./services/index.ts";
 import { createSkins } from "./skins/setup.ts";
 import { createTerminals } from "./terminals/index.ts";
 import { createUsage } from "./usage/index.ts";
+import { createWhiteboards } from "./whiteboard/index.ts";
 import { createWorkflows } from "./workflows/setup.ts";
 import {
   createWorktrees,
@@ -159,6 +161,20 @@ async function main(): Promise<void> {
     dataDir: config.dataDir,
     originPolicy: originPolicyFor(config.publicUrl, production),
   });
+  // Whiteboards (#45): Yjs at /ws/wb/<boardId>; a new wall snapshot goes out in the room state.
+  const whiteboards = createWhiteboards({
+    db,
+    sessions: auth,
+    logger,
+    dataDir: config.dataDir,
+    originPolicy: originPolicyFor(config.publicUrl, production),
+    onSnapshot: (boardId, version) =>
+      boardId === LOBBY_WHITEBOARD_ID
+        ? rooms.building.setLobbyWhiteboard(version)
+        : rooms.operations.publishWhiteboard(boardId, version),
+  });
+  rooms.building.setLobbyWhiteboard(whiteboards.store.load(LOBBY_WHITEBOARD_ID)?.version ?? 0);
+  whiteboards.pruneSnapshots().catch((err) => logger.warn({ err }, "snapshot prune failed"));
   // Running apps proxy (#39): first in the router, so app hosts never reach the office's routes.
   let services: Services;
   try {
@@ -183,10 +199,12 @@ async function main(): Promise<void> {
       .use(services.route)
       .use(terminals.bridge)
       .use(terminals.screens)
+      .use(whiteboards.endpoint)
       .use(rooms.transport.attachment),
   });
   mountAuthRoutes(server.router, auth);
   jukebox.mount(server.router, auth);
+  whiteboards.mount(server.router, auth);
   // Genius avatars (#185): the picker saves here; the building room shows the change at once.
   mountProfileRoutes(server.router, {
     auth,
@@ -454,6 +472,7 @@ async function main(): Promise<void> {
   shutdown.register("services", () => services.stop());
   shutdown.register("rooms", () => rooms.transport.shutdown());
   shutdown.register("terminals", () => terminals.shutdown());
+  shutdown.register("whiteboards", () => whiteboards.shutdown());
   shutdown.register("provider-logins", () => credentialPanel.shutdown());
   shutdown.register("notifications", () => notifications.close());
   shutdown.register("celebrations", () => celebrations.close());

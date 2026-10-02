@@ -175,6 +175,7 @@ export const buildingFixture: BuildingState = {
     openedBy: "Ante",
     presses: 3,
   },
+  lobbyWhiteboardVersion: 2,
 };
 
 export const henchmanFixture: HenchmanState = {

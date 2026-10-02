@@ -202,6 +202,7 @@ export const BuildingStateSchema = schema(
     pm: PmStateSchema,
     compound: CompoundStateSchema,
     blastDoor: BlastDoorStateSchema,
+    lobbyWhiteboardVersion: t.uint32().default(0),
   },
   "BuildingState",
 );

@@ -37,6 +37,7 @@ import { MovementController } from "../movement/MovementController.tsx";
 import { StatsOverlay } from "../perf/StatsOverlay.tsx";
 import { statsEnabled } from "../perf/stats.ts";
 import { UsageScreen } from "../usage/UsageScreen.tsx";
+import { LobbyWhiteboard } from "../whiteboard/WhiteboardLayer.tsx";
 import { BuildLayer } from "./build/BuildLayer.tsx";
 import { useRoomDraftStore, withDraft } from "./build/preview.ts";
 import { useRoomTransitions } from "./build/RoomTransitions.tsx";
@@ -122,6 +123,16 @@ function Scene({ world, avatars, presence, send, children }: CompoundCanvasProps
     () => outsideLayout(world),
     [world.width, world.depth, world.outsideDepth, world.tileMetres, world.blastDoor],
   );
+  const lobbyBoard = useMemo(() => {
+    const art = rooms.find((r) => r.room.kind === "lobby")?.art.dressing?.whiteboard;
+    if (!art || !lobby) return null;
+    const { x, z } = lobby.origin;
+    return {
+      ...art,
+      position: [art.position[0] + x, art.position[1], art.position[2] + z] as const,
+      stand: { x: art.stand.x + x, z: art.stand.z + z },
+    };
+  }, [rooms, lobby]);
   const lobbyUsage = useMemo(() => {
     const art = rooms.find((r) => r.room.kind === "lobby")?.art.dressing?.usage;
     return art && lobby
@@ -229,6 +240,9 @@ function Scene({ world, avatars, presence, send, children }: CompoundCanvasProps
           >
             <UsageScreen w={lobbyUsage.w} h={lobbyUsage.h} />
           </group>
+        )}
+        {lobbyBoard && lobby && visibleRooms.has(lobby.id) && (
+          <LobbyWhiteboard board={lobbyBoard} />
         )}
         <CarriedCards />
       </Suspense>

@@ -30,6 +30,8 @@ export interface OperationSnapshot {
   repos: RepoSummary[];
   /** Desk seats of the template, with the occupying agent id or "". */
   desks: Array<{ seatId: string; agentId: string }>;
+  /** Wall snapshot version of the operation's whiteboard (#45); absent: unchanged. */
+  whiteboardVersion?: number;
 }
 
 export function writeHenchman(target: HenchmanSchema, henchman: HenchmanState): HenchmanSchema {
@@ -69,6 +71,7 @@ export function writeSnapshot(state: OperationRoomState, snap: OperationSnapshot
   state.layoutTemplateId = snap.layoutTemplateId;
   state.deskCount = snap.deskCount ?? DEFAULT_DESK_COUNT;
   state.decorStyle = snap.decorStyle ?? DEFAULT_DECOR_STYLE;
+  if (snap.whiteboardVersion !== undefined) state.whiteboardVersion = snap.whiteboardVersion;
 
   state.repos.clear();
   for (const repo of snap.repos) {

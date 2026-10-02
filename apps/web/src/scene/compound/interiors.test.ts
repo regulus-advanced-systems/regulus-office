@@ -41,7 +41,13 @@ describe("room art per viewer (#186)", () => {
     expect(open.laptopSeats).toEqual(
       layout.seats.filter((s) => s.kind === "desk").map((s) => s.id),
     );
-    expect(open.looks.map((l) => l.look).sort()).toEqual(["board", "board", "clipboard", "gong"]);
+    expect(open.looks.map((l) => l.look).sort()).toEqual([
+      "board",
+      "board",
+      "clipboard",
+      "gong",
+      "whiteboard",
+    ]);
   });
 
   test("a room the viewer may not enter shows nothing of its interior", () => {

@@ -32,6 +32,7 @@
  * - terminal.ts        terminal WebSocket control messages and constants
  * - terminal-screens.ts laptop screen feed (plain-text screens per operation)
  * - usage-api.ts      the viewer's own usage (plan limits, spend); office totals are in building-state
+ * - whiteboard.ts     the shared whiteboard: Yjs endpoint, board ids, access, snapshot REST (#45)
  * - workflows.ts       GitHub workflow definitions (#155); workflows-api.ts their REST shapes
  */
 export * from "./acl.ts";
@@ -65,5 +66,6 @@ export * from "./skins.ts";
 export * from "./terminal.ts";
 export * from "./terminal-screens.ts";
 export * from "./usage-api.ts";
+export * from "./whiteboard.ts";
 export * from "./workflows.ts";
 export * from "./workflows-api.ts";

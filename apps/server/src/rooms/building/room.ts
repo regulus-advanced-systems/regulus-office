@@ -77,6 +77,8 @@ export interface BuildingRoom extends RoomDefinition<BuildingState, BuildingJoin
   setAvatar(userId: string, look: GeniusLookValue): void;
   /** Compound layout and each room's placement and build state (#181). */
   setCompound(snapshot: CompoundSnapshot): void;
+  /** The lobby whiteboard has a new wall snapshot (#45). */
+  setLobbyWhiteboard(version: number): void;
 }
 
 /** Copy a (validated) genius look onto a presence; only changed fields make a patch. */
@@ -103,6 +105,7 @@ export function createBuildingRoom(deps: BuildingRoomDeps): BuildingRoom {
   let known: OperationRecord[] = [];
   let usage: UsageSummary | undefined;
   let compound: CompoundSnapshot | undefined;
+  let lobbyWhiteboard = 0;
   let handle: RoomHandle<BuildingState> | undefined;
   const blastDoor = createBlastDoor(deps.blastDoor ?? {}, now);
 
@@ -305,6 +308,7 @@ export function createBuildingRoom(deps: BuildingRoomDeps): BuildingRoom {
       if (usage) applyUsageSummary(room.state.usage, usage);
       if (compound) applyCompoundState(room.state.compound, compound.state);
       deps.jukebox?.restore(room.state.jukebox);
+      room.state.lobbyWhiteboardVersion = lobbyWhiteboard;
       room.setInterval(sweep, SWEEP_MS);
       logger.info({ roomId: room.roomId, operations: known.length }, "building room created");
     },
@@ -368,6 +372,11 @@ export function createBuildingRoom(deps: BuildingRoomDeps): BuildingRoom {
     setUsage(summary) {
       usage = summary;
       if (handle) applyUsageSummary(handle.state.usage, summary);
+    },
+
+    setLobbyWhiteboard(version) {
+      lobbyWhiteboard = version;
+      if (handle) handle.state.lobbyWhiteboardVersion = version;
     },
 
     setCompound(snapshot) {

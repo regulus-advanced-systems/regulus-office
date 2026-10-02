@@ -28,6 +28,14 @@ export interface SpecialDressing {
   extras: PiecePlacement[];
   /** Live usage screen on a wall (the lobby's usage wall), centre and facing. */
   usage?: { position: Vec3; rotationY: number; w: number; h: number };
+  /** The compound-wide whiteboard (#45): centre, facing, size and where to stand to use it. */
+  whiteboard?: {
+    position: Vec3;
+    rotationY: number;
+    w: number;
+    h: number;
+    stand: { x: number; z: number };
+  };
 }
 
 const R = (x: number, z: number, w: number, d: number): Rect => ({ x, z, w, d });
@@ -105,6 +113,18 @@ function lobby(w: number, d: number): SpecialDressing {
     usage: (() => {
       const p = wallPiece("usage_panel", "north", w / 2 + 4.5, 1.65, size);
       return { position: p.position, rotationY: p.rotationY ?? 0, w: 2.4, h: 1.35 };
+    })(),
+    // West of the corridor door, between the poster and the clock (#45).
+    whiteboard: (() => {
+      const along = Math.min(6, w / 2 - 4.5);
+      const p = wallPiece("whiteboard", "north", along, 1.5, size);
+      return {
+        position: p.position,
+        rotationY: p.rotationY ?? 0,
+        w: 2.4,
+        h: 1.3,
+        stand: { x: along, z: 1.3 },
+      };
     })(),
   };
 }

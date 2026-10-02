@@ -20,15 +20,19 @@
     "@colyseus/core": "0.18.17",
     "@regulus/agent-adapters": "workspace:*",
     "@regulus/assets": "workspace:*",
-    "@regulus/room-layout": "workspace:*",
     "@regulus/protocol": "workspace:*",
+    "@regulus/room-layout": "workspace:*",
     "better-auth": "^1.7.6",
     "drizzle-orm": "0.45.3",
+    "lib0": "^0.2.119",
     "pino": "^10.3.1",
+    "y-protocols": "^1.0.7",
+    "yjs": "^13.6.33",
     "zod": "4.6.5"
   },
   "devDependencies": {
     "@colyseus/sdk": "0.18.4",
-    "drizzle-kit": "0.31.11"
+    "drizzle-kit": "0.31.11",
+    "y-websocket": "^3.1.0"
   }
 }
