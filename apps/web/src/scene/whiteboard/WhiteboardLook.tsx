@@ -64,6 +64,8 @@ export function WhiteboardLook({ w, h, texture, highlighted }: BoardLookProps) {
       <mesh position={[0, 0, FACE_Z]} name="whiteboard-face">
         <planeGeometry args={[w, h]} />
         <meshBasicMaterial
+          // A map appearing later needs another shader program: a new material, not a prop change.
+          key={texture ? "snapshot" : "blank"}
           map={texture}
           color={texture ? "#FFFFFF" : WHITEBOARD_FACE}
           toneMapped={false}
