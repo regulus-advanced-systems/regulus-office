@@ -2,8 +2,9 @@
  * What floats over a human's head besides the name plate (#49): the speech
  * bubble of the line they said last, fading out (bubbles.ts), and with
  * reduced motion the badge of the emote they are holding (the pose itself
- * stands still). Sprites, so they always face the camera. Named for the
- * e2e probes: `chat-bubble` (userData.text) and `emote-badge` (userData.emote).
+ * stands still), and (#48) the voice badge: muted, or on the TV. Sprites,
+ * so they always face the camera. Named for the e2e probes: `chat-bubble`
+ * (userData.text), `emote-badge` (userData.emote), `voice-badge` (userData.kind).
  */
 import { useFrame } from "@react-three/fiber";
 import { EMOTE_LABELS, type Emote } from "@regulus/protocol";
@@ -13,6 +14,7 @@ import { useBuildingStore } from "../../state/building.ts";
 import { selectReducedMotion, useUiStore } from "../../state/ui.ts";
 import { bubbleOpacity, createBubbleTracker, useBubbleStore } from "./bubbles.ts";
 import { bubbleTexture, emoteBadgeTexture } from "./bubbleTexture.ts";
+import { useVoiceBadge, VoiceBadge } from "./VoiceBadge.tsx";
 
 /** Feed live chat lines into the bubble store; mount once (the avatar layer). */
 export function useChatBubbleFeed(): void {
@@ -93,18 +95,30 @@ export interface OverheadProps {
   userId: string;
   /** The emote held now, shown as a badge (reduced motion only). */
   emote?: Emote | null;
+  /** Building session id, for the voice badge (#48). */
+  sessionId?: string;
 }
 
 /** Bubble above the badge, both above the name plate (the parent places this group). */
-export function Overhead({ userId, emote }: OverheadProps) {
+export function Overhead({ userId, emote, sessionId }: OverheadProps) {
   const reducedMotion = useUiStore(selectReducedMotion);
   const badge = reducedMotion && emote ? emote : null;
+  const voice = useVoiceBadge(sessionId);
+  const stack = (voice ? 1 : 0) + (badge ? 1 : 0);
   return (
     <group name="overhead">
-      {badge && <EmoteBadge emote={badge} />}
-      <group position={[0, badge ? 0.38 : 0, 0]}>
+      {voice && <VoiceBadge kind={voice} />}
+      {badge && (
+        <group position={[0, voice ? BADGE_STEP : 0, 0]}>
+          <EmoteBadge emote={badge} />
+        </group>
+      )}
+      <group position={[0, stack * BADGE_STEP, 0]}>
         <ChatBubble userId={userId} />
       </group>
     </group>
   );
 }
+
+/** Height of one badge row, metres. */
+const BADGE_STEP = 0.38;

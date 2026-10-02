@@ -16,6 +16,7 @@
  * - clock-sync.ts     four-timestamp clock sync for the jukebox (#47)
  * - jukebox.ts        jukebox limits, playhead maths, permissions, library REST (#47)
  * - meeting-plan.ts   meeting patterns, roles and agenda (#50); meetings-api.ts their REST shapes
+ * - media.ts          LiveKit tokens, media grants per role, TV sharing, voice permissions (#48)
  * - github-api.ts      REST shapes for the office GitHub connection, its repo list and board sync
  * - notifications.ts   desktop/tab-badge messages, per-user prefs, team webhook channels
  * - credentials-api.ts read-only credential profile list (ids and labels only)
@@ -54,6 +55,7 @@ export * from "./enums.ts";
 export * from "./genius.ts";
 export * from "./github-api.ts";
 export * from "./jukebox.ts";
+export * from "./media.ts";
 export * from "./meeting-plan.ts";
 export * from "./meetings-api.ts";
 export * from "./notifications.ts";

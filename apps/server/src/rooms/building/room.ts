@@ -2,7 +2,7 @@
  * BuildingRoom (SPEC §6 channel 1): one per office. Human presence, chat,
  * the operation list with counters, the office usage summary (#40), the lobby
  * jukebox and its clock-sync pings (#47), emotes, seats and `doing` (#49,
- * rules in social.ts). PM state is part of the schema but stays at its
+ * rules in social.ts), who has the lounge TV (#48, screen-share.ts). PM state is part of the schema but stays at its
  * defaults until its milestone.
  *
  * Written against `RoomDefinition`, not Colyseus; see ../transport.ts.
@@ -12,9 +12,7 @@ import {
   BuildingJoinOptions,
   BuildingStateSchema,
   type ChatMessage,
-  CLOCK_PONG_MESSAGE,
   type ClientCommand,
-  type ClockPong,
   COMMAND_REJECTED_MESSAGE,
   type CommandRejected,
   EMOTE_MS,
@@ -37,9 +35,11 @@ import { CHAT_REPLAY, type ChatStore } from "../chat/store.ts";
 import type { RoomClient, RoomDefinition, RoomHandle } from "../transport.ts";
 import { type BlastDoorOptions, createBlastDoor } from "./blast-door.ts";
 import { checkCommand, wrapHeading } from "./commands.ts";
+import { applyLobbyCommand } from "./lobby-commands.ts";
 import { isKnownOperation, type OperationRecord, type OperationSource } from "./operations.ts";
 import { RateLimiter } from "./rate-limiter.ts";
 import { applyLook, chatLine } from "./schema-copy.ts";
+import { createScreenShareRules, type ScreenShareRules } from "./screen-share.ts";
 import { createSocialRules } from "./social.ts";
 
 export type BuildingState = InstanceType<typeof BuildingStateSchema>;
@@ -67,6 +67,8 @@ export interface BuildingRoomDeps {
   blastDoor?: BlastDoorOptions;
   /** The lobby jukebox (#47): playhead, queue and permissions; absent = refused. */
   jukebox?: JukeboxPlayer;
+  /** The lounge TV (#48); absent = media off, `screen.share.start` refused. */
+  screenShare?: ScreenShareRules;
 }
 
 export interface BuildingRoom extends RoomDefinition<BuildingState, BuildingJoinOptions> {
@@ -82,6 +84,8 @@ export interface BuildingRoom extends RoomDefinition<BuildingState, BuildingJoin
   setCompound(snapshot: CompoundSnapshot): void;
   /** The lobby whiteboard has a new wall snapshot (#45). */
   setLobbyWhiteboard(version: number): void;
+  /** Whose connected session this is (media tokens, #48); null when it is not connected. */
+  presence(sessionId: string): { userId: string } | null;
 }
 
 interface ClientBookkeeping {
@@ -101,6 +105,11 @@ export function createBuildingRoom(deps: BuildingRoomDeps): BuildingRoom {
   let lobbyWhiteboard = 0;
   let handle: RoomHandle<BuildingState> | undefined;
   const blastDoor = createBlastDoor(deps.blastDoor ?? {}, now);
+  const lobbyDeps = {
+    jukebox: deps.jukebox,
+    screen: deps.screenShare ?? createScreenShareRules({ enabled: false }),
+    now,
+  };
 
   const reject = (client: RoomClient, type: string, reason: string) => {
     const notice: CommandRejected = { type, reason };
@@ -278,33 +287,11 @@ export function createBuildingRoom(deps: BuildingRoomDeps): BuildingRoom {
         else logger.info(result.press, "blast door pressed");
         return;
       }
-      case "clock.ping": {
-        // Receive and send time are the same instant here: the handler is synchronous.
-        const t = now();
-        const pong: ClockPong = { id: command.id, t0: command.t0, t1: t, t2: t };
-        client.send(CLOCK_PONG_MESSAGE, pong);
-        return;
+      default: {
+        const lobby = applyLobbyCommand(lobbyDeps, room.state, client, command);
+        if (!lobby.handled) reject(client, command.type, "not handled by the building room");
+        else if (lobby.reason) reject(client, command.type, lobby.reason);
       }
-      case "jukebox.play":
-      case "jukebox.pause":
-      case "jukebox.seek":
-      case "jukebox.enqueue":
-      case "jukebox.skip":
-      case "jukebox.remove":
-      case "jukebox.volume":
-      case "jukebox.duration": {
-        if (!deps.jukebox) return reject(client, command.type, "the jukebox is not running");
-        const { userId, role, displayName } = client.user;
-        const result = deps.jukebox.command(
-          room.state.jukebox,
-          { userId, role, displayName },
-          command,
-        );
-        if (!result.ok) reject(client, command.type, result.reason);
-        return;
-      }
-      default:
-        reject(client, command.type, "not handled by the building room");
     }
   };
 
@@ -385,6 +372,11 @@ export function createBuildingRoom(deps: BuildingRoomDeps): BuildingRoom {
     setUsage(summary) {
       usage = summary;
       if (handle) applyUsageSummary(handle.state.usage, summary);
+    },
+
+    presence(sessionId) {
+      const human = handle?.state.humans.get(sessionId);
+      return human ? { userId: human.userId } : null;
     },
 
     setLobbyWhiteboard(version) {

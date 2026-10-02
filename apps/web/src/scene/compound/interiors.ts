@@ -163,7 +163,10 @@ function specialRoom(room: WorldRoom): RoomArt {
     beacons: shell.beacons,
     lamps: shell.lamps,
     consoleLamps,
-    obstacles: dressing.furniture.map((f) => f.rect),
+    obstacles: [
+      ...dressing.furniture.map((f) => f.rect),
+      ...(dressing.tv ? [dressing.tv.rect] : []),
+    ],
     dressing,
   };
 }

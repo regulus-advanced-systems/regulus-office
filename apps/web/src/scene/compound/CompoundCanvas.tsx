@@ -36,6 +36,7 @@ import { LampLights } from "../lair/components/LampLights.tsx";
 import { MovementController } from "../movement/MovementController.tsx";
 import { StatsOverlay } from "../perf/StatsOverlay.tsx";
 import { statsEnabled } from "../perf/stats.ts";
+import { LoungeTv } from "../tv/LoungeTv.tsx";
 import { UsageScreen } from "../usage/UsageScreen.tsx";
 import { LobbyWhiteboard } from "../whiteboard/WhiteboardLayer.tsx";
 import { BuildLayer } from "./build/BuildLayer.tsx";
@@ -244,6 +245,7 @@ function Scene({ world, avatars, presence, send, children }: CompoundCanvasProps
         {lobbyBoard && lobby && visibleRooms.has(lobby.id) && (
           <LobbyWhiteboard board={lobbyBoard} />
         )}
+        {lobby && visibleRooms.has(lobby.id) && <LoungeTv world={world} />}
         <CarriedCards />
       </Suspense>
       <group name="avatars">{avatars}</group>

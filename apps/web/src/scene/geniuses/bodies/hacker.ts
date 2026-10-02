@@ -165,6 +165,7 @@ function accessory(p: PartBuilder, id: string): void {
 export const hacker: ArchetypeModel = {
   id: "hacker",
   body,
+  head,
   style: { idle: "hands_in_pocket", lean: 16, stride: 22, armSwing: 10, sway: 3, bob: 0.025 },
   build,
   accessory,

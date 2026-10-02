@@ -1,0 +1,62 @@
+/* Voice and the lounge TV (#48): the HUD strip and the TV's full-screen view. */
+
+.rg-media-strip {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+  max-width: min(460px, calc(100vw - 260px));
+  padding: 3px 6px 3px 12px;
+  pointer-events: auto;
+}
+.rg-media-strip__text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+.rg-media-strip__label {
+  font-family: var(--rg-font-stencil, inherit);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--rg-color-heading);
+}
+.rg-media-strip__error {
+  color: var(--rg-lamp-error);
+}
+.rg-media-strip__note {
+  font-size: 12px;
+  color: var(--rg-color-ink-muted);
+}
+/* The lamp: amber while connecting, green connected, red failed (the StatusBox colours). */
+.rg-media-strip__lamp.is-connecting,
+.rg-media-strip__lamp.is-reconnecting {
+  --rg-lamp: var(--rg-lamp-waiting);
+}
+.rg-media-strip__lamp.is-failed {
+  --rg-lamp: var(--rg-lamp-error);
+}
+.rg-media-strip__lamp.is-connected {
+  --rg-lamp: var(--rg-lamp-idle);
+}
+/* A live mic blinks gently (still with reduced motion, feedback.css). */
+.rg-media-strip__lamp.is-live {
+  animation: rg-lamp-blink 1.1s steps(2, jump-none) infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .rg-media-strip__lamp.is-live {
+    animation: none;
+  }
+}
+
+.rg-modal--tv .rg-tv__video {
+  display: block;
+  width: 100%;
+  max-height: calc(100vh - 220px);
+  aspect-ratio: 16 / 9;
+  object-fit: contain;
+  background: #0b0e10;
+  border-radius: 6px;
+}

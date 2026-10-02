@@ -30,6 +30,12 @@ export interface UiSettings {
   mouseSensitivity: number;
   /** Graphics quality preset. */
   graphics: GraphicsSetting;
+  /** Proximity voice level 0..1 on top of `volume` (#48). */
+  voiceVolume: number;
+  /** Push-to-talk: the mic is live only while M is held (#48). */
+  pushToTalk: boolean;
+  /** Microphone to use; "" = the browser's default (#48). */
+  micDeviceId: string;
 }
 
 export const SETTINGS_STORAGE_KEY = "regulus.ui.settings.v1";
@@ -42,6 +48,9 @@ export const DEFAULT_SETTINGS: Readonly<UiSettings> = {
   fpvFov: DEFAULT_FPV_FOV,
   mouseSensitivity: DEFAULT_MOUSE_SENSITIVITY,
   graphics: "auto",
+  voiceVolume: 1,
+  pushToTalk: false,
+  micDeviceId: "",
 };
 
 export interface StorageLike {
@@ -65,6 +74,7 @@ export function parseSettings(raw: string | null | undefined): UiSettings {
   const volume = num(o.volume);
   const fpvFov = num(o.fpvFov);
   const sensitivity = num(o.mouseSensitivity);
+  const voiceVolume = num(o.voiceVolume);
   return {
     reducedMotion: typeof o.reducedMotion === "boolean" ? o.reducedMotion : null,
     volume: volume === null ? DEFAULT_SETTINGS.volume : Math.min(1, Math.max(0, volume)),
@@ -77,6 +87,13 @@ export function parseSettings(raw: string | null | undefined): UiSettings {
     graphics: (GRAPHICS_SETTINGS as readonly unknown[]).includes(o.graphics)
       ? (o.graphics as GraphicsSetting)
       : DEFAULT_SETTINGS.graphics,
+    voiceVolume:
+      voiceVolume === null ? DEFAULT_SETTINGS.voiceVolume : Math.min(1, Math.max(0, voiceVolume)),
+    pushToTalk: typeof o.pushToTalk === "boolean" ? o.pushToTalk : DEFAULT_SETTINGS.pushToTalk,
+    micDeviceId:
+      typeof o.micDeviceId === "string" && o.micDeviceId.length <= 256
+        ? o.micDeviceId
+        : DEFAULT_SETTINGS.micDeviceId,
   };
 }
 

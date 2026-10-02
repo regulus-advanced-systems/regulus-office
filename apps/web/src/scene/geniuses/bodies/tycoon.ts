@@ -154,6 +154,7 @@ function accessory(p: PartBuilder, id: string): void {
 export const tycoon: ArchetypeModel = {
   id: "tycoon",
   body,
+  head,
   style: { idle: "thumbs_in_vest", lean: -6, stride: 22, armSwing: 14, sway: 8, bob: 0.03 },
   build,
   accessory,

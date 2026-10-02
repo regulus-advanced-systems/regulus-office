@@ -61,7 +61,14 @@ export const ScreenShareStartCommand = z.object({
   target: z.enum(SCREEN_SHARE_TARGETS).default("lounge_tv"),
 });
 
-export const ScreenShareStopCommand = z.object({ type: z.literal("screen.share.stop") });
+/**
+ * Take a screen off the lounge TV (#48): your own, or with `sessionId` an
+ * owner/admin stops someone else's share (audited).
+ */
+export const ScreenShareStopCommand = z.object({
+  type: z.literal("screen.share.stop"),
+  sessionId: Id.optional(),
+});
 
 /** Ask the PM henchman a question at reception. */
 export const PmAskCommand = z.object({

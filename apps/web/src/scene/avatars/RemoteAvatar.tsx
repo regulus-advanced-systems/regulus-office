@@ -110,7 +110,8 @@ export function RemoteAvatar({ sessionId }: RemoteAvatarProps) {
         gait={gait}
         name={info.name}
         still={reducedMotion && emote !== null}
-        overhead={<Overhead userId={info.userId} emote={emote} />}
+        voice={sessionId}
+        overhead={<Overhead userId={info.userId} emote={emote} sessionId={sessionId} />}
       />
     </group>
   );

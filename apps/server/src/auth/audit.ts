@@ -32,6 +32,8 @@ export const AUDIT_ACTIONS = {
   compoundRoomMove: "compound.room_move",
   /** Someone pressed the lobby's blast door button: opened it, or held it open (#188). */
   compoundBlastDoorOpen: "compound.blast_door_open",
+  /** An owner/admin took someone else's screen off the lounge TV (#48). */
+  mediaScreenShareStop: "media.screen_share_stop",
   agentPullRequest: "agent.pull_request",
   worktreesPrune: "worktrees.prune",
   agentSpawn: "agent.spawn",

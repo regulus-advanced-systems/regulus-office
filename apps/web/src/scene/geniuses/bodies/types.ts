@@ -2,6 +2,7 @@
 import type { GeniusAccessory, GeniusArchetype } from "@regulus/protocol";
 import type { PartBuilder } from "../parts.ts";
 import type { Body } from "../rig.ts";
+import type { HeadFrame } from "./common.ts";
 
 /** Idle arm poses: each archetype stands in character. */
 export type IdlePose =
@@ -31,6 +32,8 @@ export interface MotionStyle {
 export interface ArchetypeModel {
   id: GeniusArchetype;
   body: Body;
+  /** The head block (model space), where the talking mouth goes (#48). */
+  head: HeadFrame;
   style: MotionStyle;
   /** Body, clothes, face and hair. */
   build(p: PartBuilder): void;

@@ -168,6 +168,7 @@ function accessory(p: PartBuilder, id: string): void {
 export const mastermind: ArchetypeModel = {
   id: "mastermind",
   body,
+  head,
   style: {
     idle: "steepled",
     lean: -2,

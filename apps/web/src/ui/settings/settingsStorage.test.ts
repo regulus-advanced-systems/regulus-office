@@ -35,6 +35,9 @@ describe("settings storage", () => {
       fpvFov: DEFAULT_SETTINGS.fpvFov,
       mouseSensitivity: DEFAULT_SETTINGS.mouseSensitivity,
       graphics: "auto",
+      voiceVolume: 1,
+      pushToTalk: false,
+      micDeviceId: "",
     });
     expect(parseSettings('{"reducedMotion":"no","volume":-1}')).toEqual({
       reducedMotion: null,
@@ -44,7 +47,26 @@ describe("settings storage", () => {
       fpvFov: DEFAULT_SETTINGS.fpvFov,
       mouseSensitivity: DEFAULT_SETTINGS.mouseSensitivity,
       graphics: "auto",
+      voiceVolume: 1,
+      pushToTalk: false,
+      micDeviceId: "",
     });
+  });
+
+  test("voice settings default, persist and clamp (#48)", () => {
+    expect(parseSettings('{"volume":0.5}')).toMatchObject({
+      voiceVolume: 1,
+      pushToTalk: false,
+      micDeviceId: "",
+    });
+    expect(parseSettings('{"voiceVolume":3,"pushToTalk":"on","micDeviceId":7}')).toMatchObject({
+      voiceVolume: 1,
+      pushToTalk: false,
+      micDeviceId: "",
+    });
+    expect(
+      parseSettings('{"voiceVolume":0.3,"pushToTalk":true,"micDeviceId":"abc"}'),
+    ).toMatchObject({ voiceVolume: 0.3, pushToTalk: true, micDeviceId: "abc" });
   });
 
   test("first-person FOV and mouse sensitivity default, persist and clamp", () => {
@@ -83,6 +105,9 @@ describe("settings storage", () => {
       fpvFov: 68,
       mouseSensitivity: 1.5,
       graphics: "medium" as const,
+      voiceVolume: 0.5,
+      pushToTalk: true,
+      micDeviceId: "mic-2",
     };
     saveSettings(storage, settings);
     expect(storage.map.get(SETTINGS_STORAGE_KEY)).toBe(serializeSettings(settings));

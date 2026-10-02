@@ -171,6 +171,7 @@ function accessory(p: PartBuilder, id: string): void {
 export const diva: ArchetypeModel = {
   id: "diva",
   body,
+  head,
   style: { idle: "hand_on_hip", lean: -3, stride: 18, armSwing: 14, sway: 9, bob: 0.02 },
   build,
   accessory,

@@ -4,6 +4,14 @@
 # A public hostname gets a Let's Encrypt certificate automatically.
 {$OFFICE_DOMAIN} {
 	encode zstd gzip
+	# Voice and the lounge TV (#48): LiveKit's signalling WebSocket when the `media` profile runs
+	# (502 otherwise; the office then hides voice and screen share). Media itself goes to
+	# LiveKit's own ports (UDP 7882, TCP 7881), not through here.
+	handle_path /livekit/* {
+		reverse_proxy livekit:7880
+	}
 	# WebSocket upgrades (rooms) pass through reverse_proxy unchanged.
-	reverse_proxy office:4600
+	handle {
+		reverse_proxy office:4600
+	}
 }

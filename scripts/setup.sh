@@ -6,6 +6,7 @@
 #   scripts/setup.sh                              interactive first install
 #   scripts/setup.sh --domain office.example.com  public hostname (Let's Encrypt)
 #   scripts/setup.sh --upgrade                    pull the checkout, rebuild, restart
+#   scripts/setup.sh --media                      also run LiveKit: voice and the lounge TV (#48)
 #
 # Plain `cd deploy && docker compose up -d --build` keeps working (after creating the backup
 # directory, see README); this script only adds checks, secret generation, the backup directory,
@@ -29,6 +30,9 @@ Usage: scripts/setup.sh [options]
   --backup-dir <path>    host directory for the nightly database backups (default: OFFICE_BACKUP_HOST_DIR
                          in deploy/.env, else deploy/backups). Created with mode 700 for uid 1000,
                          the office user; existing backups in it are kept.
+  --media                voice chat and screen share to the lounge TV: generate the LiveKit key
+                         pair into deploy/.env and start the `media` profile (open TCP 7881 and
+                         UDP 7882; docs/deploy/media.md). Stays on for later runs.
   --upgrade              git pull (fast-forward, clean checkout only), rebuild changed images and
                          restart the office; henchmen keep running in their runner containers
   --install-docker       install Docker Engine and the Compose plugin (Ubuntu only; asks first)
@@ -66,7 +70,7 @@ WARNINGS=0
 # Arguments
 
 DOMAIN_ARG="" HTTP_PORT_ARG="" HTTPS_PORT_ARG="" IMAGES_MODE="auto" OWNER_EMAIL="" OWNER_NAME="Owner"
-BACKUP_DIR_ARG="" UPGRADE=0 INSTALL_DOCKER=0 INTERACTIVE=1
+BACKUP_DIR_ARG="" UPGRADE=0 INSTALL_DOCKER=0 INTERACTIVE=1 MEDIA=0
 ORIG_ARGS=("$@")
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -85,6 +89,7 @@ while [[ $# -gt 0 ]]; do
     --backup-dir) BACKUP_DIR_ARG="${2:?--backup-dir needs a value}"; shift 2 ;;
     --backup-dir=*) BACKUP_DIR_ARG="${1#*=}"; shift ;;
     --upgrade) UPGRADE=1; shift ;;
+    --media) MEDIA=1; shift ;;
     --install-docker) INSTALL_DOCKER=1; shift ;;
     --non-interactive | -y) INTERACTIVE=0; shift ;;
     -h | --help) usage; exit 0 ;;
@@ -405,6 +410,46 @@ if ! is_local_domain "$DOMAIN"; then
   fi
 fi
 
+# Voice and the lounge TV (#48, docs/deploy/media.md): LiveKit under the Compose `media` profile.
+# On with --media, and stays on once deploy/.env has COMPOSE_PROFILES=media. The key pair is
+# generated once and never printed; LiveKit reads it from LIVEKIT_KEYS (livekit.yaml has none).
+new_hex() { head -c "$1" /dev/urandom | od -An -tx1 | tr -d ' \n'; }
+PROFILES="$(cfg COMPOSE_PROFILES)"
+[[ ",$PROFILES," == *,media,* ]] && MEDIA=1
+if [[ $MEDIA -eq 1 ]]; then
+  if [[ -z "$(env_get LIVEKIT_API_KEY)" ]]; then
+    env_set LIVEKIT_API_KEY "API$(new_hex 8)"
+    ok "generated LIVEKIT_API_KEY"
+  fi
+  lk_secret_len="$(env_get LIVEKIT_API_SECRET | tr -d '\n' | wc -c | tr -d ' ')"
+  if [[ "$lk_secret_len" -eq 0 ]]; then
+    env_set LIVEKIT_API_SECRET "$(new_hex 32)"
+    ok "generated LIVEKIT_API_SECRET (32 random bytes, hex)"
+  elif [[ "$lk_secret_len" -lt 32 ]]; then
+    die "LIVEKIT_API_SECRET in deploy/.env is $lk_secret_len characters; LiveKit needs at least 32." \
+      "# Empty it and re-run scripts/setup.sh --media to generate one (everyone reconnects)."
+  else
+    ok "LIVEKIT_API_SECRET present"
+  fi
+  if [[ ",$PROFILES," != *,media,* ]]; then
+    PROFILES="${PROFILES:+$PROFILES,}media"
+    env_set COMPOSE_PROFILES "$PROFILES"
+  fi
+  export COMPOSE_PROFILES="$PROFILES"
+  # On a local domain STUN would advertise this machine's public address, which a browser on
+  # this machine may not reach through NAT; advertise loopback instead unless already set.
+  if is_local_domain "$DOMAIN" && [[ -z "$(env_get LIVEKIT_NODE_IP)$(env_get LIVEKIT_USE_EXTERNAL_IP)" ]]; then
+    env_set LIVEKIT_USE_EXTERNAL_IP false
+    env_set LIVEKIT_NODE_IP 127.0.0.1
+  fi
+  LK_TCP="$(cfg LIVEKIT_TCP_PORT)" LK_UDP="$(cfg LIVEKIT_UDP_PORT)"
+  LK_TCP="${LK_TCP:-7881}" LK_UDP="${LK_UDP:-7882}"
+  if [[ -z "$(dc ps --status running -q livekit 2>/dev/null)" ]] && port_in_use "$LK_TCP"; then
+    die "port $LK_TCP (LiveKit TCP) is already in use on this machine" "# set LIVEKIT_TCP_PORT in $ENV_FILE to a free port"
+  fi
+  ok "media: LiveKit on TCP $LK_TCP and UDP $LK_UDP (open both in the firewall); signalling at $PUBLIC_URL/livekit"
+fi
+
 # ---------------------------------------------------------------------------------------------
 # 3. Backup directory (#203): nightly backups go to a host directory, not the office-data volume,
 # so deleting the volume does not delete them. The `backup` service runs as uid 1000 (the office
@@ -562,6 +607,15 @@ else
   warn "$health_url does not answer yet; usually Caddy is still getting the certificate (needs DNS and inbound 80/443)"
   fix "cd $DEPLOY && docker compose logs -f caddy"
 fi
+if [[ $MEDIA -eq 1 && $healthy -eq 1 ]]; then
+  # LiveKit answers "OK" on / ; through Caddy that is /livekit/.
+  if curl -fsSk --max-time 5 --resolve "$DOMAIN:$HTTPS_PORT:127.0.0.1" "https://$DOMAIN:$HTTPS_PORT/livekit/" 2>/dev/null | grep -q OK; then
+    ok "LiveKit answers at $PUBLIC_URL/livekit"
+  else
+    warn "LiveKit does not answer at $PUBLIC_URL/livekit; voice and the lounge TV stay off until it does"
+    fix "cd $DEPLOY && docker compose logs livekit"
+  fi
+fi
 
 # ---------------------------------------------------------------------------------------------
 # 6. First owner
@@ -613,6 +667,13 @@ cat <<EOF
     4. Each teammate signs in to their AI providers (Claude Code, Codex, ...) from their own
        runner terminal in the office; logins stay in their runner's HOME volume.
     5. Keep a copy of deploy/.env (the secrets) and of the backups off this machine.
+$(if [[ $MEDIA -eq 1 ]]; then
+  printf '    6. Voice and the lounge TV: open TCP %s and UDP %s in the firewall (ufw and cloud\n' "$LK_TCP" "$LK_UDP"
+  printf '       firewall rules: docs/deploy/media.md), then check with two browsers.\n'
+else
+  printf '    6. Voice chat and screen share to the lounge TV are off: scripts/setup.sh --media\n'
+  printf '       turns them on (docs/deploy/media.md).\n'
+fi)
 
   Backups (README "Backups and restore")
     Where:      $BACKUP_DIR, daily at $BACKUP_TIME UTC, kept $([[ $BACKUP_RETENTION == 0 ]] && echo forever || echo "$BACKUP_RETENTION days")

@@ -1,6 +1,7 @@
 /**
  * Settings → Display and sound (#225, SPEC §11): graphics quality and first
- * person on the left; reduced motion, volume, the jukebox mute (#47) and the clock on the right;
+ * person on the left; reduced motion, volume, the jukebox mute (#47), voice (#48) and the clock
+ * on the right;
  * reset to defaults below. All of it is per browser (settingsStorage.ts).
  */
 import { useId } from "react";
@@ -10,6 +11,7 @@ import { Switch } from "../components/Switch.tsx";
 import { FirstPersonSettings } from "./FirstPersonSettings.tsx";
 import { GraphicsSettings } from "./GraphicsSettings.tsx";
 import { DEFAULT_SETTINGS } from "./settingsStorage.ts";
+import { VoiceSettings } from "./VoiceSettings.tsx";
 
 export function DisplaySettings() {
   const settings = useUiStore((s) => s.settings);
@@ -73,6 +75,7 @@ export function DisplaySettings() {
               hint="Only for you: the music keeps playing for everyone else."
             />
           </div>
+          <VoiceSettings />
           <div className="rg-field">
             <Switch
               checked={settings.hour12}
