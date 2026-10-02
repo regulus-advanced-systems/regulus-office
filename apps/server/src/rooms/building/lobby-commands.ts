@@ -1,0 +1,62 @@
+/**
+ * The building room's lobby features, apart from room.ts: the jukebox and
+ * its clock-sync pings (#47) and the lounge TV share (#48, screen-share.ts).
+ * `applyLobbyCommand` handles one parsed command, or says it is not one of
+ * these; a refusal comes back as a reason for the caller to send.
+ */
+import {
+  type BuildingStateSchema,
+  CLOCK_PONG_MESSAGE,
+  type ClientCommand,
+  type ClockPong,
+} from "@regulus/protocol";
+import type { JukeboxPlayer } from "../../jukebox/player.ts";
+import type { RoomClient } from "../transport.ts";
+import type { ScreenShareRules } from "./screen-share.ts";
+
+type BuildingState = InstanceType<typeof BuildingStateSchema>;
+
+export interface LobbyCommandDeps {
+  jukebox?: JukeboxPlayer;
+  screen: ScreenShareRules;
+  now: () => number;
+}
+
+export type LobbyResult = { handled: false } | { handled: true; reason?: string };
+
+export function applyLobbyCommand(
+  deps: LobbyCommandDeps,
+  state: BuildingState,
+  client: RoomClient,
+  command: ClientCommand,
+): LobbyResult {
+  switch (command.type) {
+    case "clock.ping": {
+      // Receive and send time are the same instant here: the handler is synchronous.
+      const t = deps.now();
+      const pong: ClockPong = { id: command.id, t0: command.t0, t1: t, t2: t };
+      client.send(CLOCK_PONG_MESSAGE, pong);
+      return { handled: true };
+    }
+    case "jukebox.play":
+    case "jukebox.pause":
+    case "jukebox.seek":
+    case "jukebox.enqueue":
+    case "jukebox.skip":
+    case "jukebox.remove":
+    case "jukebox.volume":
+    case "jukebox.duration": {
+      if (!deps.jukebox) return { handled: true, reason: "the jukebox is not running" };
+      const { userId, role, displayName } = client.user;
+      const result = deps.jukebox.command(state.jukebox, { userId, role, displayName }, command);
+      return result.ok ? { handled: true } : { handled: true, reason: result.reason };
+    }
+    case "screen.share.start":
+    case "screen.share.stop": {
+      const result = deps.screen.apply(state.humans, client.sessionId, client.user, command);
+      return result.ok ? { handled: true } : { handled: true, reason: result.reason };
+    }
+    default:
+      return { handled: false };
+  }
+}

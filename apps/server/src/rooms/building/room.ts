@@ -12,9 +12,7 @@ import {
   BuildingJoinOptions,
   BuildingStateSchema,
   type ChatMessage,
-  CLOCK_PONG_MESSAGE,
   type ClientCommand,
-  type ClockPong,
   COMMAND_REJECTED_MESSAGE,
   type CommandRejected,
   EMOTE_MS,
@@ -37,6 +35,7 @@ import { CHAT_REPLAY, type ChatStore } from "../chat/store.ts";
 import type { RoomClient, RoomDefinition, RoomHandle } from "../transport.ts";
 import { type BlastDoorOptions, createBlastDoor } from "./blast-door.ts";
 import { checkCommand, wrapHeading } from "./commands.ts";
+import { applyLobbyCommand } from "./lobby-commands.ts";
 import { isKnownOperation, type OperationRecord, type OperationSource } from "./operations.ts";
 import { RateLimiter } from "./rate-limiter.ts";
 import { applyLook, chatLine } from "./schema-copy.ts";
@@ -106,7 +105,11 @@ export function createBuildingRoom(deps: BuildingRoomDeps): BuildingRoom {
   let lobbyWhiteboard = 0;
   let handle: RoomHandle<BuildingState> | undefined;
   const blastDoor = createBlastDoor(deps.blastDoor ?? {}, now);
-  const screen = deps.screenShare ?? createScreenShareRules({ enabled: false });
+  const lobbyDeps = {
+    jukebox: deps.jukebox,
+    screen: deps.screenShare ?? createScreenShareRules({ enabled: false }),
+    now,
+  };
 
   const reject = (client: RoomClient, type: string, reason: string) => {
     const notice: CommandRejected = { type, reason };
@@ -284,39 +287,11 @@ export function createBuildingRoom(deps: BuildingRoomDeps): BuildingRoom {
         else logger.info(result.press, "blast door pressed");
         return;
       }
-      case "clock.ping": {
-        // Receive and send time are the same instant here: the handler is synchronous.
-        const t = now();
-        const pong: ClockPong = { id: command.id, t0: command.t0, t1: t, t2: t };
-        client.send(CLOCK_PONG_MESSAGE, pong);
-        return;
+      default: {
+        const lobby = applyLobbyCommand(lobbyDeps, room.state, client, command);
+        if (!lobby.handled) reject(client, command.type, "not handled by the building room");
+        else if (lobby.reason) reject(client, command.type, lobby.reason);
       }
-      case "jukebox.play":
-      case "jukebox.pause":
-      case "jukebox.seek":
-      case "jukebox.enqueue":
-      case "jukebox.skip":
-      case "jukebox.remove":
-      case "jukebox.volume":
-      case "jukebox.duration": {
-        if (!deps.jukebox) return reject(client, command.type, "the jukebox is not running");
-        const { userId, role, displayName } = client.user;
-        const result = deps.jukebox.command(
-          room.state.jukebox,
-          { userId, role, displayName },
-          command,
-        );
-        if (!result.ok) reject(client, command.type, result.reason);
-        return;
-      }
-      case "screen.share.start":
-      case "screen.share.stop": {
-        const result = screen.apply(room.state.humans, client.sessionId, client.user, command);
-        if (!result.ok) reject(client, command.type, result.reason);
-        return;
-      }
-      default:
-        reject(client, command.type, "not handled by the building room");
     }
   };
 
