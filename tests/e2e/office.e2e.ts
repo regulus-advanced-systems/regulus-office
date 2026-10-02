@@ -880,7 +880,8 @@ test("the jukebox: E opens it, a queued track plays in both browsers at the same
 });
 
 test("wall pictures: uploaded, hung on a free wall, seen by the other browser, removed (#46)", async () => {
-  test.skip(!process.env.E2E_DATA_DIR, "needs the locally started server (Apollo from build mode)");
+  test.skip(!process.env.E2E_DATA_DIR, "needs the locally started server (local git remotes)");
   test.setTimeout(240_000);
+  await ensureApollo();
   await checkWallPictures(ownerPage, memberPage, "Apollo");
 });
