@@ -106,7 +106,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --settings) settings="$2"; shift 2 ;;
     --session-id|--resume) session="$2"; shift 2 ;;
-    --model|--effort) shift 2 ;;
+    --model|--effort|--permission-mode) shift 2 ;;
     -*) shift ;;
     *) prompt="$1"; shift ;;
   esac
@@ -134,6 +134,44 @@ base="\"session_id\":\"$session\",\"cwd\":\"$PWD\""
 edit="{\"file_path\":\"$file\",\"old_string\":\"\",\"new_string\":\"hello from the fake agent\"}"
 
 hook "{$base,\"hook_event_name\":\"SessionStart\",\"source\":\"startup\"}" > /dev/null
+if [ -z "$prompt" ]; then
+  # Spawned idle (#142), as meeting members are (#50): take each prompt typed into the
+  # terminal (the office sends one line per prompt). A meeting turn names its notes file,
+  # `.meeting/turns/<file>`: write it, plus the panel's review when the turn asks for one, and
+  # commit a change when the turn says to commit. UserPromptSubmit and Stop frame each turn.
+  echo "FAKE CLAUDE waiting for prompts"
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    hook "{$base,\"hook_event_name\":\"UserPromptSubmit\",\"prompt\":\"$(json_escape "$(printf '%s' "$line" | cut -c1-200)")\"}" > /dev/null
+    who=$(printf '%s' "$line" | sed -n 's/.*You are \([A-Za-z]*\( [0-9]\)\{0,1\}\) in a meeting.*/\1/p')
+    notes=$(printf '%s' "$line" | sed -n 's/.*`\(\.meeting\/turns\/[^`]*\)`.*/\1/p')
+    trace "meeting turn: ${who:-?} -> ${notes:-no notes file}"
+    sleep 2
+    # While the spec keeps `.meeting/hold` in the worktree, the closing turn waits (the spec
+    # watches the meeting in session first); ten minutes at most (a loaded machine is slow).
+    case "$line" in *"commit the change on the current branch"*)
+      ticks=3000
+      while [ -e .meeting/hold ] && [ "$ticks" -gt 0 ]; do sleep 0.2; ticks=$((ticks - 1)); done
+      trace "closing turn goes ahead" ;;
+    esac
+    if [ -n "$notes" ]; then
+      mkdir -p "$(dirname "$notes")"
+      printf '%s (fake, not Claude Code): keep the board sync cache in memory, five minutes per entry.\n' "${who:-Henchman}" > "$notes"
+      case "$line" in *".meeting/review.md"*)
+        printf 'Fake panel review (not Claude Code): no blocking findings.\n' > .meeting/review.md ;;
+      esac
+      case "$line" in *"commit the change on the current branch"*)
+        printf 'export const boardCache = new Map<string, unknown>();\n' > MEETING_CACHE.ts
+        git add MEETING_CACHE.ts &&
+          git -c user.name="Fake Claude" -c user.email=fake-claude@example.invalid \
+            commit -q -m "Add the board sync cache the meeting chose" &&
+          echo "FAKE CLAUDE committed $(git rev-parse --short HEAD)" ;;
+      esac
+    fi
+    hook "{$base,\"hook_event_name\":\"Stop\",\"stop_hook_active\":false}" > /dev/null
+  done
+  exec sleep infinity
+fi
 echo "FAKE CLAUDE prompt: $prompt"
 sleep 1
 hook "{$base,\"hook_event_name\":\"UserPromptSubmit\",\"prompt\":\"$(json_escape "$prompt")\"}" > /dev/null

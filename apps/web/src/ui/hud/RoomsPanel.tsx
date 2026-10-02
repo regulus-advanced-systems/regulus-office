@@ -14,6 +14,7 @@ import { useUiStore } from "../../state/ui.ts";
 import { buildFrame } from "../build-mode/logic.ts";
 import { useBuildModeStore } from "../build-mode/store.ts";
 import { Button } from "../components/Button.tsx";
+import { MeetingRoomButton } from "../meetings/MeetingHost.tsx";
 import { ADD_OPERATION_OVERLAY } from "../operations/AddOperationDialog.tsx";
 import { canManageOperation } from "../operations/operationSettings.ts";
 import { Panel } from "../Panel.tsx";
@@ -56,6 +57,7 @@ export function RoomsPanel() {
         >
           Quick travel (F)
         </Button>
+        {room && <MeetingRoomButton />}
         {officeManager && (
           <Button
             variant="secondary"

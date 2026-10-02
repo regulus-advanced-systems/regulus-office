@@ -15,6 +15,8 @@ export interface PrepareWorkspaceInput {
   /** Human-readable agent slug; becomes the branch `office/<slug>` (made unique). */
   slug: string;
   ownerUserId: string;
+  /** Start point, a remote branch such as `origin/feature`; `origin/<default>` when absent. */
+  base?: string;
 }
 
 export interface PreparedWorkspace {

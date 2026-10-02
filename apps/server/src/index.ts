@@ -29,6 +29,7 @@ import { closeDatabase, databasePathFor, openDatabase, runMigrations } from "./d
 import { deprecatedEnvMessage } from "./deprecated-env.ts";
 import { createBoardGitHub } from "./github/board-actions.ts";
 import { mountBoardRoutes } from "./github/board-routes.ts";
+import { createPullRequestClient } from "./github/pulls.ts";
 import { mountGitHubRoutes } from "./github/routes.ts";
 import { createGitHubConnection } from "./github/setup.ts";
 import { createGitHubSync, type GitHubSync, mountGitHubSyncRoutes } from "./github/sync.ts";
@@ -37,6 +38,7 @@ import { WsRouter } from "./http/ws-router.ts";
 import { createJukebox } from "./jukebox/setup.ts";
 import { createShutdownController, installSignalHandlers } from "./lifecycle.ts";
 import { createLogger } from "./logging.ts";
+import { createMeetings } from "./meetings/index.ts";
 import { createNotifications } from "./notifications/setup.ts";
 import { createOperations, mountOperationRoutes } from "./operations/index.ts";
 import { mountProfileRoutes } from "./profile/routes.ts";
@@ -398,6 +400,19 @@ async function main(): Promise<void> {
     logger,
   });
   tasks.queue.followGitHub(githubSync.events);
+  // Meeting room (#50): henchmen of one human in a pattern, driven through the AgentManager.
+  const meetings = createMeetings({
+    db,
+    logger,
+    rooms: rooms.operations,
+    office: {
+      repos: operations.repos,
+      worktrees: worktrees.workspaces,
+      runner,
+      github: createPullRequestClient({ apiBase: config.githubApiBase }),
+    },
+  });
+  meetings.mount(server.router, auth);
   // Agents (#26): the manager, its OperationRoom/terminal registration, Claude hook routes (#27).
   const agents = await createAgents({
     db,
@@ -414,10 +429,16 @@ async function main(): Promise<void> {
       status: (agentId) => worktrees.workspaces.status(agentId),
       openPullRequest: (agentId, options) => worktrees.openPullRequest(agentId, options),
     },
-    observer: allObservers(notifications.center, tasks.queue.observer),
-    usage: usage.tracker,
+    observer: allObservers(notifications.center, tasks.queue.observer, meetings.observer),
+    usage: {
+      agentEvent: (agentId, event) => {
+        usage.tracker.agentEvent(agentId, event);
+        meetings.usage.agentEvent(agentId, event);
+      },
+    },
   });
   tasks.bind(agents);
+  meetings.bind(agents);
   // "Send all home" before deleting an operation (#150): branches are kept, GitHub is not touched.
   // An office owner/admin clears everyone's henchmen, which is not henchman control (D12, #138).
   operations.lifecycle.henchmen = {
@@ -458,7 +479,10 @@ async function main(): Promise<void> {
     .catch((err) => logger.error({ err }, "per-human clone migration failed"))
     // Queued tasks start only once henchmen are re-adopted and settled (#37).
     .then(() => tasks.queue.boot())
-    .catch((err) => logger.error({ err }, "starting the task queues failed"));
+    .catch((err) => logger.error({ err }, "starting the task queues failed"))
+    // Meetings continue where they were once their henchmen are back (#50).
+    .then(() => meetings.boot())
+    .catch((err) => logger.error({ err }, "resuming meetings failed"));
   const claudeAdapter = agents.adapters.find("claude-code");
   if (claudeAdapter) {
     usage.startScanning({ runner, adapter: claudeAdapter, officeUrl: config.runnerOfficeUrl });
@@ -482,6 +506,7 @@ async function main(): Promise<void> {
   shutdown.register("agents", () => agents.close());
   // Runs before the agents detach (hooks run last-registered-first): no new starts.
   shutdown.register("task-queue", () => tasks.queue.close());
+  shutdown.register("meetings", () => meetings.close());
   installSignalHandlers(shutdown, (code) => {
     logger.flush();
     process.exit(code);

@@ -1,0 +1,278 @@
+/* Meeting room panel and start dialog (#50): console plates like the queue's. */
+.rg-meeting,
+.rg-meeting-form {
+  display: grid;
+  gap: 10px;
+}
+.rg-meeting p,
+.rg-meeting-form p {
+  margin: 0;
+}
+.rg-meeting-form .rg-field {
+  margin: 0;
+}
+.rg-meeting__intro {
+  margin: 0;
+  color: var(--rg-color-ink-muted);
+}
+.rg-meeting__meta {
+  color: var(--rg-color-ink-muted);
+  font-size: 12px;
+}
+.rg-meeting__heading {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+.rg-meeting__head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.rg-meeting__topic {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+.rg-meeting__reason {
+  margin: 0;
+  font-size: 13px;
+  color: var(--rg-color-amber);
+}
+
+/* Status chips: a lamp on a plate. */
+.rg-meeting__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 1px 9px 1px 6px;
+  border-radius: var(--rg-radius-chip);
+  background: var(--rg-color-plate);
+  color: var(--rg-color-plate-text);
+  border: 1px solid var(--rg-color-frame-shadow);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+.rg-meeting__status::before,
+.rg-meeting__lamp {
+  content: "";
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 36% 32%, rgba(255, 255, 255, 0.8) 0 1px, transparent 2.5px),
+    var(--rg-lamp, var(--rg-lamp-starting));
+  box-shadow: 0 0 5px 1px
+    color-mix(in srgb, var(--rg-lamp, var(--rg-lamp-starting)) 60%, transparent);
+}
+.rg-meeting__status--running,
+.rg-meeting__lamp--working {
+  --rg-lamp: var(--rg-lamp-working);
+}
+.rg-meeting__status--paused,
+.rg-meeting__lamp--waiting_permission,
+.rg-meeting__lamp--waiting_input {
+  --rg-lamp: var(--rg-lamp-waiting);
+}
+.rg-meeting__status--done,
+.rg-meeting__lamp--idle,
+.rg-meeting__lamp--done {
+  --rg-lamp: var(--rg-lamp-idle);
+}
+.rg-meeting__status--failed,
+.rg-meeting__status--stopped,
+.rg-meeting__lamp--error {
+  --rg-lamp: var(--rg-lamp-error);
+}
+.rg-meeting__lamp--exited,
+.rg-meeting__lamp--offline {
+  --rg-lamp: var(--rg-lamp-off);
+}
+
+.rg-meeting__budget {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: center;
+}
+.rg-meeting__meter {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--rg-color-raised);
+  border: 1px solid var(--rg-color-panel-border);
+  overflow: hidden;
+}
+.rg-meeting__meter > span {
+  display: block;
+  height: 100%;
+  background: var(--rg-color-gold);
+}
+.rg-meeting__meter > span[data-high] {
+  background: var(--rg-color-alarm-red);
+}
+
+.rg-meeting__members,
+.rg-meeting__list,
+.rg-meeting__turns {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.rg-meeting__member {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 10px;
+  border: 1px solid var(--rg-color-panel-border);
+  border-radius: 6px;
+  background: var(--rg-color-raised);
+}
+.rg-meeting__member[data-speaking] {
+  border-color: var(--rg-color-gold);
+  box-shadow: inset 4px 0 0 var(--rg-color-gold);
+}
+.rg-meeting__floor,
+.rg-meeting__failed {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--rg-color-gold);
+}
+.rg-meeting__failed {
+  color: var(--rg-color-amber);
+}
+.rg-meeting__actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+.rg-meeting__section {
+  display: grid;
+  gap: 6px;
+}
+.rg-meeting__turns {
+  max-height: 320px;
+  overflow: auto;
+}
+.rg-meeting__turn details {
+  padding: 6px 10px;
+  border: 1px solid var(--rg-color-panel-border);
+  border-radius: 6px;
+  background: var(--rg-color-raised);
+}
+.rg-meeting__turn summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: baseline;
+  cursor: pointer;
+  list-style: none;
+}
+.rg-meeting__turn summary::-webkit-details-marker {
+  display: none;
+}
+/* A chevron that turns down when the turn's notes are open. */
+.rg-meeting__turn summary::before {
+  content: "";
+  align-self: center;
+  width: 6px;
+  height: 6px;
+  border-right: 2px solid var(--rg-color-ink-muted);
+  border-bottom: 2px solid var(--rg-color-ink-muted);
+  transform: rotate(-45deg);
+  transition: transform 120ms ease;
+}
+.rg-meeting__turn details[open] > summary::before {
+  transform: rotate(45deg);
+}
+.rg-meeting__turn--running details {
+  border-color: var(--rg-color-gold);
+}
+.rg-meeting__text {
+  margin-top: 6px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.rg-meeting__item {
+  display: flex;
+  width: 100%;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 10px;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+  border: 1px solid var(--rg-color-panel-border);
+  border-radius: 6px;
+  background: var(--rg-color-raised);
+  cursor: pointer;
+}
+.rg-meeting__item:hover,
+.rg-meeting__item:focus-visible {
+  border-color: var(--rg-color-gold);
+}
+.rg-meeting__item-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+/* Start dialog. */
+.rg-meeting-form fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+.rg-meeting-form__blurb {
+  margin: 4px 0 0;
+}
+.rg-meeting-form__members legend {
+  padding: 0;
+  margin-bottom: 4px;
+}
+.rg-meeting-form__topic {
+  resize: vertical;
+}
+.rg-meeting-form__members {
+  display: grid;
+  gap: 6px;
+  justify-items: start;
+}
+.rg-meeting-form__member {
+  display: grid;
+  grid-template-columns: 110px 1fr auto;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+}
+.rg-meeting-form__role {
+  font-weight: 600;
+}
+.rg-meeting-form__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.rg-meeting-form__row .rg-field {
+  margin: 0;
+  min-width: 120px;
+}
+.rg-meeting-form__agenda ol {
+  margin: 4px 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+}

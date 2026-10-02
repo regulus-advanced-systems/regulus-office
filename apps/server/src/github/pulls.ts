@@ -44,9 +44,18 @@ export class GitHubApiError extends Error {
   }
 }
 
+export interface CommentReviewInput {
+  owner: string;
+  repo: string;
+  number: number;
+  body: string;
+}
+
 export interface PullRequestClient {
   /** Create a PR, or return the open one for the same head branch. */
   createOrFind(token: string, input: CreatePullInput): Promise<CreatePullResult>;
+  /** Post a `COMMENT` review (no approval, no inline comments); returns its URL (#50). */
+  createCommentReview?(token: string, input: CommentReviewInput): Promise<{ url: string }>;
 }
 
 type FetchFn = (input: string, init: RequestInit) => Promise<Response>;
@@ -142,6 +151,17 @@ export function createPullRequestClient(deps: {
         if (existing) return { kind: "exists", pull: existing };
       }
       throw new GitHubApiError(res.status, detail);
+    },
+
+    async createCommentReview(token, input) {
+      const path = `/repos/${seg(input.owner)}/${seg(input.repo)}/pulls/${input.number}/reviews`;
+      const res = await call(token, "POST", path, { body: input.body, event: "COMMENT" });
+      if (!res.ok) throw new GitHubApiError(res.status, await errorDetail(res, token));
+      const raw = (await res.json()) as { html_url?: unknown };
+      if (typeof raw.html_url !== "string") {
+        throw new GitHubApiError(502, "unexpected review payload");
+      }
+      return { url: raw.html_url };
     },
   };
 }

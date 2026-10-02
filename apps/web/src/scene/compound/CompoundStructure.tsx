@@ -15,6 +15,7 @@ import { PieceSet } from "../lair/components/InstancedPieces.tsx";
 import { RoomLooks } from "../lair/debug/RoomLooks.tsx";
 import { Dust, Sparks } from "../lair/particles/BuildParticles.tsx";
 import type { PiecePlacement } from "../lair/placements.ts";
+import { MeetingDoorSigns } from "../meetings/MeetingDoorSigns.tsx";
 import type { CorridorChunk } from "./corridors.ts";
 import type { PlacedRoom } from "./placed.ts";
 import { forQuality, presetOf, useQualityStore } from "./quality.ts";
@@ -106,6 +107,7 @@ export function CompoundStructure({
       <RoomLooks looks={lists.looks} />
       <LockedCaps rooms={locked} />
       <RoomSigns world={world} visible={visibleRooms} />
+      <MeetingDoorSigns world={world} visible={visibleRooms} />
       {site && (
         <>
           <Sparks

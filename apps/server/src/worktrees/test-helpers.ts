@@ -190,6 +190,7 @@ export async function setupOperation(
     addUser,
     operationId,
     repo,
+    repos: operations.repos,
     bare,
     worktreesDir,
     cloneOf,

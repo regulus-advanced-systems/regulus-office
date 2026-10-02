@@ -191,7 +191,10 @@ export class GitWorktreeWorkspaces implements Workspaces, HumanClones {
         throw new WorkspaceError("worktree_failed", `${workdir} exists but is not a worktree`);
       }
       await this.fetch(repo, clone);
-      const base = `origin/${repo.defaultBranch}`;
+      const base = input.base ?? `origin/${repo.defaultBranch}`;
+      if (!/^origin\/[A-Za-z0-9._/-]+$/.test(base) || base.includes("..")) {
+        throw new WorkspaceError("worktree_failed", "invalid start point");
+      }
       // Branch names must be unique per repo across every human's clone (one remote).
       return this.locks.run(`branches:${repo.repoId}`, async () => {
         const branch = await this.#uniqueBranch(repo, clone, branchSlug(input.slug));
@@ -311,16 +314,19 @@ export class GitWorktreeWorkspaces implements Workspaces, HumanClones {
     const branch = row.worktreeBranch;
     const log = this.#deps.logger.child({ agentId: row.id, repoId: repo.repoId });
     let remoteError: WorkspaceError | undefined;
+    // A worktree shared by several henchmen (a meeting's, #50) is named after
+    // what owns it, not after this agent: it and its branch stay for the others
+    // and go when the owner releases it (`releaseShared`).
+    if (row.workdir !== clone && basename(row.workdir) !== row.id) {
+      log.info({ workdir: row.workdir }, "shared worktree kept");
+      return;
+    }
 
     await this.locks.run(clone, async () => {
       const ctx = this.ctx(clone, row.workdir);
       // An agent without a worktree (`autoWorktree: false`) works in the clone itself: keep it.
       if (row.workdir !== clone && this.isManaged(row.workdir)) {
-        const res = await gitIn(ctx, ["worktree", "remove", "--force", "--force", row.workdir], {
-          cwd: clone,
-        });
-        if (res.code !== 0) await rm(row.workdir, { recursive: true, force: true });
-        await gitIn(ctx, ["worktree", "prune"], { cwd: clone });
+        await this.#removeWorktree(clone, row.workdir);
         log.info({ workdir: row.workdir }, "agent worktree removed");
       }
       if (input.keepBranch || !branch?.startsWith(BRANCH_PREFIX)) return;
@@ -333,6 +339,27 @@ export class GitWorktreeWorkspaces implements Workspaces, HumanClones {
       this.#deps.db.update(agents).set({ worktreeBranch: null }).where(eq(agents.id, row.id)).run();
     }
     if (remoteError) throw remoteError;
+  }
+
+  async #removeWorktree(clone: string, workdir: string): Promise<void> {
+    const ctx = this.ctx(clone, workdir);
+    const res = await gitIn(ctx, ["worktree", "remove", "--force", "--force", workdir], {
+      cwd: clone,
+    });
+    if (res.code !== 0) await rm(workdir, { recursive: true, force: true });
+    await gitIn(ctx, ["worktree", "prune"], { cwd: clone });
+  }
+
+  /**
+   * Remove a worktree prepared for several henchmen (`prepare` keyed by its
+   * owner's id, e.g. a meeting, #50) once none of them uses it. The branch stays.
+   */
+  async releaseShared(input: { ownerUserId: string; repoId: string; workdir: string }) {
+    const { clone, legacy } = this.cloneFor({ ...input });
+    if (legacy || input.workdir === clone || !this.isManaged(input.workdir)) return;
+    this.#prepared.delete(basename(input.workdir));
+    await this.locks.run(clone, () => this.#removeWorktree(clone, input.workdir));
+    this.#deps.logger.info({ workdir: input.workdir }, "shared worktree removed");
   }
 
   async #deleteRemoteBranch(repo: RepoCheckout, clone: string, branch: string) {

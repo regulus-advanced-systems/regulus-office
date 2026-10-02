@@ -20,6 +20,7 @@ import { wallPieceFor } from "../lair/generatorModels.ts";
 import { WALL_RELIEF } from "../lair/geometry/walls.ts";
 import { LairBoardLook, LairClipboardLook, LairGongLook } from "../lair/looks/LairLooks.tsx";
 import { LaptopLayer } from "../laptops/LaptopLayer.tsx";
+import { MeetingTable } from "../meetings/MeetingTable.tsx";
 import { QueueLayer } from "../queue/QueueClipboard.tsx";
 import { type RoomScope, RoomScopeContext } from "../roomScope.ts";
 import { UsageScreen } from "../usage/UsageScreen.tsx";
@@ -89,6 +90,7 @@ const JoinedRoom = memo(function JoinedRoom({
           <GongLayer template={layout} look={LairGongLook} />
           <WhiteboardLayer template={layout} />
           <UsageScreens layout={layout} depth={scope.wallDepth} />
+          <MeetingTable template={layout} />
           {interactive && <DepartingHenchmen template={layout} />}
         </Suspense>
       </group>

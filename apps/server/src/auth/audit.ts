@@ -67,6 +67,12 @@ export const AUDIT_ACTIONS = {
   workflowRunCancel: "workflow_run.cancel",
   /** A henchman's answer held a secret and was not posted (#155). */
   workflowRunSecretBlocked: "workflow_run.secret_blocked",
+  /** Meeting room (#50): started, paused, resumed, stopped by its starter, emergency-stopped by an admin. */
+  meetingStart: "meeting.start",
+  meetingPause: "meeting.pause",
+  meetingResume: "meeting.resume",
+  meetingStop: "meeting.stop",
+  meetingEmergencyStop: "meeting.emergency_stop",
   /** Henchman skin rules (#184). */
   skinRuleCreate: "skin_rule.create",
   skinRuleUpdate: "skin_rule.update",
@@ -91,6 +97,7 @@ export interface AuditEntry {
     | "github_connection"
     | "github_card"
     | "notification_channel"
+    | "meeting"
     | "workflow"
     | "workflow_run"
     | "skin_rule";
