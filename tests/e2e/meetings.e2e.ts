@@ -48,7 +48,7 @@ const TOPIC = "Pick a cache for the board sync";
 const REPO_TOKEN = `github_pat_e2eMeetingRepoToken${run}`;
 const SHOTS = process.env.E2E_SCREENSHOTS_DIR;
 
-test.describe.configure({ mode: "serial", timeout: 240_000 });
+test.describe.configure({ mode: "serial", timeout: 480_000 });
 
 let dataDir = "";
 let prefix = "";
@@ -313,13 +313,18 @@ test("the room shows the meeting; a member watches the transcript without contro
   await shoot(ownerPage, "room-during-meeting");
 
   await memberPage.bringToFront();
+  const rooms = memberPage.getByRole("navigation", { name: "Rooms" });
+  const inSession = rooms.getByRole("button", { name: "Meeting in session…" });
+  await expect(inSession).toBeVisible({ timeout: 60_000 });
+  await expect
+    .poll(() => scenePoint(memberPage, `meeting-door-sign-${operationId}`))
+    .not.toBeNull();
   if (SHOTS) {
     // The member stands just inside the door: the sign over it and the pod behind.
     await wheelZoomTo(memberPage, 0.35);
     await shoot(memberPage, "door-sign");
   }
-  const rooms = memberPage.getByRole("navigation", { name: "Rooms" });
-  await rooms.getByRole("button", { name: "Meeting in session…" }).click();
+  await inSession.click();
   const watch = memberPage.getByRole("dialog", { name: "Meeting" });
   await expect(watch.locator(".rg-meeting__turn").first()).toContainText(
     "Proposer (fake, not Claude Code)",

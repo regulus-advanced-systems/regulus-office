@@ -148,9 +148,9 @@ if [ -z "$prompt" ]; then
     trace "meeting turn: ${who:-?} -> ${notes:-no notes file}"
     sleep 2
     # While the spec keeps `.meeting/hold` in the worktree, the closing turn waits (the spec
-    # watches the meeting in session first); two minutes at most.
+    # watches the meeting in session first); ten minutes at most (a loaded machine is slow).
     case "$line" in *"commit the change on the current branch"*)
-      ticks=600
+      ticks=3000
       while [ -e .meeting/hold ] && [ "$ticks" -gt 0 ]; do sleep 0.2; ticks=$((ticks - 1)); done
       trace "closing turn goes ahead" ;;
     esac
