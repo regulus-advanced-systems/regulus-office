@@ -11,7 +11,14 @@
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { expect, type Page } from "@playwright/test";
-import { clickInScene, waitStill, walkTo, wheelZoomTo } from "./compoundProbes.ts";
+import {
+  cameraState,
+  clickInScene,
+  navPose,
+  waitStill,
+  walkTo,
+  wheelZoomTo,
+} from "./compoundProbes.ts";
 
 const HOTSPOT = "lobby-whiteboard-hotspot";
 
@@ -88,6 +95,9 @@ async function shot(page: Page, name: string): Promise<void> {
 }
 
 export async function checkWhiteboard(owner: Page, member: Page): Promise<void> {
+  // Where both stood and how the owner's camera was: the later steps expect them back.
+  const homes = [await navPose(owner), await navPose(member)];
+  const zoom = (await cameraState(owner)).wantZoom;
   await openLobbyBoard(owner);
   await openLobbyBoard(member);
 
@@ -129,4 +139,13 @@ export async function checkWhiteboard(owner: Page, member: Page): Promise<void> 
     await wheelZoomTo(owner, 0.15);
     await shot(owner, "02-wall");
   }
+  // Back where they were, out of the board's reach (`E` must not open it in later steps).
+  for (const [i, page] of [owner, member].entries()) {
+    const home = homes[i];
+    if (home) await walkTo(page, home.x, home.z);
+  }
+  await waitStill(owner);
+  await waitStill(member);
+  await owner.mouse.move(640, 420);
+  await wheelZoomTo(owner, zoom);
 }
