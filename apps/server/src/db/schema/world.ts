@@ -84,7 +84,7 @@ export const jukeboxState = sqliteTable("jukebox_state", {
   /** Offset into the track (ms) at which playback was paused; null while playing. */
   pausedAtMs: integer("paused_at_ms"),
   volume: real("volume").notNull().default(0.5),
-  /** Ordered list of `jukebox_tracks.id`. */
+  /** `{ current, queue }`: the loaded entry and the waiting ones, next first (#47, jukebox/state-store.ts). */
   queueJson: jsonText("queue_json").notNull().default("[]"),
   ...timestamps(),
 });

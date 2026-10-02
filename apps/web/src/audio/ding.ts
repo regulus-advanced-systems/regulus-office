@@ -6,19 +6,7 @@
  * henchmen asking at once does not become a chime.
  */
 
-let context: AudioContext | null = null;
-
-function audioContext(): AudioContext | null {
-  if (context) return context;
-  const Ctor = globalThis.AudioContext ?? null;
-  if (!Ctor) return null;
-  try {
-    context = new Ctor();
-  } catch {
-    return null;
-  }
-  return context;
-}
+import { sharedAudioContext as audioContext } from "./context.ts";
 
 /** Partials of the ding: a soft E6 with a quieter fifth above it. */
 export const DING_PARTIALS: ReadonlyArray<{ hz: number; gain: number; decay: number }> = [

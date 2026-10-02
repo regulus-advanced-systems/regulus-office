@@ -55,6 +55,7 @@ describe("ui store", () => {
     expect(store.getState().settings).toEqual({
       reducedMotion: true,
       volume: 0.5,
+      jukeboxMuted: false,
       hour12: false,
       fpvFov: 60,
       mouseSensitivity: 1,

@@ -15,6 +15,8 @@
  * the gong can be banged by hand, rate-limited (#43). Then the owner presses the lobby's
  * blast door button: it opens for the member's browser too, the owner walks out onto the dock,
  * the door shuts by itself after the (shortened) open time and the beach is cut off again (#188).
+ * Last, both walk up to the lobby jukebox, the owner queues a track and both browsers play it
+ * at the same playhead within a tolerance (#47).
  *
  * Runs against office-server in production mode (see playwright.config.ts),
  * so room joins are authorised by the Better Auth session cookie only.
@@ -48,6 +50,7 @@ import { type FakeGitHub, startFakeGitHub } from "./fakeGitHub.ts";
 import { type GeniusLook, geniusOf, pickGenius, pickGeniusByKeyboard } from "./geniusChecks.ts";
 import { createRemoteRepo } from "./gitRemote.ts";
 import { checkMergeGong } from "./gongChecks.ts";
+import { checkJukebox } from "./jukeboxChecks.ts";
 import { reportFramePerf } from "./perfProbe.ts";
 import {
   angleBetween,
@@ -871,4 +874,9 @@ test("a PR merged on the board rings the gong; henchmen cheer and sit back as th
 test("the blast door opens for everyone, the owner walks out onto the dock, it shuts by itself (#188)", async () => {
   test.setTimeout(240_000);
   await checkBlastDoor(ownerPage, memberPage, owner.name);
+});
+
+test("the jukebox: E opens it, a queued track plays in both browsers at the same playhead (#47)", async () => {
+  test.setTimeout(240_000);
+  await checkJukebox(ownerPage, memberPage);
 });

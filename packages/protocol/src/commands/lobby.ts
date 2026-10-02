@@ -1,4 +1,7 @@
-/** Lobby commands: jukebox.*, screen.share.*, pm.ask (SPEC §6), blast_door.press (#188). */
+/**
+ * Lobby commands: jukebox.*, screen.share.*, pm.ask (SPEC §6), blast_door.press (#188), and
+ * the jukebox's extras (#47): remove, volume, duration and its clock sync's `clock.ping`.
+ */
 import { z } from "zod";
 import { ChatText, Count, Id } from "../common.ts";
 import { SCREEN_SHARE_TARGETS } from "../enums.ts";
@@ -24,6 +27,35 @@ export const JukeboxEnqueueCommand = z.object({
 
 export const JukeboxSkipCommand = z.object({ type: z.literal("jukebox.skip") });
 
+/** Take one waiting entry off the queue (its adder, or an owner/admin). */
+export const JukeboxRemoveCommand = z.object({
+  type: z.literal("jukebox.remove"),
+  entryId: Id,
+});
+
+/** The jukebox's office-wide level (owners and admins); each listener also has their own. */
+export const JukeboxVolumeCommand = z.object({
+  type: z.literal("jukebox.volume"),
+  volume: z.number().min(0).max(1),
+});
+
+/**
+ * A listener's player measured the current track's length (a YouTube video,
+ * whose length the office cannot know without fetching it). Taken once.
+ */
+export const JukeboxDurationCommand = z.object({
+  type: z.literal("jukebox.duration"),
+  trackId: Id,
+  durationMs: Count,
+});
+
+/** Clock sync ping (clock-sync.ts): the server answers `clock.pong` to the sender only. */
+export const ClockPingCommand = z.object({
+  type: z.literal("clock.ping"),
+  id: z.number().int().nonnegative(),
+  t0: z.number().finite(),
+});
+
 export const ScreenShareStartCommand = z.object({
   type: z.literal("screen.share.start"),
   target: z.enum(SCREEN_SHARE_TARGETS).default("lounge_tv"),
@@ -46,6 +78,10 @@ export const lobbyCommands = [
   JukeboxSeekCommand,
   JukeboxEnqueueCommand,
   JukeboxSkipCommand,
+  JukeboxRemoveCommand,
+  JukeboxVolumeCommand,
+  JukeboxDurationCommand,
+  ClockPingCommand,
   ScreenShareStartCommand,
   ScreenShareStopCommand,
   PmAskCommand,

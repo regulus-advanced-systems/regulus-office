@@ -5,20 +5,9 @@
  * lets it start.
  */
 
-let context: AudioContext | null = null;
-let noise: AudioBuffer | null = null;
+import { sharedAudioContext as audioContext } from "./context.ts";
 
-function audioContext(): AudioContext | null {
-  if (context) return context;
-  const Ctor = globalThis.AudioContext ?? null;
-  if (!Ctor) return null;
-  try {
-    context = new Ctor();
-  } catch {
-    return null;
-  }
-  return context;
-}
+let noise: AudioBuffer | null = null;
 
 function noiseBuffer(ctx: AudioContext): AudioBuffer {
   if (noise && noise.sampleRate === ctx.sampleRate) return noise;

@@ -33,6 +33,7 @@ import { createGitHubConnection } from "./github/setup.ts";
 import { createGitHubSync, type GitHubSync, mountGitHubSyncRoutes } from "./github/sync.ts";
 import { createOfficeServer } from "./http/server.ts";
 import { WsRouter } from "./http/ws-router.ts";
+import { createJukebox } from "./jukebox/setup.ts";
 import { createShutdownController, installSignalHandlers } from "./lifecycle.ts";
 import { createLogger } from "./logging.ts";
 import { createNotifications } from "./notifications/setup.ts";
@@ -135,7 +136,14 @@ async function main(): Promise<void> {
   }
 
   const production = process.env.NODE_ENV === "production";
+  // The lobby jukebox (#47): library (bundled tracks seeded), playhead and queue in the building room.
+  const jukebox = createJukebox({
+    db,
+    dataDir: config.dataDir,
+    logger: logger.child({ module: "jukebox" }),
+  });
   const rooms = createRooms({
+    jukebox: jukebox.player,
     db,
     logger,
     auth: selectRoomAuth(production, logger, auth),
@@ -178,6 +186,7 @@ async function main(): Promise<void> {
       .use(rooms.transport.attachment),
   });
   mountAuthRoutes(server.router, auth);
+  jukebox.mount(server.router, auth);
   // Genius avatars (#185): the picker saves here; the building room shows the change at once.
   mountProfileRoutes(server.router, {
     auth,

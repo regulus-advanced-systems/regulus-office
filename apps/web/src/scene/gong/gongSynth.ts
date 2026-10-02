@@ -9,6 +9,7 @@
  * the footsteps (audio/ding.ts). Every node is disconnected when its
  * oscillator ends, so repeated rings leave nothing behind.
  */
+import { sharedAudioContext } from "../../audio/context.ts";
 import { STRIKE_GAP_MS } from "./timing.ts";
 
 export const GONG_BASE_HZ = 98;
@@ -81,18 +82,8 @@ export type GongAudio = Pick<
   | "createBufferSource"
 >;
 
-let context: AudioContext | null = null;
-function sharedContext(): AudioContext | null {
-  if (context) return context;
-  const Ctor = globalThis.AudioContext ?? null;
-  if (!Ctor) return null;
-  try {
-    context = new Ctor();
-  } catch {
-    return null;
-  }
-  return context;
-}
+/** The office's one AudioContext (audio/context.ts). */
+const sharedContext = sharedAudioContext;
 
 const noiseBuffers = new WeakMap<object, AudioBuffer>();
 function noise(ctx: GongAudio): AudioBuffer {

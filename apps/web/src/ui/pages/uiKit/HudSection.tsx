@@ -2,6 +2,7 @@ import {
   BLAST_DOOR_CLOSED,
   DEFAULT_ROOM_SETTINGS,
   EMPTY_COMPOUND,
+  IDLE_JUKEBOX,
   UNPLACED_ROOM,
   type UsageSummary,
 } from "@regulus/protocol";
@@ -61,11 +62,8 @@ function seedOperations() {
     humans: current?.humans ?? {},
     chat: current?.chat ?? [],
     jukebox: current?.jukebox ?? {
-      trackId: "",
-      startedAtServerMs: 0,
-      pausedAtMs: 0,
-      playing: false,
-      volume: 0.5,
+      ...IDLE_JUKEBOX,
+      current: { ...IDLE_JUKEBOX.current },
       queue: [],
     },
     usage: USAGE,

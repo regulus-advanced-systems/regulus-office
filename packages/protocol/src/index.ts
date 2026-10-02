@@ -13,6 +13,8 @@
  * - boards-api.ts      REST shapes for the issue/PR board panel and its write actions (#36)
  * - changes-api.ts     REST shapes for a henchman's changes window: diff, commit, discard (#38)
  * - celebrations.ts    merge gong messages: `pr.merged`, `gong.ring` (#43)
+ * - clock-sync.ts     four-timestamp clock sync for the jukebox (#47)
+ * - jukebox.ts        jukebox limits, playhead maths, permissions, library REST (#47)
  * - github-api.ts      REST shapes for the office GitHub connection, its repo list and board sync
  * - notifications.ts   desktop/tab-badge messages, per-user prefs, team webhook channels
  * - credentials-api.ts read-only credential profile list (ids and labels only)
@@ -40,6 +42,7 @@ export * from "./boards-api.ts";
 export * from "./building-state.ts";
 export * from "./celebrations.ts";
 export * from "./changes-api.ts";
+export * from "./clock-sync.ts";
 export * from "./commands/index.ts";
 export * from "./common.ts";
 export * from "./compound.ts";
@@ -47,6 +50,7 @@ export * from "./credentials-api.ts";
 export * from "./enums.ts";
 export * from "./genius.ts";
 export * from "./github-api.ts";
+export * from "./jukebox.ts";
 export * from "./notifications.ts";
 export * from "./operation-state.ts";
 export * from "./operations-api.ts";

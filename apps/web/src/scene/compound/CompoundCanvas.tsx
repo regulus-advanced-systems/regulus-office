@@ -30,6 +30,7 @@ import { ViewCrossfade } from "../camera/ViewCrossfade.tsx";
 import { FirstPersonRig } from "../fpv/FirstPersonRig.tsx";
 import { createPlayerBinding } from "../fpv/playerBinding.ts";
 import { useDocumentHidden } from "../hooks/useDocumentHidden.ts";
+import { JukeboxDriver } from "../jukebox/JukeboxDriver.tsx";
 import { CutawayDriver, LairKit } from "../lair/components/LairKit.tsx";
 import { LampLights } from "../lair/components/LampLights.tsx";
 import { MovementController } from "../movement/MovementController.tsx";
@@ -217,6 +218,7 @@ function Scene({ world, avatars, presence, send, children }: CompoundCanvasProps
         canRun={canRun}
       />
       <RoomPresence world={world} target={presence} />
+      <JukeboxDriver world={world} grid={grid} />
       <Suspense fallback={null}>
         <RoomLayers rooms={rooms} />
         {lobbyUsage && lobby && visibleRooms.has(lobby.id) && (

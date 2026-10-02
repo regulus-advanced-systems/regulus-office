@@ -30,6 +30,7 @@ describe("settings storage", () => {
     expect(parseSettings('{"reducedMotion":true,"volume":7,"hour12":"yes"}')).toEqual({
       reducedMotion: true,
       volume: 1,
+      jukeboxMuted: false,
       hour12: false,
       fpvFov: DEFAULT_SETTINGS.fpvFov,
       mouseSensitivity: DEFAULT_SETTINGS.mouseSensitivity,
@@ -38,6 +39,7 @@ describe("settings storage", () => {
     expect(parseSettings('{"reducedMotion":"no","volume":-1}')).toEqual({
       reducedMotion: null,
       volume: 0,
+      jukeboxMuted: false,
       hour12: false,
       fpvFov: DEFAULT_SETTINGS.fpvFov,
       mouseSensitivity: DEFAULT_SETTINGS.mouseSensitivity,
@@ -76,6 +78,7 @@ describe("settings storage", () => {
     const settings = {
       reducedMotion: false,
       volume: 0.25,
+      jukeboxMuted: true,
       hour12: true,
       fpvFov: 68,
       mouseSensitivity: 1.5,

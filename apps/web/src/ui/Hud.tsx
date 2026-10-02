@@ -1,6 +1,7 @@
 /**
  * HUD layered over the office canvas: top bar, operation work counters, status box, rooms panel,
- * lobby chat, corner buttons for settings and shortcut help, build mode and room settings
+ * lobby chat, the jukebox strip and panel (#47), corner buttons for settings and shortcut help,
+ * build mode and room settings
  * (docked bottom right, #187), dialogs and toasts.
  * The container ignores pointer events so the scene stays clickable
  * between panels.
@@ -20,6 +21,7 @@ import { RoomsPanel } from "./hud/RoomsPanel.tsx";
 import { StatusBox } from "./hud/StatusBox.tsx";
 import { TopBar } from "./hud/TopBar.tsx";
 import { WorkCounters } from "./hud/WorkCounters.tsx";
+import { JukeboxHost, JukeboxStrip } from "./jukebox/JukeboxHost.tsx";
 import { NotificationsHost } from "./notifications/NotificationsHost.tsx";
 import { AddOperationDialogHost } from "./operations/AddOperationDialog.tsx";
 import { OperationSettingsDialogHost } from "./operations/OperationSettingsDialog.tsx";
@@ -107,6 +109,7 @@ export function Hud() {
         >
           Help
         </Button>
+        <JukeboxStrip />
       </div>
       <BuildModeHost />
       <RoomSettingsDock />
@@ -114,6 +117,7 @@ export function Hud() {
       <AgentHost />
       <BoardsHost />
       <QueueHost />
+      <JukeboxHost />
       <NotificationsHost />
       <Toaster />
     </div>

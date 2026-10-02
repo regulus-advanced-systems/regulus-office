@@ -1,9 +1,11 @@
 /**
- * Shared Web Audio plumbing for the outside's sounds (#188): one lazily
- * created AudioContext for the klaxon, the door's rumble and the beach
+ * Shared Web Audio plumbing for the outside's sounds (#188): the office's one
+ * AudioContext (audio/context.ts) for the klaxon, the door's rumble and the beach
  * ambience, a seeded noise buffer, and node clean-up. No samples anywhere
  * (SPEC §13 asset rules): every sound is synthesised.
  */
+
+import { sharedAudioContext } from "../../../../audio/context.ts";
 
 /** The parts of an AudioContext the outside's synths use (a fake in tests). */
 export type SynthAudio = Pick<
@@ -20,19 +22,9 @@ export type SynthAudio = Pick<
   | "createBufferSource"
 >;
 
-let context: AudioContext | null = null;
-
-/** The shared context, created on first use (after a click or key, so autoplay allows it). */
+/** The office's one AudioContext (audio/context.ts), created on first use. */
 export function outsideAudio(): SynthAudio | null {
-  if (context) return context;
-  const Ctor = globalThis.AudioContext ?? null;
-  if (!Ctor) return null;
-  try {
-    context = new Ctor();
-  } catch {
-    return null;
-  }
-  return context;
+  return sharedAudioContext();
 }
 
 /** Resume a context the browser suspended (autoplay); harmless when running. */

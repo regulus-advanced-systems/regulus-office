@@ -42,6 +42,9 @@ RUN bun install --frozen-lockfile --production --filter '@regulus/server' \
     && rm -rf /root/.bun/install/cache
 COPY apps/server ./apps/server
 COPY packages/agent-adapters ./packages/agent-adapters
+# The jukebox's bundled tracks and their manifest (#47); the models ship inside the web build.
+COPY packages/assets/src ./packages/assets/src
+COPY packages/assets/audio ./packages/assets/audio
 COPY packages/room-layout ./packages/room-layout
 COPY packages/protocol ./packages/protocol
 COPY --from=build /app/apps/web/dist ./apps/web/dist
