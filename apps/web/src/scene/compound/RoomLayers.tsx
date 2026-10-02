@@ -1,7 +1,7 @@
 /**
  * The live contents of every joined room (#186, SPEC §9.1): henchmen at their
  * desks, laptops with their screens, the issue and PR boards, the queue
- * clipboard, the gong, the whiteboard (#45) and the room's usage screen, drawn in the room's own
+ * clipboard, the gong, the whiteboard (#45), wall pictures (#46) and the room's usage screen, drawn in the room's own
  * frame from its OperationRoom state (roomScope.ts). The room the player is in
  * is interactive and reads the operation store the HUD reads; the nearby rooms
  * are view-only. Rooms are drawn in the lair looks (#183).
@@ -21,6 +21,7 @@ import { WALL_RELIEF } from "../lair/geometry/walls.ts";
 import { LairBoardLook, LairClipboardLook, LairGongLook } from "../lair/looks/LairLooks.tsx";
 import { LaptopLayer } from "../laptops/LaptopLayer.tsx";
 import { MeetingTable } from "../meetings/MeetingTable.tsx";
+import { PictureLayer } from "../pictures/PictureLayer.tsx";
 import { QueueLayer } from "../queue/QueueClipboard.tsx";
 import { type RoomScope, RoomScopeContext } from "../roomScope.ts";
 import { UsageScreen } from "../usage/UsageScreen.tsx";
@@ -89,6 +90,7 @@ const JoinedRoom = memo(function JoinedRoom({
           <QueueLayer template={layout} look={LairClipboardLook} />
           <GongLayer template={layout} look={LairGongLook} />
           <WhiteboardLayer template={layout} />
+          <PictureLayer template={layout} />
           <UsageScreens layout={layout} depth={scope.wallDepth} />
           <MeetingTable template={layout} />
           {interactive && <DepartingHenchmen template={layout} />}

@@ -3,7 +3,8 @@
  * player is, quick travel (`F`), and for owners and admins "Add operation…",
  * which continues into build mode (#187). In a project room, its managers
  * get "Room settings…" (desks and decor, #187) and owners and admins
- * "Move room…" (build mode again). Operation settings live in the top bar (the
+ * "Move room…" (build mode again). Whoever may hang pictures there gets
+ * "Hang a picture…" (#46). Operation settings live in the top bar (the
  * room you are in) and in quick travel (any room).
  */
 import { useCompoundStore } from "../../state/compound.ts";
@@ -18,6 +19,7 @@ import { MeetingRoomButton } from "../meetings/MeetingHost.tsx";
 import { ADD_OPERATION_OVERLAY } from "../operations/AddOperationDialog.tsx";
 import { canManageOperation } from "../operations/operationSettings.ts";
 import { Panel } from "../Panel.tsx";
+import { HangPictureButton } from "../pictures/PicturesHost.tsx";
 import { useRoomSettingsDock } from "../room-settings/RoomSettingsDock.tsx";
 import { useLocationName } from "./operationName.ts";
 import { QUICK_TRAVEL_OVERLAY } from "./QuickTravel.tsx";
@@ -69,8 +71,9 @@ export function RoomsPanel() {
           </Button>
         )}
       </div>
-      {room && (manages || officeManager) && (
+      {room && (
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
+          <HangPictureButton operationId={room.id} />
           {manages && (
             <Button
               variant="secondary"
