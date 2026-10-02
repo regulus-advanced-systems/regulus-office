@@ -71,5 +71,11 @@ export async function openOffice(browser: Browser): Promise<OfficeSession> {
   await memberPage.goto(OFFICE_PROBE_PATH);
   await waitForScene(ownerPage);
   await waitForScene(memberPage);
+  // A first gesture, as a person's first click: the browser lets a page play sound only after
+  // one (audio/context.ts), and the jukebox step must not depend on earlier steps' typing.
+  for (const page of [memberPage, ownerPage]) {
+    await page.bringToFront();
+    await page.getByRole("navigation", { name: "Rooms" }).getByRole("heading").click();
+  }
   return { ownerCtx, memberCtx, ownerPage, memberPage };
 }
