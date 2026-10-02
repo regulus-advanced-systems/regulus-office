@@ -68,9 +68,15 @@ describe("the placement ghost", () => {
     expect(draftVerdict(room, {}, above)).toEqual({ ok: true });
     const onBoard = ghostAt(room, { wallId: "west", x: 2.25, y: 1.5 }, size);
     if (!onBoard) throw new Error("no ghost");
-    expect(draftVerdict(room, {}, onBoard)).toMatchObject({ ok: false, problem: "overlaps_anchor" });
+    expect(draftVerdict(room, {}, onBoard)).toMatchObject({
+      ok: false,
+      problem: "overlaps_anchor",
+    });
     const there = { d1: picture({ wallId: "west", x: 2.4 }) };
-    expect(draftVerdict(room, there, above)).toMatchObject({ ok: false, problem: "overlaps_picture" });
+    expect(draftVerdict(room, there, above)).toMatchObject({
+      ok: false,
+      problem: "overlaps_picture",
+    });
     // Moving that very picture ignores itself.
     expect(draftVerdict(room, there, above, "d1")).toEqual({ ok: true });
   });
