@@ -267,3 +267,39 @@ export function carriedCardsInScene(page: Page): Promise<string[]> {
     return out;
   });
 }
+
+/** The page side of `recordToasts`. */
+interface ToastLog {
+  __e2eToasts?: { seen: string[]; observer: MutationObserver };
+}
+
+/**
+ * From now on, note the text of every toast the page shows, however briefly (#248). A success
+ * toast is up for 4 s, so a check that looks only after seconds of other work can miss one that
+ * was shown. Toasts already up when this is called are not noted.
+ */
+export function recordToasts(page: Page): Promise<void> {
+  return page.evaluate(() => {
+    const w = window as unknown as ToastLog;
+    w.__e2eToasts?.observer.disconnect();
+    const known = new Set<string>();
+    const seen: string[] = [];
+    const scan = (note: boolean) => {
+      for (const el of document.querySelectorAll<HTMLElement>(".rg-toast")) {
+        const id = el.dataset.toastId ?? el.textContent ?? "";
+        if (known.has(id)) continue;
+        known.add(id);
+        if (note) seen.push(el.textContent ?? "");
+      }
+    };
+    scan(false);
+    const observer = new MutationObserver(() => scan(true));
+    observer.observe(document.body, { childList: true, subtree: true });
+    w.__e2eToasts = { seen, observer };
+  });
+}
+
+/** Texts (title and message run together) of the toasts shown since `recordToasts`. */
+export function toastsSeen(page: Page): Promise<string[]> {
+  return page.evaluate(() => [...((window as unknown as ToastLog).__e2eToasts?.seen ?? [])]);
+}

@@ -5,7 +5,7 @@
  * way an owner does: Add operation, Choose a spot…, then build on the map.
  */
 import { expect, type Page } from "@playwright/test";
-import { cameraSettled } from "./compoundProbes.ts";
+import { cameraSettled, navRooms } from "./compoundProbes.ts";
 import { screenPointOf } from "./probes.ts";
 
 export interface Placement {
@@ -85,6 +85,24 @@ export async function openBuildMode(page: Page, name: string, repo: string): Pro
   await expect(dialog).toHaveCount(0);
   await expect(page.getByRole("dialog", { name: `Build ${name}` })).toBeVisible();
   return settledVerdict(page);
+}
+
+/**
+ * Make sure the operation is on the compound, so a step that works in it does not depend on the
+ * step that builds it in the UI (#248). Builds it where build mode offers, as an owner would.
+ */
+export async function ensureOperation(page: Page, name: string, repo: string): Promise<void> {
+  await page.bringToFront();
+  const room = async () => (await navRooms(page)).find((r) => r.name === name);
+  if (!(await room())) {
+    expect((await openBuildMode(page, name, repo)).server?.ok).toBe(true);
+    await page.keyboard.press("Enter");
+    const added = page.getByRole("dialog", { name: "Operation set up" });
+    await expect(added.getByText("Ready on trunk")).toBeVisible();
+    await added.getByRole("button", { name: "Done" }).click();
+    await expect(added).toHaveCount(0);
+  }
+  await expect.poll(async () => (await room())?.buildState).toBe("ready");
 }
 
 /** A room's settings as the server has them (#182). */
