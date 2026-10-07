@@ -149,6 +149,19 @@ describe("a personal agent has exactly its owner's rights", () => {
     expect(o.officeAgents.requests.pendingFor(o.people.mia.id).map((r) => r.id)).toEqual([
       requestId,
     ]);
+    // A question about a room is hers only while she can see the room (#270).
+    const aboutApollo = resultOf<{ requestId: string }>(
+      await o.tool(mias.token, "ask_human", { question: "Ship Apollo?", operationId: APOLLO }),
+    ).requestId;
+    const pending = () =>
+      o.officeAgents.service
+        .pendingRequests({ id: o.people.mia.id, role: "member" })
+        .map((r) => r.id);
+    expect(pending().sort()).toEqual([requestId, aboutApollo].sort());
+    o.setRoomAccess(APOLLO, o.people.mia.id, null);
+    expect(pending()).toEqual([requestId]);
+    o.setRoomAccess(APOLLO, o.people.mia.id, "spawn");
+    expect(pending().sort()).toEqual([requestId, aboutApollo].sort());
     // Another agent cannot read the question or its answer.
     expect((await o.tool(sams.token, "read_human_request", { requestId })).status).toBe(404);
     expect(
