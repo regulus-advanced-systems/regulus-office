@@ -70,7 +70,8 @@ export function computeCompoundLayout(
     spec,
     width: spec.width,
     depth: spec.depth,
-    outsideDepth: OUTSIDE_STRIP_TILES,
+    // The beach is outside the lobby level's blast door; deeper levels are all rock.
+    outsideDepth: spec.landing ? 0 : OUTSIDE_STRIP_TILES,
     specialRooms: specials,
     rooms: projects,
     mainCorridor: root,

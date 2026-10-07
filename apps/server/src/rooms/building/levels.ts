@@ -47,3 +47,17 @@ export function leaveHiddenLevels(humans: Humans, snapshot: CompoundSnapshot): v
     human.seatId = "";
   });
 }
+
+/** The humans on one level, as the seat rules read them: a seat is held per level (#269). */
+export function humansOn(
+  humans: Humans,
+  levelId: string,
+): { forEach(cb: (human: ReturnType<Humans["get"]> & {}, sessionId: string) => void): void } {
+  return {
+    forEach(cb) {
+      humans.forEach((human, sessionId) => {
+        if (human.levelId === levelId) cb(human, sessionId);
+      });
+    },
+  };
+}

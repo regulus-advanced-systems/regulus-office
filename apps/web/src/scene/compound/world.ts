@@ -2,7 +2,8 @@
  * The compound as the client sees it (SPEC §9.1, #186): every room of the
  * published layout (the special rooms and the placed project rooms) with its
  * footprint in metres, door, build state, counters and whether this viewer
- * may enter it, plus the corridors. Pure: built from the BuildingRoom state
+ * may enter it, plus the corridors. A room marked closed (D26, #269) is its
+ * footprint and nothing more. Pure: built from the BuildingRoom state
  * and the REST operation list, then shared by the scene, navigation, presence
  * and quick travel.
  *
@@ -13,7 +14,9 @@
 
 import {
   type BuildingState,
+  DEFAULT_ROOM_SETTINGS,
   type DecorStyle,
+  DOOR_SIDES,
   type DoorSide,
   LOBBY_OPERATION_ID,
   type OperationSummary,
@@ -21,7 +24,7 @@ import {
   type SpecialRoomKind,
   type TileRect,
 } from "@regulus/protocol";
-import { doorApproach, type Pose } from "@regulus/room-layout";
+import { doorApproach, doorStart, type Pose } from "@regulus/room-layout";
 
 export type WorldRoomKind = "project" | SpecialRoomKind;
 
@@ -40,6 +43,14 @@ export interface WorldRoom {
   readonly size: { readonly w: number; readonly d: number };
   /** May this viewer walk in (special rooms: always; project rooms: in the REST list). */
   readonly enterable: boolean;
+  /**
+   * A room this viewer may not know anything about (D26, #269): only its
+   * footprint is known. It has no name, counts or interior here, whatever
+   * was published, and is never enterable.
+   */
+  readonly closed: boolean;
+  /** A closed room whose door is not known: drawn as solid rock (the door fields are then made up). */
+  readonly sealed: boolean;
   readonly buildState: RoomBuildState;
   readonly buildEndsAt: number;
   readonly deskCount: number;
@@ -66,7 +77,32 @@ const SPECIAL_NAMES: Readonly<Record<SpecialRoomKind, string>> = {
   lobby: "Lobby",
   conference: "War room",
   break_room: "Break room",
+  landing: "Lift landing",
 };
+
+/**
+ * What the server sends for a room this viewer may not enter, as agreed with
+ * #270: its id, its level, its grid footprint and `closed: true`, nothing
+ * else. The door fields are optional: with them the room shows a sealed
+ * blast door, without them solid rock.
+ */
+export interface ClosedRoomFields {
+  operationId: string;
+  levelId: string;
+  gridX: number;
+  gridY: number;
+  width: number;
+  depth: number;
+  closed: true;
+  doorSide?: DoorSide;
+  doorX?: number;
+  doorY?: number;
+}
+
+/** True for a published room entry marked closed (the field is #270's; absent means open). */
+export function isClosedEntry(entry: object): boolean {
+  return (entry as { closed?: unknown }).closed === true;
+}
 
 /**
  * The world from the published state, or null until the compound is first
@@ -94,6 +130,8 @@ export function compoundWorld(
       origin: { x: rect.x * m, z: rect.y * m },
       size: { w: rect.w * m, d: rect.d * m },
       enterable: true,
+      closed: false,
+      sealed: false,
       buildState: "ready",
       buildEndsAt: 0,
       deskCount: 0,
@@ -108,7 +146,12 @@ export function compoundWorld(
       (f) => f.operationId !== LOBBY_OPERATION_ID && f.gridX >= 0 && f.gridY >= 0 && f.width > 0,
     )
     .sort((a, b) => a.index - b.index);
-  for (const f of placed) rooms.push(projectRoom(f, m, enterable?.has(f.operationId) ?? false));
+  for (const f of placed)
+    rooms.push(
+      isClosedEntry(f)
+        ? closedRoom(f, m)
+        : projectRoom(f, m, enterable?.has(f.operationId) ?? false),
+    );
   return {
     version: c.version,
     width: c.width,
@@ -133,6 +176,8 @@ function projectRoom(f: OperationSummary, m: number, enterable: boolean): WorldR
     origin: { x: rect.x * m, z: rect.y * m },
     size: { w: rect.w * m, d: rect.d * m },
     enterable,
+    closed: false,
+    sealed: false,
     buildState: f.buildState,
     buildEndsAt: f.buildEndsAt,
     deskCount: Math.max(1, f.deskCount),
@@ -141,6 +186,60 @@ function projectRoom(f: OperationSummary, m: number, enterable: boolean): WorldR
     henchmenWaiting: f.henchmenWaiting,
     henchmenTotal: f.henchmenTotal,
   };
+}
+
+/**
+ * A closed room (#269): the footprint and nothing else. Name, counts, desks,
+ * decor and build state are dropped here even if an entry carried them, so
+ * nothing downstream (plaques, quick travel, who is where, sounds) can show them.
+ */
+function closedRoom(
+  f: Pick<ClosedRoomFields, "operationId" | "gridX" | "gridY" | "width" | "depth"> &
+    Partial<Pick<ClosedRoomFields, "doorSide" | "doorX" | "doorY">>,
+  m: number,
+): WorldRoom {
+  const rect = { x: f.gridX, y: f.gridY, w: f.width, d: f.depth };
+  const door = closedRoomDoor(f, rect);
+  const doorSide = door?.side ?? "south";
+  return {
+    id: f.operationId,
+    kind: "project",
+    name: "",
+    rect,
+    doorSide,
+    door: door ? { x: door.x, y: door.y } : doorStart(rect, doorSide),
+    origin: { x: rect.x * m, z: rect.y * m },
+    size: { w: rect.w * m, d: rect.d * m },
+    enterable: false,
+    closed: true,
+    sealed: door === null,
+    buildState: "ready",
+    buildEndsAt: 0,
+    deskCount: 1,
+    decorStyle: DEFAULT_ROOM_SETTINGS.decorStyle,
+    henchmenWorking: 0,
+    henchmenWaiting: 0,
+    henchmenTotal: 0,
+  };
+}
+
+/** The door of a closed entry when it names one that lies on that wall of the footprint, else null. */
+function closedRoomDoor(
+  f: Partial<Pick<ClosedRoomFields, "doorSide" | "doorX" | "doorY">>,
+  rect: TileRect,
+): { side: DoorSide; x: number; y: number } | null {
+  const { doorSide: side, doorX: x, doorY: y } = f;
+  if (!side || !(DOOR_SIDES as readonly string[]).includes(side)) return null;
+  if (x === undefined || y === undefined) return null;
+  const onWall =
+    side === "north" || side === "south"
+      ? y === (side === "north" ? rect.y : rect.y + rect.d) &&
+        x >= rect.x &&
+        x + 2 <= rect.x + rect.w
+      : x === (side === "west" ? rect.x : rect.x + rect.w) &&
+        y >= rect.y &&
+        y + 2 <= rect.y + rect.d;
+  return onWall ? { side, x, y } : null;
 }
 
 /** A room the viewer walks into and sees inside: enterable and finished. */
@@ -202,9 +301,17 @@ export function roomCentre(room: WorldRoom): { x: number; z: number } {
   return { x: room.origin.x + room.size.w / 2, z: room.origin.z + room.size.d / 2 };
 }
 
-/** The lobby (the compound always has one once published). */
+/** The lobby: on the lobby level only (the other levels have a landing, #269). */
 export function lobbyOf(world: CompoundWorld): WorldRoom | undefined {
   return world.rooms.find((r) => r.kind === "lobby");
+}
+
+/**
+ * The room people arrive in on this level, where the lift stands: the lobby
+ * on the lobby level, the landing on every other one.
+ */
+export function arrivalRoomOf(world: CompoundWorld): WorldRoom | undefined {
+  return world.rooms.find((r) => r.kind === "lobby" || r.kind === "landing");
 }
 
 /** World metres of the whole compound including the beach strip. */

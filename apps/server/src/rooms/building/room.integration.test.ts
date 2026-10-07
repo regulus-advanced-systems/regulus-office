@@ -11,6 +11,7 @@ import { join } from "node:path";
 import { Client, type Room } from "@colyseus/sdk";
 import {
   BuildingStateSchema,
+  blastDoorButtons,
   CHAT_BURST,
   type ChatMessage,
   COMMAND_REJECTED_MESSAGE,
@@ -23,6 +24,7 @@ import {
   LOBBY_LEVEL_ID,
   LOBBY_OPERATION_ID,
   ROOM_NAMES,
+  SCREEN_SHARE_REJECTIONS,
   seatKey,
 } from "@regulus/protocol";
 import { specialRoomSeats } from "@regulus/room-layout";
@@ -456,5 +458,95 @@ describe("BuildingRoom over the wire", () => {
     rooms.building.setCompound({ state: COMPOUND, rooms: new Map() });
     await waitFor(() => bob.state.levels.size === 1, "one level left");
     await waitFor(() => adaSeen()?.levelId === LOBBY_LEVEL_ID, "Ada in the lobby");
+  });
+
+  test("seats, the blast door and the lounge TV are per level (#269)", async () => {
+    const landing: CompoundState = {
+      ...COMPOUND,
+      version: 21,
+      specialRooms: [{ kind: "landing", ...LOBBY_ROOM, doorSide: "north", doorX: 31, doorY: 56 }],
+    };
+    const lobbyLevel: CompoundState = {
+      ...COMPOUND,
+      version: 20,
+      outsideDepth: 6,
+      blastDoorX: 30,
+      blastDoorY: 64,
+      blastDoorWidth: 4,
+    };
+    const level = (
+      levelId: string,
+      kind: "lobby" | "org",
+      state: CompoundState,
+      order: number,
+    ) => ({
+      levelId,
+      kind,
+      login: kind === "org" ? levelId : "",
+      name: levelId,
+      order,
+      state,
+    });
+    rooms.building.setCompound({
+      state: lobbyLevel,
+      rooms: new Map(),
+      levels: [
+        level(LOBBY_LEVEL_ID, "lobby", lobbyLevel, 0),
+        level("lv-a", "org", landing, 1),
+        level("lv-b", "org", landing, 2),
+      ],
+    });
+    const ada = await joinAs(user("u-ada11", "Ada"));
+    const bob = await joinAs(user("u-bob11", "Bob"));
+    const cy = await joinAs(user("u-cy11", "Cy"));
+    await waitFor(() => cy.state.humans.size >= 3 && cy.state.levels.size === 3, "everyone in");
+    const seen = (room: BuildingRoom) => cy.state.humans.get(room.sessionId);
+    const m = COMPOUND.tileMetres;
+    const chair = specialRoomSeats("landing", LOBBY_ROOM.width * m, LOBBY_ROOM.depth * m)[0];
+    if (!chair) throw new Error("no landing seat");
+    const CHAIR_KEY = seatKey("landing", chair.id);
+    const at = { x: LOBBY_ROOM.gridX * m + chair.pose.x, z: LOBBY_ROOM.gridY * m + chair.pose.z };
+
+    // The landing's chair is not a seat of the lobby level, wherever one stands there.
+    ada.send("move", { x: at.x, z: at.z - 1, heading: 0 });
+    await waitFor(() => seen(ada)?.position.x === at.x, "Ada at the spot");
+    const noSuch = nextRejection(ada);
+    ada.send("sit", { seatId: CHAIR_KEY });
+    expect((await noSuch).reason).toBe(`no seat ${CHAIR_KEY}`);
+
+    // The same chair of two levels' landings is two seats: Bob and Cy both sit.
+    bob.send("operation.go", { operationId: LOBBY_OPERATION_ID, levelId: "lv-a" });
+    cy.send("operation.go", { operationId: LOBBY_OPERATION_ID, levelId: "lv-b" });
+    await waitFor(() => seen(bob)?.levelId === "lv-a" && seen(cy)?.levelId === "lv-b", "levels");
+    bob.send("move", { x: at.x, z: at.z - 1, heading: 0 });
+    cy.send("move", { x: at.x, z: at.z - 1, heading: 0 });
+    await waitFor(() => seen(bob)?.position.x === at.x && seen(cy)?.position.x === at.x, "moved");
+    bob.send("sit", { seatId: CHAIR_KEY });
+    cy.send("sit", { seatId: CHAIR_KEY });
+    await waitFor(
+      () => seen(bob)?.seatId === CHAIR_KEY && seen(cy)?.seatId === CHAIR_KEY,
+      "both seated, each on their own level",
+    );
+    // And the lobby's sofa is not on a landing level.
+    const noSofa = nextRejection(bob);
+    bob.send("sit", { seatId: SOFA_KEY });
+    expect((await noSofa).reason).toBe(`no seat ${SOFA_KEY}`);
+
+    // The blast door's button is on the lobby level only, at the same coordinates or not.
+    const [button] = blastDoorButtons(lobbyLevel);
+    if (!button) throw new Error("no button");
+    bob.send("move", { x: button.stand.x, z: button.stand.z, heading: 0 });
+    await waitFor(() => seen(bob)?.position.x === button.stand.x, "Bob at the button's spot");
+    const notHere = nextRejection(bob);
+    bob.send("blast_door.press", {});
+    expect(await notHere).toEqual({
+      type: "blast_door.press",
+      reason: "The blast door is on the lobby level.",
+    });
+    expect(cy.state.blastDoor.phase).toBe("closed");
+    const tv = nextRejection(bob);
+    bob.send("screen.share.start", {});
+    expect((await tv).reason).toBe(SCREEN_SHARE_REJECTIONS.notInLobby);
+    rooms.building.setCompound({ state: COMPOUND, rooms: new Map() });
   });
 });

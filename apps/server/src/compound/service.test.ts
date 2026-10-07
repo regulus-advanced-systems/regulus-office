@@ -222,6 +222,18 @@ describe("BuildingRoom publish", () => {
     expect(json.levels[LOBBY_LEVEL_ID]?.compound).toEqual(json.compound);
     // The room is part of its own level's layout only.
     expect(json.levels[levelId]?.compound.version).not.toBe(json.compound.version);
+    // The lobby, war room, break room, blast door and beach are the lobby level's; the
+    // owner's level has the lift landing on the lobby's footprint and nothing else (#269).
+    const kinds = (id: string) => json.levels[id]?.compound.specialRooms.map((r) => r.kind);
+    expect(kinds(LOBBY_LEVEL_ID)).toEqual(["lobby", "conference", "break_room"]);
+    expect(kinds(levelId)).toEqual(["landing"]);
+    const landing = json.levels[levelId]?.compound;
+    const lobbyRoom = json.compound.specialRooms[0];
+    expect(landing?.specialRooms[0]).toMatchObject({ ...lobbyRoom, kind: "landing" });
+    expect(landing?.blastDoorWidth).toBe(0);
+    expect(landing?.outsideDepth).toBe(0);
+    expect(json.compound.blastDoorWidth).toBeGreaterThan(0);
+    expect(json.compound.outsideDepth).toBeGreaterThan(0);
     expect(json.operations[LOBBY_OPERATION_ID]).toMatchObject({
       gridX: 26,
       gridY: 56,

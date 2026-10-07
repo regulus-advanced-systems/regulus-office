@@ -40,8 +40,12 @@ export type DoorSide = (typeof DOOR_SIDES)[number];
 export const ROOM_BUILD_STATES = ["building", "ready"] as const;
 export type RoomBuildState = (typeof ROOM_BUILD_STATES)[number];
 
-/** Fixed rooms that are not buildable (SPEC §9.1). */
-export const SPECIAL_ROOM_KINDS = ["lobby", "conference", "break_room"] as const;
+/**
+ * Fixed rooms that are not buildable (SPEC §9.1). The lobby, the war room and
+ * the break room are on the lobby level; every other level (D26, #269) has a
+ * `landing` instead: the hall the lift arrives in, on the lobby's footprint.
+ */
+export const SPECIAL_ROOM_KINDS = ["lobby", "conference", "break_room", "landing"] as const;
 export type SpecialRoomKind = (typeof SPECIAL_ROOM_KINDS)[number];
 
 /** Why a placement was refused; in the order the checks run. */
