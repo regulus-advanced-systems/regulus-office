@@ -1,7 +1,12 @@
 import { describe, expect, test } from "bun:test";
-import { checkPlacement, defaultCompoundSpec, mainCorridor } from "@regulus/room-layout";
-import { rowPlacement, testWorld } from "../../scene/compound/testing.ts";
-import { lobbyOf } from "../../scene/compound/world.ts";
+import {
+  checkPlacement,
+  defaultCompoundSpec,
+  landingSpec,
+  mainCorridor,
+} from "@regulus/room-layout";
+import { rowPlacement, testState, testWorld } from "../../scene/compound/testing.ts";
+import { arrivalRoomOf, compoundWorld, lobbyOf } from "../../scene/compound/world.ts";
 import {
   arrowStep,
   buildFrame,
@@ -93,6 +98,34 @@ describe("build mode rules", () => {
     const main = mainCorridor(spec);
     for (const r of result.corridor)
       expect(r.y + r.d <= main.y || r.y >= main.y + main.d).toBe(true);
+  });
+
+  test("a level other than the lobby level has its own rules: only the lift landing is fixed (#269)", () => {
+    const level = testState([{ id: "apollo", placement: rowPlacement(4) }], 48, {
+      levelId: "lv-a",
+      landing: true,
+    });
+    const below = compoundWorld(level, new Set(["apollo"]), "lv-a");
+    if (!below) throw new Error("no world");
+    expect(specOf(below)).toEqual(landingSpec(defaultCompoundSpec(48)));
+    const landing = arrivalRoomOf(below);
+    if (!landing) throw new Error("no landing");
+    const onLanding = placementOf(landing.rect, { w: 8, d: 8 }, "south");
+    expect(localCheck(below, onLanding)).toMatchObject({ ok: false, conflicts: ["landing"] });
+    expect(describeRefusal(below, "overlap", ["landing"])).toBe("It overlaps the lift landing.");
+    expect(describeRefusal(below, "unreachable", [])).toBe(
+      "No corridor can reach that door from the lift landing.",
+    );
+    expect(describeRefusal(world, "unreachable", [])).toBe(
+      "No corridor can reach that door from the lobby.",
+    );
+    // Where the lobby level has its war room, this level has free rock to build in.
+    const war = world.rooms.find((r) => r.kind === "conference");
+    if (!war) throw new Error("no war room");
+    const there = placementOf(war.rect, { w: 8, d: 8 }, "north");
+    expect(localCheck(world, there).ok).toBe(false);
+    expect(localCheck(below, there).ok).toBe(true);
+    expect(suggestSpot(below, { w: 8, d: 8 })).not.toBeNull();
   });
 
   test("new corridor tiles are those of the next network not in the current one", () => {

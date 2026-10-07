@@ -20,14 +20,15 @@ import {
   type CompoundSpec,
   checkPlacement,
   findPlacement,
+  landingSpec,
   MAIN_CORRIDOR_ID,
   rowSlot,
   tilesToRects,
 } from "@regulus/room-layout";
 import {
+  arrivalRoomOf,
   builtBounds,
   type CompoundWorld,
-  lobbyOf,
   type WorldRoom,
 } from "../../scene/compound/world.ts";
 import { screenAxes } from "../../scene/movement/wasd.ts";
@@ -128,8 +129,17 @@ export function placementKey(p: RoomPlacement): string {
 
 /** The compound's spec as the client can rebuild it from the published layout. */
 export function specOf(world: CompoundWorld): CompoundSpec | null {
-  const lobby = lobbyOf(world);
-  return lobby ? { width: world.width, depth: world.depth, lobby: lobby.rect } : null;
+  // The lobby on the lobby level; on every other level the lift landing stands on its
+  // footprint and is the only fixed room (#269), so the rules differ per level.
+  const arrival = arrivalRoomOf(world);
+  if (!arrival) return null;
+  const spec = { width: world.width, depth: world.depth, lobby: arrival.rect };
+  return arrival.kind === "landing" ? landingSpec(spec) : spec;
+}
+
+/** What the corridors of this level start from, as people say it. */
+function arrivalName(world: CompoundWorld): string {
+  return arrivalRoomOf(world)?.kind === "landing" ? "lift landing" : "lobby";
 }
 
 /** Project rooms as placements, leaving out `skip` (the room being moved). */
@@ -231,9 +241,9 @@ export function describeRefusal(
         ? `The door opens onto ${who}. Turn it (R) or move the room.`
         : "The door opens onto rock at the edge. Turn it (R) or move the room.";
     case "unreachable":
-      return "No corridor can reach that door from the lobby.";
+      return `No corridor can reach that door from the ${arrivalName(world)}.`;
     case "blocks_room":
-      return `It would cut ${who || "another room"} off from the lobby.`;
+      return `It would cut ${who || "another room"} off from the ${arrivalName(world)}.`;
     default:
       return "That spot is not free.";
   }

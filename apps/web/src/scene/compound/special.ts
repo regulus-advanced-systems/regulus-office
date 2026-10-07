@@ -254,7 +254,7 @@ function landing(w: number, d: number): SpecialDressing {
       { model: "barrel", rect: R(1.9, d - 5.5, 0.7, 0.7), facing: "north" },
       { model: "water_cooler", rect: R(w - 1.2, 1.4, 0.6, 0.6), facing: "west" },
       { model: "crate", rect: R(w - 1.5, lift.rect.z - 1.5, 1, 1), facing: "west" },
-      { model: "bench", rect: R(0.5, d / 2 - 2.6, 0.6, 2.2), facing: "east" },
+      { model: "bench", rect: R(0.5, d / 2 - 1.7, 0.6, 2.2), facing: "east" },
       // Where the lobby has its blast door this deep is solid rock: a bench between planters.
       { model: "bench", rect: R(w / 2 - 1.1, d - 1.1, 2.2, 0.6), facing: "north" },
       { model: "planter", rect: R(w / 2 - 4.4, d - 1.1, 2, 0.6), facing: "north" },

@@ -17,6 +17,7 @@ import {
   LOBBY_OPERATION_ID,
   sortLevels,
 } from "@regulus/protocol";
+import { compoundStateOf, computeCompoundLayout, landingSpec } from "@regulus/room-layout";
 import { create } from "zustand";
 
 export interface LevelStore {
@@ -29,6 +30,32 @@ export const useLevelStore = create<LevelStore>()((set) => ({
   set: (levelId) => set({ levelId }),
 }));
 
+/**
+ * A level that does not exist yet (#269): the first room of a GitHub owner
+ * opens a new level, and build mode places that room on its empty grid (the
+ * lift landing and nothing else) before the server has made the level. Only
+ * this client looks at it; the building is never told.
+ */
+export const DRAFT_LEVEL_ID = "draft-level";
+
+const drafts = new WeakMap<object, BuildingState["compound"]>();
+
+/** The layout of a level with no rooms yet, from the lobby level's (same grid, same lift shaft). */
+export function draftLevelCompound(lobby: BuildingState["compound"]): BuildingState["compound"] {
+  const hit = drafts.get(lobby);
+  if (hit) return hit;
+  const room = lobby.specialRooms.find((s) => s.kind === "lobby");
+  if (!room || lobby.width === 0) return lobby;
+  const spec = landingSpec({
+    width: lobby.width,
+    depth: lobby.depth,
+    lobby: { x: room.gridX, y: room.gridY, w: room.width, d: room.depth },
+  });
+  const compound = compoundStateOf(computeCompoundLayout(spec, []));
+  drafts.set(lobby, compound);
+  return compound;
+}
+
 type Levels = Pick<BuildingState, "compound" | "operations"> &
   Partial<Pick<BuildingState, "levels">>;
 
@@ -37,12 +64,17 @@ export function levelList(state: Partial<Pick<BuildingState, "levels">> | null):
   return sortLevels(Object.values(state?.levels ?? {}));
 }
 
-/** True when the viewed level is (still) published; the lobby level always is. */
+/**
+ * True when the viewed level is (still) published; the lobby level always is,
+ * and so is the draft of a level about to be made (never one to travel to).
+ */
 export function isKnownLevel(
   state: Partial<Pick<BuildingState, "levels">> | null,
   levelId: string,
 ): boolean {
-  return levelId === LOBBY_LEVEL_ID || Boolean(state?.levels?.[levelId]);
+  return (
+    levelId === LOBBY_LEVEL_ID || levelId === DRAFT_LEVEL_ID || Boolean(state?.levels?.[levelId])
+  );
 }
 
 /**
@@ -60,6 +92,8 @@ export function levelView(
   for (const [id, f] of Object.entries(state.operations)) {
     if (id === LOBBY_OPERATION_ID || f.levelId === levelId) operations[id] = f;
   }
+  const lobby = state.levels?.[LOBBY_LEVEL_ID]?.compound ?? state.compound;
+  if (levelId === DRAFT_LEVEL_ID) return { compound: draftLevelCompound(lobby), operations };
   return { compound: state.levels?.[levelId]?.compound ?? state.compound, operations };
 }
 
@@ -119,11 +153,19 @@ export function levelLabel(level: LevelInfo, levels: readonly LevelInfo[]): Leve
   return { mark: `S${n}`, title: level.name, caption: `${depth} · GitHub ${owner}${login}` };
 }
 
+/** What the draft of a new level is called while its first room is being placed. */
+export const DRAFT_LEVEL_LABEL: LevelLabel = {
+  mark: "··",
+  title: "New level",
+  caption: "Opens with this room",
+};
+
 /** The label of the level with this id among the published levels, or null when it is not one. */
 export function levelLabelOf(
   state: Partial<Pick<BuildingState, "levels">> | null,
   levelId: string,
 ): LevelLabel | null {
+  if (levelId === DRAFT_LEVEL_ID) return DRAFT_LEVEL_LABEL;
   const levels = levelList(state);
   const level = levels.find((l) => l.levelId === levelId);
   return level ? levelLabel(level, levels) : null;

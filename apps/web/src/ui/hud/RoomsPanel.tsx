@@ -7,7 +7,9 @@
  * "Hang a picture…" (#46). Operation settings live in the top bar (the
  * room you are in) and in quick travel (any room).
  */
+import { useBuildingStore } from "../../state/building.ts";
 import { useCompoundStore } from "../../state/compound.ts";
+import { levelLabelOf, useLevelStore } from "../../state/level.ts";
 import { useOperationStore } from "../../state/operation.ts";
 import { useOperationsStore } from "../../state/operations.ts";
 import { canManageOffice, useSessionStore } from "../../state/session.ts";
@@ -29,6 +31,13 @@ export function RoomsPanel() {
   const user = useSessionStore((s) => s.user);
   const openOverlay = useUiStore((s) => s.openOverlay);
   const here = useLocationName();
+  // Which level (D26, #269), once the lair has more than the lobby level.
+  const levelId = useLevelStore((s) => s.levelId);
+  const level = useBuildingStore((s) =>
+    Object.keys(s.state?.levels ?? {}).length > 1
+      ? (levelLabelOf(s.state, levelId)?.title ?? null)
+      : null,
+  );
   const operationId = useOperationStore((s) => s.operationId);
   const room = useCompoundStore((s) =>
     operationId
@@ -48,6 +57,12 @@ export function RoomsPanel() {
     <Panel as="nav" title="Rooms" aria-label="Rooms">
       <div className="rg-muted" style={{ fontSize: 12 }}>
         You are in <strong data-testid="location">{here}</strong>
+        {level && (
+          <>
+            {" "}
+            on <strong data-testid="level">{level}</strong>
+          </>
+        )}
       </div>
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
         <Button

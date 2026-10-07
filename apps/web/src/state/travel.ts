@@ -13,7 +13,7 @@ import { liftOf } from "../scene/compound/lift/spot.ts";
 import { roomById, roomCentre, travelPose } from "../scene/compound/world.ts";
 import { useBuildingStore } from "./building.ts";
 import { syncCompoundWorld, useCompoundStore } from "./compound.ts";
-import { isKnownLevel, levelOfOperation, useLevelStore } from "./level.ts";
+import { DRAFT_LEVEL_ID, isKnownLevel, levelOfOperation, useLevelStore } from "./level.ts";
 import { usePlayerStore } from "./player.ts";
 
 /** The fixed rooms that only the lobby level has. */
@@ -69,10 +69,32 @@ export function levelArrivalPose(): Pose | null {
  */
 export function travelToLevel(levelId: string): boolean {
   const player = usePlayerStore.getState();
-  if (!player.spawned || !showLevel(levelId)) return false;
+  if (levelId === DRAFT_LEVEL_ID || !player.spawned || !showLevel(levelId)) return false;
   const pose = levelArrivalPose();
   if (pose) player.spawnAt(pose, player.spawnKey ?? undefined);
   return true;
+}
+
+/**
+ * Build mode is about to place the first room of a GitHub owner who has no
+ * level yet (#269): look at the empty grid that level will have. `leaveDraftLevel`
+ * goes back when build mode ends, wherever the player was before.
+ */
+export function showDraftLevel(): void {
+  // Nothing published yet: there is no grid to derive the new level's from.
+  if (!useBuildingStore.getState().state) return;
+  const level = useLevelStore.getState();
+  if (level.levelId !== DRAFT_LEVEL_ID) beforeDraft = level.levelId;
+  level.set(DRAFT_LEVEL_ID);
+  syncCompoundWorld();
+}
+
+let beforeDraft: string = LOBBY_LEVEL_ID;
+
+/** Back from the draft level to the level looked at before it (the lobby level if that is gone). */
+export function leaveDraftLevel(): void {
+  if (useLevelStore.getState().levelId !== DRAFT_LEVEL_ID) return;
+  if (!showLevel(beforeDraft)) showLevel(LOBBY_LEVEL_ID);
 }
 
 /** Rooms quick travel may pick on this level: its fixed rooms and the finished rooms this viewer may enter. */
