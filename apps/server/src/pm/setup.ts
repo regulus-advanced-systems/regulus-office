@@ -23,6 +23,10 @@ import { CliSessionEngine } from "./engines/cli-session.ts";
 import { AgentCredentials } from "./engines/credentials.ts";
 import type { OfficeAgentEngine } from "./engines/types.ts";
 import { mountMcp } from "./mcp.ts";
+import { AgentMind } from "./mind/mind.ts";
+import { MindService } from "./mind/people.ts";
+import { engineMind } from "./mind/port.ts";
+import { MindStore } from "./mind/store.ts";
 import { HumanRequests } from "./requests.ts";
 import { mountOfficeAgentRoutes } from "./routes.ts";
 import { AgentRuntime } from "./runtime.ts";
@@ -75,6 +79,8 @@ export interface OfficeAgents {
   world: AgentWorld;
   /** Tell one person's clients that what their agents want from them changed (#252). */
   onAttention(notify: (userId: string) => void): void;
+  /** Souls, memories and notes (#136). */
+  mind: AgentMind;
   mount(
     router: Router,
     auth: Pick<OfficeAuth, "getSessionFromRequest" | "publicUrl" | "allowedOrigins">,
@@ -99,10 +105,12 @@ export function createOfficeAgents(opts: OfficeAgentsOptions): OfficeAgents {
   const conversations = new Conversations(db, now);
   const requests = new HumanRequests(db, now);
   const credentials = new AgentCredentials(db, opts.keyring);
+  const mind = new AgentMind(new MindStore(db, now));
   const runtime = new AgentRuntime({
     store,
     tokens,
     conversations,
+    mind: (agentId) => engineMind(db, mind, agentId),
     officeUrl: opts.officeUrl.replace(/\/+$/, ""),
     usage: opts.usage,
     logger,
@@ -161,9 +169,10 @@ export function createOfficeAgents(opts: OfficeAgentsOptions): OfficeAgents {
       (bound.stop ?? unavailable("stopping henchmen"))(actor, henchmanId),
   };
   const tools = new OfficeTools(
-    { store, access: new AgentAccess(store), conversations, requests, ports, now },
+    { store, access: new AgentAccess(store), conversations, requests, mind, ports, now },
     logger,
   );
+  const mindService = new MindService({ store, mind, runtime });
   const service = new OfficeAgentService({
     store,
     tokens,
@@ -171,6 +180,7 @@ export function createOfficeAgents(opts: OfficeAgentsOptions): OfficeAgents {
     conversations,
     requests,
     credentials,
+    minds: mindService,
     now,
   });
 
@@ -215,12 +225,13 @@ export function createOfficeAgents(opts: OfficeAgentsOptions): OfficeAgents {
     onAttention(fn) {
       notify = fn;
     },
+    mind,
     mount(router, auth) {
       // Before the agent routes: `/attention` is not an agent id.
       mountAgentWorldRoutes(router, { auth, service: worldService });
       mountMcp(router, { store, tokens, tools, version: opts.version });
       mountToolRoutes(router, { store, tokens, tools });
-      mountOfficeAgentRoutes(router, { auth, service });
+      mountOfficeAgentRoutes(router, { auth, service, mind: mindService });
     },
     bind(next) {
       bound = { ...bound, ...next };

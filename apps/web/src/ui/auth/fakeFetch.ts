@@ -5,6 +5,8 @@
 export interface FakeCall {
   method: string;
   path: string;
+  /** The query string with its "?", or "". */
+  search: string;
   body: unknown;
   init: RequestInit | undefined;
 }
@@ -19,7 +21,7 @@ export function fakeFetch(
     const url = new URL(String(input), "http://office.test");
     const method = (init?.method ?? "GET").toUpperCase();
     const body = typeof init?.body === "string" ? JSON.parse(init.body) : undefined;
-    const call = { method, path: url.pathname, body, init };
+    const call = { method, path: url.pathname, search: url.search, body, init };
     calls.push(call);
     const route = routes[`${method} ${url.pathname}`];
     const out = typeof route === "function" ? route(call) : route;

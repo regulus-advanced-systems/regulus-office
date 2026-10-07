@@ -79,7 +79,6 @@ export function HudDialogs() {
       <ProvidersPanelHost />
       <WorkflowsPanelHost />
       <SpawnDialogHost />
-      <AgentChatWindowHost />
       <TerminalModalHost />
       <SearchHost />
       <QuickTravelDialog />
@@ -137,6 +136,7 @@ export function Hud() {
       <MediaHost />
       <WhiteboardHost />
       <NotificationsHost />
+      <AgentChatWindowHost />
       <EmoteWheel />
       <Toaster />
     </div>

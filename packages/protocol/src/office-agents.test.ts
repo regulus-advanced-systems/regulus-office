@@ -80,6 +80,16 @@ describe("office agents (#271)", () => {
       "read_usage",
       "ask_human",
       "read_human_request",
+      // Its own soul, memories and notes (#136): every agent, whatever its preset.
+      "soul_read",
+      "memory_save",
+      "memory_search",
+      "memory_list",
+      "memory_forget",
+      "note_write",
+      "note_read",
+      "note_list",
+      "note_delete",
     ]);
     expect(names("coordinator")).toEqual([
       ...names("observer"),

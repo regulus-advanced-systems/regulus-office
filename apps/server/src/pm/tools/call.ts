@@ -9,7 +9,7 @@
  * `office_agent.tool_call` when it ran (also when it then failed), or
  * `office_agent.tool_denied` when it was refused. The row names the tool, the
  * transport, the operation and the person acted for; never the arguments'
- * text, which may be a prompt or a comment.
+ * text, which may be a prompt, a comment, a memory or a note.
  */
 import {
   OFFICE_TOOL_INPUTS,
@@ -27,6 +27,7 @@ import { AUDIT_ACTIONS, writeAudit } from "../../auth/audit.ts";
 import type { Logger } from "../../logging.ts";
 import type { OfficeAgentRow } from "../store.ts";
 import { type ToolCall, type ToolDeps, ToolError } from "./context.ts";
+import * as memory from "./memory.ts";
 import * as read from "./read.ts";
 import * as write from "./write.ts";
 
@@ -50,6 +51,15 @@ const HANDLERS: { [N in OfficeToolName]: Handler<N> } = {
   post_chat: write.postChat,
   spawn_henchman: write.spawnHenchman,
   stop_henchman: write.stopHenchman,
+  soul_read: (call) => memory.soulRead(call),
+  memory_save: memory.memorySave,
+  memory_search: memory.memorySearch,
+  memory_list: memory.memoryList,
+  memory_forget: memory.memoryForget,
+  note_write: memory.noteWrite,
+  note_read: memory.noteRead,
+  note_list: (call) => memory.noteList(call),
+  note_delete: memory.noteDelete,
 };
 
 /** Refusals (the agent asked for something it may not do), as opposed to failures. */
@@ -61,6 +71,7 @@ const DENIALS: ReadonlySet<OfficeToolError> = new Set([
   "on_behalf_required",
   "not_waiting",
   "cap_reached",
+  "secret_rejected",
 ]);
 
 export interface PublishedTool extends OfficeToolSpec {
@@ -133,6 +144,8 @@ export class OfficeTools {
           shared: agent.ownerUserId === null,
           ...(idOf(raw.operationId) ? { operationId: idOf(raw.operationId) } : {}),
           ...(idOf(raw.onBehalfOf) ? { onBehalfOf: idOf(raw.onBehalfOf) } : {}),
+          // Memory and note tools (#136): which entry and how long, never what it says.
+          ...(result.ok ? call.auditMeta : {}),
         },
       });
       this.deps.store.touch(agent.id);
