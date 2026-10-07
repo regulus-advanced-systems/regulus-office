@@ -17,6 +17,14 @@ import {
   tulipTable,
   waterCooler,
 } from "./geometry/amenities.ts";
+import {
+  ammoCrates,
+  armoryBench,
+  armoryFloor,
+  gunLocker,
+  shellStand,
+  weaponRack,
+} from "./geometry/armoryProps.ts";
 import type { PieceGeometry } from "./geometry/builder.ts";
 import { controlConsole, mainframe } from "./geometry/consoles.ts";
 import { barrier, cableDrum, crateStack, scaffold, workLight } from "./geometry/construction.ts";
@@ -200,6 +208,14 @@ export const PIECES = {
   drum_planter: def("Drum planter", "clutter", 440, drumPlanter),
   floor_tile: def("Lab tile", "structure", 60, tileFloor),
   floor_carpet: def("War carpet", "structure", 30, carpetFloor),
+  // The armory style (#282).
+  armory_bench: def("Armourer's bench", "furniture", 220, () => armoryBench()),
+  weapon_rack: def("Weapon rack", "furniture", 300, weaponRack),
+  gun_locker: def("Gun locker", "furniture", 160, gunLocker),
+  ammo_crates: def("Ammo crates", "clutter", 160, ammoCrates),
+  shell_stand: def("Display shell", "clutter", 140, shellStand),
+  poster_target: def("Target sheet", "wall_decor", 220, () => poster("target"), true),
+  floor_armory: def("Armory deck", "structure", 40, armoryFloor),
 } as const satisfies Record<string, PieceDef>;
 
 export type PieceId = keyof typeof PIECES;

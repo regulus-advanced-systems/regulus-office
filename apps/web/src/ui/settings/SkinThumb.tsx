@@ -1,10 +1,10 @@
 /**
- * A skin thumbnail (#225): a still image drawn once per skin and trim by the
+ * A skin or form thumbnail (#225, #281): a still image drawn once per skin and trim by the
  * single offscreen renderer in skinThumbRenderer.ts (loaded on first use).
  * Without WebGL (or until the image is ready) a plain plate with the skin's
  * initial stands in. Purely decorative: the label next to it names the skin.
  */
-import { HENCHMAN_SKIN_LABELS, type HenchmanSkinId } from "@regulus/protocol";
+import { CHARACTER_FORM_LABELS, type CharacterFormId } from "@regulus/protocol";
 import { useEffect, useState } from "react";
 
 type Render = (skin: string, trim: string | undefined) => string | null;
@@ -22,7 +22,7 @@ function loadRenderer(): Promise<Render | null> {
 const keyOf = (skin: string, trim: string | undefined) => `${skin}|${trim ?? ""}`;
 
 /** The thumbnail's data URL once drawn; null while drawing or when it cannot be. */
-export function useSkinThumbnail(skin: HenchmanSkinId, trim: string | undefined): string | null {
+export function useSkinThumbnail(skin: CharacterFormId, trim: string | undefined): string | null {
   const key = keyOf(skin, trim);
   const [url, setUrl] = useState<string | null>(() => cache.get(key) ?? null);
   useEffect(() => {
@@ -55,7 +55,8 @@ export function SkinThumb({
   trim,
   size = "md",
 }: {
-  skin: HenchmanSkinId;
+  /** A henchman skin or an office-agent form (#281). */
+  skin: CharacterFormId;
   trim: string | undefined;
   size?: "sm" | "md";
 }) {
@@ -65,7 +66,7 @@ export function SkinThumb({
       {url ? (
         <img src={url} alt="" draggable={false} />
       ) : (
-        <span className="rg-skin-thumb__fallback">{HENCHMAN_SKIN_LABELS[skin].charAt(0)}</span>
+        <span className="rg-skin-thumb__fallback">{CHARACTER_FORM_LABELS[skin].charAt(0)}</span>
       )}
     </span>
   );

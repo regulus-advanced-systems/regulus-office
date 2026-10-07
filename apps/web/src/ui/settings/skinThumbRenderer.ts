@@ -16,16 +16,16 @@ import {
 } from "three";
 import { bulbColorFor, bulbLitFor } from "../../scene/avatar/statusBulb.ts";
 import { toonMaterialFor, unlitMaterialFor } from "../../scene/avatar/toonMaterial.ts";
-import { HENCHMAN_CLIPS, henchmanClips } from "../../scene/henchmen/clips.ts";
+import { ARM_OVERLAY_WEIGHT, HENCHMAN_CLIPS, henchmanClips } from "../../scene/henchmen/clips.ts";
 import { buildHenchman } from "../../scene/henchmen/instance.ts";
 import { henchmanMaterial } from "../../scene/henchmen/palette.ts";
-import { paletteFor } from "../../scene/henchmen/skins.ts";
+import { paletteFor, skinLook } from "../../scene/henchmen/skins.ts";
 import { HEMI_GROUND, HEMI_SKY, KEY_INTENSITY } from "../../scene/lights/Lighting.tsx";
 
 /** Pixel size of a thumbnail (shown at half this, for sharp edges on HiDPI). */
 export const THUMB_WIDTH = 160;
 export const THUMB_HEIGHT = 192;
-/** World units across the thumbnail's height: a henchman and its tallest hat. */
+/** World units across the thumbnail's height: a henchman from soles to hair, with a margin. */
 const VIEW_HEIGHT = 1.9;
 const RELEASE_AFTER_MS = 1500;
 
@@ -69,11 +69,11 @@ function camera(): OrthographicCamera {
   const halfW = (halfH * THUMB_WIDTH) / THUMB_HEIGHT;
   const cam = new OrthographicCamera(-halfW, halfW, halfH, -halfH, 0.1, 50);
   cam.position.set(0, 1.4, 6);
-  cam.lookAt(0, 0.92, 0);
+  cam.lookAt(0, 0.88, 0);
   return cam;
 }
 
-/** One skin in one trim as a PNG data URL; null when this browser has no WebGL. */
+/** One skin or form in one trim as a PNG data URL; null when this browser has no WebGL. */
 export function renderSkinThumbnail(skin: string, trim: string | undefined): string | null {
   const gl = acquire();
   if (!gl) return null;
@@ -94,6 +94,13 @@ export function renderSkinThumbnail(skin: string, trim: string | undefined): str
   const mixer = new AnimationMixer(henchman.group);
   const idle = henchmanClips().find((c) => c.name === HENCHMAN_CLIPS.idle);
   if (idle) mixer.clipAction(idle).play();
+  // What the form carries (the secretary's clipboard) is in its arm in the picture too.
+  const hold = henchmanClips().find((c) => c.name === HENCHMAN_CLIPS.hold);
+  if (hold && skinLook(skin).holds) {
+    const held = mixer.clipAction(hold);
+    held.weight = ARM_OVERLAY_WEIGHT;
+    held.play();
+  }
   mixer.update(0.35);
   henchman.group.updateMatrixWorld(true);
 

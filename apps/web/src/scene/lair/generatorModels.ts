@@ -101,6 +101,25 @@ export const STYLE_MODELS: Readonly<Record<string, LairBinding>> = {
   "lair/war_room/brass-pot": piece("fern_brass", { uniform: true, targetHeight: 0.5 }),
   "lair/war_room/brass-lamp": piece("arc_lamp", { uniform: true }),
   "lair/war_room/campaign-map": piece("poster_campaign"),
+  // Armory (#282): racks, lockers and ammo crates in olive, gunmetal and signal orange.
+  "lair/armory/armourers-bench": piece("armory_bench", { surface: 0.76 }),
+  "lair/armory/range-stool": piece("stool_chair", {
+    uniform: true,
+    sit: STOOL_SEAT,
+    tint: "#C9D2A4",
+  }),
+  "lair/armory/gun-locker": piece("gun_locker"),
+  "lair/armory/weapon-rack": piece("weapon_rack"),
+  "lair/armory/drum-palm": piece("drum_planter", {
+    uniform: true,
+    targetHeight: 1.25,
+    tint: "#B4BE96",
+  }),
+  "lair/armory/tin-cactus": piece("cactus_tin", { uniform: true }),
+  "lair/armory/range-light": piece("work_light", { uniform: true, targetHeight: 1.6 }),
+  "lair/armory/target-sheet": piece("poster_target"),
+  "lair/armory/ammo-crates": piece("ammo_crates"),
+  "lair/armory/shell-stand": piece("shell_stand", { uniform: true }),
 };
 
 /** `lair/common/<kind>`: every kind the generator can fall back on. */
@@ -141,6 +160,7 @@ export const ROOM_MATERIAL_PIECES = {
     lab_tile: "floor_tile",
     steel_plate: "floor_steel",
     war_carpet: "floor_carpet",
+    armory_deck: "floor_armory",
   },
   wall: {
     rough_rock: "wall_rock",

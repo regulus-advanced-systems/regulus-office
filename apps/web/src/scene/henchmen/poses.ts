@@ -14,8 +14,8 @@ export type Deg3 = readonly [number, number, number];
 export type Pose = Readonly<Partial<Record<BoneName, Deg3>>> & { readonly hipsY?: number };
 
 /** Hips height standing (rig.ts) and seated on a desk chair's cushion. */
-export const STAND_HIPS_Y = 0.62;
-export const SEAT_HIPS_Y = 0.43;
+export const STAND_HIPS_Y = 0.92;
+export const SEAT_HIPS_Y = 0.42;
 
 export function merge(...poses: Pose[]): Pose {
   return Object.assign({}, ...poses) as Pose;
@@ -30,23 +30,27 @@ export const STAND: Pose = {
   hipsY: STAND_HIPS_Y,
 };
 
-/** Seated on the cushion: thighs forward, shins down, feet flat, hunched a little to the desk. */
+/**
+ * Seated on the cushion, hunched a little to the desk. The desk chairs are low
+ * for these long legs (#281), so the knees ride a little above the hips and the
+ * shins reach forward under the desk, feet flat on the floor.
+ */
 export const SIT: Pose = {
   hipsY: SEAT_HIPS_Y,
-  UpperLegL: [-77, 0, 3],
-  UpperLegR: [-77, 0, -3],
-  LowerLegL: [75, 0, 0],
-  LowerLegR: [75, 0, 0],
-  FootL: [7, 0, 0],
-  FootR: [7, 0, 0],
+  UpperLegL: [-96, 0, 3],
+  UpperLegR: [-96, 0, -3],
+  LowerLegL: [68, 0, 0],
+  LowerLegR: [68, 0, 0],
+  FootL: [28, 0, 0],
+  FootR: [28, 0, 0],
   Abdomen: [6, 0, 0],
   Body: [5, 0, 0],
 };
 
 /** Seated, hands resting on the desk in front of the laptop (the still pose, #159). */
 export const SIT_IDLE: Pose = merge(SIT, {
-  UpperArmL: [-52, -12, 10],
-  UpperArmR: [-52, 12, -10],
+  UpperArmL: [-70, -12, 12],
+  UpperArmR: [-70, 12, -12],
   LowerArmL: [-38, 0, 0],
   LowerArmR: [-38, 0, 0],
   HandL: [10, 0, 0],
@@ -56,10 +60,10 @@ export const SIT_IDLE: Pose = merge(SIT, {
 
 /** Seated, hands on the keyboard (the typing loop wiggles the forearms over this). */
 export const SIT_TYPE: Pose = merge(SIT_IDLE, {
-  UpperArmL: [-58, -14, 9],
-  UpperArmR: [-58, 14, -9],
-  LowerArmL: [-42, 0, 0],
-  LowerArmR: [-42, 0, 0],
+  UpperArmL: [-73, -14, 11],
+  UpperArmR: [-73, 14, -11],
+  LowerArmL: [-40, 0, 0],
+  LowerArmR: [-40, 0, 0],
   HandL: [22, 0, 0],
   HandR: [22, 0, 0],
   Head: [12, 0, 0],
@@ -77,18 +81,18 @@ export const HOLD_PAPERS = {
 
 /** Chin in the right hand, left arm across the belly (think). */
 export const CHIN_IN_HAND = {
-  UpperArmR: [-38, 22, 14],
-  LowerArmR: [-128, 0, 0],
+  UpperArmR: [-45, 61, -9],
+  LowerArmR: [-134, 0, 0],
   HandR: [-20, 0, 0],
-  UpperArmL: [-18, -48, 6],
-  LowerArmL: [-84, 0, 0],
+  UpperArmL: [-11, -57, -20],
+  LowerArmL: [-98, 0, 0],
 } as const satisfies Pose;
 
 /**
  * The raised hand of a henchman that is done and has something to look at (#235):
  * it sits up and looks up from its laptop, the right arm high and a little out
  * to the side, held. Out to the side so the room camera, which looks down from
- * above, sees the arm clear of the helmet; looking up so it sees the face.
+ * above, sees the arm clear of the head; looking up so it sees the face.
  */
 export const HAND_UP = {
   UpperArmR: [-8, 0, -158],
@@ -98,18 +102,29 @@ export const HAND_UP = {
   Head: [-14, 0, 0],
 } as const satisfies Pose;
 
+/**
+ * A clipboard cradled in the left arm against the chest (the secretary, #281):
+ * the elbow at the side, the forearm up across the front. Blended over every
+ * clip, so she walks, stands and types one-handed without putting it down.
+ */
+export const HOLD_CLIPBOARD = {
+  UpperArmL: [-14, -30, 5],
+  LowerArmL: [-108, 0, 0],
+  HandL: [-10, 0, 0],
+} as const satisfies Pose;
+
 /** Both arms forward to carry a box (the walk home, #33). */
 export const CARRY = {
-  UpperArmL: [-42, -10, 10],
-  UpperArmR: [-42, 10, -10],
-  LowerArmL: [-48, 0, 0],
-  LowerArmR: [-48, 0, 0],
+  UpperArmL: [-30, -10, 10],
+  UpperArmR: [-30, 10, -10],
+  LowerArmL: [-60, 0, 0],
+  LowerArmR: [-60, 0, 0],
 } as const satisfies Pose;
 
 /** Right hand over the eyes (facepalm). */
 export const PALM_ON_FACE = {
-  UpperArmR: [-62, 30, 22],
-  LowerArmR: [-118, 0, 0],
+  UpperArmR: [-73, 38, 18],
+  LowerArmR: [-121, 0, 0],
   HandR: [-10, 0, 0],
   Head: [24, 0, 0],
   Body: [6, 0, 0],

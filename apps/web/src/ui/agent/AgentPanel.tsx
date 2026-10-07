@@ -155,7 +155,7 @@ function Controls({ henchman }: { henchman: HenchmanState }) {
           Open PR
         </Button>
         <Button size="sm" aria-haspopup="dialog" onClick={() => openDialog("sendHome")}>
-          Send home
+          Send to barracks
         </Button>
       </div>
     </>

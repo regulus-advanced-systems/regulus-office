@@ -5,7 +5,10 @@
  * soon as first person is requested (so pointer lock is asked for inside the
  * user's V-press / click activation window) and takes over as the default
  * camera only while `active`, i.e. after the crossfade midpoint. Escape or
- * losing pointer lock returns to third person.
+ * losing pointer lock returns to third person. While a window is open (any
+ * modal or HUD overlay) the look is paused instead: the pointer is released
+ * for the window, the view and the player hold still, and both resume where
+ * they were when it closes (`windowPause.ts`, #282).
  *
  * Pose ownership: pass `getPose` and `onMove` to drive the player store
  * (`playerBinding.ts`); `onMove` runs every active frame with the
@@ -23,10 +26,17 @@
 import { useFrame, useThree } from "@react-three/fiber";
 import type { NavGrid } from "@regulus/room-layout";
 import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
-import { Euler, type Object3D, OrthographicCamera, PerspectiveCamera } from "three";
+import {
+  Euler,
+  type Object3D,
+  OrthographicCamera,
+  PerspectiveCamera,
+  type Quaternion,
+} from "three";
 import { PointerLockControls } from "three/examples/jsm/controls/PointerLockControls.js";
 import { useUiStore } from "../../state/ui.ts";
 import { useViewStore } from "../../state/view.ts";
+import { anyWindowOpen, useAnyWindowOpen } from "../../state/windows.ts";
 import { ROBOT_HEIGHT } from "../avatar/index.ts";
 import {
   FPV_FAR,
@@ -41,6 +51,18 @@ import { selectSpeed } from "../movement/gait.ts";
 import { clampDt, EYE_HEIGHT_RATIO, moveVector, stepWithCollision } from "./fpvMove.ts";
 import { exitPointerLock, requestPointerLock } from "./pointerLock.ts";
 import { useHeldKeys } from "./useHeldKeys.ts";
+import {
+  escapeLeaves,
+  heldView,
+  holdUntilSettled,
+  holdView,
+  LOOK_ACTIVE,
+  mayRelockOnClick,
+  onPointerLock,
+  onPointerUnlock,
+  onWindowChange,
+  type ViewHold,
+} from "./windowPause.ts";
 
 /**
  * Henchman eye height: 0.9 x ROBOT_HEIGHT = 1.44 m (the head is the top
@@ -140,13 +162,20 @@ export function FirstPersonRig({
     binding.current = { getPose, onMove };
   }, [getPose, onMove]);
   const currentPose = () => binding.current.getPose?.() ?? localPose(spawnKey, spawn);
-  const held = useHeldKeys(active);
+  // A window is open: no look, no walking, the cursor is the window's (windowPause.ts).
+  const windowOpen = useAnyWindowOpen();
+  const pause = useRef(LOOK_ACTIVE);
+  /** Where the view pointed when the window opened; kept until the pointer is back and settled. */
+  const hold = useRef<ViewHold<Quaternion> | null>(null);
+  const held = useHeldKeys(active && !(windowOpen && mode === "first_person"));
 
   // Start where the avatar stands, facing the way it faces.
   useLayoutEffect(() => {
     const p = currentPose();
     camera.position.set(p.x, eyeHeight, p.z);
     camera.rotation.set(0, p.heading, 0);
+    // The first lock can report the cursor's trip to the lock point as a turn: hold through it.
+    hold.current = holdView(camera.quaternion.clone());
     // The starting pose is read once on mount by design.
   }, [camera, eyeHeight]);
 
@@ -173,38 +202,85 @@ export function FirstPersonRig({
     const el = gl.domElement;
     const view = useViewStore.getState;
     controls.connect(el);
-    const onLock = () => view().setPointerLocked(true);
+    const onLock = () => {
+      const next = onPointerLock(pause.current);
+      pause.current = next.state;
+      view().setPointerLocked(true);
+      // Granted under a window (asked for just before it opened): the window keeps the cursor.
+      if (next.pointer === "release") exitPointerLock(el.ownerDocument);
+      else hold.current = holdUntilSettled(hold.current, performance.now());
+    };
     const onUnlock = () => {
       view().setPointerLocked(false);
-      view().setMode("third_person");
+      // Our own release for a window keeps first person; the human's Escape leaves it.
+      const next = onPointerUnlock(pause.current);
+      pause.current = next.state;
+      if (next.leave) view().setMode("third_person");
     };
     const onChange = () => invalidate();
     const onPointerDown = () => {
-      if (!controls.isLocked && view().mode === "first_person") requestPointerLock(el);
+      if (mayRelockOnClick(pause.current, view().mode === "first_person", controls.isLocked))
+        requestPointerLock(el);
     };
     // Browsers exit pointer lock on Escape themselves (which lands in onUnlock);
     // handling the key too covers engines that deliver it without unlocking.
+    // Capture phase: read "is a window open" before that window's own Escape closes it.
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== "Escape" || useUiStore.getState().overlay !== null) return;
+      if (e.key !== "Escape" || !escapeLeaves(pause.current, anyWindowOpen())) return;
       view().setMode("third_person");
     };
+    // While the view is held (a window is open, or the pointer was only just locked) the
+    // locked pointer's movement never reaches the look controls. Capture phase on the
+    // document, ahead of their listener; only our own locked pointer, so a window's own
+    // mouse handling is untouched.
+    const doc = el.ownerDocument;
+    const onMouseMove = (e: MouseEvent) => {
+      if (doc.pointerLockElement !== el) return;
+      if (heldView(hold.current, performance.now())) e.stopImmediatePropagation();
+    };
+    doc.addEventListener("mousemove", onMouseMove, true);
     controls.addEventListener("lock", onLock);
     controls.addEventListener("unlock", onUnlock);
     controls.addEventListener("change", onChange);
     el.addEventListener("pointerdown", onPointerDown);
-    window.addEventListener("keydown", onKeyDown);
-    requestPointerLock(el);
+    window.addEventListener("keydown", onKeyDown, true);
+    // Mounted with a window already open: it keeps the pointer until it closes.
+    if (!anyWindowOpen()) requestPointerLock(el);
     return () => {
+      doc.removeEventListener("mousemove", onMouseMove, true);
       controls.removeEventListener("lock", onLock);
       controls.removeEventListener("unlock", onUnlock);
       controls.removeEventListener("change", onChange);
       el.removeEventListener("pointerdown", onPointerDown);
-      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keydown", onKeyDown, true);
       controls.disconnect();
+      pause.current = LOOK_ACTIVE;
+      hold.current = null;
       view().setPointerLocked(false);
+      view().setLookPaused(false);
       exitPointerLock(el.ownerDocument);
     };
   }, [controls, gl, invalidate]);
+
+  // A window opened or closed: free the pointer for it, take it back afterwards.
+  // The camera is not touched, so the view resumes facing exactly where it was.
+  useEffect(() => {
+    const el = gl.domElement;
+    const next = onWindowChange(pause.current, {
+      windowOpen,
+      firstPerson: mode === "first_person",
+      // The document knows a moment before the controls hear of it.
+      locked: controls.isLocked || el.ownerDocument.pointerLockElement === el,
+    });
+    if (next.state.paused && !pause.current.paused)
+      hold.current = holdView(camera.quaternion.clone());
+    pause.current = next.state;
+    useViewStore.getState().setLookPaused(next.state.paused);
+    if (next.pointer === "release") exitPointerLock(el.ownerDocument);
+    // No user gesture is needed after a release by script; if the browser still
+    // refuses, the HUD hint says to click the scene, which locks again.
+    else if (next.pointer === "relock") requestPointerLock(el);
+  }, [windowOpen, mode, controls, gl, camera]);
 
   // Hide our own avatar while looking out of its eyes.
   useEffect(() => {
@@ -232,8 +308,12 @@ export function FirstPersonRig({
   }, [mode, controls, gl]);
 
   useFrame((_, dt) => {
+    // Under a window, and until the pointer has settled after it: the view as it was.
+    const kept = heldView(hold.current, performance.now());
+    if (kept) camera.quaternion.copy(kept);
+    else hold.current = null;
     const yaw = euler.setFromQuaternion(camera.quaternion).y;
-    if (active && mode === "first_person") {
+    if (active && mode === "first_person" && !pause.current.paused) {
       const dir = moveVector(held.current, yaw);
       const p = currentPose();
       const frame = clampDt(dt);

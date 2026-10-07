@@ -15,6 +15,7 @@ export const LITE_FLOORS: ReadonlySet<PieceId> = new Set<PieceId>([
   "floor_steel",
   "floor_tile",
   "floor_carpet",
+  "floor_armory",
 ]);
 
 /** Area-weighted mean colour of the up-facing triangles, and the top's extent and height. */

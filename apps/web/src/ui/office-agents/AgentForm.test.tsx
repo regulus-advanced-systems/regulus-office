@@ -78,7 +78,7 @@ describe("office agent form", () => {
     });
   });
 
-  test("any other model can be typed behind Other…; the gallery has every form, secretary on a placeholder", async () => {
+  test("any other model can be typed behind Other…; the gallery has every form, the secretary with a thumbnail of her own", async () => {
     const f = await show("member", {
       "GET /api/office-agents": { body: response([]) },
       "POST /api/office-agents": { status: 201, body: agent({ name: "Notes" }) },
@@ -89,9 +89,10 @@ describe("office agent form", () => {
       OFFICE_AGENT_APPEARANCES.map((id) => officeAgentAppearanceLabel(id)),
     );
     expect(radioLabels("Appearance")).toContain("Secretary");
-    expect(
-      radio("Secretary").closest("label")?.querySelector('[data-placeholder="true"]')?.textContent,
-    ).toBe("S");
+    // The secretary is a built form (#281): a real thumbnail, not the plain plate of an unknown one.
+    const secretary = radio("Secretary").closest("label");
+    expect(secretary?.querySelector(".rg-skin-thumb")).not.toBeNull();
+    expect(secretary?.querySelector('[data-placeholder="true"]')).toBeNull();
     await click(radio("Other…"));
     await typeInto("Name", "Notes");
     // Nothing typed yet: nothing is sent.
