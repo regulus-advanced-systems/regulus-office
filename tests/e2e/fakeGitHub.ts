@@ -130,6 +130,20 @@ export async function startFakeGitHub(
         options.boards = b.boards;
         return send(200, { ok: true });
       }
+      // Local development (`bun run dev:github`): GitHub's consent page, as a list of the fake
+      // accounts to link as. The e2e names the account in the URL and never sees this page.
+      if (url.pathname === "/login/oauth/authorize" && !url.searchParams.has("login")) {
+        const links = PEOPLE.map((p) => {
+          const as = new URL(url);
+          as.searchParams.set("login", p.login);
+          return `<li><a href="${as.pathname}${as.search.replaceAll("&", "&amp;")}">Link as ${p.login}</a></li>`;
+        }).join("");
+        res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+        res.end(
+          `<!doctype html><title>Fake GitHub</title><h1>Fake GitHub (development)</h1><ul>${links}</ul>`,
+        );
+        return;
+      }
       // A person: the OAuth pages, and whatever their own token may read.
       const headers = new Headers();
       for (const [name, value] of Object.entries(req.headers)) {
