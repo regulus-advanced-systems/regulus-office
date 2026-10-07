@@ -151,6 +151,7 @@ describe("GitHub App manifest flow", () => {
       metadata: "read",
       issues: "write",
       checks: "write",
+      members: "read",
     });
     expect(manifest.public).toBe(false);
     expect(manifest.redirect_url).toEndWith("/api/github/app/callback");

@@ -20,7 +20,7 @@
  * boot; queued ones survive and start.
  */
 
-import type { AnyGitHubEvent, GitHubEventBus } from "../github/events.ts";
+import { type AnyGitHubEvent, type GitHubEventBus, isAccessEventName } from "../github/events.ts";
 import type { RepoAccess } from "../github/repo-access.ts";
 import type { Logger } from "../logging.ts";
 import { contextFromEvent, type WorkflowContext } from "./context.ts";
@@ -75,6 +75,8 @@ export class WorkflowEngine {
 
   onEvent(event: AnyGitHubEvent): void {
     if (event.name === "installation" || event.name === "installation_repositories") return;
+    // Who may see a repo (#267) is not something a workflow triggers on.
+    if (isAccessEventName(event.name)) return;
     if (event.operationIds.length === 0) return;
     const ctx = contextFromEvent(event);
     try {

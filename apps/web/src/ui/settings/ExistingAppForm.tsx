@@ -70,7 +70,7 @@ function Requirements({ req }: { req: GitHubAppRequirements }) {
           Setup URL (optional): <code>{req.setupUrl}</code>
         </li>
         <li>
-          Repository permissions:{" "}
+          Permissions (Members is an organization permission, the rest are repository permissions):{" "}
           {Object.entries(req.permissions)
             .map(([name, level]) => `${permissionLabel(name)} (${level})`)
             .join(", ")}
