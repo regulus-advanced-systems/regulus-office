@@ -137,6 +137,11 @@ export interface BubbleInput {
   announce: string;
   /** The fixed "waiting for you" reason of an adapter, if any (henchman.ts statusReasonFor). */
   statusReason: string;
+  /**
+   * Its owner has looked at what it has ready (#235): the "answer ready" bubble
+   * is gone, and with it the raised hand the web draws for that bubble.
+   */
+  seen?: boolean;
 }
 
 function waitingFor(reason: string): string {
@@ -169,13 +174,14 @@ export function bubbleFor(input: BubbleInput): AgentBubble {
     case "waiting_input":
       return { kind: "needs_you", text: waitingFor(input.statusReason), ...terminal };
     case "done":
+      if (input.seen) return NO_AGENT_BUBBLE;
       return {
         kind: "answer_ready",
         text: clipText(input.announce || "finished: take a look"),
         ...terminal,
       };
     case "idle":
-      return input.announce
+      return input.announce && !input.seen
         ? { kind: "answer_ready", text: clipText(input.announce), ...terminal }
         : NO_AGENT_BUBBLE;
     case "error":

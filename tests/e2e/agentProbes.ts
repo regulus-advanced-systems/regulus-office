@@ -1,7 +1,8 @@
 /**
  * Read-only probes for henchmen in the office scene (needs `?stats`, see probes.ts). Each henchman
  * is the group `henchman-<agentId>` (apps/web/src/scene/henchmen/Henchman.tsx), whose `userData`
- * carries the HenchmanState it draws (status, action, handRaised, seatId, its name and bubble) and
+ * carries the HenchmanState it draws (status, action, handRaised, seatId, its name and bubble), its
+ * gesture (#235: the done hand, the "needs you" arms) and
  * the animation it resolved from them (clip name, seated or not). The label over it is the group
  * `agent-overhead-<agentId>` (apps/web/src/scene/agentBubble/AgentOverhead.tsx).
  */
@@ -12,6 +13,8 @@ export interface HenchmanProbe {
   status: string;
   action: string;
   handRaised: boolean;
+  /** What its arms say (#235): "none", "hand" (done), "needs_you" or "needs_you_still" (waiting). */
+  gesture: string;
   /** Why the henchman is in `error` (HenchmanState.statusReason), else "". */
   statusReason: string;
   animation: string;
@@ -73,7 +76,7 @@ export function henchmen(page: Page): Promise<Record<string, HenchmanProbe>> {
 }
 
 /**
- * Starts sampling every henchman's (status, action, animation, handRaised, and the reason of an
+ * Starts sampling every henchman's (status, action, animation, gesture, and the reason of an
  * `error`) inside the page every 50 ms, so short-lived states are not missed between Playwright
  * polls. Read with {@link history}. These are what the scene drew: on a slow page a state can pass
  * without being drawn, so it also starts {@link recordStatuses} (what the page received).
@@ -93,7 +96,7 @@ export async function recordHenchmen(page: Page): Promise<void> {
         if (!o.name.startsWith("henchman-") || !("status" in o.userData)) return;
         const d = o.userData;
         const entry =
-          `${d.status}/${d.action}/${d.animation}/${d.handRaised ? "hand" : "-"}` +
+          `${d.status}/${d.action}/${d.animation}/${d.gesture === "none" ? "-" : d.gesture}` +
           (d.statusReason ? ` (${d.statusReason})` : "");
         const h = w.__henchmanHistory ?? [];
         if (h[h.length - 1] !== entry) h.push(entry);
@@ -103,7 +106,7 @@ export async function recordHenchmen(page: Page): Promise<void> {
   await recordStatuses(page);
 }
 
-/** Distinct `status/action/animation/hand[ (statusReason)]` samples since {@link recordHenchmen}, in order. */
+/** Distinct `status/action/animation/gesture[ (statusReason)]` samples (gesture `-` for none) since {@link recordHenchmen}, in order. */
 export function history(page: Page): Promise<string[]> {
   return page.evaluate(
     () => (window as unknown as { __henchmanHistory?: string[] }).__henchmanHistory ?? [],

@@ -18,7 +18,14 @@ import type { AgentEventSink } from "../events.ts";
 import { CredentialResolver } from "./credentials.ts";
 import { AgentManagerError } from "./errors.ts";
 import { startFailure, startFailureReason } from "./failure.ts";
-import { type AgentView, applyEvent, henchmanState, setStatus, viewFromRow } from "./henchman.ts";
+import {
+  type AgentView,
+  applyEvent,
+  henchmanState,
+  markSeen,
+  setStatus,
+  viewFromRow,
+} from "./henchman.ts";
 import { type HeuristicRung, SessionWatcher } from "./ladder.ts";
 import { closeQuietly, type LaunchProfile, launchProfile } from "./launch.ts";
 import { DEFAULT_PERMISSION_TTL_MS, PendingPermissions } from "./permissions.ts";
@@ -296,6 +303,15 @@ export class AgentRuntime implements AgentEventSink {
       session: { userId: row.ownerUserId, name: row.tmuxSession },
       runner: this.runner,
     };
+  }
+
+  /**
+   * `userId` opened or typed in the henchman's terminal, or prompted it. When that is
+   * its owner and it has an answer ready, the bubble clears and the hand goes down (#235).
+   */
+  seenBy(agentId: string, userId: string): void {
+    const live = this.agents.get(agentId);
+    if (live && live.view.ownerUserId === userId && markSeen(live.view)) this.publishLive(live);
   }
 
   /** Runner context of a running agent, for the hook routes' `ingest`. */

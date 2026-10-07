@@ -84,11 +84,18 @@ export const CHIN_IN_HAND = {
   LowerArmL: [-84, 0, 0],
 } as const satisfies Pose;
 
-/** The raised hand of a henchman waiting for permission: right arm straight up. */
+/**
+ * The raised hand of a henchman that is done and has something to look at (#235):
+ * it sits up and looks up from its laptop, the right arm high and a little out
+ * to the side, held. Out to the side so the room camera, which looks down from
+ * above, sees the arm clear of the helmet; looking up so it sees the face.
+ */
 export const HAND_UP = {
-  UpperArmR: [-12, 0, -168],
-  LowerArmR: [-18, 0, 0],
+  UpperArmR: [-8, 0, -158],
+  LowerArmR: [-4, 0, 0],
   HandR: [0, 0, 0],
+  Abdomen: [0, 0, 0],
+  Head: [-14, 0, 0],
 } as const satisfies Pose;
 
 /** Both arms forward to carry a box (the walk home, #33). */
@@ -124,4 +131,20 @@ export const ARMS_UP = {
   UpperArmR: [-20, 0, -150],
   LowerArmL: [-25, 0, 0],
   LowerArmR: [-25, 0, 0],
+} as const satisfies Pose;
+
+/**
+ * "I need you" (#235): a henchman waiting for a permission or an answer sits up,
+ * looks up and holds both arms high and wide; the clip waves them. Both arms
+ * and no stillness, so it never reads as the one held hand of a done henchman.
+ */
+export const NEEDS_YOU = {
+  UpperArmL: [-14, 0, 142],
+  UpperArmR: [-14, 0, -142],
+  LowerArmL: [-16, 0, 0],
+  LowerArmR: [-16, 0, 0],
+  HandL: [0, 0, 0],
+  HandR: [0, 0, 0],
+  Abdomen: [0, 0, 0],
+  Head: [-14, 0, 0],
 } as const satisfies Pose;

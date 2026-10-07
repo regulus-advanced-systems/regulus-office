@@ -20,8 +20,10 @@ import { colors } from "../../../ui/theme.ts";
 import { providerLightColor } from "../../avatar/colorSets.ts";
 import { FpsProbe } from "../../avatar/showcase/FpsProbe.tsx";
 import { HenchmanAvatar, type HenchmanAvatarProps } from "../HenchmanAvatar.tsx";
+import { HENCHMAN_GESTURES, type HenchmanGesture } from "../henchmanAnimation.ts";
 
 const isAnimation = isOneOf(AVATAR_ANIMATIONS);
+const isGesture = isOneOf(HENCHMAN_GESTURES);
 type View = "skins" | "trims" | "poses" | "crowd";
 
 interface Entry {
@@ -31,28 +33,33 @@ interface Entry {
   props: HenchmanAvatarProps;
 }
 
-const POSES: ReadonlyArray<[AvatarAnimation, boolean, boolean]> = [
-  ["idle", false, false],
-  ["walk", false, false],
-  ["read", false, false],
-  ["think", false, false],
-  ["celebrate", false, false],
-  ["facepalm", false, false],
-  ["wave", false, false],
-  ["point", false, false],
-  ["sit_type", true, false],
-  ["sit_idle", true, true],
+/** Animation, seated, gesture, status (for the light). */
+const POSES: ReadonlyArray<[AvatarAnimation, boolean, HenchmanGesture, AgentStatus?]> = [
+  ["idle", false, "none"],
+  ["walk", false, "none"],
+  ["read", false, "none"],
+  ["think", false, "none"],
+  ["celebrate", false, "none"],
+  ["facepalm", false, "none"],
+  ["wave", false, "none"],
+  ["point", false, "none"],
+  ["sit_type", true, "none"],
+  // Done: one hand held up. Waiting: both arms waving, or held with reduced motion (#235).
+  ["sit_idle", true, "hand", "done"],
+  ["sit_idle", true, "needs_you", "waiting_permission"],
+  ["sit_idle", true, "needs_you_still", "waiting_input"],
 ];
 
 function entries(view: View, params: URLSearchParams): Entry[] {
   const anim = params.get("anim");
   const animation = isAnimation(anim) ? anim : undefined;
   const status = params.get("status");
+  const gesture = params.get("gesture");
   const base: HenchmanAvatarProps = {
     animation: animation ?? "idle",
     status: isAgentStatus(status) ? (status as AgentStatus) : "working",
     seated: params.get("seated") === "1",
-    handRaised: params.get("hand") === "1",
+    gesture: isGesture(gesture) ? gesture : params.get("hand") === "1" ? "hand" : "none",
   };
   const row = (n: number, i: number, gap = 1.1) => (i - (n - 1) / 2) * gap;
   if (view === "trims")
@@ -63,23 +70,23 @@ function entries(view: View, params: URLSearchParams): Entry[] {
       props: { ...base, trim: providerLightColor(p) },
     }));
   if (view === "poses")
-    return POSES.map(([a, seated, hand], i) => ({
-      key: a,
+    return POSES.map(([a, seated, gesture, status], i) => ({
+      key: `${a}-${gesture}`,
       x: row(5, i % 5, 1.3),
       z: Math.floor(i / 5) * 2.4 - 1.2,
       props: {
         ...base,
         animation: a,
         seated,
-        handRaised: hand,
-        status: hand ? "waiting_permission" : base.status,
+        gesture,
+        status: status ?? base.status,
         trim: providerLightColor("claude-code"),
       },
     }));
   if (view === "crowd") {
     const n = Number(params.get("n") ?? 20);
     return Array.from({ length: n }, (_, i) => {
-      const [a, seated, hand] = POSES[i % POSES.length] ?? ["idle", false, false];
+      const [a, seated, gesture] = POSES[i % POSES.length] ?? ["idle", false, "none"];
       return {
         key: String(i),
         x: row(5, i % 5, 1.3),
@@ -87,7 +94,7 @@ function entries(view: View, params: URLSearchParams): Entry[] {
         props: {
           animation: animation ?? a,
           seated,
-          handRaised: hand,
+          gesture,
           status: "working",
           skin: HENCHMAN_SKIN_IDS[i % HENCHMAN_SKIN_IDS.length],
           trim: providerLightColor(PROVIDER_IDS[i % 2] ?? "codex"),

@@ -16,7 +16,8 @@ import { z } from "zod";
  * - `none`: nothing to show (idle, exited).
  * - `doing`: what the agent is doing now ("reading auth.ts").
  * - `needs_you`: it waits for its human (a permission, a question, an error).
- * - `answer_ready`: it finished and has something to look at.
+ * - `answer_ready`: it finished and has something to look at. A henchman holds a
+ *   hand up for as long as it shows this; it clears when its owner has looked (#235).
  */
 export const AGENT_BUBBLE_KINDS = ["none", "doing", "needs_you", "answer_ready"] as const;
 export type AgentBubbleKind = (typeof AGENT_BUBBLE_KINDS)[number];

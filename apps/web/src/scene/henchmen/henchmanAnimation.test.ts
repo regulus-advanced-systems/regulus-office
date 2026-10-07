@@ -4,9 +4,10 @@ import { ROBOT_CLIP_NAMES, ROBOT_CLIPS, resolveSeatedClip } from "../avatar/clip
 import { SEATED_CLIPS } from "../avatar/seatedClips.ts";
 import {
   calmFor,
+  gestureFor,
+  gestureForStatus,
   henchmanAnimationFor,
   henchmanLookFor,
-  raisedHandFor,
   raisesHand,
   STILL,
 } from "./henchmanAnimation.ts";
@@ -26,13 +27,16 @@ describe("action -> animation", () => {
     expect(at("celebrating")).toBe("celebrate");
   });
 
-  test("status wins over action: done celebrates, error facepalms, the rest sit", () => {
-    expect(henchmanAnimationFor({ status: "done", action: "none" })).toBe("celebrate");
+  test("status wins over action: error facepalms, the rest sit; done does not celebrate (#235)", () => {
+    expect(henchmanAnimationFor({ status: "done", action: "none" })).toBe("sit_idle");
+    // The server still sets `celebrating` on a done henchman; the status decides.
+    expect(henchmanAnimationFor({ status: "done", action: "celebrating" })).toBe("sit_idle");
     expect(henchmanAnimationFor({ status: "error", action: "typing" })).toBe("facepalm");
     for (const status of [
       "starting",
       "waiting_permission",
       "waiting_input",
+      "done",
       "exited",
       "offline",
     ] as const)
@@ -97,12 +101,6 @@ describe("still unless working (#159)", () => {
     expect(clip("thinking")).toBe(SEATED_CLIPS.think);
   });
 
-  test("only a henchman waiting for permission raises its hand", () => {
-    expect(raisedHandFor({ status: "waiting_permission", handRaised: true })).toBe(true);
-    expect(raisedHandFor({ status: "waiting_input", handRaised: true })).toBe(false);
-    expect(raisedHandFor({ status: "idle", handRaised: false })).toBe(false);
-  });
-
   test("reduced motion keeps every henchman still in its chair", () => {
     for (const animation of ["sit_type", "read", "think", "celebrate", "facepalm"] as const)
       expect(calmFor(animation, true)).toBe(STILL);
@@ -110,8 +108,64 @@ describe("still unless working (#159)", () => {
   });
 });
 
+describe("gestures (#235)", () => {
+  const ready = { kind: "answer_ready" } as const;
+  const none = { kind: "none" } as const;
+
+  test("done keeps one hand up for as long as its answer has not been looked at", () => {
+    expect(gestureFor({ status: "done", bubble: ready })).toBe("hand");
+    // Nothing moves in it, so reduced motion and the low preset change nothing.
+    expect(gestureFor({ status: "done", bubble: ready }, true)).toBe("hand");
+    // The owner opened its terminal: the server cleared the bubble, the hand goes down.
+    expect(gestureFor({ status: "done", bubble: none })).toBe("none");
+    // An idle henchman with news ("opened PR #12") holds it up too, until looked at.
+    expect(gestureFor({ status: "idle", bubble: ready })).toBe("hand");
+    expect(gestureFor({ status: "idle", bubble: none })).toBe("none");
+  });
+
+  test("a status change lowers the done hand", () => {
+    // Prompted or working again, sent home, failed: whatever the bubble still says.
+    for (const status of ["working", "starting", "error", "exited", "offline"] as const)
+      expect([status, gestureFor({ status, bubble: ready })]).toEqual([status, "none"]);
+  });
+
+  test("both waiting kinds wave both arms, never the done hand", () => {
+    const asks = { kind: "needs_you" } as const;
+    for (const status of ["waiting_permission", "waiting_input"] as const) {
+      expect(gestureFor({ status, bubble: asks })).toBe("needs_you");
+      // Whatever the bubble: the pose is the status, the bubble only words it.
+      expect(gestureFor({ status, bubble: none })).toBe("needs_you");
+      expect(gestureFor({ status, bubble: ready })).toBe("needs_you");
+    }
+  });
+
+  test("reduced motion and the low preset: the arms are up but do not wave", () => {
+    for (const status of ["waiting_permission", "waiting_input"] as const)
+      expect(gestureFor({ status }, true)).toBe("needs_you_still");
+  });
+
+  test("every other status has no gesture", () => {
+    for (const status of AGENT_STATUSES) {
+      const waiting = status === "waiting_permission" || status === "waiting_input";
+      expect([status, gestureFor({ status, bubble: none })]).toEqual([
+        status,
+        waiting ? "needs_you" : "none",
+      ]);
+    }
+  });
+
+  test("from the status alone (showcases): done has a hand up, waiting waves", () => {
+    expect(gestureForStatus("done")).toBe("hand");
+    expect(gestureForStatus("waiting_input")).toBe("needs_you");
+    expect(gestureForStatus("waiting_permission", true)).toBe("needs_you_still");
+    expect(gestureForStatus("idle")).toBe("none");
+    expect(gestureForStatus("working")).toBe("none");
+    expect(gestureForStatus(undefined)).toBe("none");
+  });
+});
+
 describe("transitions", () => {
-  test("the ding plays when a hand goes up", () => {
+  test("the ding plays when a henchman starts waiting for its human", () => {
     expect(raisesHand({ handRaised: false }, { handRaised: true })).toBe(true);
     expect(raisesHand({ handRaised: true }, { handRaised: true })).toBe(false);
     expect(raisesHand(undefined, { handRaised: true })).toBe(false);

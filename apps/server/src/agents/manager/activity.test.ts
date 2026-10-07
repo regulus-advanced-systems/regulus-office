@@ -3,7 +3,13 @@ import { describe, expect, test } from "bun:test";
 import { CLAUDE_SIGN_IN_REASON, mapHookPayload } from "@regulus/agent-adapters";
 import { AGENT_BUBBLE_MAX_TEXT, AgentBubble, type AgentEvent } from "@regulus/protocol";
 import { activityOf, askOf, type BubbleInput, bubbleFor, fileOf, programOf } from "./activity.ts";
-import { applyEvent, henchmanState, viewFromRow } from "./henchman.ts";
+import {
+  announcePullRequest,
+  applyEvent,
+  henchmanState,
+  markSeen,
+  viewFromRow,
+} from "./henchman.ts";
 
 const call = (
   over: Partial<Extract<AgentEvent, { kind: "tool_call" }>>,
@@ -149,6 +155,20 @@ describe("the bubble by status", () => {
     }
   });
 
+  test("once its owner has looked, a done or idle henchman shows nothing (#235)", () => {
+    expect(bubbleFor(input({ status: "done", seen: true })).kind).toBe("none");
+    expect(bubbleFor(input({ status: "done", announce: "opened PR #12", seen: true })).kind).toBe(
+      "none",
+    );
+    expect(bubbleFor(input({ status: "idle", announce: "opened PR #12", seen: true })).kind).toBe(
+      "none",
+    );
+    // Looking does not hide what it asks for or what it is doing.
+    expect(bubbleFor(input({ status: "waiting_permission", seen: true })).kind).toBe("needs_you");
+    expect(bubbleFor(input({ status: "error", seen: true })).kind).toBe("needs_you");
+    expect(bubbleFor(input({ status: "working", seen: true })).kind).toBe("doing");
+  });
+
   test("every bubble fits the protocol, whatever the activity", () => {
     const long = "x".repeat(300);
     for (const status of ["working", "waiting_permission", "done"] as const) {
@@ -267,5 +287,41 @@ describe("Claude Code hooks to the bubble", () => {
     expect(henchmanState(view).bubble.text).toBe("editing auth.ts");
     applyEvent(view, { kind: "status", ts: 7, status: "done" }, 7);
     expect(henchmanState(view).bubble.text).toBe("finished: take a look");
+  });
+
+  test("the answer stays until the owner looks; a status change or news brings it back (#235)", () => {
+    const view = viewFromRow({ ...row, status: "working" as const }, "Ada");
+    // Nothing to look at while it works.
+    expect(markSeen(view)).toBe(false);
+    applyEvent(view, { kind: "status", ts: 1, status: "done" }, 1);
+    expect(henchmanState(view).bubble.kind).toBe("answer_ready");
+    // The same status again (a heuristic, a repeated hook) changes nothing.
+    applyEvent(view, { kind: "status", ts: 2, status: "done" }, 2);
+    expect(henchmanState(view).bubble.kind).toBe("answer_ready");
+
+    expect(markSeen(view)).toBe(true);
+    expect(henchmanState(view)).toMatchObject({ status: "done", bubble: { kind: "none" } });
+    expect(markSeen(view)).toBe(false);
+    // Still done, still seen.
+    applyEvent(view, { kind: "status", ts: 3, status: "done" }, 3);
+    expect(henchmanState(view).bubble.kind).toBe("none");
+
+    // Its pull request opens: that is news.
+    announcePullRequest(view, 12);
+    expect(henchmanState(view).bubble).toMatchObject({
+      kind: "answer_ready",
+      text: "opened PR #12",
+    });
+    expect(markSeen(view)).toBe(true);
+    expect(henchmanState(view).bubble.kind).toBe("none");
+
+    // A new turn, and it finishes again: there is a new answer.
+    applyEvent(view, { kind: "status", ts: 4, status: "working" }, 4);
+    expect(henchmanState(view).bubble.kind).toBe("doing");
+    applyEvent(view, { kind: "status", ts: 5, status: "done" }, 5);
+    expect(henchmanState(view).bubble).toMatchObject({
+      kind: "answer_ready",
+      text: "finished: take a look",
+    });
   });
 });

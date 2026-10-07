@@ -5,7 +5,7 @@
  * test can assert that the bones do not move while a henchman is idle and do move while it works.
  *
  * `recordBones` starts an in-page recorder; `boneSegments` splits what it saw into runs of the
- * same `status/action/animation/hand` and reports how far the bones moved within each run;
+ * same `status/action/animation/gesture` and reports how far the bones moved within each run;
  * `sampleBones` measures a fixed window from now.
  */
 import type { Page } from "@playwright/test";
@@ -14,7 +14,7 @@ import type { Page } from "@playwright/test";
 const BONES = ["Head", "Body", "UpperArmL", "LowerArmL", "UpperArmR", "LowerArmR", "UpperLegL"];
 
 export interface BoneSegment {
-  /** `status/action/animation/hand`, as the henchman group's userData had it. */
+  /** `status/action/animation/gesture` (`-` for no gesture), as the henchman group's userData had it. */
   key: string;
   /** How long the run lasted, ms. */
   ms: number;
@@ -58,7 +58,7 @@ export async function recordBones(page: Page): Promise<void> {
           if (b) q.push(b.quaternion.x, b.quaternion.y, b.quaternion.z, b.quaternion.w);
         }
         const d = o.userData;
-        const key = `${d.status}/${d.action}/${d.animation}/${d.handRaised ? "hand" : "-"}`;
+        const key = `${d.status}/${d.action}/${d.animation}/${d.gesture === "none" ? "-" : d.gesture}`;
         const list = (frames[o.name.slice("henchman-".length)] ??= []);
         list.push({ t: performance.now(), key, q });
         // Keep the last ~3 minutes at 60 fps.

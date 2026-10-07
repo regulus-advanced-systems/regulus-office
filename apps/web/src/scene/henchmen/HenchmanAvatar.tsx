@@ -2,8 +2,9 @@
  * `<HenchmanAvatar>` (#184, SPEC §9.3 D22): a coding agent drawn as a
  * henchman in a yellow jumpsuit (or a special skin), with its provider's
  * colour as trim and a status light on top whose colour ladder is the
- * antenna bulb's (avatar/statusBulb.ts). The raised hand (waiting for
- * permission) is the right arm held straight up over the base clip.
+ * antenna bulb's (avatar/statusBulb.ts). Its gesture (#235) is blended over
+ * the base clip: the right arm held straight up when it is done, both arms up
+ * and waving (or held, with reduced motion) while it waits for its human.
  *
  * One instance is one `SkinnedMesh` (geometry shared per skin, material
  * shared per skin and trim colour) with its own bones and `AnimationMixer`,
@@ -17,9 +18,10 @@ import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { type AnimationAction, BoxGeometry, type Group, MeshBasicMaterial } from "three";
 import { applyPose, createPoseMemo, HEAD_TILT, MODEL_YAW } from "../avatar/avatarRig.ts";
 import { CROSSFADE_SECONDS, PROCEDURAL_HEAD_TILT } from "../avatar/clips.ts";
-import { bulbColorFor, bulbLitFor, handRaisedFor } from "../avatar/statusBulb.ts";
+import { bulbColorFor, bulbLitFor } from "../avatar/statusBulb.ts";
 import { toonMaterialFor, unlitMaterialFor } from "../avatar/toonMaterial.ts";
 import { ARM_OVERLAY_WEIGHT, HENCHMAN_CLIPS, henchmanClip, henchmanClips } from "./clips.ts";
+import { gestureForStatus, type HenchmanGesture } from "./henchmanAnimation.ts";
 import { buildHenchman } from "./instance.ts";
 import { henchmanMaterial } from "./palette.ts";
 import { HENCHMAN_HEIGHT } from "./rig.ts";
@@ -38,9 +40,10 @@ export type HenchmanAvatarProps = Omit<ThreeElements["group"], "ref" | "children
   /** Provider trim colour; omit for the skin's own. */
   trim?: string;
   animation?: AvatarAnimation;
-  /** Drives the status light and (unless `handRaised` is given) the raised hand. */
+  /** Drives the status light and (unless `gesture` is given) the gesture. */
   status?: AgentStatus;
-  handRaised?: boolean;
+  /** Done hand or "needs you" arms (henchmanAnimation.ts `gestureFor`). */
+  gesture?: HenchmanGesture;
   /** Stay in the chair (seated clips for read and think). */
   seated?: boolean;
   /** The merge gong's seated cheer (#43); ignored when standing. */
@@ -54,7 +57,7 @@ export function HenchmanAvatar({
   trim,
   animation = "sit_idle",
   status,
-  handRaised,
+  gesture: givenGesture,
   seated = false,
   cheer = false,
   carrying = false,
@@ -66,7 +69,7 @@ export function HenchmanAvatar({
   const { actions, mixer } = useAnimations(clips, root);
   // Read by the scene probes (tests/e2e, #159): clip weights over time; no behaviour.
   instance.group.userData.mixer = mixer;
-  const raised = handRaised ?? handRaisedFor(status);
+  const gesture = givenGesture ?? gestureForStatus(status);
 
   // Look: the palette material (skin + trim) and the status light.
   useLayoutEffect(() => {
@@ -93,8 +96,12 @@ export function HenchmanAvatar({
     current.current = next;
   }, [actions, clip]);
 
-  useArmOverlay(actions, HENCHMAN_CLIPS.hand, raised && clip !== HENCHMAN_CLIPS.sitCheer);
-  useArmOverlay(actions, HENCHMAN_CLIPS.carry, carrying);
+  // Gestures belong to the seated poses; the gong's cheer and a standing one-shot play without them.
+  const shown = seated && clip !== HENCHMAN_CLIPS.sitCheer ? gesture : "none";
+  useOverlay(actions, HENCHMAN_CLIPS.hand, shown === "hand");
+  useOverlay(actions, HENCHMAN_CLIPS.needsYou, shown === "needs_you");
+  useOverlay(actions, HENCHMAN_CLIPS.needsYouStill, shown === "needs_you_still");
+  useOverlay(actions, HENCHMAN_CLIPS.carry, carrying);
 
   // Procedural head tilt for "think" (after the mixer ran).
   const tilt = PROCEDURAL_HEAD_TILT.has(animation) && clip !== HENCHMAN_CLIPS.sitCheer;
@@ -111,8 +118,8 @@ export function HenchmanAvatar({
   );
 }
 
-/** Blend a partial arm clip in or out over the base clip (held pose, no motion). */
-function useArmOverlay(
+/** Blend a partial clip in or out over the base clip (a held pose, or the "needs you" wave). */
+function useOverlay(
   actions: Record<string, AnimationAction | null>,
   name: string,
   on: boolean,

@@ -52,6 +52,8 @@ export interface AgentView {
   activity: string;
   ask: string;
   announce: string;
+  /** The owner has looked at what it has ready (#235); any status change or news clears it. */
+  seen: boolean;
 }
 
 /** A fresh view of a persisted `agents` row (bubbles restart at zero). */
@@ -104,6 +106,7 @@ export function viewFromRow(
     activity: "",
     ask: "",
     announce: "",
+    seen: false,
   };
 }
 
@@ -160,6 +163,7 @@ export function henchmanState(view: AgentView): HenchmanState {
       ask: view.ask,
       announce: view.announce,
       statusReason,
+      seen: view.seen,
     }),
     lastActivityAt: view.lastActivityAt,
   };
@@ -294,12 +298,14 @@ function applyToolCall(view: AgentView, event: Extract<AgentEvent, { kind: "tool
 }
 
 /**
- * The bubble's words on a status change: an answered request is gone; a new turn
+ * The bubble's words on a status change: an answered request is gone; what the
+ * owner had looked at is not what it has now; a new turn
  * drops what was announced at rest and starts by thinking; back at work after a
  * request or a question, it is still doing what it was doing.
  */
 function restWords(view: AgentView, from: AgentStatus, to: AgentStatus): void {
   view.ask = "";
+  view.seen = false;
   if (to !== "working" && to !== "starting") return;
   view.announce = "";
   if (to === "starting") view.activity = "";
@@ -322,4 +328,17 @@ export function setStatus(view: AgentView, status: AgentStatus, now: number): bo
 export function announcePullRequest(view: AgentView, prNumber: number): void {
   view.prNumber = prNumber;
   view.announce = `opened PR #${prNumber}`;
+  view.seen = false;
+}
+
+/**
+ * The owner dealt with a henchman that has an answer ready (opened its terminal,
+ * typed there, prompted it; #235): the "answer ready" bubble clears and the
+ * hand the web raises for it goes down, until its status changes or it has
+ * news again. Returns whether anything changed.
+ */
+export function markSeen(view: AgentView): boolean {
+  if (view.seen || henchmanState(view).bubble.kind !== "answer_ready") return false;
+  view.seen = true;
+  return true;
 }

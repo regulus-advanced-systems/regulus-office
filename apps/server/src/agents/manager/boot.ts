@@ -61,6 +61,8 @@ export async function createAgents(opts: AgentsBootOptions): Promise<AgentManage
     usage: opts.usage,
   });
   opts.terminals.runners.setDefault(runner);
+  // Its owner opened a done henchman's terminal or typed there: the hand goes down (#235).
+  opts.terminals.bridge.onViewed((agentId, userId) => manager.seenBy(agentId, userId));
   opts.rooms.operations.setAgentCommands(operationAgentCommands(manager));
   mountClaudeHookRoutes(opts.router, {
     sink: manager,

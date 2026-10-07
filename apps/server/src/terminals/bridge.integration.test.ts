@@ -203,8 +203,13 @@ describe.skipIf(!hasTmux() || !hasBunPty())("terminal bridge (tmux + Bun PTY)", 
   });
 
   test("control types into the agent; watchers see it but cannot type or resize", async () => {
+    // Who opened the terminal and who typed in it (the agent manager's listener, #235).
+    const viewed: string[] = [];
+    office.bridge.onViewed((agentId, userId) => viewed.push(`${agentId}:${userId}`));
     const watcher = await connect("a1", "watch", member);
+    expect(viewed).toEqual([`a1:${member.id}`]);
     const driver = await connect("a1", "control", henchmanOwner);
+    expect(viewed).toEqual([`a1:${member.id}`, `a1:${henchmanOwner.id}`]);
     await driver.waitFor((c) => c.output.includes("FAKE AGENT"), "control attach");
     await watcher.waitFor((c) => c.output.includes("FAKE AGENT"), "watch attach");
 
@@ -216,6 +221,9 @@ describe.skipIf(!hasTmux() || !hasBunPty())("terminal bridge (tmux + Bun PTY)", 
     await Bun.sleep(100);
     const pane = await runner.capturePane({ userId: henchmanOwner.id, name: "agent-a1" }, 200);
     expect(pane).not.toContain("typed-by-watcher");
+    // The owner's typing counts once more (throttled); a watcher's dropped keys never do.
+    expect(viewed.slice(2)).toEqual([`a1:${henchmanOwner.id}`]);
+    office.bridge.onViewed(() => {});
     // The control client (160x45 minus tmux's status line) sets the size, never the watcher.
     expect(await windowSize("a1")).toBe("160x44");
 

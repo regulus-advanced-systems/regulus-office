@@ -3,9 +3,10 @@
  * poses.ts, and which clip plays for each avatar animation (SPEC §9.3).
  *
  * Every full clip has a rotation track for every bone and the Hips position,
- * so a crossfade never strands a bone where the last clip put it. Two
- * partial clips (the raised hand and the carry) only have arm tracks and are
- * blended over the base clip at a high weight (HenchmanAvatar).
+ * so a crossfade never strands a bone where the last clip put it. The
+ * partial clips (the done hand, the "needs you" wave and its still pose, the
+ * carry) only have tracks for the bones they move and are blended over the
+ * base clip at a high weight (HenchmanAvatar).
  *
  * Seated clips start from the same still pose (`SIT_IDLE`); the merge-gong
  * cheer (#202) starts and ends in it, so a henchman sits back exactly as it was.
@@ -29,6 +30,7 @@ import {
   HAND_UP,
   HOLD_PAPERS,
   merge,
+  NEEDS_YOU,
   PALM_ON_FACE,
   POINTING,
   type Pose,
@@ -55,12 +57,14 @@ export const HENCHMAN_CLIPS = {
   sitThink: "Henchman|SitThink",
   sitCheer: "Henchman|SitCheer",
   hand: "Henchman|Hand",
+  needsYou: "Henchman|NeedsYou",
+  needsYouStill: "Henchman|NeedsYouStill",
   carry: "Henchman|Carry",
 } as const;
 export type HenchmanClipName = (typeof HENCHMAN_CLIPS)[keyof typeof HENCHMAN_CLIPS];
 
 /**
- * Weight of the partial arm clips (raised hand, carry) over the base clip:
+ * Weight of the partial clips (raised hand, "needs you", carry) over the base clip:
  * the mixer averages by weight, so 40:1 puts the arm 97.5% in the held pose.
  */
 export const ARM_OVERLAY_WEIGHT = 40;
@@ -186,6 +190,9 @@ const SIT_READ = merge(SIT, HOLD_PAPERS, { Head: [22, 0, 0] });
 const SIT_THINK = merge(SIT, CHIN_IN_HAND, { Head: [-4, 0, 0] });
 const SIT_CHEER_UP = merge(SIT_IDLE, ARMS_UP, { Head: [-12, 0, 0] });
 
+/** The bones the "needs you" clips drive over the seated base clip. */
+const NEEDS_YOU_BONES = Object.keys(NEEDS_YOU) as BoneName[];
+
 export const CLIP_SPECS: readonly ClipSpec[] = [
   {
     name: HENCHMAN_CLIPS.idle,
@@ -299,7 +306,29 @@ export const CLIP_SPECS: readonly ClipSpec[] = [
     name: HENCHMAN_CLIPS.hand,
     duration: 1,
     keys: [[0, HAND_UP]],
-    bones: ["UpperArmR", "LowerArmR", "HandR"],
+    bones: Object.keys(HAND_UP) as BoneName[],
+  },
+  {
+    // Waiting for its human (#235): both arms high, sweeping side to side together, the
+    // upper body rocking with them. About two sweeps a second, readable from the room framing.
+    name: HENCHMAN_CLIPS.needsYou,
+    duration: 1.1,
+    keys: [[0, NEEDS_YOU]],
+    wiggles: [
+      { bone: "UpperArmL", axis: 2, amp: 20, cycles: 2 },
+      { bone: "UpperArmR", axis: 2, amp: 20, cycles: 2 },
+      { bone: "LowerArmL", axis: 2, amp: 14, cycles: 2, phase: 0.15 },
+      { bone: "LowerArmR", axis: 2, amp: 14, cycles: 2, phase: 0.15 },
+      { bone: "Abdomen", axis: 2, amp: 5, cycles: 2, phase: 0.5 },
+    ],
+    bones: NEEDS_YOU_BONES,
+  },
+  {
+    // The same pose held (reduced motion, the low preset): arms up, nothing moves.
+    name: HENCHMAN_CLIPS.needsYouStill,
+    duration: 1,
+    keys: [[0, NEEDS_YOU]],
+    bones: NEEDS_YOU_BONES,
   },
   {
     name: HENCHMAN_CLIPS.carry,

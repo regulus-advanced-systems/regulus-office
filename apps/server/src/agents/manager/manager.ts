@@ -145,6 +145,7 @@ export class AgentManager extends AgentRuntime {
   async prompt(actor: OperationActor, agentId: string, text: string): Promise<void> {
     const control = this.#controlFor(actor, agentId);
     await this.#adapterCall(agentId, "prompt", () => control.prompt(text));
+    this.seenBy(agentId, actor.id);
   }
 
   /**

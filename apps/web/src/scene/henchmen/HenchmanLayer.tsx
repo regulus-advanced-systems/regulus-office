@@ -2,8 +2,9 @@
  * Henchmen in the operation we are in (SPEC §9.3, §9.4): one <Henchman> per
  * `HenchmanState` from the OperationRoom at its desk seat, the GDT floor name
  * decals, its name and the bubble saying what it is doing or that it needs you
- * (#256, scene/agentBubble), work bubbles flying to the HUD counters, confetti when a henchman
- * starts its celebration and a soft ding when a hand goes up. Also the free-desk
+ * (#256, scene/agentBubble), work bubbles flying to the HUD counters, confetti on an explicit
+ * celebration and a soft ding when a henchman starts waiting for its human. A done henchman
+ * holds a hand up and a waiting one waves both arms (#235, Henchman). Also the free-desk
  * interaction: `E` near a free desk (or a click on it) opens the spawn
  * dialog. A click on a henchman or its occupied desk opens the henchman panel
  * (#33); `E` at an occupied desk and laptop clicks open the terminal
@@ -14,7 +15,8 @@
  * When the merge gong rings (#43) confetti bursts over every henchman while
  * they cheer in their chairs (Henchman, cheer.ts).
  * Work bubbles and confetti are not mounted with reduced motion (SPEC §11); the
- * bubble over a henchman stays and holds still (also on the low graphics preset).
+ * bubble over a henchman stays and holds still, and so do the arms of a waiting
+ * henchman (also on the low graphics preset).
  */
 import type { ThreeEvent } from "@react-three/fiber";
 import { type HenchmanState, hasOperationAccess } from "@regulus/protocol";
@@ -216,7 +218,7 @@ export function HenchmanLayer({
       }),
     [confetti, reducedMotion, scope],
   );
-  // A ding when a hand goes up (in the room the player is in).
+  // A ding when a henchman starts waiting for its human (in the room the player is in).
   const ding = useMemo(() => createDingGate(), []);
   const prev = useRef<Readonly<Record<string, HenchmanState>>>({});
   useEffect(() => {
@@ -269,6 +271,7 @@ export function HenchmanLayer({
               seat={seat}
               anchor={anchors.get(seat.id) ?? FALLBACK_ANCHOR}
               reducedMotion={reducedMotion}
+              still={reducedMotion || lowQuality}
               onSelect={scope.interactive ? openAgentPanel : undefined}
               onCelebrate={burst}
             />

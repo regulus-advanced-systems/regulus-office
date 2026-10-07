@@ -6,7 +6,26 @@ import { BONE_NAMES } from "./rig.ts";
 
 const clips = henchmanClips();
 const byName = new Map(clips.map((c) => [c.name, c]));
-const PARTIAL = new Set<string>([HENCHMAN_CLIPS.hand, HENCHMAN_CLIPS.carry]);
+const GESTURES = new Set<string>([
+  HENCHMAN_CLIPS.hand,
+  HENCHMAN_CLIPS.needsYou,
+  HENCHMAN_CLIPS.needsYouStill,
+]);
+const PARTIAL = new Set<string>([HENCHMAN_CLIPS.carry, ...GESTURES]);
+
+/** Largest change of any track value over the clip. */
+function motionOf(name: string): number {
+  let most = 0;
+  for (const track of byName.get(name)?.tracks ?? []) {
+    const size = track.getValueSize();
+    for (let k = 0; k < track.times.length; k++)
+      for (let c = 0; c < size; c++)
+        most = Math.max(most, Math.abs((track.values[k * size + c] ?? 0) - (track.values[c] ?? 0)));
+  }
+  return most;
+}
+
+const tracksOf = (name: string) => (byName.get(name)?.tracks ?? []).map((t) => t.name).sort();
 
 describe("animation selection", () => {
   test("standing, every SPEC §9.3 animation has its own clip", () => {
@@ -63,12 +82,32 @@ describe("clip data", () => {
     }
   });
 
-  test("the raised hand and the carry only touch the arms", () => {
-    for (const name of PARTIAL) {
-      const names = byName.get(name)?.tracks.map((t) => t.name) ?? [];
-      expect(names.length).toBeGreaterThan(0);
-      for (const n of names) expect(n).toMatch(/^(UpperArm|LowerArm|Hand)[LR]\.quaternion$/);
+  test("the carry only touches the arms; a gesture the arms, the head and the waist, never the legs", () => {
+    for (const n of tracksOf(HENCHMAN_CLIPS.carry))
+      expect(n).toMatch(/^(UpperArm|LowerArm)[LR]\.quaternion$/);
+    for (const name of GESTURES) {
+      expect(tracksOf(name).length).toBeGreaterThan(0);
+      for (const n of tracksOf(name))
+        expect(n).toMatch(/^((UpperArm|LowerArm|Hand)[LR]|Head|Abdomen)\.quaternion$/);
     }
+  });
+
+  test("done and needs-you are different gestures (#235)", () => {
+    // Done: one arm, the right. Needs you: both.
+    const hand = tracksOf(HENCHMAN_CLIPS.hand);
+    expect(hand).toContain("UpperArmR.quaternion");
+    expect(hand.some((n) => /Arm[L]\./.test(n))).toBe(false);
+    const waving = tracksOf(HENCHMAN_CLIPS.needsYou);
+    expect(waving).toContain("UpperArmL.quaternion");
+    expect(waving).toContain("UpperArmR.quaternion");
+    // The still version holds the same bones in the wave's own pose.
+    expect(tracksOf(HENCHMAN_CLIPS.needsYouStill)).toEqual(waving);
+  });
+
+  test("the done hand and the reduced-motion arms do not move; the wave does", () => {
+    expect(motionOf(HENCHMAN_CLIPS.hand)).toBe(0);
+    expect(motionOf(HENCHMAN_CLIPS.needsYouStill)).toBe(0);
+    expect(motionOf(HENCHMAN_CLIPS.needsYou)).toBeGreaterThan(0.1);
   });
 
   test("loops are seamless: the last key equals the first", () => {

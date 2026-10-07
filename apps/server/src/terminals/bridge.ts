@@ -85,6 +85,7 @@ export class TerminalBridge implements WsRoute {
   readonly #opts: TerminalBridgeOptions;
   readonly #logger: Logger;
   readonly #viewers = new Map<string, Set<ServerWebSocket<TermSocketData>>>();
+  #onViewed: ((agentId: string, userId: string) => void) | undefined;
 
   constructor(options: TerminalBridgeOptions) {
     this.#opts = options;
@@ -93,6 +94,24 @@ export class TerminalBridge implements WsRoute {
 
   routeOf(url: URL): string | undefined {
     return url.pathname.startsWith(TERMINAL_WS_PREFIX) ? TERMINAL_ROUTE : undefined;
+  }
+
+  /**
+   * Called when someone opens a henchman's terminal and when they type in it (at most
+   * once a second): the agent manager lowers a done henchman's hand for its owner (#235).
+   */
+  onViewed(listener: (agentId: string, userId: string) => void): void {
+    this.#onViewed = listener;
+  }
+
+  #viewed(ws: ServerWebSocket<TermSocketData>): void {
+    const { target, userId } = ws.data;
+    if (target.kind === "login") return;
+    try {
+      this.#onViewed?.(target.agentId, userId);
+    } catch (err) {
+      this.#logger.warn({ err: String(err) }, "terminal view listener failed");
+    }
   }
 
   /** Viewers currently connected to `agentId`'s terminal. */
@@ -203,6 +222,7 @@ export class TerminalBridge implements WsRoute {
       peers: this.#peers(sockets),
     });
     this.#announce(target.agentId, ws);
+    this.#viewed(ws);
     ws.data.release = this.#opts.liveAccess?.register({
       kind: "terminal",
       user: { id: userId, role: ws.data.user.role },
@@ -262,6 +282,7 @@ export class TerminalBridge implements WsRoute {
     const last = from.data.lastTypingAt;
     if (last !== undefined && now - last < TERMINAL_TYPING_THROTTLE_MS) return;
     from.data.lastTypingAt = now;
+    this.#viewed(from);
     const sockets = this.#viewers.get(from.data.target.agentId);
     if (!sockets) return;
     const message = { type: "typing", userId: from.data.userId, name: from.data.name } as const;

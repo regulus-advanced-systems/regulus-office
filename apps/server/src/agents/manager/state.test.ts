@@ -34,6 +34,7 @@ function view(overrides: Partial<AgentView> = {}): AgentView {
     activity: "",
     ask: "",
     announce: "",
+    seen: false,
     ...overrides,
   };
 }
