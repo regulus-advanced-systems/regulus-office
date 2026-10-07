@@ -163,7 +163,11 @@ export class OfficeAgentStore {
       .where(eq(officeAgentSettings.id, SETTINGS_ID))
       .get();
     return row
-      ? { personalAgentCap: row.personalAgentCap, managerDailySpawnCap: row.managerDailySpawnCap }
+      ? {
+          personalAgentCap: row.personalAgentCap,
+          managerDailySpawnCap: row.managerDailySpawnCap,
+          sharedMessagesPerHour: row.sharedMessagesPerHour,
+        }
       : { ...DEFAULT_OFFICE_AGENT_SETTINGS };
   }
 

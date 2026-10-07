@@ -49,6 +49,7 @@ CREATE TABLE `office_agent_settings` (
 	`id` text PRIMARY KEY NOT NULL,
 	`personal_agent_cap` integer NOT NULL,
 	`manager_daily_spawn_cap` integer NOT NULL,
+	`shared_messages_per_hour` integer NOT NULL,
 	`created_at` integer NOT NULL,
 	`updated_at` integer NOT NULL
 );

@@ -143,7 +143,7 @@ export function OfficeAgentsSection({
       </div>
       {manager && data && (
         <CapsForm
-          key={`${data.settings.personalAgentCap}:${data.settings.managerDailySpawnCap}`}
+          key={`${data.settings.personalAgentCap}:${data.settings.managerDailySpawnCap}:${data.settings.sharedMessagesPerHour}`}
           settings={data.settings}
           busy={busy}
           onSave={(settings) => void run(() => api.saveSettings(settings))}
@@ -165,7 +165,9 @@ function CapsForm({
 }) {
   const [personal, setPersonal] = useState(String(settings.personalAgentCap));
   const [spawns, setSpawns] = useState(String(settings.managerDailySpawnCap));
-  const valid = /^\d{1,3}$/.test(personal) && /^\d{1,3}$/.test(spawns);
+  const [messages, setMessages] = useState(String(settings.sharedMessagesPerHour));
+  const valid =
+    /^\d{1,3}$/.test(personal) && /^\d{1,3}$/.test(spawns) && /^[1-9]\d{0,3}$/.test(messages);
   return (
     <form
       className="rg-office-agent-caps"
@@ -173,7 +175,11 @@ function CapsForm({
       onSubmit={(e) => {
         e.preventDefault();
         if (valid)
-          onSave({ personalAgentCap: Number(personal), managerDailySpawnCap: Number(spawns) });
+          onSave({
+            personalAgentCap: Number(personal),
+            managerDailySpawnCap: Number(spawns),
+            sharedMessagesPerHour: Number(messages),
+          });
       }}
     >
       <label>
@@ -192,6 +198,15 @@ function CapsForm({
           inputMode="numeric"
           value={spawns}
           onChange={(e) => setSpawns(e.currentTarget.value)}
+        />
+      </label>
+      <label>
+        <span className="rg-field__label">Messages a person may send a shared agent per hour</span>
+        <input
+          className="rg-input"
+          inputMode="numeric"
+          value={messages}
+          onChange={(e) => setMessages(e.currentTarget.value)}
         />
       </label>
       <Button type="submit" size="sm" disabled={busy || !valid}>

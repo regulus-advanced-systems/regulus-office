@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "3235825e-4878-445e-81b0-322fecf645d7",
+  "id": "3f59c04f-c8e5-4d5f-8f8c-6bd3fa542bf7",
   "prevId": "2e28c785-8975-4cb8-9afe-c5547665e8d7",
   "tables": {
     "agent_events": {
@@ -2906,6 +2906,13 @@
         },
         "manager_daily_spawn_cap": {
           "name": "manager_daily_spawn_cap",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "shared_messages_per_hour": {
+          "name": "shared_messages_per_hour",
           "type": "integer",
           "primaryKey": false,
           "notNull": true,

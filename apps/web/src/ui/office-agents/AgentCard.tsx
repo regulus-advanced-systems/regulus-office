@@ -123,7 +123,9 @@ export function AgentCard({
       </div>
       {!agent.canTalk && !agent.canConfigure && (
         <div className="rg-field__hint">
-          A personal agent: only the person it belongs to can talk to it or read what it knows.
+          {shared
+            ? "Viewers cannot talk to shared agents: every message spends the office's key."
+            : "A personal agent: only the person it belongs to can talk to it or read what it knows."}
         </div>
       )}
       {chatting && agent.canTalk && (

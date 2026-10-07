@@ -161,6 +161,7 @@ export function createOfficeAgents(opts: OfficeAgentsOptions): OfficeAgents {
     conversations,
     requests,
     credentials,
+    now,
   });
 
   return {

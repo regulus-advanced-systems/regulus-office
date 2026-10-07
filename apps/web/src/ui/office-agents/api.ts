@@ -53,6 +53,7 @@ export function createOfficeAgentsApi(options: { fetch?: typeof fetch } = {}) {
       const code = typeof b.error === "string" ? b.error.toLowerCase() : `http_${res.status}`;
       const failure: ApiFailure = { ok: false, status: res.status, code };
       if (typeof b.message === "string") failure.reason = b.message;
+      if (typeof b.retryAfterSeconds === "number") failure.retryAfterSeconds = b.retryAfterSeconds;
       return failure;
     }
     const parsed = schema.safeParse(json);
@@ -107,7 +108,7 @@ const ERRORS: Record<string, string> = {
   not_found: "That agent is gone; the list was refreshed.",
   not_your_agent: "Only the person an agent belongs to can do that.",
   owner_or_admin_required: "Only office owners and admins can do that.",
-  viewers_cannot: "Viewers cannot create agents.",
+  viewers_cannot: "Viewers cannot create agents or talk to shared ones.",
   name_taken: "Another agent already has that name. Names are permanent and unique.",
   pm_exists: "There is already a PM here: the office has one, and so can each person.",
   personal_agent_cap: "You have as many personal agents as the office allows.",
@@ -121,5 +122,9 @@ const ERRORS: Record<string, string> = {
 };
 
 export function describeOfficeAgentsError(failure: ApiFailure): string {
+  if (failure.code === "message_rate_limited") {
+    const minutes = Math.max(1, Math.ceil((failure.retryAfterSeconds ?? 60) / 60));
+    return `You have reached the hourly limit of messages to this shared agent. Try again in about ${minutes} min.`;
+  }
   return ERRORS[failure.code] ?? failure.reason ?? `Something went wrong (${failure.code}).`;
 }

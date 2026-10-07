@@ -210,6 +210,75 @@ describe("office agents: people", () => {
     expect(sams.messages.map((m) => m.text)).toEqual(["from Sam", "Number Two heard: from Sam"]);
   });
 
+  test("an office viewer sees a shared agent's card and nothing more: no chat, no history", async () => {
+    o.db.$client.run(
+      `update user_profiles set role = 'viewer' where user_id = '${o.people.sam.id}'`,
+    );
+    const card = (await list(o.people.sam.cookie)).agents.find((a) => a.id === pm.id);
+    expect(card).toMatchObject({ name: "Number Two", canTalk: false, canConfigure: false });
+    const before = o.fake.sent.length;
+    const sent = await o.send(`${A}/${pm.id}/messages`, "POST", o.people.sam.cookie, {
+      text: "spend the office key",
+    });
+    expect(sent.status).toBe(403);
+    expect(((await sent.json()) as { error: string }).error).toBe("viewers_cannot");
+    // Not even what he said while he was a member.
+    expect((await o.send(`${A}/${pm.id}/conversation`, "GET", o.people.sam.cookie)).status).toBe(
+      403,
+    );
+    expect(o.fake.sent.length).toBe(before);
+    expect(o.officeAgents.conversations.recent(pm.id, o.people.sam.id)).toHaveLength(2);
+    o.db.$client.run(
+      `update user_profiles set role = 'member' where user_id = '${o.people.sam.id}'`,
+    );
+    expect((await o.send(`${A}/${pm.id}/conversation`, "GET", o.people.sam.cookie)).status).toBe(
+      200,
+    );
+  });
+
+  test("each person may send a shared agent only so many messages an hour; admins set the number", async () => {
+    const S = OFFICE_AGENT_SETTINGS_API_PATH;
+    const limits = { personalAgentCap: 3, managerDailySpawnCap: 10, sharedMessagesPerHour: 3 };
+    expect((await o.send(S, "PUT", o.people.mia.cookie, limits)).status).toBe(403);
+    expect(
+      (await o.send(S, "PUT", o.people.ada.cookie, { ...limits, sharedMessagesPerHour: 0 })).status,
+    ).toBe(400);
+    expect((await o.send(S, "PUT", o.people.ada.cookie, limits)).status).toBe(200);
+    expect((await list(o.people.mia.cookie)).settings.sharedMessagesPerHour).toBe(3);
+    const say = (cookie: string, id: string) =>
+      o.send(`${A}/${id}/messages`, "POST", cookie, { text: "again" });
+    // Mia already sent one in the last hour: two more fit, the fourth is refused.
+    expect((await say(o.people.mia.cookie, pm.id)).status).toBe(202);
+    expect((await say(o.people.mia.cookie, pm.id)).status).toBe(202);
+    const delivered = o.fake.sent.length;
+    const refused = await say(o.people.mia.cookie, pm.id);
+    expect(refused.status).toBe(429);
+    const body = (await refused.json()) as {
+      error: string;
+      limit: number;
+      retryAfterSeconds: number;
+    };
+    expect(body).toMatchObject({ error: "message_rate_limited", limit: 3 });
+    expect(body.retryAfterSeconds).toBeGreaterThan(3500);
+    expect(body.retryAfterSeconds).toBeLessThanOrEqual(3600);
+    // Nothing was stored or handed to the engine.
+    expect(o.fake.sent.length).toBe(delivered);
+    expect(o.officeAgents.conversations.sentSince(pm.id, o.people.mia.id, 0)).toHaveLength(3);
+    // The limit is per person and per agent, and personal agents are not limited.
+    expect((await say(o.people.sam.cookie, pm.id)).status).toBe(202);
+    const dog = (await list(o.people.mia.cookie)).agents.find((a) => a.name === "Watchdog");
+    expect((await say(o.people.mia.cookie, dog?.id ?? "")).status).toBe(202);
+    for (let i = 0; i < 4; i++)
+      expect((await say(o.people.mia.cookie, hermes.id)).status).toBe(202);
+    // An hour later she may write again.
+    o.db.$client.run(
+      `update office_agent_messages set ts = ts - 3660000 where agent_id = '${pm.id}' and user_id = '${o.people.mia.id}'`,
+    );
+    expect((await say(o.people.mia.cookie, pm.id)).status).toBe(202);
+    await o.fake.idle();
+    await o.send(S, "PUT", o.people.ada.cookie, { ...limits, sharedMessagesPerHour: 20 });
+  });
+
   test("an engine cannot put words into another person's conversation with a personal agent", async () => {
     o.fake.emit({ type: "message", agentId: hermes.id, userId: o.people.sam.id, text: "psst" });
     expect(o.officeAgents.conversations.recent(hermes.id, o.people.sam.id)).toEqual([]);
@@ -255,7 +324,7 @@ describe("office agents: people", () => {
 
   test("admins set the cap on personal agents; members cannot", async () => {
     const S = OFFICE_AGENT_SETTINGS_API_PATH;
-    const caps = { personalAgentCap: 1, managerDailySpawnCap: 2 };
+    const caps = { personalAgentCap: 1, managerDailySpawnCap: 2, sharedMessagesPerHour: 20 };
     expect((await o.send(S, "PUT", o.people.mia.cookie, caps)).status).toBe(403);
     expect((await o.send(S, "PUT", o.people.ada.cookie, caps)).status).toBe(200);
     const over = await create(o.people.mia.cookie, {

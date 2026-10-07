@@ -4,7 +4,8 @@
  *
  * Rules (protocol office-agents.ts; SPEC §8, D2, D20, D28, D32):
  * - a shared agent is created and configured by office owners and admins and
- *   always names an office-wide key;
+ *   always names an office-wide key; members and above talk to it (office
+ *   viewers do not: it spends the office key), each within an hourly limit;
  * - a personal agent is created by the person it belongs to (up to the cap
  *   admins set); only that person configures it, talks to it and reads its
  *   conversation and instructions. An admin sees its card and may stop it in
@@ -53,7 +54,11 @@ export interface OfficeAgentServiceDeps {
   conversations: Conversations;
   requests: HumanRequests;
   credentials: AgentCredentials;
+  now?: () => number;
 }
+
+/** The window of the per-person message limit on shared agents. */
+export const MESSAGE_WINDOW_MS = 60 * 60_000;
 
 const notFound = () => new AuthHttpError(404, "not_found");
 const conflict = (code: string) => new AuthHttpError(409, code);
@@ -133,7 +138,9 @@ export class OfficeAgentService {
 
   #talkable(actor: OperationActor, id: string): OfficeAgentRow {
     const row = this.#visible(actor, id);
-    if (!mayTalkToOfficeAgent(actor, row)) throw forbidden("not_your_agent");
+    if (!mayTalkToOfficeAgent(actor, row)) {
+      throw forbidden(row.ownerUserId === null ? "viewers_cannot" : "not_your_agent");
+    }
     return row;
   }
 
@@ -358,12 +365,30 @@ export class OfficeAgentService {
     const row = this.#talkable(actor, id);
     const person = this.deps.store.person(actor.id);
     if (!person) throw forbidden();
+    this.#checkMessageRate(row, actor.id);
     try {
       return await this.deps.runtime.deliver(row, person, text);
     } catch (err) {
       if (err instanceof EngineRefusal) throw refused(err, 409);
       throw err;
     }
+  }
+
+  /**
+   * A shared agent answers on the office's metered key, so each person may
+   * send it only so many messages an hour (an admin setting). Personal agents
+   * run on what their owner chose and are not limited here.
+   */
+  #checkMessageRate(row: OfficeAgentRow, userId: string): void {
+    if (row.ownerUserId !== null) return;
+    const limit = this.deps.store.settings().sharedMessagesPerHour;
+    const now = (this.deps.now ?? Date.now)();
+    const sent = this.deps.conversations.sentSince(row.id, userId, now - MESSAGE_WINDOW_MS);
+    if (sent.length < limit) return;
+    // Free again when the oldest message that still counts leaves the window.
+    const oldest = sent[sent.length - limit] ?? now;
+    const retryAfterSeconds = Math.max(1, Math.ceil((oldest + MESSAGE_WINDOW_MS - now) / 1000));
+    throw new AuthHttpError(429, "message_rate_limited", { limit, retryAfterSeconds });
   }
 
   // ---- "Ask a human" --------------------------------------------------------------
@@ -384,7 +409,8 @@ export class OfficeAgentService {
     // The answer also reaches the agent as the person's next message, which opens their turn.
     const row = store.get(request.agentId);
     const person = store.person(actor.id);
-    if (row && person) {
+    // Only for someone who may talk to it: a viewer's answer is recorded, not delivered as a message.
+    if (row && person && mayTalkToOfficeAgent(actor, row)) {
       const text = `[Answer to your question "${request.question.slice(0, 200)}" (request ${request.id})]\n${answer}`;
       await runtime.deliver(row, person, text).catch(() => {});
     }

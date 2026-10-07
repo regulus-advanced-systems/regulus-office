@@ -9,12 +9,14 @@ import {
 import {
   CreateOfficeAgent,
   DEFAULT_OFFICE_AGENT_PRESET,
+  DEFAULT_OFFICE_AGENT_SETTINGS,
   mayConfigureOfficeAgent,
   mayCreateOfficeAgent,
   mayEmergencyStopOfficeAgent,
   maySeeOfficeAgent,
   mayTalkToOfficeAgent,
   OFFICE_AGENT_ROLES,
+  OfficeAgentSettings,
   UpdateOfficeAgent,
 } from "./office-agents.ts";
 
@@ -43,11 +45,20 @@ describe("office agents (#271)", () => {
     expect(mayEmergencyStopOfficeAgent(mia, mias)).toBe(false);
   });
 
-  test("a shared agent serves everyone; owners and admins configure it", () => {
-    for (const anyone of [owner, admin, mia, viewer]) {
+  test("a shared agent serves members and above; viewers see its card only; owners and admins configure it", () => {
+    for (const anyone of [owner, admin, mia]) {
       expect(maySeeOfficeAgent(anyone, shared)).toBe(true);
       expect(mayTalkToOfficeAgent(anyone, shared)).toBe(true);
     }
+    // Talking to it spends the office key.
+    expect(maySeeOfficeAgent(viewer, shared)).toBe(true);
+    expect(mayTalkToOfficeAgent(viewer, shared)).toBe(false);
+    expect(OfficeAgentSettings.safeParse({ ...DEFAULT_OFFICE_AGENT_SETTINGS }).success).toBe(true);
+    expect(DEFAULT_OFFICE_AGENT_SETTINGS.sharedMessagesPerHour).toBe(20);
+    expect(
+      OfficeAgentSettings.safeParse({ ...DEFAULT_OFFICE_AGENT_SETTINGS, sharedMessagesPerHour: 0 })
+        .success,
+    ).toBe(false);
     expect(mayConfigureOfficeAgent(admin, shared)).toBe(true);
     expect(mayConfigureOfficeAgent(owner, shared)).toBe(true);
     expect(mayConfigureOfficeAgent(mia, shared)).toBe(false);

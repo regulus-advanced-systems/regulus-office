@@ -11,7 +11,7 @@ import {
   type OfficeAgentMessage,
   type OfficeAgentMessageAuthor,
 } from "@regulus/protocol";
-import { and, desc, eq, ne } from "drizzle-orm";
+import { and, desc, eq, gte, ne } from "drizzle-orm";
 import type { Db } from "../db/index.ts";
 import { officeAgentMessages } from "../db/schema/index.ts";
 
@@ -64,6 +64,27 @@ export class Conversations {
       .all()
       .reverse()
       .map(view);
+  }
+
+  /**
+   * The person's own messages to the agent since `since`, oldest first (for
+   * the hourly limit on shared agents).
+   */
+  sentSince(agentId: string, userId: string, since: number): number[] {
+    return this.db
+      .select({ ts: officeAgentMessages.ts })
+      .from(officeAgentMessages)
+      .where(
+        and(
+          eq(officeAgentMessages.agentId, agentId),
+          eq(officeAgentMessages.userId, userId),
+          eq(officeAgentMessages.author, "person"),
+          gte(officeAgentMessages.ts, new Date(since)),
+        ),
+      )
+      .orderBy(officeAgentMessages.ts)
+      .all()
+      .map((r) => r.ts.getTime());
   }
 
   /** The person's last message to the agent has no answer yet (system lines do not count). */

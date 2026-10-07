@@ -14,7 +14,9 @@
  *   or read its instructions and conversation. Office admins see that it
  *   exists (name, engine, status) and may only emergency-stop it;
  * - a shared agent is created and configured by office owners and admins,
- *   has the operations it was granted, and everyone signed in may talk to it;
+ *   has the operations it was granted, and members and above may talk to it
+ *   (not office viewers: every message spends the office's metered key),
+ *   each up to a number of messages per hour that admins set;
  * - a shared agent runs on an office-wide metered key only, never on a
  *   person's subscription login (SPEC §8 rule 3, D2).
  */
@@ -72,6 +74,7 @@ export const OFFICE_AGENT_LIMITS = {
   tokensPerAgent: 5,
   personalCapMax: 50,
   dailySpawnCapMax: 200,
+  sharedMessagesPerHourMax: 1000,
 } as const;
 
 export const DEFAULT_OFFICE_AGENT_SETTINGS = {
@@ -79,6 +82,8 @@ export const DEFAULT_OFFICE_AGENT_SETTINGS = {
   personalAgentCap: 3,
   /** Henchmen a `manager` agent may spawn per office day. */
   managerDailySpawnCap: 10,
+  /** Messages one person may send to one shared agent per hour (they spend the office key). */
+  sharedMessagesPerHour: 20,
 } as const;
 
 /** Permanent, unique in the office: letters, digits, spaces, `-`, `_`, `.`. */
@@ -144,6 +149,7 @@ export type OfficeAgentView = z.infer<typeof OfficeAgentView>;
 export const OfficeAgentSettings = z.object({
   personalAgentCap: z.number().int().min(0).max(OFFICE_AGENT_LIMITS.personalCapMax),
   managerDailySpawnCap: z.number().int().min(0).max(OFFICE_AGENT_LIMITS.dailySpawnCapMax),
+  sharedMessagesPerHour: z.number().int().min(1).max(OFFICE_AGENT_LIMITS.sharedMessagesPerHourMax),
 });
 export type OfficeAgentSettings = z.infer<typeof OfficeAgentSettings>;
 
@@ -263,9 +269,13 @@ export interface OfficeAgentOwnership {
 
 const isOfficeAdmin = (role: UserRole) => role === "owner" || role === "admin";
 
-/** Open a chat with it, see the conversation, answer its questions (D32: a personal agent, only its owner). */
+/**
+ * Open a chat with it and see the conversation. A personal agent: only its
+ * owner (D32). A shared agent: members and above; an office viewer sees its
+ * card and nothing more, because talking to it spends the office key.
+ */
 export function mayTalkToOfficeAgent(actor: OfficeAgentActor, agent: OfficeAgentOwnership) {
-  return agent.ownerUserId === null ? true : agent.ownerUserId === actor.id;
+  return agent.ownerUserId === null ? actor.role !== "viewer" : agent.ownerUserId === actor.id;
 }
 
 /** Configure, start, stop, delete, mint tokens, read instructions (D20: admins cannot read personal agents). */

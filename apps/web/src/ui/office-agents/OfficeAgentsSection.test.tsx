@@ -54,7 +54,7 @@ const SOMEONES = agent({
 });
 const response = (agents: OfficeAgentView[]): OfficeAgentsResponse => ({
   agents,
-  settings: { personalAgentCap: 3, managerDailySpawnCap: 10 },
+  settings: { personalAgentCap: 3, managerDailySpawnCap: 10, sharedMessagesPerHour: 20 },
   engines: ["cli-session"],
 });
 const QUESTION: HumanRequest = {
@@ -218,6 +218,40 @@ describe("office agents section", () => {
     await click(button("Yes") as HTMLButtonElement);
     await settle();
     expect(f.calls.find((c) => c.path.endsWith("/answer"))?.body).toEqual({ answer: "Yes" });
+  });
+
+  test("the hourly limit on a shared agent is shown plainly in the chat; viewers get no chat", async () => {
+    const talkable = { ...SHARED, status: "ready" as const };
+    await show("member", {
+      "GET /api/office-agents": { body: response([talkable]) },
+      "GET /api/office-agents/a2/conversation": {
+        body: { agentId: "a2", status: "ready", waiting: false, messages: [] },
+      },
+      "POST /api/office-agents/a2/messages": {
+        status: 429,
+        body: { error: "message_rate_limited", limit: 20, retryAfterSeconds: 1500 },
+      },
+    });
+    await click(within(card("Number Two"), "Chat") as HTMLButtonElement);
+    await settle();
+    const box = card("Number Two").querySelector("textarea") as HTMLTextAreaElement;
+    await act(async () => {
+      box.value = "one more";
+    });
+    await click(within(card("Number Two"), "Send") as HTMLButtonElement);
+    await settle();
+    expect(card("Number Two").querySelector('[role="alert"]')?.textContent).toBe(
+      "You have reached the hourly limit of messages to this shared agent. Try again in about 25 min.",
+    );
+    // The draft is kept, so nothing typed is lost.
+    expect(box.value).toBe("one more");
+
+    for (const m of mounted.splice(0)) await m.unmount();
+    await show("viewer", {
+      "GET /api/office-agents": { body: response([{ ...talkable, canTalk: false }]) },
+    });
+    expect(within(card("Number Two"), "Chat")).toBeUndefined();
+    expect(card("Number Two").textContent).toContain("Viewers cannot talk to shared agents");
   });
 
   test("a refusal from the server is explained", async () => {

@@ -23,7 +23,8 @@ export function AgentChat({
   pollMs?: number;
 }) {
   const [convo, setConvo] = useState<OfficeAgentConversation | null>(null);
-  const [draft, setDraft] = useState("");
+  // Uncontrolled, like the office's other forms: read on send, cleared once it was accepted.
+  const input = useRef<HTMLTextAreaElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inputId = useId();
@@ -48,13 +49,13 @@ export function AgentChat({
   }, [count]);
 
   const send = async () => {
-    const text = draft.trim();
+    const text = input.current?.value.trim() ?? "";
     if (!text || busy) return;
     setBusy(true);
     setError(null);
     const res = await api.send(agentId, text);
-    if (res.ok) setDraft("");
-    else setError(describeOfficeAgentsError(res));
+    if (res.ok && input.current) input.current.value = "";
+    if (!res.ok) setError(describeOfficeAgentsError(res));
     await load();
     setBusy(false);
   };
@@ -91,9 +92,8 @@ export function AgentChat({
           id={inputId}
           className="rg-input"
           rows={2}
-          value={draft}
+          ref={input}
           maxLength={OFFICE_AGENT_LIMITS.messageMax}
-          onChange={(e) => setDraft(e.currentTarget.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
@@ -101,7 +101,7 @@ export function AgentChat({
             }
           }}
         />
-        <Button type="submit" variant="primary" size="sm" disabled={busy || !draft.trim()}>
+        <Button type="submit" variant="primary" size="sm" disabled={busy}>
           Send
         </Button>
       </form>

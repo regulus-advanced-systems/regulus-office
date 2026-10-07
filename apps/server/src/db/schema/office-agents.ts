@@ -155,5 +155,6 @@ export const officeAgentSettings = sqliteTable("office_agent_settings", {
   id: text("id").primaryKey(),
   personalAgentCap: integer("personal_agent_cap").notNull(),
   managerDailySpawnCap: integer("manager_daily_spawn_cap").notNull(),
+  sharedMessagesPerHour: integer("shared_messages_per_hour").notNull(),
   ...timestamps(),
 });

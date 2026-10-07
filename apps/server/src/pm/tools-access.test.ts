@@ -178,7 +178,11 @@ describe("a personal agent has exactly its owner's rights", () => {
   });
 
   test("the daily spawn cap holds, also for calls made at the same moment", async () => {
-    o.officeAgents.store.saveSettings({ personalAgentCap: 3, managerDailySpawnCap: 3 });
+    o.officeAgents.store.saveSettings({
+      personalAgentCap: 3,
+      managerDailySpawnCap: 3,
+      sharedMessagesPerHour: 20,
+    });
     const spawn = () =>
       o.tool(mias.token, "spawn_henchman", { ...task, kind: undefined, prompt: "go" });
     // One was spawned in the test above: two more fit, the rest are refused.
