@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { SecretsError } from "./errors.ts";
-import { REDACTED, redact, redactText } from "./redact.ts";
+import { findSecretLike, REDACTED, redact, redactText } from "./redact.ts";
 
 describe("redact", () => {
   test("replaces strings and byte buffers entirely", () => {
@@ -79,5 +79,36 @@ describe("redactText", () => {
     expect(redactText(`id ${"a".repeat(40)}`)).toBe("id [redacted]");
     const once = redactText("TOKEN=x /etc/passwd ghp_abcdefgh12345678");
     expect(redactText(once)).toBe(once);
+  });
+});
+
+describe("findSecretLike (#136): text that must not be stored", () => {
+  test("keys, tokens, private keys and secret settings are found, with their line", () => {
+    expect(findSecretLike("ok\nkey sk-ant-api03-FAKEFAKE")).toEqual({
+      kind: "provider_key",
+      line: 2,
+    });
+    expect(findSecretLike("ghp_FAKE12345678")?.kind).toBe("provider_key");
+    expect(findSecretLike("github_pat_FAKE12345678")?.kind).toBe("provider_key");
+    expect(findSecretLike("a\nb\nroa_FAKEFAKEFAKE")).toEqual({ kind: "office_token", line: 3 });
+    expect(findSecretLike("-----BEGIN RSA PRIVATE KEY-----")?.kind).toBe("private_key");
+    expect(findSecretLike("ANTHROPIC_API_KEY=abc")?.kind).toBe("env_secret");
+    expect(findSecretLike('DB_PASSWORD="hunter2"')?.kind).toBe("env_secret");
+    expect(findSecretLike("0123456789abcdef0123456789abcdef01234567")?.kind).toBe("token");
+    expect(findSecretLike("QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVo/MTIzNA==")?.kind).toBe("token");
+  });
+
+  test("ordinary text is not: ids, links, paths, plain settings, rules, an empty secret setting", () => {
+    for (const text of [
+      "operation 3f2b8c1e-9a4d-4e6f-8b7a-0c1d2e3f4a5b",
+      "https://github.com/regulus-advanced-systems/regulus-office/pull/284",
+      "docs/screenshots/136/agent-card-with-memories-and-notes.png",
+      "PORT=3000 NODE_ENV=production",
+      "API_KEY= is set in the vault, not here",
+      "--------------------------------------------",
+      "a perfectly ordinary sentence about nothing in particular at all",
+    ]) {
+      expect([text, findSecretLike(text)]).toEqual([text, null]);
+    }
   });
 });

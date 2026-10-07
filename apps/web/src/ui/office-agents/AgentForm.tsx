@@ -24,7 +24,7 @@ import { useId, useRef, useState } from "react";
 import { Button } from "../components/Button.tsx";
 import { AppearancePicker } from "./AppearancePicker.tsx";
 import type { OfficeAgentsApi } from "./api.ts";
-import { ENGINE_HELP, ENGINE_WORDS, PRESET_WORDS, ROLE_WORDS } from "./labels.ts";
+import { ENGINE_HELP, ENGINE_WORDS, PRESET_WORDS, ROLE_WORDS, SOUL_WORDS } from "./labels.ts";
 import { keyOf, OTHER_MODEL, RunsOnPicker, usableChoices, useRunsOn } from "./RunsOnPicker.tsx";
 
 type Common = {
@@ -109,7 +109,6 @@ export function AgentForm(props: AgentFormProps) {
       if (role !== agent.role) patch.role = role;
       if (preset !== agent.preset) patch.preset = preset;
       if (appearance !== agent.appearance) patch.appearance = appearance;
-      if (instructions !== (agent.config?.instructions ?? "")) patch.instructions = instructions;
       if (picksModel && modelId !== agent.model) patch.model = modelId;
       if (picksModel && (profileId ?? null) !== (agent.config?.profileId ?? null)) {
         patch.profileId = profileId ?? null;
@@ -266,21 +265,26 @@ export function AgentForm(props: AgentFormProps) {
           : "A personal agent can never do more than its owner."}
       </div>
       <AppearancePicker value={appearance} onChange={setAppearance} />
-      <label className="rg-field__label" htmlFor={ids.instructions}>
-        Instructions
-      </label>
-      <textarea
-        id={ids.instructions}
-        className="rg-input"
-        rows={4}
-        ref={instructionsRef}
-        maxLength={OFFICE_AGENT_LIMITS.instructionsMax}
-        defaultValue={agent?.config?.instructions ?? ""}
-        placeholder="What this agent is for and how it should work."
-      />
-      <div className="rg-field__hint">
-        Written in your own words. The agent reads this before every conversation.
-      </div>
+      {/* Changing it later, with its history, is on the agent's card (#136). */}
+      {!agent && (
+        <>
+          <label className="rg-field__label" htmlFor={ids.instructions}>
+            {SOUL_WORDS.label}
+          </label>
+          <textarea
+            id={ids.instructions}
+            className="rg-input"
+            rows={4}
+            ref={instructionsRef}
+            maxLength={OFFICE_AGENT_LIMITS.instructionsMax}
+            placeholder="What this agent is for, how it should talk, what it should always or never do."
+          />
+          <div className="rg-field__hint">
+            {SOUL_WORDS.hint} You can change it on its card at any time and go back to an older
+            version.
+          </div>
+        </>
+      )}
       <div className="rg-office-agent__actions">
         <Button type="submit" variant="primary" size="sm" disabled={busy || blocked}>
           {agent ? "Save changes" : "Create agent"}

@@ -19,6 +19,7 @@ import type { Conversations } from "./conversations.ts";
 import {
   type EngineAgent,
   type EngineEvent,
+  type EngineMind,
   EngineRefusal,
   type OfficeAgentEngine,
 } from "./engines/types.ts";
@@ -31,6 +32,8 @@ export interface AgentRuntimeDeps {
   store: OfficeAgentStore;
   tokens: OfficeAgentTokens;
   conversations: Conversations;
+  /** The agent's own soul, memories and notes, from the office's copy (#136). */
+  mind: (agentId: string) => EngineMind;
   /** Base URL of the office as engines reach it (no trailing slash). */
   officeUrl: string;
   usage?: UsageRecorder;
@@ -125,6 +128,7 @@ export class AgentRuntime {
         mcpUrl: `${this.deps.officeUrl}${OFFICE_MCP_PATH}`,
         toolsUrl: `${this.deps.officeUrl}${OFFICE_AGENT_TOOLS_API_PATH}`,
         token: Secret.of(minted.token),
+        mind: this.deps.mind(row.id),
       });
     } catch (err) {
       tokens.revokeSessions(row.id);

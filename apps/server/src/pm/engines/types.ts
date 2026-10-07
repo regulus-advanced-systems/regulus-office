@@ -34,9 +34,51 @@ export interface EngineAgent {
   effort: string | null;
   /** Credential choice (a reference): profile id, `office:<provider>`, or null = the owner's CLI login. */
   profileId: string | null;
+  /** The agent's soul as it was when it was started (#136): who it is and how it works. */
   instructions: string;
   /** What the engine reported with its last `state` event. */
   state: Record<string, unknown>;
+}
+
+/** A memory or a note as the office keeps it. */
+export interface EngineMemory {
+  id: string;
+  kind: "memory" | "note";
+  /** Notes only. */
+  title?: string;
+  text: string;
+  source?: string;
+  updatedAt: number;
+}
+
+/**
+ * The agent's soul, memories and notes as an engine reaches them (#136). The
+ * office's copy is the source of truth; this is one agent's own, bound when
+ * it is started, and holds nobody else's.
+ *
+ * - An engine without a memory of its own (the CLI session engine) puts
+ *   `digest()` into what the agent reads and lets the agent use the office
+ *   tools (`memory_save`, `memory_search`, `note_write`, ...).
+ * - An engine with its own memory (Hermes, #57 and #58) seeds it from
+ *   `soul()` and `entries()` when it starts, and hands what the agent learns
+ *   back with `remember()`, so the office stays complete. An engine that runs
+ *   outside the office process uses the same tools over REST with the
+ *   agent's token (`soul_read`, `memory_list`, `memory_save`).
+ *
+ * Writes go through the same checks as the tools: text that looks like a
+ * secret is refused with an {@link EngineRefusal}, and each one is audited.
+ */
+export interface EngineMind {
+  /** The soul as it is now. */
+  soul(): string;
+  /** Every memory and note, most recently changed first. */
+  entries(kind?: "memory" | "note"): EngineMemory[];
+  /** The newest memories and the note titles as one block of text; empty when there are none. */
+  digest(): string;
+  /** Store something the agent learned. Throws an {@link EngineRefusal} when it is refused. */
+  remember(text: string, source?: string): EngineMemory;
+  /** Remove a memory; false when it was not there. */
+  forget(id: string): boolean;
 }
 
 /** How the started agent reaches the office. */
@@ -47,7 +89,20 @@ export interface EngineOffice {
   toolsUrl: string;
   /** The agent's token for this run; revoked when the agent stops. */
   token: Secret;
+  /** The agent's own soul, memories and notes, from the office's copy (#136). */
+  mind: EngineMind;
 }
+
+/** An agent that remembers nothing, for tests that start an engine by hand. */
+export const EMPTY_MIND: EngineMind = {
+  soul: () => "",
+  entries: () => [],
+  digest: () => "",
+  remember: () => {
+    throw new Error("no mind");
+  },
+  forget: () => false,
+};
 
 /** One message from a person to the agent. */
 export interface EngineMessage {

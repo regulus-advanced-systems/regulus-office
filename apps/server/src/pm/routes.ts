@@ -16,6 +16,7 @@
  *   POST   /api/office-agents/requests/:id/answer
  *   GET    /api/office-agents/settings | PUT        caps (PUT: owners and admins)
  *   GET    /api/office-agents/runs-on               what the caller can run an agent on (names, never keys)
+ *   .../:id/soul, .../:id/memories                  its soul, memories and notes: mind/routes.ts (#136)
  *
  * Session cookie on everything; writes need a same-origin request.
  */
@@ -38,24 +39,28 @@ import { checkOrigin } from "../auth/origin.ts";
 import { readJsonBody } from "../http/body.ts";
 import { json, type RouteContext, type Router } from "../http/router.ts";
 import type { OperationActor } from "../operations/access.ts";
+import type { MindService } from "./mind/people.ts";
+import { mountMindRoutes } from "./mind/routes.ts";
 import type { OfficeAgentService } from "./service.ts";
 
 export interface OfficeAgentRoutesDeps {
   auth: Pick<OfficeAuth, "getSessionFromRequest" | "publicUrl" | "allowedOrigins">;
   service: OfficeAgentService;
+  /** The agent's soul, memories and notes (#136; mind/routes.ts). */
+  mind: MindService;
 }
 
 const AGENT = `${OFFICE_AGENTS_API_PATH}/:id`;
 
-export function mountOfficeAgentRoutes(router: Router, deps: OfficeAgentRoutesDeps): void {
-  const { auth, service } = deps;
+export type PersonHandler = (
+  fn: (ctx: RouteContext, actor: OperationActor) => Promise<Response> | Response,
+  write?: boolean,
+) => (ctx: RouteContext) => Promise<Response>;
 
-  const handle =
-    (
-      fn: (ctx: RouteContext, actor: OperationActor) => Promise<Response> | Response,
-      write = false,
-    ) =>
-    async (ctx: RouteContext) => {
+/** A route for a signed-in person; a write also needs a same-origin request. */
+export function personHandler(auth: OfficeAgentRoutesDeps["auth"]): PersonHandler {
+  return (fn, write = false) =>
+    async (ctx) => {
       try {
         if (write) {
           const check = checkOrigin(ctx.request, auth.publicUrl, {
@@ -71,8 +76,15 @@ export function mountOfficeAgentRoutes(router: Router, deps: OfficeAgentRoutesDe
         throw err;
       }
     };
+}
+
+export function mountOfficeAgentRoutes(router: Router, deps: OfficeAgentRoutesDeps): void {
+  const { auth, service } = deps;
+
+  const handle = personHandler(auth);
   const id = (ctx: RouteContext) => ctx.params.id ?? "";
   const noContent = () => new Response(null, { status: 204 });
+  mountMindRoutes(router, handle, deps.mind);
 
   // Fixed paths before `/:id` ones.
   router.get(
