@@ -259,7 +259,8 @@ export class HermesExternalEngine implements OfficeAgentEngine {
     const agentId = run.agent.id;
     if (!ok) {
       if (was) this.options.logger.warn({ agentId }, "hermes gateway lost");
-      this.#emit({ type: "status", agentId, status: "error", reason: `${detail}. Trying again.` });
+      const reason = `${detail.charAt(0).toUpperCase()}${detail.slice(1)}. Trying again.`;
+      this.#emit({ type: "status", agentId, status: "error", reason });
       // Find out when it is back without waiting for the next slow probe.
       this.#schedule(run, this.#backoff(run.failures));
     } else if (!was) {
