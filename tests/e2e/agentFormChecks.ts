@@ -18,9 +18,10 @@ export async function checkAgentForm(page: Page, screenshotDir?: string) {
   await section.getByRole("button", { name: "New agent…" }).click();
   const form = section.getByRole("form", { name: "New agent" });
 
-  // Runs as: one option today, in view, with what it means.
+  // Runs as: in view, with what each choice means; a Claude Code session comes first.
   await expect(form.getByLabel("Runs as").locator("option")).toHaveText([
     "Claude Code session (runs here in the office)",
+    "Connect my existing Hermes agent",
   ]);
   await expect(form).toContainText("The program that runs this agent.");
   // Runs on: the owner's own login is there (this office cannot check it, so it is not ruled out).

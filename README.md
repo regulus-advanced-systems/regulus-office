@@ -139,6 +139,31 @@ An operation can run a review henchman whenever something happens on GitHub, and
 - **Discord** ([webhooks](https://docs.discord.com/developers/resources/webhook#execute-webhook)): the channel's *Edit Channel* → *Integrations* → *Webhooks* → *New Webhook* → *Copy Webhook URL* (`https://discord.com/api/webhooks/…`). Messages never ping anyone (`allowed_mentions` is empty).
 - **Telegram** ([Bot API](https://core.telegram.org/bots/api#sendmessage)): talk to [@BotFather](https://t.me/BotFather), `/newbot`, copy the token (`123456789:AA…`). Add the bot to the group (or as an admin of the channel), send `/start@<your_bot>` there (bots only see commands in groups by default), open `https://api.telegram.org/bot<token>/getUpdates` and copy `chat.id` (groups start with `-100`; public channels can use `@name`). In the office paste the token and the chat id.
 
+### Connect your own Hermes agent
+
+If you already run a [Hermes Agent](https://github.com/NousResearch/hermes-agent) (for example a personal assistant you talk to over Telegram), you can talk to the same agent in the office. The office connects to your running Hermes and becomes one more channel to it; Telegram and its other channels keep working. Hermes keeps its own model, keys and memory: the office stores only how to reach it.
+
+**In Hermes** (checked against Hermes 0.21.5, release `v2026.9.24`; see its [API server](https://hermes-agent.nousresearch.com/docs/user-guide/features/api-server) and [MCP](https://hermes-agent.nousresearch.com/docs/user-guide/features/mcp) docs):
+
+1. Turn on the API server: in `~/.hermes/.env` set `API_SERVER_ENABLED=true` and `API_SERVER_KEY` to a long random secret (`openssl rand -hex 32`; Hermes refuses a short one), then restart `hermes gateway`. It answers on `127.0.0.1:8642`. Check on that machine: `curl http://127.0.0.1:8642/health` says `"platform": "hermes-agent"`.
+2. Make it reachable from the office's server, not from your browser. If the office runs in Docker or on another machine, `127.0.0.1` is not your Hermes: set `API_SERVER_HOST` to an address the office can reach (and firewall the port to the office only), or use a private network or an HTTPS proxy. The key lets its holder run commands through your Hermes, so never expose the port to the internet unprotected.
+
+**In the office:** Settings → *Agents* → *New agent…* → *Runs as*: **Connect my existing Hermes agent**. Enter the address (e.g. `http://my-server:8642`, or `http://my-server:8642/p/<profile>` for a named profile) and the access token (the `API_SERVER_KEY`), press *Test connection*, then *Create agent*. Such an agent is always personal: only you can talk to it, and nobody else, admins included, can use or read its connection. The address and the token are stored encrypted (so `OFFICE_MASTER_KEY` must be set), are never shown again, logged or given to other agents; to change them use *Replace connection…* on the agent's card. The card shows whether your Hermes can be reached; when it goes away the office keeps trying and says so, and a message that could not be delivered is answered with the reason.
+
+**To let your Hermes use the office** (read operations, boards and queues, add tasks, comment, ask you a question): on the agent's card open *What it may do and where* → *Access codes for a program outside the office*, make a code, and add it to `~/.hermes/config.yaml`:
+
+```yaml
+mcp_servers:
+  office:
+    url: "https://<your office>/mcp"
+    headers:
+      Authorization: "Bearer <the access code>"
+```
+
+Then run `/reload-mcp` in Hermes or restart its gateway. With the code your Hermes acts in the office with exactly your rights and what you allowed under *What it may do*, from Telegram too; every call is checked and audited. Remove the code on the card to cut it off.
+
+**One conversation or two.** By default the office has its own Hermes session, so the office and Telegram are two conversations with one agent that shares its memory (`MEMORY.md`, `USER.md`, search over past sessions). Under *More* you may instead name one existing Hermes session to continue (its id from `hermes sessions list`): office messages are then written into that conversation. This is experimental: answers to office messages appear only in the office, the id changes when you start a new conversation in Hermes (`/new`), and it has not been tried against a live Telegram session.
+
 ### Backups and restore
 
 The `backup` service backs up the database every night at 03:00 UTC into `deploy/backups/` on the host (`OFFICE_BACKUP_HOST_DIR`, `OFFICE_BACKUP_TIME` and `OFFICE_BACKUP_RETENTION_DAYS` in `deploy/.env`), and once when it starts if the newest backup is more than a day old. That directory is not in the `office-data` volume, so deleting the volume (or `docker compose down -v`) leaves the backups alone. Each backup is a `sqlite3 .backup` snapshot, consistent while the office runs, that passed `PRAGMA integrity_check` before it was named `office-<UTC time>.db`; backups older than 14 days are deleted. The service runs the office image as uid 1000 with no network, no Docker socket, no secrets and a read-only root filesystem. `docker compose ps` shows it *unhealthy* when the newest backup is more than 26 hours old.
