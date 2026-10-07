@@ -1,8 +1,9 @@
 /**
  * Read-only probes for henchmen in the office scene (needs `?stats`, see probes.ts). Each henchman
  * is the group `henchman-<agentId>` (apps/web/src/scene/henchmen/Henchman.tsx), whose `userData`
- * carries the HenchmanState it draws (status, action, handRaised, seatId) and the animation it
- * resolved from them (clip name, seated or not).
+ * carries the HenchmanState it draws (status, action, handRaised, seatId, its name and bubble) and
+ * the animation it resolved from them (clip name, seated or not). The label over it is the group
+ * `agent-overhead-<agentId>` (apps/web/src/scene/agentBubble/AgentOverhead.tsx).
  */
 import type { Page, WebSocket } from "@playwright/test";
 
@@ -16,6 +17,42 @@ export interface HenchmanProbe {
   animation: string;
   seated: boolean;
   seatId: string;
+  /** The henchman's own name and the bubble the server published for it (#256). */
+  name: string;
+  bubbleKind: string;
+  bubbleText: string;
+}
+
+/** The label drawn over a henchman for this viewer: name tag and bubble (#256). */
+export interface OverheadProbe {
+  name: string;
+  bubbleKind: string;
+  bubbleText: string;
+  /** A click on the bubble opens something. */
+  clickable: boolean;
+}
+
+/** What the page draws over one henchman, or null while it draws no label. */
+export function overhead(page: Page, agentId: string): Promise<OverheadProbe | null> {
+  return page.evaluate((id) => {
+    type Obj = { userData: Record<string, unknown> };
+    const r3f = (
+      window as unknown as {
+        __regulusR3F?: { scene: { getObjectByName(n: string): Obj | undefined } };
+      }
+    ).__regulusR3F;
+    const o = r3f?.scene.getObjectByName(`agent-overhead-${id}`);
+    return o ? (o.userData as unknown as OverheadProbe) : null;
+  }, agentId);
+}
+
+/** Distinct `kind: text` bubbles of one henchman, in the order the page received them. */
+export function bubbles(page: Page, agentId: string): Promise<string[]> {
+  return page.evaluate(
+    (id) =>
+      (window as unknown as { __bubbleLog?: Record<string, string[]> }).__bubbleLog?.[id] ?? [],
+    agentId,
+  );
 }
 
 /** Every henchman the page draws, keyed by agent id. */
@@ -78,11 +115,15 @@ export function history(page: Page): Promise<string[]> {
  * `?stats` publishes, apps/web/src/scene/perf/stats.ts). The store is updated on every state
  * patch, so a state that lasted one patch is in the log even when the page drew no frame and
  * React rendered no commit while it lasted (a software-rendered CI page draws 1-3 fps, #179).
- * Called by {@link recordHenchmen}; read with {@link statuses}.
+ * Called by {@link recordHenchmen}; read with {@link statuses}, and the bubble texts with {@link bubbles}.
  */
 async function recordStatuses(page: Page): Promise<void> {
   await page.evaluate(() => {
-    type Henchman = { status: string; action: string };
+    type Henchman = {
+      status: string;
+      action: string;
+      bubble?: { kind: string; text: string };
+    };
     type Snapshot = { state: { henchmen: Record<string, Henchman> } | null };
     const w = window as unknown as {
       __regulusOperationStore?: {
@@ -90,6 +131,7 @@ async function recordStatuses(page: Page): Promise<void> {
         subscribe(listener: (s: Snapshot) => void): () => void;
       };
       __statusLog?: Record<string, string[]>;
+      __bubbleLog?: Record<string, string[]>;
       __statusUnsubscribe?: () => void;
     };
     const store = w.__regulusOperationStore;
@@ -97,11 +139,18 @@ async function recordStatuses(page: Page): Promise<void> {
     w.__statusUnsubscribe?.();
     const log: Record<string, string[]> = {};
     w.__statusLog = log;
+    const said: Record<string, string[]> = {};
+    w.__bubbleLog = said;
     const take = (s: Snapshot) => {
       for (const [agentId, r] of Object.entries(s.state?.henchmen ?? {})) {
         const entry = `${r.status}/${r.action}`;
         const list = (log[agentId] ??= []);
         if (list[list.length - 1] !== entry) list.push(entry);
+        // What the bubble over it said (#256), same order.
+        const words =
+          r.bubble && r.bubble.kind !== "none" ? `${r.bubble.kind}: ${r.bubble.text}` : "";
+        const heard = (said[agentId] ??= []);
+        if (words && heard[heard.length - 1] !== words) heard.push(words);
       }
     };
     take(store.getState());

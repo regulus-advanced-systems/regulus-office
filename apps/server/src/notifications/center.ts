@@ -67,6 +67,7 @@ const defaultSchedule: Schedule = (fn, ms) => {
 function snapshotOf(view: HenchmanSnapshot): HenchmanSnapshot {
   const {
     agentId,
+    name,
     operationId,
     repoId,
     ownerUserId,
@@ -78,6 +79,7 @@ function snapshotOf(view: HenchmanSnapshot): HenchmanSnapshot {
   } = view;
   return {
     agentId,
+    name,
     operationId,
     repoId,
     ownerUserId,
@@ -187,7 +189,7 @@ export class NotificationCenter {
       operationName: directory.operationName(henchman.operationId),
       ownerUserId: henchman.ownerUserId,
       ownerName: henchman.ownerName,
-      henchmanName: henchmanDisplayName(henchman.ownerName, henchman.provider),
+      henchmanName: henchmanDisplayName(henchman.ownerName, henchman.provider, henchman.name),
       provider: henchman.provider,
       taskTitle: henchman.taskTitle.slice(0, 200),
       prNumber: henchman.prNumber,

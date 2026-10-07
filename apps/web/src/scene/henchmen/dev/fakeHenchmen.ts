@@ -7,14 +7,61 @@
 
 import {
   type AgentAction,
+  type AgentBubble,
   type AgentStatus,
   HENCHMAN_SKIN_IDS,
   type HenchmanState,
+  NO_AGENT_BUBBLE,
   PROVIDER_IDS,
 } from "@regulus/protocol";
 import type { RoomTemplate } from "@regulus/room-layout";
 
 const OWNERS = ["Ante", "Mia", "Olga", "Linus"];
+const FAKE_NAMES = ["Gasket", "Rivet", "Klaxon", "Shim", "Dowel", "Soot", "Fuse", "Winch"];
+const FILES = ["auth.ts", "room.tsx", "schema.sql", "README.md", "index.ts"];
+
+/** The bubble the server would publish for a fake's status and action (#256). */
+function fakeBubble(
+  agentId: string,
+  status: AgentStatus,
+  action: AgentAction,
+  i: number,
+): AgentBubble {
+  const file = FILES[i % FILES.length] as string;
+  const doing = (text: string): AgentBubble => ({
+    kind: "doing",
+    text,
+    targetKind: "none",
+    targetId: "",
+  });
+  const terminal = { targetKind: "terminal", targetId: agentId } as const;
+  switch (status) {
+    case "starting":
+      return doing("starting up");
+    case "working":
+      if (action === "reading") return doing(`reading ${file}`);
+      if (action === "editing") return doing(`editing ${file}`);
+      if (action === "thinking") return doing("thinking");
+      if (action === "running_tests") return doing("running tests");
+      if (action === "failing") return doing("hit a snag");
+      return doing(i % 2 ? "running git" : "writing a reply");
+    case "waiting_permission":
+      return {
+        kind: "needs_you",
+        text: "waiting for you: approve a command",
+        targetKind: "permission",
+        targetId: agentId,
+      };
+    case "waiting_input":
+      return { kind: "needs_you", text: "waiting for you: answer a question", ...terminal };
+    case "done":
+      return { kind: "answer_ready", text: "finished: take a look", ...terminal };
+    case "error":
+      return { kind: "needs_you", text: "hit an error: take a look", ...terminal };
+    default:
+      return NO_AGENT_BUBBLE;
+  }
+}
 const MODELS = ["opus", "gpt-5-codex", "sonnet"];
 /** Status/action pairs the "mixed" mode rotates through. */
 const SHOWREEL: ReadonlyArray<[AgentStatus, AgentAction]> = [
@@ -33,12 +80,33 @@ const SHOWREEL: ReadonlyArray<[AgentStatus, AgentAction]> = [
 /**
  * working: all typing/reading; mixed: the showreel; waiting: hands up; idle:
  * all idle (should sit still, #159); flap: working/typing and idle/none
- * alternating every tick (the animation should not follow it, #159).
+ * alternating every tick (the animation should not follow it, #159); day: an ordinary
+ * day, most at work, one asking, one with a question, one done, one idle (the bubbles, #256).
  */
-export type HarnessMode = "working" | "mixed" | "waiting" | "idle" | "flap";
+export type HarnessMode = "working" | "mixed" | "waiting" | "idle" | "flap" | "day";
+
+/** The "day" mode's cast, repeated along the desks. */
+const DAY: ReadonlyArray<[AgentStatus, AgentAction]> = [
+  ["working", "reading"],
+  ["working", "typing"],
+  ["waiting_permission", "none"],
+  ["working", "editing"],
+  ["working", "running_tests"],
+  ["done", "none"],
+  ["working", "thinking"],
+  ["idle", "none"],
+  ["working", "editing"],
+  ["waiting_input", "none"],
+  ["working", "typing"],
+  ["working", "reading"],
+];
 
 export function harnessMode(value: string | null): HarnessMode {
-  return value === "mixed" || value === "waiting" || value === "idle" || value === "flap"
+  return value === "mixed" ||
+    value === "waiting" ||
+    value === "idle" ||
+    value === "flap" ||
+    value === "day"
     ? value
     : "working";
 }
@@ -51,6 +119,8 @@ function pairFor(mode: HarnessMode, i: number, tick: number): [AgentStatus, Agen
       return ["waiting_permission", "none"];
     case "idle":
       return ["idle", "none"];
+    case "day":
+      return DAY[i % DAY.length] as [AgentStatus, AgentAction];
     case "flap":
       return tick % 2 === 0 ? ["working", "typing"] : ["idle", "none"];
     default:
@@ -83,6 +153,7 @@ export function fakeHenchmen(
     const owner = OWNERS[i % OWNERS.length] as string;
     out[agentId] = {
       agentId,
+      name: FAKE_NAMES[i % FAKE_NAMES.length] as string,
       ownerUserId: `user-${owner}`,
       ownerName: owner,
       repoId: "r1",
@@ -103,7 +174,7 @@ export function fakeHenchmen(
       issueNumber: 0,
       prNumber: 0,
       worktreeBranch: "",
-      handRaised: status === "waiting_permission",
+      handRaised: status === "waiting_permission" || status === "waiting_input",
       statusReason: status === "error" ? "demo: a fake failure" : "",
       skin:
         looks.skins === "mixed"
@@ -115,6 +186,7 @@ export function fakeHenchmen(
         testRuns: Math.floor(count / 5),
         toolFailures: Math.floor(count / 11),
       },
+      bubble: fakeBubble(agentId, status, action, i),
       lastActivityAt: 0,
     };
   });

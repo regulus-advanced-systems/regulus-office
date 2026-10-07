@@ -39,6 +39,7 @@ const operationState = (henchmen: Record<string, HenchmanState> = {}): Operation
 
 const henchman = (seatId: string, ownerUserId: string): HenchmanState => ({
   agentId: "a-new",
+  name: "Gasket",
   ownerUserId,
   ownerName: "Ante",
   repoId: "r1",
@@ -58,6 +59,7 @@ const henchman = (seatId: string, ownerUserId: string): HenchmanState => ({
   statusReason: "",
   skin: "standard",
   bubbleEmits: { toolCalls: 0, fileEdits: 0, testRuns: 0, toolFailures: 0 },
+  bubble: { kind: "doing", text: "starting up", targetKind: "none", targetId: "" },
   lastActivityAt: 0,
 });
 

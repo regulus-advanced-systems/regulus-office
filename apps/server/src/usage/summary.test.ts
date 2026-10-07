@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { BuildingStateSchema, MyUsage, UsageSummary } from "@regulus/protocol";
+import { eq } from "drizzle-orm";
+import { agents } from "../db/schema/index.ts";
 import { applyUsageSummary, sameUsage } from "./room-state.ts";
 import { localDayStart, UsageSummaries } from "./summary.ts";
 import { usage, usageDb } from "./testing.ts";
@@ -80,6 +82,12 @@ describe("per-viewer privacy", () => {
       ["Ada's Codex henchman", "Ada", 1_000],
       ["Bob's Claude Code henchman", "Bob", 500],
     ]);
+    // A named henchman shows its own name first, still with whose it is (#256).
+    const f = office();
+    f.db.update(agents).set({ name: "Gasket" }).where(eq(agents.id, "ada-1")).run();
+    expect(f.summaries.office().topHenchmen.map((r) => r.name)).toContain(
+      "Gasket, Ada's Codex henchman",
+    );
     for (const r of s.topHenchmen) {
       expect(Object.keys(r).sort()).toEqual(["agentId", "name", "ownerName", "provider", "tokens"]);
     }

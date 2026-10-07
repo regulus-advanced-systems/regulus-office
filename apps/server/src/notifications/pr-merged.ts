@@ -51,6 +51,7 @@ function henchmenWithPull(db: Db, repoIds: string[], prNumber: number): Henchman
   return db
     .select({
       agentId: agents.id,
+      name: agents.name,
       operationId: agents.operationId,
       repoId: agents.repoId,
       ownerUserId: agents.ownerUserId,

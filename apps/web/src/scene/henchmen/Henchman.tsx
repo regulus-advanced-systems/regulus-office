@@ -2,6 +2,7 @@
  * One henchman at its desk (SPEC §9.3): a henchman (#184) seated at the seat
  * pose, in its resolved skin with its provider's trim, status light by
  * status, raised hand while waiting,
+ * its name and bubble words in `userData` for the probes (drawn by the layer, #256),
  * animation from status/action (one-shots settle back into the chair),
  * papers while reading, a spin when it celebrates, a dance in its chair
  * when the merge gong rings (#43, cheer.ts). Clicking it opens the
@@ -114,6 +115,9 @@ function HenchmanImpl({
         seatId: henchman.seatId,
         cheering: cheer,
         skin: henchman.skin,
+        name: henchman.name,
+        bubbleKind: henchman.bubble.kind,
+        bubbleText: henchman.bubble.text,
       }}
       position={[place.position[0], place.position[1], place.position[2]]}
       rotation-y={place.rotationY}
@@ -151,5 +155,8 @@ export const Henchman = memo(
     a.henchman.action === b.henchman.action &&
     a.henchman.handRaised === b.henchman.handRaised &&
     a.henchman.provider === b.henchman.provider &&
+    a.henchman.name === b.henchman.name &&
+    a.henchman.bubble.kind === b.henchman.bubble.kind &&
+    a.henchman.bubble.text === b.henchman.bubble.text &&
     a.henchman.skin === b.henchman.skin,
 );

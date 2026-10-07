@@ -154,6 +154,7 @@ export class UsageSummaries {
       .select({
         agentId: usageSamples.agentId,
         provider: agents.provider,
+        henchmanName: agents.name,
         ownerName: sql<string | null>`coalesce(${userProfiles.displayName}, ${users.name})`,
         tokens: tokenSum,
       })
@@ -172,7 +173,7 @@ export class UsageSummaries {
       return [
         {
           agentId: r.agentId,
-          name: henchmanDisplayName(ownerName, r.provider).slice(0, 120),
+          name: henchmanDisplayName(ownerName, r.provider, r.henchmanName).slice(0, 120),
           ownerName,
           provider: r.provider,
           tokens: Number(r.tokens),

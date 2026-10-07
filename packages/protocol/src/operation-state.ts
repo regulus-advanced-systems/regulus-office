@@ -4,6 +4,7 @@
  * zod objects; the Colyseus classes in ./schema mirror them field-for-field.
  */
 import { z } from "zod";
+import { AGENT_NAME_MAX, AgentBubble } from "./agent-bubble.ts";
 import { Count, GhNumber, Id, TimestampMs } from "./common.ts";
 import {
   AGENT_ACTIONS,
@@ -31,6 +32,11 @@ export type BubbleEmits = z.infer<typeof BubbleEmits>;
 /** One henchman (agent) at a desk. Keyed by agent id in `OperationState.henchmen`. */
 export const HenchmanState = z.object({
   agentId: Id,
+  /**
+   * The henchman's own name (D29, #256): given at spawn, unique among the henchmen at a
+   * desk, kept for life. "" only for a row the server has not named yet.
+   */
+  name: z.string().max(AGENT_NAME_MAX),
   ownerUserId: Id,
   ownerName: z.string().max(64),
   repoId: Id,
@@ -60,6 +66,8 @@ export const HenchmanState = z.object({
   /** Henchman skin (#184), resolved by the OperationRoom from the admin's `skin_rules`. */
   skin: z.enum(HENCHMAN_SKIN_IDS),
   bubbleEmits: BubbleEmits,
+  /** What it is doing, or that it needs its human (agent-bubble.ts, #256). */
+  bubble: AgentBubble,
   lastActivityAt: TimestampMs,
 });
 export type HenchmanState = z.infer<typeof HenchmanState>;

@@ -20,6 +20,12 @@ export const agents = sqliteTable(
   "agents",
   {
     id: id(),
+    /**
+     * The henchman's own name (D29, #256): given with the desk at spawn, unique among the
+     * henchmen at a desk, never changed afterwards. "" only on rows from before it, which
+     * the AgentStore names on first sight.
+     */
+    name: text("name").notNull().default(""),
     operationId: text("operation_id")
       .notNull()
       .references(() => operations.id, { onDelete: "cascade" }),

@@ -36,6 +36,7 @@ export interface OperationSnapshot {
 
 export function writeHenchman(target: HenchmanSchema, henchman: HenchmanState): HenchmanSchema {
   target.agentId = henchman.agentId;
+  target.name = henchman.name;
   target.ownerUserId = henchman.ownerUserId;
   target.ownerName = henchman.ownerName;
   target.repoId = henchman.repoId;
@@ -58,6 +59,10 @@ export function writeHenchman(target: HenchmanSchema, henchman: HenchmanState): 
   target.bubbleEmits.fileEdits = henchman.bubbleEmits.fileEdits;
   target.bubbleEmits.testRuns = henchman.bubbleEmits.testRuns;
   target.bubbleEmits.toolFailures = henchman.bubbleEmits.toolFailures;
+  target.bubble.kind = henchman.bubble.kind;
+  target.bubble.text = henchman.bubble.text;
+  target.bubble.targetKind = henchman.bubble.targetKind;
+  target.bubble.targetId = henchman.bubble.targetId;
   target.lastActivityAt = henchman.lastActivityAt;
   return target;
 }

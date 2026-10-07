@@ -61,6 +61,7 @@ function setup() {
     db.update(agents).set({ status }).where(eq(agents.id, agentId)).run();
     return {
       agentId,
+      name: agentId === "a1" ? "Gasket" : "",
       operationId: `operation-${operation}`,
       repoId: `repo-${operation}`,
       ownerUserId: member.id,
@@ -134,7 +135,8 @@ describe("personal notifications", () => {
       event: "needs_input",
       agentId: "a1",
       operationName: "Web app",
-      henchmanName: "Mia's Codex henchman",
+      // Its own name first (#256), then whose it is.
+      henchmanName: "Gasket, Mia's Codex henchman",
       taskTitle: "Fix the login page",
       own: true,
     });

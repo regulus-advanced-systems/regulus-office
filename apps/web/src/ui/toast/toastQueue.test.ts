@@ -76,3 +76,15 @@ describe("toast queue reducer", () => {
     expect(nextExpiryDelay(s, 150)).toBe(0);
   });
 });
+
+test("a toast keeps the button it was pushed with (#256)", () => {
+  let ran = 0;
+  const open = { label: "Take me there", run: () => ran++ };
+  let state = reduceToasts(createToastQueue(), { type: "push", toast: { message: "a", open } }, 0);
+  state = reduceToasts(state, { type: "push", toast: { message: "b" } }, 0);
+  const [first, second] = visibleToasts(state);
+  expect(first?.open).toBe(open);
+  expect(second?.open).toBeUndefined();
+  first?.open?.run();
+  expect(ran).toBe(1);
+});

@@ -9,6 +9,7 @@ import { canTransition, handRaised, isLive, transition } from "./state-machine.t
 function view(overrides: Partial<AgentView> = {}): AgentView {
   return {
     agentId: "a1",
+    name: "Gasket",
     operationId: "f1",
     repoId: "r1",
     seatId: "seat-1",
@@ -30,6 +31,9 @@ function view(overrides: Partial<AgentView> = {}): AgentView {
     bubbles: { toolCalls: 0, fileEdits: 0, testRuns: 0, toolFailures: 0 },
     seenCalls: new Set(),
     failedCalls: new Set(),
+    activity: "",
+    ask: "",
+    announce: "",
     ...overrides,
   };
 }

@@ -14,9 +14,20 @@ export const BubbleEmitsSchema = schema(
   "BubbleEmits",
 );
 
+export const AgentBubbleSchema = schema(
+  {
+    kind: t.string().default("none"),
+    text: t.string().default(""),
+    targetKind: t.string().default("none"),
+    targetId: t.string().default(""),
+  },
+  "AgentBubble",
+);
+
 export const HenchmanStateSchema = schema(
   {
     agentId: t.string().default(""),
+    name: t.string().default(""),
     ownerUserId: t.string().default(""),
     ownerName: t.string().default(""),
     repoId: t.string().default(""),
@@ -36,6 +47,7 @@ export const HenchmanStateSchema = schema(
     statusReason: t.string().default(""),
     skin: t.string().default("standard"),
     bubbleEmits: BubbleEmitsSchema,
+    bubble: AgentBubbleSchema,
     lastActivityAt: t.number().default(0),
   },
   "HenchmanState",

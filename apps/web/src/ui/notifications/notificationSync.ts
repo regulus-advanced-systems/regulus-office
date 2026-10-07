@@ -2,7 +2,7 @@
  * Folds the server's notification messages into the browser (#42):
  * `notify.attention` sets the tab badge, `notify.event` raises a desktop
  * notification (or a toast while the office tab has focus) when my
- * preferences and quiet hours allow. Preferences and the badge are
+ * preferences and quiet hours allow; a click on either goes to the henchman. Preferences and the badge are
  * (re)loaded over REST whenever the building connection comes up, because a
  * room message sent before the client listens would be lost.
  */
@@ -70,6 +70,8 @@ export function startNotificationSync(deps: NotificationSyncDeps): () => void {
       kind: ev.event === "error" ? "warning" : "info",
       title: notificationTitle(ev),
       message: notificationBody(ev) || " ",
+      // The toast takes you there too: the henchman's room and its request (#256).
+      open: { label: "Take me there", run: open },
     });
   };
 

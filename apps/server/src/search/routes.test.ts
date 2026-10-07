@@ -14,7 +14,7 @@ import {
 import { eq } from "drizzle-orm";
 import { TokenBucketLimiter } from "../auth/rate-limit.ts";
 import { type Office, startOffice } from "../auth/test-helpers.ts";
-import { userProfiles } from "../db/schema/index.ts";
+import { agents, userProfiles } from "../db/schema/index.ts";
 import { dbOperationVisibility, decideTerminalAccess } from "../terminals/acl.ts";
 import { mountSearchRoutes } from "./routes.ts";
 import { Searcher } from "./searcher.ts";
@@ -144,6 +144,14 @@ describe("ACL matrix", () => {
       henchmanName: "task a1",
       ownerName: "Rob",
     });
+    // A named henchman is found under its own name, its owner next to it (#256).
+    office.db.update(agents).set({ name: "Gasket" }).where(eq(agents.id, "a1")).run();
+    const named = (await (await search(users.member, "needle")).json()) as SearchResponse;
+    expect(named.groups.find((g) => g.key === "henchman:a1")).toMatchObject({
+      henchmanName: "Gasket",
+      ownerName: "Rob",
+    });
+    office.db.update(agents).set({ name: "" }).where(eq(agents.id, "a1")).run();
     const segments = henchman?.hits[0]?.snippet ?? [];
     expect(segments.filter((s) => s.hit).map((s) => s.text)).toEqual(["needle"]);
     expect(segments.map((s) => s.text).join("")).toContain("needle found by a1");

@@ -15,6 +15,8 @@ const sample = (kind: ToastKind, i: number): Toast => ({
   message:
     kind === "error" ? "Sticky until dismissed." : `Auto-dismisses; ${kind} styling with an icon.`,
   durationMs: 0,
+  // The info sample shows the button a "needs you" notification carries (#256).
+  open: kind === "info" ? { label: "Take me there", run: () => {} } : undefined,
   createdAt: 0,
   shownAt: 0,
 });

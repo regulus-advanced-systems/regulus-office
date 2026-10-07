@@ -28,9 +28,11 @@ import {
   sh,
 } from "./agentOffice.ts";
 import {
+  bubbles,
   collectTerminalOutput,
   henchmen,
   history,
+  overhead,
   recordHenchmen,
   scenePoint,
   statuses,
@@ -84,6 +86,8 @@ let adminPage: Page;
 let ownerTerminal: { text(): string };
 let ownerId = "";
 let agentId = "";
+/** The name the henchman got at spawn (#256); it must still have it after the restart. */
+let henchmanName = "";
 let seatId = "";
 /** The human's clone of the operation repo that holds the agent's branch (its git common dir). */
 let cloneGitDir = "";
@@ -437,6 +441,55 @@ test("3b. the henchman's bones move while it works and hold still while it waits
   for (const s of calm) expect(s.maxDeg, report).toBeLessThan(0.1);
 });
 
+test("3c. the henchman has a name of its own and a bubble that says what it is doing (#256)", async () => {
+  const mine = await henchmanOn(ownerPage);
+  henchmanName = mine?.name ?? "";
+  // A name from the office's own list, the same for everyone in the room.
+  expect(henchmanName).toMatch(/^[A-Z][a-z]+( \d+)?$/);
+  expect((await henchmanOn(memberPage))?.name).toBe(henchmanName);
+
+  // The bubble followed the fake: thinking, the edit (the file's base name, not its path), then
+  // the request, worded from the tool's name only.
+  const said = await bubbles(ownerPage, agentId);
+  const asks = "needs_you: waiting for you: approve an edit";
+  expect(said).toContain("doing: thinking");
+  expect(said).toContain("doing: editing FAKE_CLAUDE.md");
+  expect(said.at(-1)).toBe(asks);
+  expect(said.indexOf("doing: thinking")).toBeLessThan(
+    said.indexOf("doing: editing FAKE_CLAUDE.md"),
+  );
+  expect(said.indexOf("doing: editing FAKE_CLAUDE.md")).toBeLessThan(said.indexOf(asks));
+  expect(said.join("\n")).not.toContain("/");
+
+  // Drawn over the henchman: its name and the bubble; the owner reads "waiting for you", the
+  // member reads who it waits for.
+  await expect
+    .poll(() => overhead(ownerPage, agentId))
+    .toEqual({
+      name: henchmanName,
+      bubbleKind: "needs_you",
+      bubbleText: "waiting for you: approve an edit",
+      clickable: true,
+    });
+  await expect
+    .poll(async () => (await overhead(memberPage, agentId))?.bubbleText)
+    .toBe(`waiting for ${owner.name}: approve an edit`);
+
+  // A click on the bubble opens the request: the owner closes the prompt, then clicks the bubble.
+  await ownerPage.bringToFront();
+  const prompt = ownerPage.getByRole("dialog", { name: "Permission needed" });
+  await expect(prompt).toBeVisible();
+  await ownerPage.keyboard.press("Escape");
+  await expect(prompt).toHaveCount(0);
+  await expect(async () => {
+    const point = await scenePoint(ownerPage, `agent-bubble-${agentId}`);
+    if (!point) throw new Error("the bubble is not in the scene");
+    // The sprite hangs from its bottom edge: aim a little above it.
+    await ownerPage.mouse.click(point.x, point.y - 10);
+    await expect(prompt).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 30_000 });
+});
+
 test("4. the permission prompt reaches the owner, not the member nor an admin", async () => {
   // A fresh request opens the prompt for the henchman's owner by itself.
   const prompt = ownerPage.getByRole("dialog", { name: "Permission needed" });
@@ -488,6 +541,8 @@ test("5. the owner approves; the henchman commits and finishes", async () => {
         return r && { status: r.status, handRaised: r.handRaised };
       })
       .toEqual({ status: "done", handRaised: false });
+    // The bubble went from the request back to work and now has an answer ready (#256).
+    expect((await bubbles(page, agentId)).at(-1)).toBe("answer_ready: finished: take a look");
   }
   await expect
     .poll(() => history(ownerPage))
@@ -553,6 +608,15 @@ test("6. Open PR pushes the branch and sends a correct PR to GitHub", async () =
   await expect(ownerPage.locator('section.rg-agent-panel [data-key="pull request"] dd')).toHaveText(
     "#1",
   );
+  // The bubble says so, for everyone in the room (#256).
+  for (const page of [ownerPage, memberPage]) {
+    await expect
+      .poll(async () => {
+        const r = await henchmanOn(page);
+        return r && `${r.bubbleKind}: ${r.bubbleText}`;
+      })
+      .toBe("answer_ready: opened PR #1");
+  }
 });
 
 test("6b. the changes window: the owner commits and discards, a member watches (#38)", async () => {
@@ -610,6 +674,10 @@ test("7. after an office-server restart the henchman and its tmux session are st
         return r && { status: r.status, seatId: r.seatId, seated: r.seated };
       })
       .toEqual({ status: "done", seatId, seated: true });
+    // It kept its name over the restart (#256), and a done henchman still says so.
+    const after = await henchmanOn(page);
+    expect(after?.name).toBe(henchmanName);
+    expect(after?.bubbleKind).toBe("answer_ready");
   }
 
   // Its terminal still opens and shows the agent's screen (scrollback over the socket).

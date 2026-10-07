@@ -36,6 +36,11 @@ export interface UiSettings {
   pushToTalk: boolean;
   /** Microphone to use; "" = the browser's default (#48). */
   micDeviceId: string;
+  /**
+   * Bubbles over henchmen that say what they are doing (#256). Off hides those;
+   * "needs you" and "answer ready" bubbles always show.
+   */
+  activityBubbles: boolean;
 }
 
 export const SETTINGS_STORAGE_KEY = "regulus.ui.settings.v1";
@@ -51,6 +56,7 @@ export const DEFAULT_SETTINGS: Readonly<UiSettings> = {
   voiceVolume: 1,
   pushToTalk: false,
   micDeviceId: "",
+  activityBubbles: true,
 };
 
 export interface StorageLike {
@@ -94,6 +100,8 @@ export function parseSettings(raw: string | null | undefined): UiSettings {
       typeof o.micDeviceId === "string" && o.micDeviceId.length <= 256
         ? o.micDeviceId
         : DEFAULT_SETTINGS.micDeviceId,
+    activityBubbles:
+      typeof o.activityBubbles === "boolean" ? o.activityBubbles : DEFAULT_SETTINGS.activityBubbles,
   };
 }
 

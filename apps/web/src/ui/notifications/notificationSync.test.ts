@@ -106,6 +106,11 @@ describe("notification sync", () => {
       kind: "warning",
       title: "Mia's Codex henchman hit an error",
     });
+    // The toast takes you there too (#256): its button goes to the henchman.
+    expect(fg.visited).toEqual([]);
+    expect(fg.toasts[0]?.open?.label).toBe("Take me there");
+    fg.toasts[0]?.open?.run();
+    expect(fg.visited).toEqual(["a1"]);
     fg.stop();
   });
 

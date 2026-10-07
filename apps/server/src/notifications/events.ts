@@ -8,6 +8,8 @@ import type { AgentStatus, NotificationEvent, ProviderId } from "@regulus/protoc
 /** The slice of an AgentView (agents/manager/henchman.ts) notifications read. */
 export interface HenchmanSnapshot {
   agentId: string;
+  /** The henchman's own name (#256); "" for one not named yet. */
+  name: string;
   operationId: string;
   repoId: string;
   ownerUserId: string;

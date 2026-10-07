@@ -104,7 +104,7 @@ export function TerminalModal({
   }, [element, inControl]);
 
   const title = henchman
-    ? `${henchman.ownerName}'s henchman: ${henchman.taskTitle || henchman.model}`
+    ? `${henchman.name ? `${henchman.name}, ` : ""}${henchman.ownerName}'s henchman: ${henchman.taskTitle || henchman.model}`
     : "Terminal";
   return (
     <Modal

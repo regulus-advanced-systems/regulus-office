@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { SecretsError } from "./errors.ts";
-import { REDACTED, redact } from "./redact.ts";
+import { REDACTED, redact, redactText } from "./redact.ts";
 
 describe("redact", () => {
   test("replaces strings and byte buffers entirely", () => {
@@ -67,5 +67,17 @@ describe("redact", () => {
       keyVersion: 4,
     });
     expect(redact(new Error("contains sk-FAKE"))).toEqual({ name: "Error", message: REDACTED });
+  });
+});
+
+describe("redactText", () => {
+  test("keeps the sentence and replaces keys, env values, paths and token-like runs", () => {
+    expect(redactText("reading auth.ts")).toBe("reading auth.ts");
+    expect(redactText("used sk-ant-api03-abcdefgh12345678 today")).toBe("used [redacted] today");
+    expect(redactText("OPENAI_API_KEY=abc123 ran")).toBe("OPENAI_API_KEY=[redacted] ran");
+    expect(redactText("open /home/ada/.ssh/id_rsa now")).toBe("open <path> now");
+    expect(redactText(`id ${"a".repeat(40)}`)).toBe("id [redacted]");
+    const once = redactText("TOKEN=x /etc/passwd ghp_abcdefgh12345678");
+    expect(redactText(once)).toBe(once);
   });
 });

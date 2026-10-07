@@ -47,10 +47,14 @@ const PROVIDER_NAMES: Record<ProviderId, string> = {
   custom: "Custom",
 };
 
-/** How notifications name a henchman: "Ada's Codex henchman". */
-export function henchmanDisplayName(ownerName: string, provider: ProviderId): string {
+/**
+ * How notifications and the usage wall name a henchman: its own name (#256) with
+ * whose it is, "Gasket, Ada's Codex henchman"; without a name, "Ada's Codex henchman".
+ */
+export function henchmanDisplayName(ownerName: string, provider: ProviderId, name = ""): string {
   const who = ownerName.trim() || "Someone";
-  return `${who}'s ${PROVIDER_NAMES[provider] ?? "henchman"} henchman`;
+  const whose = `${who}'s ${PROVIDER_NAMES[provider] ?? "henchman"} henchman`;
+  return name.trim() ? `${name.trim()}, ${whose}` : whose;
 }
 
 // ---- Personal notifications ------------------------------------------------

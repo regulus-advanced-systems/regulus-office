@@ -26,6 +26,8 @@ export type SpawnInput = Omit<z.output<typeof SpawnAgentCommand>, "type">;
 
 export interface AdmittedSpawn {
   agentId: string;
+  /** The henchman's name, given with its desk and kept for life (#256). */
+  name: string;
   seatId: string;
   taskTitle: string;
 }
@@ -68,7 +70,7 @@ export function admitSpawn(
   // An empty prompt is allowed: the henchman starts idle and waits (#142).
   const issueTitle = input.issueNumber ? `Issue #${input.issueNumber}` : "";
   const taskTitle = (input.taskTitle || input.prompt.split("\n")[0] || issueTitle).slice(0, 200);
-  const seatId = deps.store.insertWithDesk(
+  const { seatId, name } = deps.store.insertWithDesk(
     {
       id: agentId,
       operationId: input.operationId,
@@ -106,10 +108,11 @@ export function admitSpawn(
     operationId: input.operationId,
     repoId: input.repoId,
     seatId,
+    name,
     provider: input.provider,
     model: input.model,
     permissionMode,
     profileId,
   });
-  return { agentId, seatId, taskTitle };
+  return { agentId, name, seatId, taskTitle };
 }
