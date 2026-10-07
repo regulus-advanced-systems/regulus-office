@@ -54,7 +54,10 @@ export const HenchmanState = z.object({
   issueNumber: Count,
   prNumber: Count,
   worktreeBranch: z.string().max(200),
-  /** True while waiting for permission or input (raised-hand animation). */
+  /**
+   * True while waiting for permission or input (the ding, the "needs you" pose). The hand a
+   * done henchman holds up is not this: it follows its `answer_ready` bubble (#235).
+   */
   handRaised: z.boolean(),
   /**
    * Why the henchman is in `error`, e.g. `runner_busy: the runner has live work …`: a short

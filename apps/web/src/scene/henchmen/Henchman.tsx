@@ -1,10 +1,11 @@
 /**
  * One henchman at its desk (SPEC §9.3): a henchman (#184) seated at the seat
  * pose, in its resolved skin with its provider's trim, status light by
- * status, raised hand while waiting,
+ * status, one hand held up while it is done and has not been looked at, both
+ * arms waving while it waits for its human (#235, `gestureFor`),
  * its name and bubble words in `userData` for the probes (drawn by the layer, #256),
  * animation from status/action (one-shots settle back into the chair),
- * papers while reading, a spin when it celebrates, a dance in its chair
+ * papers while reading, a spin on an explicit celebration, a dance in its chair
  * when the merge gong rings (#43, cheer.ts). Clicking it opens the
  * henchman panel (#33). Henchmen with a `HenchmanOverride` (the walk home) are drawn
  * by their override owner instead, not here.
@@ -17,12 +18,7 @@ import type { Group } from "three";
 import type { SitAnchor } from "../avatar/seatedFit.ts";
 import { HenchmanAvatar } from "../henchmen/HenchmanAvatar.tsx";
 import { HENCHMAN_SEATED_BODY } from "../henchmen/seatedFit.ts";
-import {
-  calmFor,
-  henchmanAnimationFor,
-  henchmanLookFor,
-  raisedHandFor,
-} from "./henchmanAnimation.ts";
+import { calmFor, gestureFor, henchmanAnimationFor, henchmanLookFor } from "./henchmanAnimation.ts";
 import { henchmanSkinLook } from "./henchmanLook.ts";
 import { henchmanPlacement } from "./seatPlacement.ts";
 import { useCheer } from "./useCheer.ts";
@@ -37,6 +33,8 @@ export interface HenchmanProps {
   /** Where to sit on this seat's chair (furniture/sitAnchor.ts). */
   anchor: SitAnchor;
   reducedMotion: boolean;
+  /** Hold the "needs you" arms still: reduced motion or the low graphics preset (#235). */
+  still?: boolean;
   onSelect?: (agentId: string) => void;
   /** The henchman starts its celebration (not on first sight): burst confetti over its seat. */
   onCelebrate?: (seat: Seat) => void;
@@ -62,12 +60,14 @@ function HenchmanImpl({
   seat,
   anchor,
   reducedMotion,
+  still = reducedMotion,
   onSelect,
   onCelebrate,
 }: HenchmanProps) {
   // Status/action → animation, held until it has settled (no flapping), one-shots once (#159).
   const animation = useSettledAnimation(calmFor(henchmanAnimationFor(henchman), reducedMotion));
   const look = henchmanLookFor(animation);
+  const gesture = gestureFor(henchman, still);
   // The merge gong rang (#43): dance in the chair for a moment, then back to the same pose.
   const cheer = useCheer(look.seated, reducedMotion);
 
@@ -111,6 +111,7 @@ function HenchmanImpl({
         handRaised: henchman.handRaised,
         statusReason: henchman.statusReason,
         animation,
+        gesture,
         seated: look.seated,
         seatId: henchman.seatId,
         cheering: cheer,
@@ -133,7 +134,7 @@ function HenchmanImpl({
           seated={look.seated}
           cheer={cheer}
           status={henchman.status}
-          handRaised={raisedHandFor(henchman)}
+          gesture={gesture}
         />
         {look.papers && look.seated && <Papers />}
       </group>
@@ -148,6 +149,7 @@ export const Henchman = memo(
     a.seat === b.seat &&
     a.anchor === b.anchor &&
     a.reducedMotion === b.reducedMotion &&
+    a.still === b.still &&
     a.onSelect === b.onSelect &&
     a.onCelebrate === b.onCelebrate &&
     a.henchman.agentId === b.henchman.agentId &&

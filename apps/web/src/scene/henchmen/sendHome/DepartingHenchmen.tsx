@@ -40,7 +40,7 @@ function DepartingHenchman({ override }: { override: HenchmanOverride }) {
         {...henchmanSkinLook(override.henchman)}
         animation={override.animation}
         status={override.henchman.status}
-        handRaised={false}
+        gesture="none"
         carrying={override.carrying}
       />
       {override.carrying && (

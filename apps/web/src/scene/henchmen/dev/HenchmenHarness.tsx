@@ -4,8 +4,8 @@
  * big "Dev" room with N fake henchmen at its desks, bubbles flying to the HUD
  * counters and an fps probe (`window.__avatarStats`). No server: the rooms'
  * OperationRoom states are faked in the stores.
- * Query: n=<henchmen> (default 12), mode=working|mixed|waiting|idle|flap|day, rate=<ticks/s>,
- * reduced=1, activity=0 (hide activity bubbles), seats=all, skins=mixed, providers=all, zoom=<0..1 camera zoom>,
+ * Query: n=<henchmen> (default 12), mode=working|mixed|waiting|idle|flap|day|hands, rate=<ticks/s>,
+ * near=1 (seat them at the desks nearest the player), reduced=1, activity=0 (hide activity bubbles), seats=all, skins=mixed, providers=all, zoom=<0..1 camera zoom>,
  * yaw=<degrees>, nearby=<0..3 nearby rooms with henchmen too>, locked=<room ids the viewer may
  * not enter>, building=<room ids still being built>, rooms=<project rooms, 4..12>,
  * humans=<humans on screen, the local player included>. Not part of the production build.
@@ -88,6 +88,7 @@ export function HenchmenHarness({ search }: { search: string }) {
   const mode = harnessMode(params.get("mode"));
   const rate = Number(params.get("rate") ?? 2);
   const allSeats = params.get("seats") === "all";
+  const near = params.get("near") === "1";
   const skins = params.get("skins") === "mixed" ? "mixed" : "standard";
   const providers = params.get("providers") === "all" ? "all" : "two";
   const nearby = Math.min(3, Number(params.get("nearby") ?? 0));
@@ -149,7 +150,15 @@ export function HenchmenHarness({ search }: { search: string }) {
       const layout = room ? roomLayout(room) : null;
       if (!room || !layout) continue;
       const count = id === DEV ? n : 4;
-      const henchmen = fakeHenchmen(layout, count, tick, mode, allSeats, { skins, providers });
+      const henchmen = fakeHenchmen(
+        layout,
+        count,
+        tick,
+        mode,
+        allSeats,
+        { skins, providers },
+        id === DEV && near ? { x: layout.spawn.x, z: layout.spawn.z - 1.5 } : undefined,
+      );
       const state = operationState(id, henchmen, room.deskCount);
       rooms.apply(id, state);
       // The HUD counters and the interactive room read the operation store.
@@ -162,7 +171,7 @@ export function HenchmenHarness({ search }: { search: string }) {
       const humans = fakeHumans(humanCount, centre, tick / Math.max(0.1, rate));
       useBuildingStore.setState({ state: harnessBuilding(roomCount, humans), sessionId: "me" });
     }
-  }, [tick, n, mode, allSeats, skins, providers, nearby, world, humanCount, roomCount, rate]);
+  }, [tick, n, mode, allSeats, skins, providers, nearby, world, humanCount, roomCount, rate, near]);
 
   return (
     <div style={{ position: "fixed", inset: 0 }}>

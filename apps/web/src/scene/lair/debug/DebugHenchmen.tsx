@@ -24,7 +24,6 @@ export interface HenchmanSpot {
   animation: AvatarAnimation;
   status: AgentStatus;
   seated?: boolean;
-  handRaised?: boolean;
   skin?: string;
   trim?: string;
 }
@@ -70,7 +69,6 @@ export function roomCrew(
       animation: i === 2 ? "sit_idle" : "sit_type",
       status: i === 2 ? "waiting_permission" : "working",
       seated: true,
-      handRaised: i === 2,
       skin,
       trim: i % 2 ? CODEX : CLAUDE,
     }));
@@ -137,7 +135,6 @@ export function DebugHenchmen({ spots }: { spots: readonly HenchmanSpot[] }) {
           animation={s.animation}
           status={s.status}
           seated={s.seated}
-          handRaised={s.handRaised}
           skin={s.skin}
           trim={s.trim}
         />

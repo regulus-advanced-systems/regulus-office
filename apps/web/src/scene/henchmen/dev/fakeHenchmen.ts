@@ -81,9 +81,20 @@ const SHOWREEL: ReadonlyArray<[AgentStatus, AgentAction]> = [
  * working: all typing/reading; mixed: the showreel; waiting: hands up; idle:
  * all idle (should sit still, #159); flap: working/typing and idle/none
  * alternating every tick (the animation should not follow it, #159); day: an ordinary
- * day, most at work, one asking, one with a question, one done, one idle (the bubbles, #256).
+ * day, most at work, one asking, one with a question, one done, one idle (the bubbles, #256);
+ * hands: done, waiting for permission, waiting for an answer and working side by side (#235).
  */
-export type HarnessMode = "working" | "mixed" | "waiting" | "idle" | "flap" | "day";
+export type HarnessMode = "working" | "mixed" | "waiting" | "idle" | "flap" | "day" | "hands";
+
+/** The "hands" mode's cast (#235), repeated along the desks. */
+const HANDS: ReadonlyArray<[AgentStatus, AgentAction]> = [
+  ["working", "typing"],
+  ["done", "none"],
+  ["waiting_permission", "none"],
+  ["waiting_input", "none"],
+  ["working", "reading"],
+  ["idle", "none"],
+];
 
 /** The "day" mode's cast, repeated along the desks. */
 const DAY: ReadonlyArray<[AgentStatus, AgentAction]> = [
@@ -106,7 +117,8 @@ export function harnessMode(value: string | null): HarnessMode {
     value === "waiting" ||
     value === "idle" ||
     value === "flap" ||
-    value === "day"
+    value === "day" ||
+    value === "hands"
     ? value
     : "working";
 }
@@ -121,6 +133,8 @@ function pairFor(mode: HarnessMode, i: number, tick: number): [AgentStatus, Agen
       return ["idle", "none"];
     case "day":
       return DAY[i % DAY.length] as [AgentStatus, AgentAction];
+    case "hands":
+      return HANDS[i % HANDS.length] as [AgentStatus, AgentAction];
     case "flap":
       return tick % 2 === 0 ? ["working", "typing"] : ["idle", "none"];
     default:
@@ -141,9 +155,14 @@ export function fakeHenchmen(
   mode: HarnessMode,
   allSeats = false,
   looks: FakeLooks = {},
+  /** Seat the fakes at the desks nearest this point of the room (the player), not in seat order. */
+  near?: { x: number; z: number },
 ): Record<string, HenchmanState> {
   // `allSeats`: meeting, bistro, reception and lounge seats too (#163 seating checks).
-  const seats = template.seats.filter((s) => allSeats || s.kind === "desk").slice(0, count);
+  const pool = template.seats.filter((s) => allSeats || s.kind === "desk");
+  const far = (s: (typeof pool)[number]) =>
+    near ? Math.hypot(s.pose.x - near.x, s.pose.z - near.z) : 0;
+  const seats = (near ? [...pool].sort((a, b) => far(a) - far(b)) : pool).slice(0, count);
   const out: Record<string, HenchmanState> = {};
   seats.forEach((seat, i) => {
     const [status, action] = pairFor(mode, i, tick);

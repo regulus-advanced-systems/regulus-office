@@ -1,20 +1,24 @@
 /**
  * What a henchman at its desk does (SPEC §9.3): `HenchmanState.status` + `.action`
- * → avatar animation, whether it stays seated, and the extras around it
- * (papers while reading, spin + confetti when done). Pure; the HenchmanLayer
- * applies it.
+ * → avatar animation, whether it stays seated, the gesture on top (#235) and
+ * the extras around it (papers while reading). Pure; the HenchmanLayer applies it.
  *
  * - working: typing / editing / running tests → sit_type; reading / browsing
  *   → read (seated, with papers); thinking → think (seated, head tilt);
- * - failing (action) or error (status) → facepalm; celebrating or done →
- *   celebrate (stands up, spins, confetti). Both are one-shots: after
+ * - failing (action) or error (status) → facepalm, a one-shot: after
  *   `ONE_SHOT_MS` the henchman sits back down (animationSettle.ts);
- * - everything else (starting, idle, waiting, exited, offline) → sit_idle,
- *   which is a still seated pose (#159). A henchman waiting for permission
- *   raises a hand on top (`raisedHandFor`), and is otherwise still.
+ * - everything else (starting, idle, waiting, done, exited, offline) → sit_idle,
+ *   which is a still seated pose (#159), with a gesture on top (`gestureFor`):
+ *   - done, with an answer its owner has not looked at yet → one hand up, held
+ *     still. No spin, no confetti (#235). It goes down with the "answer ready"
+ *     bubble (#256), which the server clears when the owner deals with it;
+ *   - waiting for a permission or an answer → both arms up, waving ("needs you").
+ * - `celebrate` (stands up, spins, confetti) is left for an explicit
+ *   `celebrating` action; finishing no longer plays it. The merge gong's cheer
+ *   is its own thing (cheer.ts).
  *
- * With reduced motion every henchman is still in its chair (`calmFor`); the
- * antenna bulb still tells the status.
+ * With reduced motion every henchman is still in its chair (`calmFor`) and the
+ * "needs you" arms are held up without waving; the light still tells the status.
  */
 import type { AgentAction, AgentStatus, AvatarAnimation, HenchmanState } from "@regulus/protocol";
 
@@ -35,6 +39,8 @@ const QUIET_STATUSES: ReadonlySet<AgentStatus> = new Set([
   "starting",
   "waiting_permission",
   "waiting_input",
+  // Done sits still with a hand up (`gestureFor`); it does not celebrate (#235).
+  "done",
   "exited",
   "offline",
 ]);
@@ -44,7 +50,6 @@ export function henchmanAnimationFor(
 ): AvatarAnimation {
   const { status, action } = henchman;
   if (status === "error") return "facepalm";
-  if (status === "done") return "celebrate";
   if (QUIET_STATUSES.has(status)) return "sit_idle";
   if (status === "working") return WORKING_ACTIONS[action];
   // idle: only the one-shot actions show.
@@ -76,12 +81,41 @@ export function calmFor(animation: AvatarAnimation, reducedMotion: boolean): Ava
 }
 
 /**
- * Whether the avatar raises its hand: only while waiting for permission
- * (#159). `waiting_input` sits still like idle, although `HenchmanState.handRaised`
- * (and the ding) covers it too.
+ * What the arms say on top of the seated clip (#235):
+ * - `hand`: one hand up, held still: it is done and has something to look at;
+ * - `needs_you`: both arms up and waving: it waits for its human;
+ * - `needs_you_still`: the same arms held up without motion.
  */
-export function raisedHandFor(henchman: Pick<HenchmanState, "status" | "handRaised">): boolean {
-  return henchman.status === "waiting_permission" && henchman.handRaised;
+export const HENCHMAN_GESTURES = ["none", "hand", "needs_you", "needs_you_still"] as const;
+export type HenchmanGesture = (typeof HENCHMAN_GESTURES)[number];
+
+const WAITING: ReadonlySet<AgentStatus> = new Set(["waiting_permission", "waiting_input"]);
+
+/**
+ * The gesture of a henchman. The two waiting kinds share it: the "needs you"
+ * bubble above says which it is ("approve a command", "answer a question"), so
+ * no second icon is drawn over the head. The done hand follows the "answer
+ * ready" bubble, so both go when the owner has dealt with it. `still`: reduced
+ * motion or the low graphics preset.
+ */
+export function gestureFor(
+  henchman: Pick<HenchmanState, "status"> & { bubble?: Pick<HenchmanState["bubble"], "kind"> },
+  still = false,
+): HenchmanGesture {
+  if (WAITING.has(henchman.status)) return still ? "needs_you_still" : "needs_you";
+  if (henchman.status === "done" || henchman.status === "idle") {
+    return henchman.bubble?.kind === "answer_ready" ? "hand" : "none";
+  }
+  return "none";
+}
+
+/** The gesture when only the status is known (showcases): a done henchman has not been looked at. */
+export function gestureForStatus(status: AgentStatus | undefined, still = false): HenchmanGesture {
+  if (!status) return "none";
+  return gestureFor(
+    { status, bubble: { kind: status === "done" ? "answer_ready" : "none" } },
+    still,
+  );
 }
 
 export interface HenchmanLook {
@@ -102,7 +136,7 @@ export function henchmanLookFor(animation: AvatarAnimation): HenchmanLook {
   };
 }
 
-/** A transition into a raised hand: play the ding. */
+/** A henchman starts waiting for its human (`handRaised` in the protocol): play the ding. */
 export function raisesHand(
   prev: Pick<HenchmanState, "handRaised"> | undefined,
   next: Pick<HenchmanState, "handRaised">,

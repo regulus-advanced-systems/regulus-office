@@ -136,6 +136,34 @@ describe.skipIf(!hasTmux())("henchman controls (tmux)", () => {
     await manager.close();
   }, 20_000);
 
+  test("a done henchman's answer stays until its owner looks or prompts it (#235)", async () => {
+    const { manager, henchmen, agentId, control } = await setup();
+    const finish = async () => {
+      manager.publish(agentId, { kind: "status", ts: Date.now(), status: "working" });
+      manager.publish(agentId, { kind: "status", ts: Date.now(), status: "done" });
+      await henchmen.waitFor(
+        agentId,
+        (r) => r.status === "done" && r.bubble.kind === "answer_ready",
+      );
+    };
+    await finish();
+    // Someone else opening its terminal is not its owner dealing with it.
+    for (const who of [office.admin, office.owner, office.stranger]) {
+      manager.seenBy(agentId, who.id);
+    }
+    manager.seenBy("no-such-agent", office.member.id);
+    expect(henchmen.henchmen.get(agentId)?.bubble.kind).toBe("answer_ready");
+    // Its owner opens the terminal (the bridge calls this): the bubble clears, the status stays.
+    manager.seenBy(agentId, office.member.id);
+    await henchmen.waitFor(agentId, (r) => r.status === "done" && r.bubble.kind === "none");
+
+    // It finishes again, and the owner prompts it from the panel.
+    await finish();
+    ok(await control(office.member, { type: "agent.prompt", agentId, text: "and now this" }));
+    await henchmen.waitFor(agentId, (r) => r.bubble.kind !== "answer_ready");
+    await manager.close();
+  }, 20_000);
+
   test("emergency stop: office owners/admins only, kills the session, keeps branch and desk, audited", async () => {
     const { manager, henchmen, agentId, control, workspaces } = await setup();
     const stop = { type: "agent.emergencyStop" as const, agentId, reason: "runaway cost" };

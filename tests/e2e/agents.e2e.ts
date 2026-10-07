@@ -378,9 +378,10 @@ test("2. the owner spawns Claude Code at a free desk with their login and a prom
   await expect.poll(async () => (await henchmanOn(memberPage))?.seatId).toBe(seatId);
 });
 
-test("3. the henchman's status and action change (editing) and it raises its hand", async () => {
+test("3. the henchman's status and action change (editing) and it asks for its human", async () => {
   // The fake posts UserPromptSubmit (thinking), PreToolUse(Edit) (editing), then
-  // PermissionRequest (waiting_permission, hand up).
+  // PermissionRequest (waiting_permission: both arms up, the "needs you" gesture of #235; the
+  // software-rendered page is on the low graphics preset, where the arms are held, not waved).
   // The order the page received them in (#179): a software-rendered CI page can get thinking and
   // editing between two frames and never draw the 1 s of thinking.
   await expect
@@ -400,23 +401,35 @@ test("3. the henchman's status and action change (editing) and it raises its han
     await expect
       .poll(async () => {
         const r = await henchmanOn(page);
-        return r && { status: r.status, handRaised: r.handRaised, seated: r.seated };
+        return (
+          r && {
+            status: r.status,
+            handRaised: r.handRaised,
+            gesture: r.gesture,
+            seated: r.seated,
+          }
+        );
       })
-      .toEqual({ status: "waiting_permission", handRaised: true, seated: true });
+      .toEqual({
+        status: "waiting_permission",
+        handRaised: true,
+        gesture: "needs_you_still",
+        seated: true,
+      });
   }
   await expect
     .poll(() => history(memberPage))
-    .toContainEqual(expect.stringMatching(/^waiting_permission\/.*\/hand$/));
+    .toContainEqual(expect.stringMatching(/^waiting_permission\/.*\/needs_you_still$/));
 });
 
 test("3b. the henchman's bones move while it works and hold still while it waits (#159)", async () => {
   // The recorder has watched the henchman since before the spawn: starting, working, then
-  // waiting_permission with its hand up. Wait until the calm, hand-up pose has had a while.
+  // waiting_permission with its arms up. Wait until that held pose has had a while.
   await expect
     .poll(
       async () =>
         (await boneSegments(ownerPage, agentId)).some(
-          (s) => /^waiting_permission\/\w+\/sit_idle\/hand$/.test(s.key) && s.ms >= 1500,
+          (s) => /^waiting_permission\/\w+\/sit_idle\/needs_you_still$/.test(s.key) && s.ms >= 1500,
         ),
       { timeout: 20_000 },
     )
@@ -432,7 +445,8 @@ test("3b. the henchman's bones move while it works and hold still while it waits
   const working = typing(segments);
   expect(working.length, report).toBeGreaterThan(0);
   expect(Math.max(...working.map((s) => s.maxDeg)), report).toBeGreaterThan(3);
-  // Seated and not working (starting, idle, waiting with the hand up): still, to a tenth of a degree.
+  // Seated and not working (starting, idle, waiting with the arms held up on the low preset):
+  // still, to a tenth of a degree.
   // At least two frames past the crossfade: CI renders the scene in software at a few fps.
   const calm = segments.filter(
     (s) => /^(starting|idle|waiting_permission)\/\w+\/sit_idle\//.test(s.key) && s.frames >= 2,
@@ -498,7 +512,7 @@ test("4. the permission prompt reaches the owner, not the member nor an admin", 
   await expect(prompt.getByText("Edit", { exact: true })).toBeVisible();
   await expect(prompt.getByLabel("What would run")).toContainText("FAKE_CLAUDE.md");
 
-  // The member watches the same henchman: hand up, but no request, no prompt, no controls.
+  // The member watches the same henchman asking: but no request, no prompt, no controls.
   await openHenchmanPanel(memberPage);
   const memberPanel = memberPage.locator("section.rg-agent-panel");
   await expect(memberPanel.locator('[data-key="status"] dd')).toHaveText("Waiting for approval");
@@ -538,18 +552,21 @@ test("5. the owner approves; the henchman commits and finishes", async () => {
     await expect
       .poll(async () => {
         const r = await henchmanOn(page);
-        return r && { status: r.status, handRaised: r.handRaised };
+        return r && { status: r.status, handRaised: r.handRaised, gesture: r.gesture };
       })
-      .toEqual({ status: "done", handRaised: false });
+      // Done: one hand up, for everyone in the room, and no longer asking (#235).
+      .toEqual({ status: "done", handRaised: false, gesture: "hand" });
     // The bubble went from the request back to work and now has an answer ready (#256).
     expect((await bubbles(page, agentId)).at(-1)).toBe("answer_ready: finished: take a look");
   }
   await expect
     .poll(() => history(ownerPage))
     .toContainEqual(
-      // Done plays the celebration (the Stop hook resets the action; the status drives the clip).
-      expect.stringMatching(/^done\/\w+\/celebrate\//),
+      // Done sits still with its hand up (the status drives the pose, whatever the action).
+      expect.stringMatching(/^done\/\w+\/sit_idle\/hand$/),
     );
+  // Finishing no longer plays the celebration (#235).
+  expect((await history(ownerPage)).filter((h) => h.includes("/celebrate/"))).toEqual([]);
   const ownerPanel = ownerPage.locator("section.rg-agent-panel");
   await expect(ownerPanel.locator('[data-key="status"] dd')).toHaveText("Done");
   const branch = await ownerPanel.locator('[data-key="branch"] dd').innerText();
@@ -562,7 +579,7 @@ test("5. the owner approves; the henchman commits and finishes", async () => {
   cloneGitDir = worktreeGit(["rev-parse", "--path-format=absolute", "--git-common-dir"]);
 });
 
-test("5b. once the celebration is over the done henchman sits still (#159)", async () => {
+test("5b. the done henchman sits still and holds its hand up (#159, #235)", async () => {
   await expect
     .poll(async () => (await henchmanOn(ownerPage))?.animation, { timeout: 20_000 })
     .toBe("sit_idle");
@@ -570,7 +587,7 @@ test("5b. once the celebration is over the done henchman sits still (#159)", asy
   await ownerPage.waitForTimeout(500);
   const still = await sampleBones(ownerPage, agentId, 2_000);
   expect(still.keys, JSON.stringify(still)).toEqual([
-    expect.stringMatching(/^done\/\w+\/sit_idle\/-$/),
+    expect.stringMatching(/^done\/\w+\/sit_idle\/hand$/),
   ]);
   expect(still.frames, JSON.stringify(still)).toBeGreaterThanOrEqual(2);
   expect(still.maxDeg, JSON.stringify(still)).toBeLessThan(0.1);
@@ -678,6 +695,7 @@ test("7. after an office-server restart the henchman and its tmux session are st
     const after = await henchmanOn(page);
     expect(after?.name).toBe(henchmanName);
     expect(after?.bubbleKind).toBe("answer_ready");
+    expect(after?.gesture).toBe("hand");
   }
 
   // Its terminal still opens and shows the agent's screen (scrollback over the socket).
@@ -691,6 +709,16 @@ test("7. after an office-server restart the henchman and its tmux session are st
   await expect(terminal).toBeVisible();
   await expect.poll(() => ownerTerminal.text().slice(seenBefore)).toContain("FAKE CLAUDE DONE");
   await expect(terminal.getByText(/Reconnecting|ended/i)).toHaveCount(0);
+  // The owner has looked: the hand goes down and the "answer ready" bubble clears with it, for
+  // everyone in the room; the henchman is still done (#235).
+  for (const page of [ownerPage, memberPage]) {
+    await expect
+      .poll(async () => {
+        const r = await henchmanOn(page);
+        return r && { status: r.status, gesture: r.gesture, bubbleKind: r.bubbleKind };
+      })
+      .toEqual({ status: "done", gesture: "none", bubbleKind: "none" });
+  }
   await ownerPage.keyboard.press("Escape");
   if (await terminal.isVisible())
     await terminal.getByRole("button", { name: /Close/ }).first().click();

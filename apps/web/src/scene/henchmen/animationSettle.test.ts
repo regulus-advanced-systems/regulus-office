@@ -81,18 +81,32 @@ describe("animation settle (#159)", () => {
   });
 
   test("a one-shot plays to its end once, then the henchman is still until something else is wanted", () => {
-    const limit = ONE_SHOT_MS.celebrate ?? 0;
+    const limit = ONE_SHOT_MS.facepalm ?? 0;
     const shown = play(
       [
         [0, pair("working", "typing")],
-        [2000, pair("done", "none")],
+        [2000, pair("error", "failing")],
       ],
       60_000,
     );
     expect(shown).toEqual([
       { at: 0, shown: "sit_type" },
-      { at: 2000 + SETTLE_MS, shown: "celebrate" },
+      { at: 2000 + SETTLE_MS, shown: "facepalm" },
       { at: 2000 + SETTLE_MS + limit, shown: STILL },
+    ]);
+  });
+
+  test("finishing is not a one-shot: the henchman sits down still and stays so (#235)", () => {
+    const shown = play(
+      [
+        [0, pair("working", "typing")],
+        [2000, pair("done", "celebrating")],
+      ],
+      60_000,
+    );
+    expect(shown).toEqual([
+      { at: 0, shown: "sit_type" },
+      { at: 2000 + SETTLE_MS, shown: STILL },
     ]);
   });
 
@@ -113,8 +127,9 @@ describe("animation settle (#159)", () => {
     ]);
   });
 
-  test("a henchman first seen done does not celebrate on page load", () => {
+  test("a henchman first seen done or failed is still on page load", () => {
     expect(play([[0, pair("done", "none")]], 30_000)).toEqual([{ at: 0, shown: STILL }]);
+    expect(play([[0, pair("error", "failing")]], 30_000)).toEqual([{ at: 0, shown: STILL }]);
   });
 
   test("the deadline says when to look again, and null when nothing is pending", () => {

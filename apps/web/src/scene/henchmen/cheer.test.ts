@@ -98,8 +98,7 @@ describe("henchmen cheer when the gong rings (#43)", () => {
   });
 
   test("a henchman in a standing one-shot finishes it instead of cheering", () => {
-    // A henchman seen `done` for the first time is still; one that turns done
-    // later celebrates standing. Model the latter: celebrate is shown at once.
+    // A henchman on an explicit celebration (or a facepalm) stands at its seat.
     const look = henchmanLookFor("celebrate");
     const ring: GongRingView = { id: 1, operationId: "f", cause: "bang", strikes: 1, at: 0 };
     expect(henchmanCheers(look, ring, 100, false)).toBe(false);
