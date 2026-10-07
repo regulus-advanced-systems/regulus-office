@@ -44,7 +44,7 @@ export type WalkResult = "walking" | "door" | "here" | "unreachable" | "unknown"
 /** Set off toward the human with this BuildingRoom session id. */
 export function walkToTeammate(sessionId: string): WalkResult {
   const human = useBuildingStore.getState().state?.humans[sessionId];
-  // Someone on another level (#268): go to their level first, then walk from its lobby door.
+  // Someone on another level (#268): go to their level first, then walk from its lift landing.
   if (human && !onViewedLevel(human) && !travelToLevel(human.levelId)) return "unknown";
   const world = useCompoundStore.getState().world;
   const them = human?.position;

@@ -41,7 +41,7 @@ export const DEFAULT_HOTKEYS: readonly HotkeyBinding[] = [
   {
     id: "quickTravel",
     key: "f",
-    description: "Quick travel to a room you may enter",
+    description: "Quick travel to a room you may enter, on any level",
     group: "Navigation",
   },
   {
@@ -61,7 +61,7 @@ export const DEFAULT_HOTKEYS: readonly HotkeyBinding[] = [
     id: "interact",
     key: "e",
     description:
-      "Interact with what is in reach: desk, laptop, board, clipboard, gong, door button; sit down or stand up",
+      "Interact with what is in reach: desk, laptop, board, clipboard, gong, door button, the lift; sit down or stand up",
     group: "World",
   },
   {

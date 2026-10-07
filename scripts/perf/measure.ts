@@ -18,7 +18,8 @@
  * Usage: build the harness, then run this script from the repo root:
  *   (cd apps/web && PERF_OUT_DIR=/tmp/rg-perf-harness bunx vite build --config vite.harness.config.ts)
  *   bun scripts/perf/measure.ts [--dir /tmp/rg-perf-harness] [--port 5791]
- *     [--profiles gpu,uncapped,igpu,igpu-uncapped,software] [--views room,room30,overview,close,beach]
+ *     [--profiles gpu,uncapped,igpu,igpu-uncapped,software]
+ *     [--views room,room30,overview,close,beach,lobby,landing,closed]
  *     [--quality auto|low|medium|high] [--seconds 6] [--json out.json]
  */
 import { existsSync } from "node:fs";
@@ -47,6 +48,10 @@ const VIEW: Record<string, string> = {
   overview: "&zoom=1",
   close: "&zoom=0",
   beach: "&at=beach&door=open",
+  // Levels (#269): the lobby by the lift, a level's lift landing, and a level with closed rooms.
+  lobby: "&level=lobby&at=lift",
+  landing: "&level=regulus&at=lift",
+  closed: "&level=ante&at=door:vault",
 };
 
 interface Profile {

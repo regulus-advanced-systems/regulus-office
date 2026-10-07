@@ -42,6 +42,8 @@ const INDICATOR_W = 1.7;
 const INDICATOR_H = (INDICATOR_W * INDICATOR_PX.h) / INDICATOR_PX.w;
 const BLADE_W = 0.8;
 const BLADE_H = (BLADE_W * BLADE_PX.h) / BLADE_PX.w;
+/** The blade sign hangs this far along the housing's front from the door's middle, metres. */
+const BLADE_ASIDE = LIFT_SHAFT.w / 2 - 0.3;
 
 function openPanel() {
   if (useLiftStore.getState().ride) return;
@@ -140,8 +142,9 @@ export function LiftDriver({ world }: { world: CompoundWorld }) {
           name="lift-blade"
           position={[
             lift.door.x - 0.1 - BLADE_W / 2,
-            WALL_HEIGHT + 0.15 + BLADE_H / 2,
-            lift.door.z + (yaw === 0 ? 0.01 : -0.01),
+            WALL_HEIGHT - 0.55 + BLADE_H / 2,
+            // On the south pylon, clear of the indicator over the doorway.
+            lift.door.z + BLADE_ASIDE + (yaw === 0 ? 0.01 : -0.01),
           ]}
           rotation-y={yaw}
           raycast={() => null}

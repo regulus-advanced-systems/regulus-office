@@ -4,14 +4,17 @@
  *
  * - `liftShaft`: the shaft's housing as it stands in the lobby and on every
  *   level's landing: poured-concrete cheeks and back, steel pylons with
- *   hazard chevrons either side of the doorway, a call plate with a lit
- *   button, the cabin behind (plate floor, handrail, a warm cabin lamp) and a
- *   winch housing with its cable wheel on top. The doorway itself takes a
- *   standard one-tile door frame and its two sliding leaves (doors.ts,
- *   SlidingDoors.tsx), and the level indicator hangs on the frame's header
- *   (compound/lift/). Door side toward +z.
- * - `doorBars`: steel beams welded across a room's two-tile door, with a red
- *   lamp: the door of a room this viewer may not enter. Corridor side toward +z.
+ *   hazard chevrons either side of the doorway, a brass call plate with a lit
+ *   button and direction arrows. The 3/4 camera looks down into it, so the
+ *   top is open: the cabin's roof with its hatch and lamp strips sits below a
+ *   hazard-striped rim, under the headgear (two beams, the sheave wheel, the
+ *   winch and its red lamp). The doorway itself takes a standard one-tile
+ *   door frame and its two sliding leaves (doors.ts, SlidingDoors.tsx), and
+ *   the level indicator hangs on the frame's header (compound/lift/). Door
+ *   side toward +z. Kept lean: the kit's whole triangle budget is nearly used.
+ * - `doorBars`: two steel beams and a brace welded across a room's two-tile
+ *   door, with a red lamp on the seal: the door of a room this viewer may
+ *   not enter. Corridor side toward +z.
  */
 import { TILE, WALL_HEIGHT } from "../dimensions.ts";
 import { LAIR } from "../palette.ts";
