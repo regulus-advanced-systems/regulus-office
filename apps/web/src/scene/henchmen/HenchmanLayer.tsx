@@ -17,8 +17,12 @@
  * Work bubbles and confetti are not mounted with reduced motion (SPEC §11); the
  * bubble over a henchman stays and holds still, and so do the arms of a waiting
  * henchman (also on the low graphics preset).
+ *
+ * A full room stays quiet (#283): the layer tells the labels where the player
+ * stands and which henchman is under the cursor or open in the panel
+ * (scene/agentBubble/overheadField), once a frame, and they show or fade themselves.
  */
-import type { ThreeEvent } from "@react-three/fiber";
+import { type ThreeEvent, useFrame } from "@react-three/fiber";
 import { type HenchmanState, hasOperationAccess } from "@regulus/protocol";
 import type { RoomTemplate, Seat } from "@regulus/room-layout";
 import { useCallback, useEffect, useMemo, useRef } from "react";
@@ -29,13 +33,14 @@ import { useOperationsStore } from "../../state/operations.ts";
 import { useSessionStore } from "../../state/session.ts";
 import { useSpawnStore } from "../../state/spawn.ts";
 import { selectReducedMotion, useUiStore } from "../../state/ui.ts";
-import { openAgentPanel } from "../../ui/agent/agentStore.ts";
+import { openAgentPanel, useAgentStore } from "../../ui/agent/agentStore.ts";
 import { openBubbleTarget } from "../../ui/agent/bubbleTarget.ts";
 import { carriedPrefill, dropCard, useMyCarried } from "../../ui/boards/carry.ts";
 import type { HotkeyEventDetail } from "../../ui/hotkeys/registry.ts";
 import { useHotkeyEvents } from "../../ui/hotkeys/useHotkeys.ts";
 import { AgentOverhead } from "../agentBubble/AgentOverhead.tsx";
 import { visibleBubble } from "../agentBubble/bubbleStyle.ts";
+import { type OverheadField, useOverheadField } from "../agentBubble/overheadField.ts";
 import { useQualityStore } from "../compound/quality.ts";
 import { useVisibleStore } from "../compound/visibility.ts";
 import { FALLBACK_ANCHOR, type SitAnchor, sitAnchors } from "../furniture/sitAnchor.ts";
@@ -89,6 +94,13 @@ export function useOpenSpawn() {
   );
 }
 
+/** The cursor came over a henchman, or left it (only the one it is over is cleared). */
+function hover(field: OverheadField, agentId: string | undefined, over: boolean) {
+  if (!agentId) return;
+  if (over) field.hoveredId = agentId;
+  else if (field.hoveredId === agentId) field.hoveredId = null;
+}
+
 /**
  * Invisible click targets over each desk's chair (not the desk top, so the
  * laptop keeps its own click): a free desk opens the spawn dialog (and walks
@@ -98,10 +110,13 @@ function DeskHotspots({
   seats,
   agentAt,
   onSpawn,
+  field,
 }: {
   seats: readonly Seat[];
   agentAt: (seatId: string) => string | undefined;
   onSpawn: (seatId: string) => void;
+  /** The cursor over an occupied chair counts as over its henchman (#283). */
+  field: OverheadField;
 }) {
   const scope = useRoomScope();
   return (
@@ -129,8 +144,14 @@ function DeskHotspots({
             position={[seat.pose.x - f.x * 0.05, 0.6, seat.pose.z - f.z * 0.05]}
             rotation-y={seat.pose.heading}
             onClick={click}
-            onPointerOver={() => (document.body.style.cursor = "pointer")}
-            onPointerOut={() => (document.body.style.cursor = "")}
+            onPointerOver={() => {
+              document.body.style.cursor = "pointer";
+              hover(field, agentAt(seat.id), true);
+            }}
+            onPointerOut={() => {
+              document.body.style.cursor = "";
+              hover(field, agentAt(seat.id), false);
+            }}
           >
             <boxGeometry args={[1, 1.2, 0.8]} />
             <meshBasicMaterial transparent opacity={0} depthWrite={false} colorWrite={false} />
@@ -156,6 +177,19 @@ export function HenchmanLayer({
   const lowQuality = useQualityStore((s) => s.quality === "low");
   const viewerId = useSessionStore((s) => s.user?.id ?? null);
   const openSpawn = useOpenSpawn();
+
+  // What the labels need to know to stay quiet (#283), written once a frame: no React state.
+  const field = useOverheadField();
+  field.activityBubbles = activityBubbles;
+  field.reducedMotion = reducedMotion;
+  const viewer = useRef({ x: 0, z: 0 });
+  useFrame(() => {
+    const player = playerInRoom(scope);
+    viewer.current.x = player.x;
+    viewer.current.z = player.z;
+    field.viewer = player.spawned ? viewer.current : null;
+    field.focusedId = scope.interactive ? useAgentStore.getState().panelAgentId : null;
+  });
 
   const deskSeats = useMemo(() => template.seats.filter((s) => s.kind === "desk"), [template]);
   const seatsById = useMemo(() => new Map(template.seats.map((s) => [s.id, s])), [template]);
@@ -266,15 +300,21 @@ export function HenchmanLayer({
         ).position;
         return (
           <group key={r.agentId}>
-            <Henchman
-              henchman={r}
-              seat={seat}
-              anchor={anchors.get(seat.id) ?? FALLBACK_ANCHOR}
-              reducedMotion={reducedMotion}
-              still={reducedMotion || lowQuality}
-              onSelect={scope.interactive ? openAgentPanel : undefined}
-              onCelebrate={burst}
-            />
+            {/* The cursor over the henchman shows its label (#283). */}
+            <group
+              onPointerOver={scope.interactive ? () => hover(field, r.agentId, true) : undefined}
+              onPointerOut={scope.interactive ? () => hover(field, r.agentId, false) : undefined}
+            >
+              <Henchman
+                henchman={r}
+                seat={seat}
+                anchor={anchors.get(seat.id) ?? FALLBACK_ANCHOR}
+                reducedMotion={reducedMotion}
+                still={reducedMotion || lowQuality}
+                onSelect={scope.interactive ? openAgentPanel : undefined}
+                onCelebrate={burst}
+              />
+            </group>
             {!far && <NameDecal seat={seat} ownerName={r.ownerName} model={r.model} />}
             {!far && (
               <AgentOverhead
@@ -285,13 +325,15 @@ export function HenchmanLayer({
                 still={reducedMotion || lowQuality}
                 lift={staggerOf.get(seat.id) ?? 0}
                 onOpen={scope.interactive ? openBubbleTarget : undefined}
+                field={field}
+                own={!!viewerId && r.ownerUserId === viewerId}
               />
             )}
           </group>
         );
       })}
       {scope.interactive && (
-        <DeskHotspots seats={deskSeats} agentAt={agentAt} onSpawn={openSpawn} />
+        <DeskHotspots seats={deskSeats} agentAt={agentAt} onSpawn={openSpawn} field={field} />
       )}
       {!reducedMotion && scope.interactive && <WorkBubbles sources={sources} />}
       {!reducedMotion && <Confetti bus={confetti} />}
