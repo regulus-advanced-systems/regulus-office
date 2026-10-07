@@ -4,9 +4,16 @@
  * commands go) plus up to three nearby visible rooms. Joins missing rooms,
  * leaves rooms no longer wanted, re-joins lost rooms with backoff and gives
  * up on denied ones. Every room's state goes to `onState`; only the
- * primary's messages and rejections reach the listeners.
+ * primary's messages and rejections reach the listeners. A room the server
+ * closed because access was withdrawn (#244) is not asked for again; one whose
+ * access changed is joined once more at once.
  */
-import type { CommandRejected, OperationState } from "@regulus/protocol";
+import {
+  type AccessCloseKind,
+  accessCloseKind,
+  type CommandRejected,
+  type OperationState,
+} from "@regulus/protocol";
 import { type BackoffOptions, backoffDelay } from "./backoff.ts";
 import { recordJoin } from "./joinTimes.ts";
 import {
@@ -35,6 +42,8 @@ export interface OperationLinksDeps {
   onError: (message: string) => void;
   /** The server refused a room (no access); it is not asked for again while wanted. */
   onDenied: (operationId: string) => void;
+  /** The server closed a joined room: access to it was withdrawn or changed (#244). */
+  onAccessClosed?: (operationId: string, kind: AccessCloseKind) => void;
   /** The primary room's rejections. */
   onRejected: (notice: CommandRejected) => void;
   /** Whether the building connection is up (operation joins wait for it). */
@@ -246,6 +255,21 @@ export class OperationLinks {
     this.deps.onGone(link.operationId);
     if (this.closed || isConsentedClose(code) || !this.wanted.has(link.operationId)) {
       this.forget(link);
+      return;
+    }
+    const access = accessCloseKind(code);
+    if (access) {
+      this.deps.onAccessClosed?.(link.operationId, access);
+      if (access === "changed") {
+        // Still allowed, differently: one fresh join, no backoff.
+        link.attempt = 0;
+        void this.join(link);
+        return;
+      }
+      // Withdrawn: asking again cannot help while the room is wanted.
+      this.denied.add(link.operationId);
+      this.forget(link);
+      this.deps.onDenied(link.operationId);
       return;
     }
     if (!this.deps.connected()) return; // the building retry brings it back

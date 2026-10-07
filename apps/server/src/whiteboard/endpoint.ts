@@ -8,9 +8,19 @@
  * cookie, then board access (./access.ts). A board the user cannot reach is
  * 404, so its existence is not revealed. One {@link LiveBoard} per board
  * lives while anyone is connected; the last one out saves it and frees it.
+ *
+ * Open sockets are registered with the office's live access (#244): when the
+ * human loses the board, or edit becomes read-only, the socket is closed
+ * with an `ACCESS_CLOSE_CODES` code and nothing more is sent or applied.
  */
-import { WHITEBOARD_MAX_MESSAGE_BYTES, WHITEBOARD_WS_PREFIX } from "@regulus/protocol";
+import {
+  LOBBY_WHITEBOARD_ID,
+  WHITEBOARD_MAX_MESSAGE_BYTES,
+  WHITEBOARD_WS_PREFIX,
+  type WhiteboardAccess,
+} from "@regulus/protocol";
 import type { Server, ServerWebSocket, WebSocketHandler } from "bun";
+import { type LiveAccess, sessionRefOf } from "../auth/live-access.ts";
 import { checkOrigin, type OriginPolicy } from "../auth/origin.ts";
 import type { WsRoute } from "../http/ws-router.ts";
 import type { Logger } from "../logging.ts";
@@ -32,6 +42,8 @@ export interface WhiteboardEndpointOptions {
   access: BoardAccessCheck;
   originPolicy: OriginPolicy;
   logger: Logger;
+  /** Ends open sockets whose human lost the board (#244). */
+  liveAccess?: LiveAccess;
   saveDelayMs?: number;
   maxSaveDelayMs?: number;
   maxDocBytes?: number;
@@ -41,7 +53,9 @@ interface BoardSocketData {
   boardId: string;
   peer?: BoardPeer;
   user: BoardUser;
-  writable: boolean;
+  access: WhiteboardAccess;
+  /** Stop live access tracking. */
+  release?: () => void;
 }
 
 const reject = (status: number, error: string): Response =>
@@ -101,7 +115,7 @@ export class WhiteboardEndpoint implements WsRoute {
       log.info({ userId: user.id }, "whiteboard denied");
       return reject(404, "not_found");
     }
-    const data: BoardSocketData = { boardId, user, writable: access === "edit" };
+    const data: BoardSocketData = { boardId, user, access };
     if (!server.upgrade(request, { data })) return reject(400, "upgrade_failed");
     return UPGRADED;
   };
@@ -130,11 +144,11 @@ export class WhiteboardEndpoint implements WsRoute {
   }
 
   #open(ws: ServerWebSocket<BoardSocketData>): void {
-    const { boardId, user, writable } = ws.data;
+    const { boardId, user, access } = ws.data;
     const peer: BoardPeer = {
       userId: user.id,
       name: (user.displayName ?? user.id).slice(0, 64),
-      writable,
+      writable: access === "edit",
       send: (data) => {
         ws.sendBinary(data);
       },
@@ -150,6 +164,22 @@ export class WhiteboardEndpoint implements WsRoute {
       return;
     }
     board.add(peer);
+    ws.data.release = this.#opts.liveAccess?.register({
+      kind: "whiteboard",
+      user: { id: user.id, role: user.role },
+      session: sessionRefOf(user),
+      operationId: boardId === LOBBY_WHITEBOARD_ID ? null : boardId,
+      check: (now) => {
+        const current = this.#opts.access(now, boardId);
+        if (!current) return "revoked";
+        return current === access ? "keep" : "changed";
+      },
+      close: (code, reason) => {
+        // Nothing more goes out or is applied, even before the close handshake ends.
+        this.#leave(ws);
+        ws.close(code, reason);
+      },
+    });
   }
 
   #message(ws: ServerWebSocket<BoardSocketData>, message: string | Buffer): void {
@@ -170,7 +200,15 @@ export class WhiteboardEndpoint implements WsRoute {
   }
 
   #close(ws: ServerWebSocket<BoardSocketData>): void {
+    this.#leave(ws);
+  }
+
+  /** Take the socket's peer off its board (idempotent). */
+  #leave(ws: ServerWebSocket<BoardSocketData>): void {
     const { peer, boardId } = ws.data;
+    ws.data.release?.();
+    ws.data.release = undefined;
+    ws.data.peer = undefined;
     const board = this.#boards.get(boardId);
     if (!peer || !board) return;
     if (board.remove(peer)) {

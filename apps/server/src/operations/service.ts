@@ -74,6 +74,8 @@ export interface OperationServiceDeps {
   onChange?(operationId: string): void;
   /** A level was created for a repo owner (its first operation): time to ask GitHub what it is. */
   onLevelCreated?(levelId: string): void;
+  /** A human's access to an operation was set or removed: their open connections are checked again (#244). */
+  onAccessChange?(operationId: string, userId: string): void;
   /** Places new operations in the compound (#181); without it operations are created unplaced. */
   placer?: RoomPlacer;
 }
@@ -318,6 +320,7 @@ export class OperationService {
         meta: { memberUserId: userId, access },
       });
     });
+    this.#deps.onAccessChange?.(operationId, userId);
   }
 
   removeMember(actor: OperationActor, operationId: string, userId: string): void {
@@ -339,6 +342,7 @@ export class OperationService {
         meta: { memberUserId: userId },
       });
     });
+    this.#deps.onAccessChange?.(operationId, userId);
   }
 
   /** Retry a failed clone, optionally replacing the stored PAT. */

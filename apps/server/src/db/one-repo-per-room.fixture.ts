@@ -1,5 +1,5 @@
 /**
- * Fixture rows for the 0020 migration test (#268), written with the 0019
+ * Fixture rows for the levels migration test (#268), written with the earlier
  * tables: an office from the 1..n-repos days.
  *
  * - `apollo`: three repos (octo/web primary, octo/api, Acme/docs), two

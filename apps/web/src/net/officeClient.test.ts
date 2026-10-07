@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, test } from "bun:test";
 import {
+  ACCESS_CLOSE_CODES,
   BLAST_DOOR_CLOSED,
   type BuildingState,
   type CommandRejected,
@@ -13,7 +14,7 @@ import { useBuildingStore } from "../state/building.ts";
 import { useConnectionStore } from "../state/connection.ts";
 import { useOperationStore } from "../state/operation.ts";
 import { useRoomsStore } from "../state/rooms.ts";
-import { OfficeClient, type Scheduler } from "./officeClient.ts";
+import { type AccessNotice, OfficeClient, type Scheduler } from "./officeClient.ts";
 import type { OperationJoinOptions, RoomHandle, RoomTransport } from "./transport.ts";
 
 // ---- fixtures ---------------------------------------------------------------
@@ -562,5 +563,87 @@ describe("OfficeClient", () => {
     expect(useConnectionStore.getState().status).toBe("disconnected");
     expect(clock.pendingDelays).toEqual([]);
     expect(useBuildingStore.getState().state).toBeNull();
+  });
+
+  // ---- access withdrawn while connected (#244) ----
+
+  test("a room closed with `revoked` is not rejoined; the human is told once", async () => {
+    const notices: AccessNotice[] = [];
+    const { transport, clock, client } = setup({ onAccess: (n) => notices.push(n) });
+    await client.connect();
+    await client.goToOperation("f1");
+    expect(transport.operationJoins).toHaveLength(1);
+
+    transport.operation.serverClose(ACCESS_CLOSE_CODES.revoked, "access revoked");
+    await flush();
+    expect(clock.pendingDelays).toEqual([]);
+    expect(transport.operationJoins).toHaveLength(1);
+    expect(useOperationStore.getState().operationId).toBeNull();
+    expect(notices).toEqual([
+      { kind: "revoked", operationId: "f1", message: "You no longer have access to this room." },
+    ]);
+    // Still wanted, still refused: asking for the same rooms again does not knock again.
+    await client.setRooms("f1", []);
+    expect(transport.operationJoins).toHaveLength(1);
+    // The office itself is untouched.
+    expect(client.status).toBe("connected");
+  });
+
+  test("a nearby room closed with `revoked` goes quietly", async () => {
+    const notices: AccessNotice[] = [];
+    const { transport, client } = setup({ onAccess: (n) => notices.push(n) });
+    await client.connect();
+    await client.setRooms("f1", ["f2"]);
+    const nearby = transport.operationRooms.find((r) => r.snapshot().operationId === "f2");
+    nearby?.serverClose(ACCESS_CLOSE_CODES.revoked);
+    await flush();
+    expect(notices).toEqual([]);
+    expect(client.joinedOperationIds).toEqual(["f1"]);
+  });
+
+  test("a room closed with `changed` is joined again at once, without a notice", async () => {
+    const notices: AccessNotice[] = [];
+    const { transport, clock, client } = setup({ onAccess: (n) => notices.push(n) });
+    await client.connect();
+    await client.goToOperation("f1");
+    transport.operation.serverClose(ACCESS_CLOSE_CODES.changed, "access changed");
+    await flush();
+    expect(clock.pendingDelays).toEqual([]);
+    expect(transport.operationJoins).toHaveLength(2);
+    expect(client.currentOperationId).toBe("f1");
+    expect(notices).toEqual([]);
+  });
+
+  test("signed out: the office stops instead of reconnecting, with a plain message", async () => {
+    const notices: AccessNotice[] = [];
+    const { transport, clock, client } = setup({ onAccess: (n) => notices.push(n) });
+    await client.connect();
+    await client.goToOperation("f1");
+    transport.building.serverClose(ACCESS_CLOSE_CODES.signedOut, "signed out");
+    await flush();
+    expect(client.status).toBe("disconnected");
+    expect(clock.pendingDelays).toEqual([]);
+    expect(transport.buildingRooms).toHaveLength(1);
+    expect(notices).toEqual([
+      { kind: "signedOut", message: "You were signed out. Sign in again to continue." },
+    ]);
+    expect(useConnectionStore.getState().lastError).toBe(
+      "You were signed out. Sign in again to continue.",
+    );
+  });
+
+  test("the office role changed: the building is joined again at once", async () => {
+    const notices: AccessNotice[] = [];
+    const { transport, clock, client } = setup({ onAccess: (n) => notices.push(n) });
+    await client.connect();
+    await client.goToOperation("f1");
+    transport.building.serverClose(ACCESS_CLOSE_CODES.changed, "access changed");
+    await flush();
+    await flush();
+    expect(clock.pendingDelays).toEqual([]);
+    expect(transport.buildingRooms).toHaveLength(2);
+    expect(client.status).toBe("connected");
+    expect(client.currentOperationId).toBe("f1");
+    expect(notices).toEqual([]);
   });
 });

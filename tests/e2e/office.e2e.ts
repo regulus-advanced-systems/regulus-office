@@ -22,7 +22,8 @@
  * Last, both walk up to the lobby jukebox, the owner queues a track and both browsers play it
  * at the same playhead within a tolerance (#47). Then the owner hangs a picture uploaded from
  * the PC on a free wall of Apollo, the member (given view access) sees it without a reload,
- * and the owner removes it again (#46).
+ * and the owner removes it again (#46). Last, the owner takes that access away while the member
+ * stands in Apollo: the member reads a plain message and the browser does not retry (#244).
  *
  * Structure (#248): the steps run in order in one worker and share two browsers opened from the
  * sessions the setup saved (officeSession.ts), but they are not serial: a failed step does not
@@ -41,6 +42,7 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, type Page, test } from "@playwright/test";
+import { checkAccessWithdrawn } from "./accessChecks.ts";
 import { checkBlastDoor } from "./blastDoorChecks.ts";
 import {
   addDeskInRoomSettings,
@@ -893,4 +895,11 @@ test("wall pictures: uploaded, hung on a free wall, seen by the other browser, r
   test.setTimeout(240_000);
   await ensureApollo();
   await checkWallPictures(ownerPage, memberPage, "Apollo");
+});
+
+test("access taken away while in a room: a plain message, no reconnect loop (#244)", async () => {
+  test.skip(!process.env.E2E_DATA_DIR, "needs the locally started server (local git remotes)");
+  test.setTimeout(240_000);
+  await ensureApollo();
+  await checkAccessWithdrawn(ownerPage, memberPage, "Apollo");
 });

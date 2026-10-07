@@ -4,6 +4,7 @@
  * HTTP; only then is the browser's upgrade accepted, with the subprotocol the
  * app chose. Frames are relayed both ways for the henchman's owner; for a
  * watcher only app-to-browser frames pass (the terminal's watch mode, D12).
+ * {@link endRelay} cuts a relay whose human lost the app (live access, #244).
  */
 import type { ServerWebSocket, WebSocketHandler } from "bun";
 import type { AppAccess } from "./access.ts";
@@ -16,6 +17,23 @@ export interface RelayData {
   /** App frames that arrived before the browser's socket opened. */
   early: Frame[];
   client?: ServerWebSocket<RelayData>;
+  /** Set once the office ended the relay: nothing more passes either way. */
+  ended?: { code: number; reason: string };
+  /** Stop live access tracking. */
+  release?: () => void;
+}
+
+/** End a relay from the office's side: no more frames, then both sockets close. */
+export function endRelay(data: RelayData, code: number, reason: string): void {
+  if (data.ended) return;
+  data.ended = { code, reason };
+  data.early.length = 0;
+  const up = data.upstream;
+  if (up.readyState === WebSocket.OPEN || up.readyState === WebSocket.CONNECTING) {
+    up.close(1000, "viewer left");
+  }
+  // Before the browser's socket opened, `open` below closes it with the same code.
+  data.client?.close(code, reason);
 }
 
 /** Bytes queued for the browser above which the relay gives up (a stuck tab). */
@@ -46,6 +64,7 @@ export function openUpstream(
     }, OPEN_TIMEOUT_MS);
     upstream.onmessage = (e) => {
       const frame = e.data as Frame;
+      if (data.ended) return;
       if (data.client) send(data.client, frame);
       else data.early.push(frame);
     };
@@ -59,7 +78,7 @@ export function openUpstream(
     };
     upstream.onclose = (e) => {
       clearTimeout(timer);
-      data.client?.close(sendableCode(e.code), e.reason.slice(0, 120));
+      if (!data.ended) data.client?.close(sendableCode(e.code), e.reason.slice(0, 120));
     };
   });
 }
@@ -77,15 +96,20 @@ function send(client: ServerWebSocket<RelayData>, frame: Frame): void {
 export const relayHandler: WebSocketHandler<RelayData> = {
   open(ws) {
     ws.data.client = ws;
+    if (ws.data.ended) {
+      ws.close(ws.data.ended.code, ws.data.ended.reason);
+      return;
+    }
     for (const frame of ws.data.early.splice(0)) send(ws, frame);
     if (ws.data.upstream.readyState !== WebSocket.OPEN) ws.close(1000, "app closed");
   },
   message(ws, message) {
     // A watcher sees the app's frames but sends nothing into another human's sandbox.
-    if (ws.data.access !== "control") return;
+    if (ws.data.ended || ws.data.access !== "control") return;
     if (ws.data.upstream.readyState === WebSocket.OPEN) ws.data.upstream.send(message);
   },
   close(ws, code, reason) {
+    ws.data.release?.();
     const up = ws.data.upstream;
     if (up.readyState === WebSocket.OPEN || up.readyState === WebSocket.CONNECTING) {
       up.close(sendableCode(code), reason.slice(0, 120));

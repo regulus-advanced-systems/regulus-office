@@ -1,7 +1,7 @@
 /**
- * Data step of migration 0020 (#268; D7 as changed 2026-10-07, D26). Runs in
- * `runMigrations`, right after the SQL migrations and before anything else
- * opens the database, in one write transaction:
+ * Data step of the `levels_one_repo_per_room` migration (#268; D7 as changed
+ * 2026-10-07, D26). Runs in `runMigrations`, right after the SQL migrations and
+ * before anything else opens the database, in one write transaction:
  *
  * 1. Every operation with several repos is split into one operation per
  *    repo. The primary repo keeps the original operation and its room. Each

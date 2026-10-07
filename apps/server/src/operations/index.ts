@@ -50,6 +50,8 @@ export interface OperationsDeps {
   dirs?: OperationDirRemover;
   /** An operation was created, archived, restored or deleted, or one of its repos finished cloning. */
   onChange?(operationId: string): void;
+  /** A human's access to an operation was set or removed (live access, #244). */
+  onAccessChange?(operationId: string, userId: string): void;
   /** Places new operations in the compound (#181). */
   placer?: RoomPlacer;
   /** A level was created for a repo owner with its first operation (#268). */
@@ -93,6 +95,7 @@ export function createOperations(deps: OperationsDeps): Operations {
     projectsDir: deps.config.projectsDir,
     onChange: deps.onChange,
     onLevelCreated: deps.onLevelCreated,
+    onAccessChange: deps.onAccessChange,
     placer: deps.placer,
   });
   const roots = [deps.config.projectsDir, deps.config.worktreesDir].filter(

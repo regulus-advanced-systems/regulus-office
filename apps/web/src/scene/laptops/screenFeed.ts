@@ -2,9 +2,10 @@
  * Client of the laptop screen feed `/ws/screens/<operationId>` (server
  * `terminals/screens.ts`): plain-text screens of every henchman in the operation,
  * pushed on change at ≤ 2 Hz. Reconnects with backoff; after a reconnect the
- * server sends every current screen again.
+ * server sends every current screen again. A feed the server closed because
+ * access to the operation was withdrawn (#244) is not reopened.
  */
-import { parseScreenFeedMessage, screensWsPath } from "@regulus/protocol";
+import { isFinalAccessClose, parseScreenFeedMessage, screensWsPath } from "@regulus/protocol";
 import { type BackoffOptions, backoffDelay } from "../../net/backoff.ts";
 import type { SocketFactory, SocketLike } from "../../ui/terminal/connection.ts";
 
@@ -55,9 +56,11 @@ export class ScreenFeedClient {
       else if (message?.type === "removed") this.#opts.onRemoved(message.agentId);
     };
     ws.onerror = () => {};
-    ws.onclose = () => {
+    ws.onclose = (event) => {
       if (this.#ws !== ws || this.#stopped) return;
       this.#ws = null;
+      // Signed out or no access any more: the upgrade would be refused every time.
+      if (isFinalAccessClose(event.code)) return;
       const delay = backoffDelay(this.#attempt, SCREEN_FEED_BACKOFF, this.#opts.random);
       this.#attempt += 1;
       const setTimer = this.#opts.setTimer ?? ((fn, ms) => setTimeout(fn, ms));

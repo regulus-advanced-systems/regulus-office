@@ -72,7 +72,7 @@ export function openDatabase(config: DatabaseConfig): Db {
  * one) must not cascade the drop into the tables that point at it (0018).
  * The previous setting is restored afterwards.
  *
- * Then the data step of 0020 (#268, one-repo-per-room.ts): split multi-repo
+ * Then the data step of the levels migration (#268, one-repo-per-room.ts): split multi-repo
  * operations into one per repo, put every operation on its repo owner's
  * level, and create the one-repo-per-operation index. It runs with foreign
  * keys on, in its own transaction, and does nothing once the data is in shape.

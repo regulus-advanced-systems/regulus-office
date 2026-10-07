@@ -1,6 +1,6 @@
 /**
- * Migration 0020 (#268): levels, and one repo per room. A database at 0019
- * holding an office from the 1..n-repos days is migrated; every operation
+ * The `levels_one_repo_per_room` migration (#268). A database from just before
+ * it, holding an office from the 1..n-repos days, is migrated; every operation
  * must end up with exactly one repo on its repo owner's level, everything
  * bound to a repo must have followed it, running henchmen must be untouched
  * apart from the room they are in, and nothing on disk may change.
@@ -35,7 +35,7 @@ const untouched = (row: Row | undefined): Row =>
   Object.fromEntries(Object.entries(row ?? {}).filter(([k]) => !TOUCHED.includes(k)));
 const byId = (rows: Row[]) => new Map(rows.map((r) => [String(r.id), r]));
 
-describe("0020_levels_one_repo_per_room", async () => {
+describe("levels_one_repo_per_room migration", async () => {
   // The office's files as they are on a real host: mirrors, a human's clone, worktrees.
   const root = join(dir, "srv-office");
   for (const path of [

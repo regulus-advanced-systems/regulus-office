@@ -8,6 +8,9 @@
  * through `RoomTransport`.
  */
 import {
+  type AccessCloseKind,
+  accessCloseKind,
+  accessCloseMessage,
   type BuildingState,
   type ClientCommandPayload,
   type ClientCommandType,
@@ -33,6 +36,15 @@ export type MessageListener = (payload: unknown) => void;
 
 export type Scheduler = (fn: () => void, delayMs: number) => () => void;
 
+/** The server ended a room because access was withdrawn or changed (#244). */
+export interface AccessNotice {
+  kind: AccessCloseKind;
+  /** The operation whose room closed; absent for the office itself. */
+  operationId?: string;
+  /** Plain text for the human. */
+  message: string;
+}
+
 const defaultScheduler: Scheduler = (fn, delayMs) => {
   const id = setTimeout(fn, delayMs);
   return () => clearTimeout(id);
@@ -51,6 +63,8 @@ export interface OfficeClientOptions {
   maxAttempts?: number;
   schedule?: Scheduler;
   random?: () => number;
+  /** Tell the human a room was closed on them (a toast; sign-out also re-checks the session). */
+  onAccess?: (notice: AccessNotice) => void;
 }
 
 export class OfficeClient {
@@ -60,6 +74,7 @@ export class OfficeClient {
   private readonly maxAttempts: number;
   private readonly schedule: Scheduler;
   private readonly random: () => number;
+  private readonly onAccess: (notice: AccessNotice) => void;
 
   private building: RoomHandle<BuildingState> | null = null;
   private readonly operations: OperationLinks;
@@ -91,6 +106,7 @@ export class OfficeClient {
     this.maxAttempts = options.maxAttempts ?? 10;
     this.schedule = options.schedule ?? defaultScheduler;
     this.random = options.random ?? Math.random;
+    this.onAccess = options.onAccess ?? (() => {});
     this.rooms = this.stores.rooms ?? useRoomsStore;
     this.operations = new OperationLinks({
       transport: this.transport,
@@ -116,6 +132,11 @@ export class OfficeClient {
         if (operationId === this.operations.primary) this.stores.operation.getState().clear();
       },
       onRejected: this.emitRejected,
+      onAccessClosed: (operationId, kind) => {
+        // A changed access rejoins by itself; only a withdrawn one needs words.
+        if (kind === "changed" || operationId !== this.operations.primary) return;
+        this.onAccess({ kind, operationId, message: accessCloseMessage(kind, "room") });
+      },
     });
   }
 
@@ -309,6 +330,21 @@ export class OfficeClient {
     this.announcedOperation = null;
     // The operation seats die with the building session; rejoin them after backoff.
     void this.operations.dropAll(false);
+    const access = accessCloseKind(code);
+    if (access === "signedOut" || access === "revoked") {
+      // Not a dropped connection: retrying would only be refused again.
+      const message = accessCloseMessage(access, "office");
+      this.stores.connection.getState().set({ status: "disconnected", lastError: message });
+      if (!this.closed) this.onAccess({ kind: access, message });
+      return;
+    }
+    if (access === "changed" && !this.closed) {
+      // The office role changed: come back at once with the new one.
+      this.attempt = 0;
+      this.stores.connection.getState().set({ status: "reconnecting", attempt: 0 });
+      void this.connect();
+      return;
+    }
     if (this.closed || isConsentedClose(code)) {
       this.stores.connection.getState().set({ status: "disconnected", lastError: reason ?? null });
       return;

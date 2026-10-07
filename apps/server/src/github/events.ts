@@ -69,6 +69,33 @@ export interface InstallationPayload extends RawObject {
   installation?: RawObject;
 }
 
+/** A collaborator was added to, removed from, or changed on a repo (#267). */
+export interface MemberPayload extends RawObject {
+  action?: string;
+  member?: RawObject;
+}
+/** Someone was added to or removed from a team (#267). */
+export interface MembershipPayload extends RawObject {
+  action?: string;
+  member?: RawObject;
+  team?: RawObject;
+}
+/** An organisation gained or lost a member, was renamed or deleted (#267). */
+export interface OrganizationPayload extends RawObject {
+  action?: string;
+  membership?: RawObject;
+  organization?: RawObject;
+}
+/** A repo was made private or public, renamed, transferred, archived or deleted (#267). */
+export interface RepositoryPayload extends RawObject {
+  action?: string;
+}
+/** A team was created, deleted, edited, or given or denied a repo (#267). */
+export interface TeamPayload extends RawObject {
+  action?: string;
+  team?: RawObject;
+}
+
 /** Event name (the `X-GitHub-Event` header) → payload type. */
 export interface GitHubEventPayloads {
   issues: IssuesPayload;
@@ -80,9 +107,31 @@ export interface GitHubEventPayloads {
   issue_comment: IssueCommentPayload;
   installation: InstallationPayload;
   installation_repositories: InstallationPayload;
+  member: MemberPayload;
+  membership: MembershipPayload;
+  organization: OrganizationPayload;
+  repository: RepositoryPayload;
+  team: TeamPayload;
 }
 
 export type GitHubEventName = keyof GitHubEventPayloads;
+
+/**
+ * Events that say someone's access to a repo or organisation may have changed
+ * (#267). They refresh access snapshots; boards and workflows ignore them.
+ */
+export const ACCESS_EVENT_NAMES = [
+  "member",
+  "membership",
+  "organization",
+  "repository",
+  "team",
+] as const satisfies readonly GitHubEventName[];
+export type AccessEventName = (typeof ACCESS_EVENT_NAMES)[number];
+
+export function isAccessEventName(name: string): name is AccessEventName {
+  return (ACCESS_EVENT_NAMES as readonly string[]).includes(name);
+}
 
 export const GITHUB_EVENT_NAMES: readonly GitHubEventName[] = [
   "issues",
@@ -94,6 +143,7 @@ export const GITHUB_EVENT_NAMES: readonly GitHubEventName[] = [
   "issue_comment",
   "installation",
   "installation_repositories",
+  ...ACCESS_EVENT_NAMES,
 ];
 
 export function isGitHubEventName(name: string): name is GitHubEventName {

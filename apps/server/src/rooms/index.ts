@@ -5,6 +5,7 @@
  */
 import { ROOM_NAMES } from "@regulus/protocol";
 import { AUDIT_ACTIONS, writeAudit } from "../auth/audit.ts";
+import type { LiveAccess } from "../auth/live-access.ts";
 import { originPolicyFor } from "../auth/origin.ts";
 import type { Db } from "../db/index.ts";
 import type { JukeboxPlayer } from "../jukebox/player.ts";
@@ -43,6 +44,8 @@ export interface RoomsOptions {
   /** OFFICE_PUBLIC_URL; browsers may only connect from this origin (plus localhost in dev). */
   publicUrl: string;
   production: boolean;
+  /** Ends room seats on lost access, sign-out and role change (#244). */
+  liveAccess?: LiveAccess;
   /** How long the blast door stays open after a press, ms (default 60 s, #188). */
   blastDoorMs?: number;
   /** The lobby jukebox the building room runs (#47). */
@@ -68,6 +71,7 @@ export function createRooms(options: RoomsOptions): Rooms {
     auth,
     logger,
     originPolicy: originPolicyFor(publicUrl, production),
+    liveAccess: options.liveAccess,
   });
   const operationSource = new DrizzleOperationRoomSource(db);
   const building = createBuildingRoom({

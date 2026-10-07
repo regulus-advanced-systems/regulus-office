@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "a6cc66ec-73aa-45ad-a043-a6901e72b137",
+  "id": "2e28c785-8975-4cb8-9afe-c5547665e8d7",
   "prevId": "68185862-254e-473c-829d-76b25f53ef59",
   "tables": {
     "agent_events": {
@@ -1621,6 +1621,311 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
+    "github_org_memberships": {
+      "name": "github_org_memberships",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "org_login": {
+          "name": "org_login",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "org_id": {
+          "name": "org_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "role": {
+          "name": "role",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'member'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "github_org_memberships_user_org_unique": {
+          "name": "github_org_memberships_user_org_unique",
+          "columns": ["user_id", "org_login"],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "github_org_memberships_user_id_users_id_fk": {
+          "name": "github_org_memberships_user_id_users_id_fk",
+          "tableFrom": "github_org_memberships",
+          "tableTo": "users",
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "github_repo_permissions": {
+      "name": "github_repo_permissions",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "repo_id": {
+          "name": "repo_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "permission": {
+          "name": "permission",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "checked_at": {
+          "name": "checked_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "github_repo_permissions_user_repo_unique": {
+          "name": "github_repo_permissions_user_repo_unique",
+          "columns": ["user_id", "repo_id"],
+          "isUnique": true
+        },
+        "github_repo_permissions_repo_idx": {
+          "name": "github_repo_permissions_repo_idx",
+          "columns": ["repo_id"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "github_repo_permissions_user_id_users_id_fk": {
+          "name": "github_repo_permissions_user_id_users_id_fk",
+          "tableFrom": "github_repo_permissions",
+          "tableTo": "users",
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "github_repo_permissions_repo_id_operation_repos_id_fk": {
+          "name": "github_repo_permissions_repo_id_operation_repos_id_fk",
+          "tableFrom": "github_repo_permissions",
+          "tableTo": "operation_repos",
+          "columnsFrom": ["repo_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "github_repo_permissions_permission_check": {
+          "name": "github_repo_permissions_permission_check",
+          "value": "\"permission\" IN ('none', 'read', 'triage', 'write', 'maintain', 'admin')"
+        }
+      }
+    },
+    "github_user_links": {
+      "name": "github_user_links",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "github_user_id": {
+          "name": "github_user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "login": {
+          "name": "login",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'linked'"
+        },
+        "encrypted_token": {
+          "name": "encrypted_token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "encrypted_refresh_token": {
+          "name": "encrypted_refresh_token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "token_expires_at": {
+          "name": "token_expires_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "refresh_token_expires_at": {
+          "name": "refresh_token_expires_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "linked_at": {
+          "name": "linked_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "last_checked_at": {
+          "name": "last_checked_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "last_error": {
+          "name": "last_error",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "github_user_links_user_unique": {
+          "name": "github_user_links_user_unique",
+          "columns": ["user_id"],
+          "isUnique": true
+        },
+        "github_user_links_github_user_unique": {
+          "name": "github_user_links_github_user_unique",
+          "columns": ["github_user_id"],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "github_user_links_user_id_users_id_fk": {
+          "name": "github_user_links_user_id_users_id_fk",
+          "tableFrom": "github_user_links",
+          "tableTo": "users",
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "github_user_links_status_check": {
+          "name": "github_user_links_status_check",
+          "value": "\"status\" IN ('linked', 'revoked')"
+        }
+      }
+    },
     "meeting_members": {
       "name": "meeting_members",
       "columns": {
@@ -2354,83 +2659,6 @@
         }
       }
     },
-    "levels": {
-      "name": "levels",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "kind": {
-          "name": "kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "github_id": {
-          "name": "github_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "login": {
-          "name": "login",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "position": {
-          "name": "position",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "levels_login_unique": {
-          "name": "levels_login_unique",
-          "columns": ["login"],
-          "isUnique": true
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {
-        "levels_kind_check": {
-          "name": "levels_kind_check",
-          "value": "\"kind\" IN ('lobby', 'org', 'account', 'holding')"
-        }
-      }
-    },
     "operation_members": {
       "name": "operation_members",
       "columns": {
@@ -2622,11 +2850,6 @@
           "name": "operation_repos_operation_owner_name_unique",
           "columns": ["operation_id", "owner", "name"],
           "isUnique": true
-        },
-        "operation_repos_operation_unique": {
-          "name": "operation_repos_operation_unique",
-          "columns": ["operation_id"],
-          "isUnique": true
         }
       },
       "foreignKeys": {
@@ -2671,21 +2894,6 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false
-        },
-        "level_id": {
-          "name": "level_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'holding'"
-        },
-        "dir_slug": {
-          "name": "dir_slug",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
           "autoincrement": false
         },
         "index": {
@@ -2810,24 +3018,9 @@
           "name": "operations_index_idx",
           "columns": ["index"],
           "isUnique": false
-        },
-        "operations_level_id_idx": {
-          "name": "operations_level_id_idx",
-          "columns": ["level_id"],
-          "isUnique": false
         }
       },
-      "foreignKeys": {
-        "operations_level_id_levels_id_fk": {
-          "name": "operations_level_id_levels_id_fk",
-          "tableFrom": "operations",
-          "tableTo": "levels",
-          "columnsFrom": ["level_id"],
-          "columnsTo": ["id"],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
+      "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}

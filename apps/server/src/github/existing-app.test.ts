@@ -166,8 +166,18 @@ describe("connect an existing app", () => {
     expect(body.missingPermissions).toEqual([
       { name: "issues", required: "write", granted: null },
       { name: "checks", required: "write", granted: "read" },
+      // Made before #267: no organisation Members permission, none of the access events.
+      { name: "members", required: "read", granted: null },
     ]);
-    expect(body.missingEvents).toEqual(["check_run", "push"]);
+    expect(body.missingEvents).toEqual([
+      "check_run",
+      "push",
+      "member",
+      "membership",
+      "organization",
+      "repository",
+      "team",
+    ]);
     expect(body.status).toMatchObject({ kind: "app", source: "db" });
     expect(body.status.app).toMatchObject({
       appId: APP_ID,
@@ -218,6 +228,7 @@ describe("helpers", () => {
         metadata: "write",
         issues: "write",
         checks: "write",
+        members: "read",
       }),
     ).toEqual([]);
     expect(missingEvents([...APP_EVENTS])).toEqual([]);
