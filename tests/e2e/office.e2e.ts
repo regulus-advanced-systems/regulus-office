@@ -61,6 +61,7 @@ import {
   cameraState,
   clickInScene,
   goToLevelOf,
+  goToLobbyLevel,
   navPose,
   navRooms,
   roomNamed,
