@@ -31,6 +31,7 @@ import {
 import { useBuildModeStore } from "../build-mode/store.ts";
 import { Button } from "../components/Button.tsx";
 import { Modal } from "../components/Modal.tsx";
+import { useGitHubLinkResultOverlay } from "../settings/GitHubLinkSection.tsx";
 import { useGitHubResultOverlay } from "../settings/GitHubSection.tsx";
 import { createGitHubApi, describeGitHubError, type GitHubApi } from "../settings/githubApi.ts";
 import { RepoPicker } from "./RepoPicker.tsx";
@@ -269,6 +270,8 @@ export function AddOperationDialogHost({ github = defaultGitHubApi }: { github?:
   }, [open]);
   // Back from the GitHub App manifest flow: show the result in Settings.
   useGitHubResultOverlay();
+  // Back from linking a GitHub account (#267): show the result in Settings → You.
+  useGitHubLinkResultOverlay();
   if (!allowed) return null;
   const toBuildMode = (request: AddOperationRequest) => {
     const world = useCompoundStore.getState().world;

@@ -21,6 +21,7 @@ import { type TabItem, Tabs } from "../components/Tabs.tsx";
 import { OfficeAgentsSection } from "../office-agents/OfficeAgentsSection.tsx";
 import { openProvidersPanel } from "../providers/providersStore.ts";
 import { DisplaySettings } from "./DisplaySettings.tsx";
+import { GitHubLinkSection } from "./GitHubLinkSection.tsx";
 import { GitHubSection } from "./GitHubSection.tsx";
 import { NotificationsSection } from "./NotificationsSection.tsx";
 import { OperationsSection } from "./OperationsSection.tsx";
@@ -58,7 +59,10 @@ function railNow(): boolean {
 function YouPanel() {
   return (
     <div className="rg-settings__columns">
-      <AccountSection />
+      <div className="rg-settings__stack">
+        <AccountSection />
+        <GitHubLinkSection />
+      </div>
       <GeniusSettingsSection />
     </div>
   );

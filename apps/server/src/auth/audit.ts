@@ -53,6 +53,9 @@ export const AUDIT_ACTIONS = {
   providerLoginFinish: "provider_login.finish",
   githubConnect: "github.connect",
   githubDisconnect: "github.disconnect",
+  /** A person linked or unlinked their own GitHub account (#267). */
+  githubLink: "github.link",
+  githubUnlink: "github.unlink",
   /** Board write actions (#36): an operation manager acted on GitHub through the office credential. */
   githubBoardComment: "github.board_comment",
   githubBoardAssign: "github.board_assign",
@@ -115,6 +118,7 @@ export interface AuditEntry {
     | "credential_profile"
     | "provider_login"
     | "github_connection"
+    | "github_link"
     | "github_card"
     | "notification_channel"
     | "meeting"

@@ -7,6 +7,7 @@ export * from "./auth.ts";
 export * from "./chat.ts";
 export * from "./desks.ts";
 export * from "./github.ts";
+export * from "./github-access.ts";
 export * from "./meetings.ts";
 export * from "./notifications.ts";
 export * from "./office-agents.ts";

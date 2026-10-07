@@ -27,6 +27,7 @@ import { ConfigError, loadConfig, redactConfig } from "./config.ts";
 import { mountCredentialPanel } from "./credentials/panel.ts";
 import { closeDatabase, databasePathFor, openDatabase, runMigrations } from "./db/index.ts";
 import { deprecatedEnvMessage } from "./deprecated-env.ts";
+import { createGitHubAccess } from "./github/access/index.ts";
 import { createBoardGitHub } from "./github/board-actions.ts";
 import { mountBoardRoutes } from "./github/board-routes.ts";
 import { createPullRequestClient } from "./github/pulls.ts";
@@ -293,6 +294,10 @@ async function main(): Promise<void> {
     ...github,
     onConnectionChanged: () => githubSync?.connectionChanged(),
   });
+  // People's own GitHub access (#267, D27): link by OAuth, permission snapshot, kept current.
+  const githubAccess = createGitHubAccess({ db, keyring, config, logger });
+  githubAccess.mount(server.router, auth);
+  auth.onSignIn((userId) => githubAccess.refresher.request(userId));
   // Runner backend from OFFICE_RUNNER_BACKEND (SPEC §8): agents run only in their human's runner.
   const runner = await createRunner(config, production, logger);
   logger.info({ backend: config.runnerBackend }, "agent runner backend selected");
@@ -348,6 +353,7 @@ async function main(): Promise<void> {
     logger: logger.child({ module: "github-sync" }),
   });
   mountGitHubSyncRoutes(server.router, { auth, sync: githubSync });
+  githubAccess.refresher.follow(githubSync.events);
   // Merge gong (#43): merged PRs, manual bangs and emptied task queues (#37) ring on the operation.
   const celebrations = createCelebrations({
     db,
@@ -547,6 +553,10 @@ async function main(): Promise<void> {
   githubSync.start();
   workflows.start();
   shutdown.register("github-sync", () => githubSync?.stop());
+  githubAccess.refresher.start();
+  // Catch up on changes made while the office was down.
+  githubAccess.refresher.requestAll();
+  shutdown.register("github-access", () => githubAccess.refresher.stop());
   shutdown.register("workflows", () => workflows.close());
   services.start(runner);
   shutdown.register("services", () => services.stop());
