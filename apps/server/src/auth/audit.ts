@@ -79,6 +79,24 @@ export const AUDIT_ACTIONS = {
   skinRuleCreate: "skin_rule.create",
   skinRuleUpdate: "skin_rule.update",
   skinRuleDelete: "skin_rule.delete",
+  /** Office agents (#271): configuration by people. Entries never hold a token or a message. */
+  officeAgentCreate: "office_agent.create",
+  officeAgentUpdate: "office_agent.update",
+  officeAgentDelete: "office_agent.delete",
+  officeAgentGrantsSet: "office_agent.grants_set",
+  officeAgentTokenCreate: "office_agent.token_create",
+  officeAgentTokenRevoke: "office_agent.token_revoke",
+  officeAgentStart: "office_agent.start",
+  officeAgentStop: "office_agent.stop",
+  /** An office owner/admin stopped someone else's personal agent. */
+  officeAgentEmergencyStop: "office_agent.emergency_stop",
+  officeAgentSettings: "office_agent.settings",
+  officeAgentRequestAnswer: "office_agent.request_answer",
+  /** What an agent did through the office tools: every call, allowed or refused. */
+  officeAgentToolCall: "office_agent.tool_call",
+  officeAgentToolDenied: "office_agent.tool_denied",
+  /** A `manager` agent spawned a henchman (counted against its daily cap). */
+  officeAgentHenchmanSpawn: "office_agent.henchman_spawn",
 } as const;
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];
 
@@ -102,7 +120,8 @@ export interface AuditEntry {
     | "meeting"
     | "workflow"
     | "workflow_run"
-    | "skin_rule";
+    | "skin_rule"
+    | "office_agent";
   targetId: string | null;
   meta?: Record<string, unknown>;
 }

@@ -3,7 +3,8 @@
  * that is open. The last-open tab is remembered for the browser session
  * (sessionStorage, every access wrapped: private modes and blocked storage
  * just forget it). Owners and admins see Office and Henchmen; everyone else
- * never lands on them, even if a remembered id says so.
+ * never lands on them, even if a remembered id says so. Agents (#271) is for
+ * everyone: each person has their own, and the shared ones serve all.
  */
 import type { UserRole } from "@regulus/protocol";
 import { create } from "zustand";
@@ -11,13 +12,21 @@ import { canManageOffice } from "../../state/session.ts";
 import { useUiStore } from "../../state/ui.ts";
 import type { StorageLike } from "./settingsStorage.ts";
 
-export const SETTINGS_TAB_IDS = ["you", "office", "henchmen", "notifications", "display"] as const;
+export const SETTINGS_TAB_IDS = [
+  "you",
+  "office",
+  "henchmen",
+  "agents",
+  "notifications",
+  "display",
+] as const;
 export type SettingsTabId = (typeof SETTINGS_TAB_IDS)[number];
 
 export const SETTINGS_TAB_LABELS: Readonly<Record<SettingsTabId, string>> = {
   you: "You",
   office: "Office",
   henchmen: "Henchmen",
+  agents: "Agents",
   notifications: "Notifications",
   display: "Display and sound",
 };
