@@ -73,7 +73,8 @@ describe("shapes and tools", () => {
     const names = toolsForPreset("observer").map((t) => t.name);
     for (const name of ["soul_read", "memory_save", "memory_search", "memory_list"] as const) {
       expect(names).toContain(name);
-      expect(Object.keys(OFFICE_TOOL_INPUTS[name].shape)).not.toContain("agentId");
+      const shape: Record<string, unknown> = OFFICE_TOOL_INPUTS[name].shape;
+      expect(Object.keys(shape)).not.toContain("agentId");
     }
     for (const name of ["memory_forget", "note_write", "note_read", "note_list", "note_delete"]) {
       expect(names).toContain(name);
