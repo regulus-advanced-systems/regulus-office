@@ -51,6 +51,7 @@ import { createMeetings } from "./meetings/index.ts";
 import { createNotifications } from "./notifications/setup.ts";
 import { createOperations, mountOperationRoutes } from "./operations/index.ts";
 import { createWallPictures } from "./pictures/index.ts";
+import { createOfficeAgents } from "./pm/index.ts";
 import { mountProfileRoutes } from "./profile/routes.ts";
 import { allObservers, createTaskQueue } from "./queue/index.ts";
 import {
@@ -506,6 +507,29 @@ async function main(): Promise<void> {
   });
   tasks.bind(agents);
   meetings.bind(agents);
+  // Office agents (#271): shared and personal agents, acting through the office MCP server.
+  const officeAgents = createOfficeAgents({
+    db,
+    logger,
+    keyring,
+    officeUrl: config.runnerOfficeUrl,
+    version,
+    runner,
+    usage: usage.tracker,
+  });
+  officeAgents.bind({
+    queue: (operationId) => tasks.queue.snapshot(operationId),
+    enqueue: (actor, input) => tasks.queue.enqueueTask(actor, input),
+    myUsage: (userId) => usage.summaries.mine(userId),
+    officeUsage: () => usage.summaries.office(),
+    postChat: (line) => rooms.building.postChat(line),
+    spawn: (actor, input) => agents.spawn(actor, input),
+    stop: (actor, henchmanId) => agents.stop(actor, henchmanId),
+    officeToken: (owner, name) => github.connection.tokenFor(owner, name),
+    github: createBoardGitHub({ apiBase: config.githubApiBase }),
+  });
+  officeAgents.mount(server.router, auth);
+  officeAgents.boot();
   // "Send all home" before deleting an operation (#150): branches are kept, GitHub is not touched.
   // An office owner/admin clears everyone's henchmen, which is not henchman control (D12, #138).
   operations.lifecycle.henchmen = {
@@ -578,6 +602,7 @@ async function main(): Promise<void> {
   // Runs before the agents detach (hooks run last-registered-first): no new starts.
   shutdown.register("task-queue", () => tasks.queue.close());
   shutdown.register("meetings", () => meetings.close());
+  shutdown.register("office-agents", () => officeAgents.close());
   installSignalHandlers(shutdown, (code) => {
     logger.flush();
     process.exit(code);
