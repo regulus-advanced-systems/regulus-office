@@ -11,8 +11,8 @@
  */
 import type { Vector3 } from "three";
 import { at, blendAt, DOWN, UP } from "./body.ts";
-import { HOLD_CLIPBOARD, STAND } from "./poses.ts";
 import { intoBindSpace } from "./posed.ts";
+import { HOLD_CLIPBOARD, STAND } from "./poses.ts";
 import type { BoneName } from "./rig.ts";
 import {
   type Blend,
@@ -67,7 +67,11 @@ function torso(): Part[] {
     [0.045, 1.44],
   ];
   const button = (y: number) =>
-    part(ellipsoid([0.011, 0.011, 0.006], { at: [0.012, y, FRONT - 0.016] }, [5, 3]), "metal", "Body");
+    part(
+      ellipsoid([0.011, 0.011, 0.006], { at: [0.012, y, FRONT - 0.016] }, [5, 3]),
+      "metal",
+      "Body",
+    );
   const skirt: Part = {
     geometry: lathe(
       [
@@ -106,9 +110,21 @@ function torso(): Part[] {
     part(ellipsoid([0.052, 0.046, 0.058], { at: [0.178, 1.385, 0] }, [8, 5]), "suit", "Body"),
     part(ellipsoid([0.052, 0.046, 0.058], { at: [-0.178, 1.385, 0] }, [8, 5]), "suit", "Body"),
     // Blouse front, its collar wings, and a neck bow in the provider colour.
-    part(box([0.06, 0.12, 0.01], { at: [0, 1.35, FRONT - 0.012], rot: [-0.22, 0, 0] }), "shirt", "Body"),
-    part(box([0.05, 0.026, 0.012], { at: [0.036, 1.41, 0.07], rot: [-0.3, 0, 0.5] }), "shirt", "Body"),
-    part(box([0.05, 0.026, 0.012], { at: [-0.036, 1.41, 0.07], rot: [-0.3, 0, -0.5] }), "shirt", "Body"),
+    part(
+      box([0.06, 0.12, 0.01], { at: [0, 1.35, FRONT - 0.012], rot: [-0.22, 0, 0] }),
+      "shirt",
+      "Body",
+    ),
+    part(
+      box([0.05, 0.026, 0.012], { at: [0.036, 1.41, 0.07], rot: [-0.3, 0, 0.5] }),
+      "shirt",
+      "Body",
+    ),
+    part(
+      box([0.05, 0.026, 0.012], { at: [-0.036, 1.41, 0.07], rot: [-0.3, 0, -0.5] }),
+      "shirt",
+      "Body",
+    ),
     part(ellipsoid([0.026, 0.016, 0.012], { at: [0.024, 1.392, 0.082] }, [6, 3]), "trim", "Body"),
     part(ellipsoid([0.026, 0.016, 0.012], { at: [-0.024, 1.392, 0.082] }, [6, 3]), "trim", "Body"),
     button(1.24),
@@ -161,7 +177,11 @@ function arm(side: "L" | "R"): Part[] {
       "skin",
       hand,
     ),
-    part(capsule([x - 0.014 * s, 0.82, 0.03], [x - 0.02 * s, 0.782, 0.042], 0.011, 5), "skin", hand),
+    part(
+      capsule([x - 0.014 * s, 0.82, 0.03], [x - 0.02 * s, 0.782, 0.042], 0.011, 5),
+      "skin",
+      hand,
+    ),
   ];
 }
 
@@ -172,11 +192,23 @@ export function glasses(): Part[] {
   const rim = (s: number) =>
     part(torus(0.021, 0.0042, Math.PI * 2, { at: [0.034 * s, y, z] }, 10), "ink", "Head");
   const corner = (s: number) =>
-    part(box([0.02, 0.008, 0.008], { at: [0.058 * s, y + 0.016, z - 0.004], rot: [0, 0, 0.5 * s] }), "ink", "Head");
+    part(
+      box([0.02, 0.008, 0.008], { at: [0.058 * s, y + 0.016, z - 0.004], rot: [0, 0, 0.5 * s] }),
+      "ink",
+      "Head",
+    );
   const temple = (s: number) =>
-    part(box([0.006, 0.006, 0.09], { at: [0.074 * s, y + 0.006, z - 0.05], rot: [0, 0.22 * s, 0] }), "ink", "Head");
+    part(
+      box([0.006, 0.006, 0.09], { at: [0.074 * s, y + 0.006, z - 0.05], rot: [0, 0.22 * s, 0] }),
+      "ink",
+      "Head",
+    );
   const earring = (s: number) =>
-    part(ellipsoid([0.008, 0.008, 0.008], { at: [0.09 * s, 1.562, 0.002] }, [5, 3]), "metal", "Head");
+    part(
+      ellipsoid([0.008, 0.008, 0.008], { at: [0.09 * s, 1.562, 0.002] }, [5, 3]),
+      "metal",
+      "Head",
+    );
   return [
     rim(1),
     rim(-1),
@@ -213,5 +245,13 @@ function clipboard(): Part[] {
 
 /** The secretary from the neck down, with her glasses and clipboard. */
 export function secretaryParts(): Part[] {
-  return [...torso(), ...leg("L"), ...leg("R"), ...arm("L"), ...arm("R"), ...glasses(), ...clipboard()];
+  return [
+    ...torso(),
+    ...leg("L"),
+    ...leg("R"),
+    ...arm("L"),
+    ...arm("R"),
+    ...glasses(),
+    ...clipboard(),
+  ];
 }

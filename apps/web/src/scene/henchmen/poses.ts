@@ -60,8 +60,8 @@ export const SIT_IDLE: Pose = merge(SIT, {
 
 /** Seated, hands on the keyboard (the typing loop wiggles the forearms over this). */
 export const SIT_TYPE: Pose = merge(SIT_IDLE, {
-  UpperArmL: [-76, -14, 11],
-  UpperArmR: [-76, 14, -11],
+  UpperArmL: [-73, -14, 11],
+  UpperArmR: [-73, 14, -11],
   LowerArmL: [-40, 0, 0],
   LowerArmR: [-40, 0, 0],
   HandL: [22, 0, 0],
@@ -115,10 +115,10 @@ export const HOLD_CLIPBOARD = {
 
 /** Both arms forward to carry a box (the walk home, #33). */
 export const CARRY = {
-  UpperArmL: [-42, -10, 10],
-  UpperArmR: [-42, 10, -10],
-  LowerArmL: [-48, 0, 0],
-  LowerArmR: [-48, 0, 0],
+  UpperArmL: [-30, -10, 10],
+  UpperArmR: [-30, 10, -10],
+  LowerArmL: [-60, 0, 0],
+  LowerArmR: [-60, 0, 0],
 } as const satisfies Pose;
 
 /** Right hand over the eyes (facepalm). */

@@ -97,11 +97,7 @@ const styles: Readonly<Record<HairStyle, () => Part[]>> = {
   ],
   // A bare crown, hair round the back and sides, and a moustache.
   balding: () => [
-    part(
-      ellipsoid([0.092, 0.05, 0.07], { at: [0, 1.605, -0.042] }, [10, 5]),
-      "hair",
-      "Head",
-    ),
+    part(ellipsoid([0.092, 0.05, 0.07], { at: [0, 1.605, -0.042] }, [10, 5]), "hair", "Head"),
     part(box([0.046, 0.012, 0.012], { at: [0, 1.551, 0.092] }), "hair", "Head"),
   ],
 };

@@ -42,7 +42,11 @@ function coatTails(): Part {
 }
 
 const lapels = (slot: "suitDark" | "shirt"): Part[] => [
-  part(box([0.05, 0.18, 0.012], { at: [0.045, 1.3, F - 0.004], rot: [-0.12, 0, 0.32] }), slot, "Body"),
+  part(
+    box([0.05, 0.18, 0.012], { at: [0.045, 1.3, F - 0.004], rot: [-0.12, 0, 0.32] }),
+    slot,
+    "Body",
+  ),
   part(
     box([0.05, 0.18, 0.012], { at: [-0.045, 1.3, F - 0.004], rot: [-0.12, 0, -0.32] }),
     slot,
@@ -82,7 +86,11 @@ const builders: Readonly<Record<Outfit, () => Part[]>> = {
   },
   suit: () => [
     // Shirt front, lapels, and a tie in the provider colour.
-    part(box([0.07, 0.13, 0.01], { at: [0, 1.345, F - 0.012], rot: [-0.2, 0, 0] }), "shirt", "Body"),
+    part(
+      box([0.07, 0.13, 0.01], { at: [0, 1.345, F - 0.012], rot: [-0.2, 0, 0] }),
+      "shirt",
+      "Body",
+    ),
     ...lapels("suitDark"),
     part(box([0.028, 0.024, 0.016], { at: [0, 1.4, 0.084] }), "trim", "Body"),
     part(box([0.034, 0.2, 0.01], { at: [0, 1.29, F + 0.001], rot: [-0.1, 0, 0] }), "trim", "Body"),

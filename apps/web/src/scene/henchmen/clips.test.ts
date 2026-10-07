@@ -11,7 +11,7 @@ const GESTURES = new Set<string>([
   HENCHMAN_CLIPS.needsYou,
   HENCHMAN_CLIPS.needsYouStill,
 ]);
-const PARTIAL = new Set<string>([HENCHMAN_CLIPS.carry, ...GESTURES]);
+const PARTIAL = new Set<string>([HENCHMAN_CLIPS.carry, HENCHMAN_CLIPS.hold, ...GESTURES]);
 
 /** Largest change of any track value over the clip. */
 function motionOf(name: string): number {
@@ -90,6 +90,14 @@ describe("clip data", () => {
       for (const n of tracksOf(name))
         expect(n).toMatch(/^((UpperArm|LowerArm|Hand)[LR]|Head|Abdomen)\.quaternion$/);
     }
+  });
+
+  test("the held clipboard only takes the left arm and holds it still (#281)", () => {
+    const hold = tracksOf(HENCHMAN_CLIPS.hold);
+    expect(hold).toEqual(["HandL.quaternion", "LowerArmL.quaternion", "UpperArmL.quaternion"]);
+    expect(motionOf(HENCHMAN_CLIPS.hold)).toBe(0);
+    // The done hand is the right arm, so a secretary can raise it without letting go.
+    for (const n of tracksOf(HENCHMAN_CLIPS.hand)) expect(hold).not.toContain(n);
   });
 
   test("done and needs-you are different gestures (#235)", () => {

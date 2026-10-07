@@ -21,7 +21,8 @@ describe("character forms (#281)", () => {
   });
 
   test("every form has a label", () => {
-    for (const id of CHARACTER_FORM_IDS) expect(CHARACTER_FORM_LABELS[id].length).toBeGreaterThan(0);
+    for (const id of CHARACTER_FORM_IDS)
+      expect(CHARACTER_FORM_LABELS[id].length).toBeGreaterThan(0);
     expect(CHARACTER_FORM_LABELS.secretary).toBe("Secretary");
   });
 

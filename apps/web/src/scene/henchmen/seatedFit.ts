@@ -19,5 +19,5 @@ export const HENCHMAN_SEATED_BODY: SeatedBody = {
   backDepth: 0.1,
 };
 
-/** The front of the torso (the belly), ahead of the Hips bone; the knees go under the table. */
-export const HENCHMAN_SEATED_FRONT = 0.1;
+/** The front of the torso (the chest, leaning to the desk), ahead of the Hips bone; the knees go under the table. */
+export const HENCHMAN_SEATED_FRONT = 0.166;

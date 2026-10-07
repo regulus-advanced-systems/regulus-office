@@ -188,7 +188,12 @@ const WALK_B = add(STAND, {
   Body: [0, -6, 0],
 });
 
-const SIT_READ = merge(SIT, HOLD_PAPERS, { Head: [22, 0, 0] });
+// Seated, the papers come up over the desk edge: the upper arms reach further forward.
+const SIT_READ = merge(SIT, HOLD_PAPERS, {
+  UpperArmL: [-62, -22, 14],
+  UpperArmR: [-62, 22, -14],
+  Head: [22, 0, 0],
+});
 const SIT_THINK = merge(SIT, CHIN_IN_HAND, { Head: [-4, 0, 0] });
 const SIT_CHEER_UP = merge(SIT_IDLE, ARMS_UP, { Head: [-12, 0, 0] });
 

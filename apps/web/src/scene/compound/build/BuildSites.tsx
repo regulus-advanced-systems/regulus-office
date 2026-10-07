@@ -57,7 +57,7 @@ function Hammer({ phase, still }: { phase: number; still: boolean }) {
     ref.current.rotation.x = still ? -0.5 : hammerAngle(clock.elapsedTime + phase);
   });
   return (
-    <group ref={ref} position={[0.26, 1.05, 0.3]} name="hammer">
+    <group ref={ref} position={[0.26, 1.36, 0.3]} name="hammer">
       <mesh position={[0, 0, 0.26]} rotation-x={Math.PI / 2} raycast={() => null}>
         <cylinderGeometry args={[0.035, 0.035, 0.52, 6]} />
         <meshLambertMaterial color={LAIR.walnut} />

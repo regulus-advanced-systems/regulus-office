@@ -42,7 +42,7 @@ export interface HenchmanProps {
 
 function Papers() {
   return (
-    <group position={[0, 0.78, -0.3]} rotation-x={0.9}>
+    <group position={[0, 0.86, -0.5]} rotation-x={0.9}>
       <mesh position={[-0.05, 0, 0]} rotation-z={0.12}>
         <boxGeometry args={[0.2, 0.26, 0.006]} />
         <meshBasicMaterial color="#FAFAF5" />

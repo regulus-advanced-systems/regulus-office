@@ -17,7 +17,8 @@ export function skinMatrix(pose: Pose, bone: BoneName): Matrix4 {
   const { root, bones, skeleton } = buildSkeleton();
   for (const name of BONE_NAMES) {
     const deg = pose[name];
-    if (deg) bones[BONE_INDEX[name]]?.rotation.copy(new Euler(deg[0] * RAD, deg[1] * RAD, deg[2] * RAD));
+    if (deg)
+      bones[BONE_INDEX[name]]?.rotation.copy(new Euler(deg[0] * RAD, deg[1] * RAD, deg[2] * RAD));
   }
   root.updateMatrixWorld(true);
   const i = BONE_INDEX[bone];
@@ -27,6 +28,10 @@ export function skinMatrix(pose: Pose, bone: BoneName): Matrix4 {
   );
 }
 
-export function intoBindSpace(geometry: BufferGeometry, pose: Pose, bone: BoneName): BufferGeometry {
+export function intoBindSpace(
+  geometry: BufferGeometry,
+  pose: Pose,
+  bone: BoneName,
+): BufferGeometry {
   return geometry.applyMatrix4(skinMatrix(pose, bone).invert());
 }

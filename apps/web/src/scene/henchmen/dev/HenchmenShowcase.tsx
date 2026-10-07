@@ -9,8 +9,8 @@
 import { OrbitControls } from "@react-three/drei";
 import { Canvas } from "@react-three/fiber";
 import {
-  type AgentStatus,
   AGENT_STATUSES,
+  type AgentStatus,
   AVATAR_ANIMATIONS,
   type AvatarAnimation,
   CHARACTER_FORM_IDS,
@@ -29,7 +29,20 @@ const isGesture = isOneOf(HENCHMAN_GESTURES);
 type View = "skins" | "trims" | "heads" | "lights" | "secretary" | "poses" | "crowd";
 
 /** Ids that between them show every hair style, several skin tones and hair colours. */
-const CREW = ["rivet", "klaxon", "soot", "gasket", "winch", "dowel", "shim", "fuse", "bolt", "cog"];
+const CREW = [
+  "rivet",
+  "relay",
+  "quartz",
+  "valve",
+  "bolt",
+  "chisel",
+  "flint",
+  "anvil",
+  "turbine",
+  "shim",
+  "ember",
+  "rotor",
+];
 
 interface Entry {
   key: string;
