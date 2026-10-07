@@ -96,7 +96,7 @@ export class FakeHermesGateway {
   async down(): Promise<void> {
     for (const controller of this.#open) {
       try {
-        controller.error(new Error("gateway down"));
+        controller.close();
       } catch {
         // Already closed.
       }
@@ -295,7 +295,7 @@ export class FakeHermesGateway {
           setTimeout(() => {
             open.delete(controller);
             try {
-              controller.error(new Error("stream cut"));
+              controller.close();
             } catch {
               // Already closed by `down`.
             }
