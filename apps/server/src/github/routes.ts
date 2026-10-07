@@ -51,6 +51,15 @@ export interface GitHubRoutesDeps {
   logger: Logger;
   /** After the connection changed (board sync resyncs, webhook config is checked; #35). */
   onConnectionChanged?: () => void;
+  /**
+   * The repos a person's own GitHub account can see, as lower-case
+   * `owner/name` (D27; #270). The picker lists only those: the office's
+   * connection may cover repos the person asking cannot see. Without it the
+   * picker lists nothing.
+   */
+  ownRepos?(
+    userId: string,
+  ): Promise<{ names: Set<string>; truncated: boolean } | "not_linked" | "unavailable">;
 }
 
 export function mountGitHubRoutes(router: Router, deps: GitHubRoutesDeps): void {
@@ -110,10 +119,29 @@ export function mountGitHubRoutes(router: Router, deps: GitHubRoutesDeps): void 
 
   router.get(
     GITHUB_REPOS_API_PATH,
-    handle(async () => {
+    handle(async (_ctx, actor) => {
       try {
-        return json(await connection.listRepos());
+        // Asked first: a person without a link learns nothing about the connection's repos.
+        const own = (await deps.ownRepos?.(actor.id)) ?? "not_linked";
+        if (own === "not_linked") {
+          throw new AuthHttpError(403, "github_link_required", {
+            message:
+              "Link your GitHub account to pick a repo: the list shows the repos you can see.",
+          });
+        }
+        if (own === "unavailable") {
+          return json(
+            { error: "github_unavailable", detail: "GitHub could not list your repos" },
+            { status: 502 },
+          );
+        }
+        const all = await connection.listRepos();
+        return json({
+          repos: all.repos.filter((r) => own.names.has(r.fullName.toLowerCase())),
+          truncated: all.truncated || own.truncated,
+        });
       } catch (err) {
+        if (err instanceof AuthHttpError) throw err;
         return json(
           { error: "github_unavailable", detail: connection.describeError(err) },
           { status: 502 },

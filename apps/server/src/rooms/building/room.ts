@@ -41,8 +41,8 @@ import type { RoomAuthUser } from "../auth.ts";
 import { CHAT_REPLAY, type ChatStore } from "../chat/store.ts";
 import type { RoomClient, RoomDefinition, RoomHandle } from "../transport.ts";
 import { type BlastDoorOptions, createBlastDoor } from "./blast-door.ts";
-import { checkCommand, wrapHeading } from "./commands.ts";
 import { applyClosedRooms } from "./closed-rooms.ts";
+import { checkCommand, wrapHeading } from "./commands.ts";
 import { levelOfGo, returnToAllowedPlaces } from "./levels.ts";
 import { applyLobbyCommand } from "./lobby-commands.ts";
 import {

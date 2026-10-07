@@ -7,6 +7,7 @@ import { mkdir } from "node:fs/promises";
 import { LOBBY_WHITEBOARD_ID, ROOM_NAMES } from "@regulus/protocol";
 import { sql } from "drizzle-orm";
 import { createAgents } from "./agents/manager/boot.ts";
+import { mountEmergencyStopRoutes } from "./agents/manager/emergency-routes.ts";
 import { createRunner } from "./agents/manager/runner-backend.ts";
 import {
   AuthConfigError,
@@ -51,6 +52,7 @@ import {
 import { removeParticipant } from "./media/kick.ts";
 import { createMeetings } from "./meetings/index.ts";
 import { createNotifications } from "./notifications/setup.ts";
+import { operationIdsOfRepos } from "./operations/access.ts";
 import { createOperations, mountOperationRoutes } from "./operations/index.ts";
 import { createWallPictures } from "./pictures/index.ts";
 import { createOfficeAgents } from "./pm/index.ts";
@@ -269,7 +271,10 @@ async function main(): Promise<void> {
   });
   mountAuthRoutes(server.router, auth, {
     // Role changes, sign-out and "sign out everywhere": that human's connections are asked again.
-    onUserChanged: (userId) => liveAccess.accessChanged({ userId }),
+    onUserChanged: (userId) => {
+      liveAccess.accessChanged({ userId });
+      rooms.building.accessChanged(userId);
+    },
   });
   jukebox.mount(server.router, auth);
   whiteboards.mount(server.router, auth);
@@ -327,17 +332,28 @@ async function main(): Promise<void> {
   }
   // Board sync (#35): created after the operations (it needs their repo access); set below.
   let githubSync: GitHubSync | undefined;
+  // People's own GitHub access (#267, D27): link by OAuth, permission snapshot, kept current.
+  const githubAccess = createGitHubAccess({ db, keyring, config, logger });
   mountGitHubRoutes(server.router, {
     auth,
     db,
     logger,
     ...github,
     onConnectionChanged: () => githubSync?.connectionChanged(),
+    // The repo picker lists what the person's own account can see, not what the office's does.
+    ownRepos: (userId) =>
+      githubAccess.service.asPerson(userId, (token, gh) => gh.visibleRepoNames(token)),
   });
-  // People's own GitHub access (#267, D27): link by OAuth, permission snapshot, kept current.
-  const githubAccess = createGitHubAccess({ db, keyring, config, logger });
   githubAccess.mount(server.router, auth);
   auth.onSignIn((userId) => githubAccess.refresher.request(userId));
+  // Enforcement (#270): a changed snapshot is acted on at once. The gate
+  // (operations/access.ts) already answers from the new snapshot; this closes the
+  // connections the person may no longer have and reworks what they see of the lair.
+  githubAccess.service.events.on("access-changed", ({ userId, repoIds }) => {
+    const operationIds = operationIdsOfRepos(db, repoIds);
+    liveAccess.accessChanged({ userId, operationIds });
+    rooms.building.accessChanged(userId);
+  });
   // Runner backend from OFFICE_RUNNER_BACKEND (SPEC §8): agents run only in their human's runner.
   const runner = await createRunner(config, production, logger);
   logger.info({ backend: config.runnerBackend }, "agent runner backend selected");
@@ -373,6 +389,12 @@ async function main(): Promise<void> {
       logger,
     }),
     placer: compound,
+    // A new room (#270): its creator's own GitHub access is checked first and stored
+    // with it, then everyone else's snapshot is refreshed for the repo.
+    newRoomAccess: {
+      permissionOf: (userId, repo) => githubAccess.service.askRepoPermission(userId, repo),
+      roomCreated: (repoId) => githubAccess.refresher.requestAll([repoId]),
+    },
     onLevelCreated: () => void levelOwners?.run(),
     onChange: (operationId) => {
       compound.operationChanged(operationId);
@@ -383,8 +405,10 @@ async function main(): Promise<void> {
       // Archived or deleted: boards, terminals, screens and apps of the room close too.
       liveAccess.accessChanged({ operationIds: [operationId] });
     },
-    onAccessChange: (operationId, userId) =>
-      liveAccess.accessChanged({ userId, operationIds: [operationId] }),
+    onAccessChange: (operationId, userId) => {
+      liveAccess.accessChanged({ userId, operationIds: [operationId] });
+      rooms.building.accessChanged(userId);
+    },
   });
   // Levels (#268): ask GitHub whether each repo owner is an organisation or an account.
   levelOwners = new LevelOwnerLookup({
@@ -533,6 +557,8 @@ async function main(): Promise<void> {
   });
   tasks.bind(agents);
   meetings.bind(agents);
+  // Emergency stop without seeing a room (#270): every running henchman of one person.
+  mountEmergencyStopRoutes(server.router, { auth, db, agents });
   // Office agents (#271): shared and personal agents, acting through the office MCP server.
   const officeAgents = createOfficeAgents({
     db,

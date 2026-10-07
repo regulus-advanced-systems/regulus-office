@@ -7,7 +7,7 @@
  * for a repo, a response only ever says whether one is stored (SPEC §8).
  */
 import { z } from "zod";
-import { Id, TimestampMs } from "./common.ts";
+import { Count, Id, TimestampMs } from "./common.ts";
 import {
   AGENT_STATUSES,
   OPERATION_ACCESSES,
@@ -109,6 +109,20 @@ export type OperationMembersResponse = z.infer<typeof OperationMembersResponse>;
  * present when the caller is an office owner or admin.
  */
 export const OFFICE_USERS_API_PATH = "/api/users";
+
+/**
+ * `POST`, office owners and admins: emergency-stop every running henchman of
+ * one person (D12, D27; #270). The office role no longer opens rooms, so this
+ * is how an admin stops henchmen without seeing where they are or what they
+ * do. Sessions are killed; branches, worktrees and desks stay.
+ */
+export const EMERGENCY_STOP_USER_API_PATH = `${OFFICE_USERS_API_PATH}/:userId/emergency-stop`;
+export const emergencyStopUserPath = (userId: string) =>
+  `${OFFICE_USERS_API_PATH}/${encodeURIComponent(userId)}/emergency-stop`;
+
+/** How many henchmen were stopped; nothing about them. */
+export const EmergencyStopUserResponse = z.object({ stopped: Count });
+export type EmergencyStopUserResponse = z.infer<typeof EmergencyStopUserResponse>;
 
 export const OfficeUserInfo = z.object({
   userId: Id,

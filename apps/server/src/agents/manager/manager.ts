@@ -20,7 +20,7 @@ import { mayControlHenchman, mayEmergencyStop, type PermissionDecision } from "@
 import { eq } from "drizzle-orm";
 import { AUDIT_ACTIONS } from "../../auth/audit.ts";
 import { operationRepos } from "../../db/schema/index.ts";
-import type { OperationActor } from "../../operations/access.ts";
+import { type OperationActor, operationAccessFor } from "../../operations/access.ts";
 import {
   LEGACY_WORKSPACE_MESSAGE,
   type PreparedWorkspace,
@@ -203,7 +203,7 @@ export class AgentManager extends AgentRuntime {
     agentId: string,
     opts: { draft: boolean; title?: string; body?: string },
   ) {
-    const live = this.#authorize(actor, agentId);
+    const live = this.#authorize(actor, agentId, "work");
     const tools = this.#worktreeTools();
     let pr: Awaited<ReturnType<AgentWorktreeTools["openPullRequest"]>>;
     try {
@@ -248,6 +248,27 @@ export class AgentManager extends AgentRuntime {
     this.logger.warn({ agentId, actorId: actor.id }, "agent emergency-stopped");
   }
 
+  /**
+   * Emergency stop as an office action (D27; #270): an owner or admin stops
+   * every running henchman of one person without seeing any room. Returns
+   * how many were stopped and nothing about them.
+   */
+  async emergencyStopAllOf(actor: OperationActor, ownerUserId: string): Promise<number> {
+    if (!mayEmergencyStop(actor)) {
+      throw new AgentManagerError(
+        "forbidden",
+        "only an office owner or admin may emergency-stop a henchman",
+      );
+    }
+    let stopped = 0;
+    for (const live of [...this.agents.values()]) {
+      if (live.view.ownerUserId !== ownerUserId || !isLive(live.view.status)) continue;
+      await this.emergencyStop(actor, live.view.agentId, "office emergency stop of a person");
+      stopped += 1;
+    }
+    return stopped;
+  }
+
   async #halt(live: LiveAgent, reason: string): Promise<void> {
     const { agentId, ownerUserId } = live.view;
     await closeQuietly(live.control);
@@ -258,7 +279,7 @@ export class AgentManager extends AgentRuntime {
 
   /** Restart an exited / offline / failed agent, resuming its provider session when possible. */
   async resume(actor: OperationActor, agentId: string): Promise<void> {
-    const live = this.#authorize(actor, agentId);
+    const live = this.#authorize(actor, agentId, "work");
     if (!RESUMABLE_STATUSES.includes(live.view.status)) {
       throw new AgentManagerError("conflict", "the agent is still running");
     }
@@ -342,17 +363,33 @@ export class AgentManager extends AgentRuntime {
     await adoptAll(this);
     this.countersChanged();
   }
-  #authorize(actor: OperationActor, agentId: string): LiveAgent {
+  /**
+   * The henchman, for its owner, in a room that is still theirs (D12, D27;
+   * #270). A henchman whose owner lost the room finishes the task it is on,
+   * its PR included, but takes nothing new: `work` (prompt, approve,
+   * interrupt, resume, open a PR) needs the owner to still work in the room
+   * (`spawn`); `see` (stop, send home, worktree status) needs them to still
+   * see it. With no access at all the henchman is, to its owner, not there.
+   */
+  #authorize(actor: OperationActor, agentId: string, need: "work" | "see" = "see"): LiveAgent {
     const live = this.agents.get(agentId);
     if (!live) throw new AgentManagerError("not_found", "no such agent");
     if (!mayControlHenchman(actor, live.view.ownerUserId)) {
       throw new AgentManagerError("forbidden", "only the henchman's owner may control it");
     }
+    const access = operationAccessFor(this.opts.db, actor, live.view.operationId);
+    if (!access) throw new AgentManagerError("not_found", "no such agent");
+    if (need === "work" && access === "view") {
+      throw new AgentManagerError(
+        "forbidden",
+        "you can no longer work in this room: the henchman takes no new instructions from you",
+      );
+    }
     return live;
   }
 
   #controlFor(actor: OperationActor, agentId: string): AgentControl {
-    const live = this.#authorize(actor, agentId);
+    const live = this.#authorize(actor, agentId, "work");
     if (!live.control || !isLive(live.view.status)) {
       throw new AgentManagerError("conflict", "the agent is not running");
     }

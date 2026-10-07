@@ -22,20 +22,20 @@ import {
 } from "../worktrees/operation-dirs.ts";
 import { RepoCloner } from "./cloner.ts";
 import { OperationLifecycle } from "./lifecycle.ts";
-import { OperationService } from "./service.ts";
+import { type NewRoomAccess, OperationService } from "./service.ts";
 
 export {
   accessibleOperations,
   decideOperationAccess,
-  lairViewFor,
   isOfficeManager,
+  lairViewFor,
   type OperationActor,
   operationAccessFor,
 } from "./access.ts";
 export { RepoCloner } from "./cloner.ts";
 export { henchmenOn, type OperationHenchmen, OperationLifecycle } from "./lifecycle.ts";
 export { mountOperationRoutes } from "./routes.ts";
-export { type CreateOperationInput, OperationService } from "./service.ts";
+export { type CreateOperationInput, type NewRoomAccess, OperationService } from "./service.ts";
 
 export interface OperationsDeps {
   db: Db;
@@ -58,6 +58,8 @@ export interface OperationsDeps {
   placer?: RoomPlacer;
   /** A level was created for a repo owner with its first operation (#268). */
   onLevelCreated?(levelId: string): void;
+  /** The creator's own GitHub access to a new room's repo (#270; service.ts). */
+  newRoomAccess?: NewRoomAccess;
   git?: GitRunner;
   /**
    * The office GitHub connection (#141): its token is used for repos it
@@ -99,6 +101,7 @@ export function createOperations(deps: OperationsDeps): Operations {
     onLevelCreated: deps.onLevelCreated,
     onAccessChange: deps.onAccessChange,
     placer: deps.placer,
+    newRoomAccess: deps.newRoomAccess,
   });
   const roots = [deps.config.projectsDir, deps.config.worktreesDir].filter(
     (d): d is string => typeof d === "string",

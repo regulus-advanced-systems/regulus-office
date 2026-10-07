@@ -37,6 +37,7 @@ import type { z } from "zod";
 import { AUDIT_ACTIONS, type AuditAction, writeAudit } from "../auth/audit.ts";
 import { AuthHttpError, forbidden } from "../auth/errors.ts";
 import { isOfficeManager, type OperationActor } from "../operations/access.ts";
+import { grantsAsSetBy } from "./access.ts";
 import type { Conversations } from "./conversations.ts";
 import type { AgentCredentials } from "./engines/credentials.ts";
 import { EngineRefusal } from "./engines/types.ts";
@@ -260,7 +261,8 @@ export class OfficeAgentService {
       // A personal agent has its owner's access, nothing can be granted on top.
       throw new AuthHttpError(400, "personal_agents_have_no_grants");
     }
-    if (!this.deps.store.setGrants(row.id, grants)) {
+    const merged = grantsAsSetBy(this.deps.store, actor, row.id, grants);
+    if (!this.deps.store.setGrants(row.id, merged)) {
       throw new AuthHttpError(400, "unknown_operation");
     }
     this.#audit(actor, AUDIT_ACTIONS.officeAgentGrantsSet, row.id, { grants });
