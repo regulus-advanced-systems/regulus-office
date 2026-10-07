@@ -3,14 +3,17 @@
  * §9.1; D7, D14, D26). An operation is one repo in one room, on the level of
  * the GitHub organisation or account that owns the repo; that level is
  * created with its first operation. A second repo is a second room.
- * Owners and admins create and archive operations; anyone with `manage` access
- * manages the operation's members and retries failed clones. Every change is
+ * Owners and admins create and archive operations, for repos their own GitHub
+ * account can see (D27: the office role builds the room, GitHub decides who
+ * sees it); anyone with `manage` access narrows the operation's members and
+ * retries failed clones. Every change is
  * audited (without credential material) and reported through `onChange` so
  * the BuildingRoom operation list and the OperationRoom refresh.
  */
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import type {
+  GitHubRepoPermission,
   OfficeUserInfo,
   OperationAccess,
   OperationInfo,
@@ -42,6 +45,7 @@ import type { RoomPlacer } from "../compound/service.ts";
 import type { Db } from "../db/index.ts";
 import {
   desks,
+  githubRepoPermissions,
   operationMembers,
   operationRepos,
   operations,
@@ -51,7 +55,7 @@ import type { RepoCredentialVault } from "../github/credentials.ts";
 import { parseRepoRef, repoWebUrl } from "../github/repo-ref.ts";
 import { ensureLevelFor } from "../levels/store.ts";
 import {
-  effectiveAccess,
+  accessibleOperations,
   isOfficeManager,
   type OperationActor,
   operationAccessFor,
@@ -63,6 +67,21 @@ import { slugify, uniqueSlug } from "./naming.ts";
 import { listOfficeUsers } from "./people.ts";
 
 export type CreateOperationInput = z.output<typeof CreateOperationRequest>;
+
+/**
+ * The creator's own GitHub access to a repo that is about to get a room
+ * (D27; #270), from github/access. With it a room is open to its creator the
+ * moment it exists, and nobody builds a room for a repo they cannot see.
+ */
+export interface NewRoomAccess {
+  /** Ask GitHub, with the person's own token, what they may do on the repo. */
+  permissionOf(
+    userId: string,
+    repo: { owner: string; name: string },
+  ): Promise<GitHubRepoPermission | "not_linked" | "unavailable">;
+  /** The room exists: bring every other linked person's snapshot up to date for its repo. */
+  roomCreated(repoId: string): void;
+}
 
 export interface OperationServiceDeps {
   db: Db;
@@ -78,6 +97,12 @@ export interface OperationServiceDeps {
   onAccessChange?(operationId: string, userId: string): void;
   /** Places new operations in the compound (#181); without it operations are created unplaced. */
   placer?: RoomPlacer;
+  /**
+   * Checks the creator's GitHub access before a room is created (#270). Without
+   * it (unit tests of other things) a new room is closed to everyone, its
+   * creator included, until a snapshot says otherwise.
+   */
+  newRoomAccess?: NewRoomAccess;
 }
 
 type OperationRow = typeof operations.$inferSelect;
@@ -113,11 +138,55 @@ export class OperationService {
     return operationAccessFor(this.#db, actor, operationId);
   }
 
-  /** Create an operation; `placement` is where to build its room (else the compound picks a spot). */
+  /**
+   * Create an operation as the routes do (#270): first ask GitHub, with the
+   * creator's own token, whether they can see the repo. Refused without a
+   * linked account or when the account cannot see it; otherwise the room is
+   * created with the creator's permission already in the snapshot, so it is
+   * theirs to enter at once, and everyone else's snapshot is refreshed for it.
+   */
+  async createChecked(
+    actor: OperationActor,
+    input: CreateOperationInput,
+    placement?: RoomPlacement,
+  ): Promise<{ operation: OperationInfo; cloned: Promise<void> }> {
+    if (!isOfficeManager(actor.role)) throw forbidden("owner_or_admin_required");
+    const gate = this.#deps.newRoomAccess;
+    const parsed = input.repos.length === 1 ? parseRepoRef(input.repos[0]?.repo ?? "") : null;
+    // Malformed input gets `create`'s own refusals.
+    if (!gate || !parsed?.ok) return this.create(actor, input, placement);
+    const permission = await gate.permissionOf(actor.id, parsed.ref);
+    if (permission === "not_linked") {
+      throw new AuthHttpError(403, "github_link_required", {
+        message: "Link your GitHub account first: a room opens with your own GitHub access.",
+      });
+    }
+    if (permission === "unavailable") {
+      throw new AuthHttpError(503, "github_unavailable", {
+        message: "GitHub could not be asked whether you can see this repo. Try again.",
+      });
+    }
+    if (permission === "none") {
+      throw new AuthHttpError(403, "repo_not_visible", {
+        message: "Your GitHub account cannot see this repo, so you cannot add a room for it.",
+      });
+    }
+    const created = this.create(actor, input, placement, permission);
+    const repoId = created.operation.repos[0]?.repoId;
+    if (repoId) gate.roomCreated(repoId);
+    return created;
+  }
+
+  /**
+   * Create an operation; `placement` is where to build its room (else the
+   * compound picks a spot). `creatorPermission` is what GitHub just said the
+   * creator may do on the repo ({@link createChecked}); it is stored with the room.
+   */
   create(
     actor: OperationActor,
     input: CreateOperationInput,
     placement?: RoomPlacement,
+    creatorPermission?: GitHubRepoPermission,
   ): { operation: OperationInfo; cloned: Promise<void> } {
     if (!isOfficeManager(actor.role)) throw forbidden("owner_or_admin_required");
     const [repoInput] = input.repos;
@@ -190,6 +259,16 @@ export class OperationService {
               : null,
           })
           .run();
+        if (creatorPermission && creatorPermission !== "none") {
+          tx.insert(githubRepoPermissions)
+            .values({
+              userId: actor.id,
+              repoId,
+              permission: creatorPermission,
+              checkedAt: new Date(),
+            })
+            .run();
+        }
         if (deskSeats.length > 0) {
           tx.insert(desks)
             .values(deskSeats.map((seatId) => ({ operationId, seatId })))
@@ -226,25 +305,26 @@ export class OperationService {
       .where(eq(operations.id, created.operationId))
       .get();
     if (!row) throw notFound();
-    return { operation: this.#info(row, "manage"), cloned };
+    // What the creator may do in it comes from the gate like everyone's; `view` is
+    // only the shape's floor for a creator the gate does not (yet) let in.
+    const access = operationAccessFor(this.#db, actor, created.operationId);
+    return { operation: this.#info(row, access ?? "view"), cloned };
   }
 
   /** Live operations the actor can see, in elevator order. */
   list(actor: OperationActor): OperationInfo[] {
-    const rows = this.#db
-      .select({ operation: operations, access: operationMembers.access })
+    const open = accessibleOperations(this.#db, actor);
+    if (open.size === 0) return [];
+    return this.#db
+      .select()
       .from(operations)
-      .leftJoin(
-        operationMembers,
-        and(eq(operationMembers.operationId, operations.id), eq(operationMembers.userId, actor.id)),
-      )
       .where(isNull(operations.archivedAt))
       .orderBy(asc(operations.index))
-      .all();
-    return rows.flatMap(({ operation, access }) => {
-      const effective = effectiveAccess(actor.role, access ?? null);
-      return effective ? [this.#info(operation, effective)] : [];
-    });
+      .all()
+      .flatMap((operation) => {
+        const access = open.get(operation.id);
+        return access ? [this.#info(operation, access)] : [];
+      });
   }
 
   get(actor: OperationActor, operationId: string): OperationInfo {
@@ -252,9 +332,10 @@ export class OperationService {
     return this.#info(row, operationAccessFor(this.#db, actor, operationId) ?? "view");
   }
 
+  /** Office owners and admins archive rooms, of repos they can see themselves (D27). */
   archive(actor: OperationActor, operationId: string): void {
     if (!isOfficeManager(actor.role)) throw forbidden("owner_or_admin_required");
-    const row = this.#require(actor, operationId, "manage");
+    const row = this.#require(actor, operationId, "view");
     this.#db.transaction((tx) => {
       tx.update(operations)
         .set({ archivedAt: new Date() })
@@ -286,7 +367,7 @@ export class OperationService {
       .all();
   }
 
-  /** Office people to pick from when granting access (anyone who manages an operation). */
+  /** Office people to pick from in the members panel (anyone who manages an operation). */
   people(actor: OperationActor): OfficeUserInfo[] {
     return listOfficeUsers(this.#db, actor);
   }

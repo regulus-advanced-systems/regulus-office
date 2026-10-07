@@ -103,6 +103,20 @@ export const buildingFixture: BuildingState = {
       decorStyle: "lab",
     },
   },
+  closedRooms: {
+    f2: {
+      operationId: "f2",
+      levelId: "lv1",
+      gridX: 20,
+      gridY: 44,
+      width: 6,
+      depth: 6,
+      doorSide: "south",
+      doorX: 22,
+      doorY: 50,
+      closed: true,
+    },
+  },
   chat: [
     {
       id: "m1",

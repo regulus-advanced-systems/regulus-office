@@ -25,7 +25,9 @@ import { OperationLifecycle } from "./lifecycle.ts";
 import { OperationService } from "./service.ts";
 
 export {
-  effectiveAccess,
+  accessibleOperations,
+  decideOperationAccess,
+  lairViewFor,
   isOfficeManager,
   type OperationActor,
   operationAccessFor,

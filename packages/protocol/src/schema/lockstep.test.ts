@@ -4,7 +4,7 @@
  * fixture must survive hydrate → encode → decode → toJSON unchanged.
  */
 import { describe, expect, test } from "bun:test";
-import { ArraySchema, Decoder, Encoder, MapSchema, Schema } from "@colyseus/schema";
+import { ArraySchema, Decoder, Encoder, MapSchema, Schema, StateView } from "@colyseus/schema";
 import type { z } from "zod";
 import { AgentBubble } from "../agent-bubble.ts";
 import * as blastDoor from "../blast-door.ts";
@@ -22,6 +22,7 @@ const pairs: Array<[string, z.ZodObject, SchemaClass]> = [
   ["GeniusLook", building.GeniusLook, schemas.GeniusLookSchema],
   ["HumanPresence", building.HumanPresence, schemas.HumanPresenceSchema],
   ["OperationSummary", building.OperationSummary, schemas.OperationSummarySchema],
+  ["ClosedRoom", building.ClosedRoom, schemas.ClosedRoomSchema],
   ["ChatMessage", building.ChatMessage, schemas.ChatMessageSchema],
   ["JukeboxQueueEntry", building.JukeboxQueueEntry, schemas.JukeboxQueueEntrySchema],
   ["JukeboxState", building.JukeboxState, schemas.JukeboxStateSchema],
@@ -99,12 +100,37 @@ describe("Colyseus schema lockstep", () => {
   test("building fixture round-trips through encode/decode", () => {
     const state = hydrate(schemas.BuildingStateSchema, buildingFixture);
     expect(plain(state.toJSON())).toEqual(plain(buildingFixture));
-    const bytes = new Encoder(state).encodeAll();
+    // The building state is per viewer (#270): this viewer is shown everything.
+    const typed = state as InstanceType<typeof schemas.BuildingStateSchema>;
+    const encoder = new Encoder(state);
+    const view = new StateView();
+    for (const map of [typed.humans, typed.operations, typed.closedRooms, typed.levels]) {
+      map.forEach((item: Schema) => view.add(item));
+    }
+    typed.usage.topHenchmen.forEach((row: Schema) => view.add(row));
+    const it = { offset: 0 };
+    encoder.encodeAll(it);
+    const bytes = encoder.encodeAllView(view, it.offset, it);
     const decoded = new schemas.BuildingStateSchema();
     new Decoder(decoded).decode(bytes);
     const json = plain(decoded.toJSON());
     expect(json).toEqual(plain(buildingFixture));
     expect(building.BuildingState.safeParse(json).success).toBe(true);
+  });
+
+  test("a client without a view gets none of the per-viewer entries (#270)", () => {
+    const state = hydrate(schemas.BuildingStateSchema, buildingFixture);
+    const decoded = new schemas.BuildingStateSchema();
+    new Decoder(decoded).decode(new Encoder(state).encodeAll());
+    const json = plain(decoded.toJSON());
+    expect(json.humans).toEqual({});
+    expect(json.operations).toEqual({});
+    expect(json.closedRooms).toEqual({});
+    expect(json.levels).toEqual({});
+    expect(json.usage.topHenchmen ?? []).toEqual([]);
+    // What is the same for everyone still arrives.
+    expect(json.chat).toEqual(plain(buildingFixture.chat));
+    expect(json.compound).toEqual(plain(buildingFixture.compound));
   });
 
   test("operation fixture round-trips through encode/decode", () => {
