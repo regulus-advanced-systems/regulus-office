@@ -131,6 +131,7 @@ export function MindEntries({
           onClick={() => {
             setAdding(false);
             setEditing(null);
+            setError(null);
           }}
         >
           Cancel
