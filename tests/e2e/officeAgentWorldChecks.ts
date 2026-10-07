@@ -28,6 +28,7 @@ import {
   walkInto,
   walkTo,
   walkToLobby,
+  wheelZoomTo,
 } from "./compoundProbes.ts";
 import { recordToasts, toastsSeen } from "./probes.ts";
 
@@ -168,6 +169,14 @@ export async function checkAgentsInTheWorld(owner: Page, member: Page, shots?: s
     if (!lobby || !war) throw new Error("no lobby or war room");
     await standIn(owner, lobby, 1.5, 1);
     await standIn(member, lobby, -2.5, 1.5);
+    // For the screenshots, look from close by.
+    if (shots) {
+      for (const page of [owner, member]) {
+        await page.bringToFront();
+        await page.locator("canvas").first().hover();
+        await wheelZoomTo(page, 0.05);
+      }
+    }
 
     // Both browsers see both bodies, in the forms chosen for them.
     for (const page of [owner, member]) {
@@ -249,8 +258,18 @@ export async function checkAgentsInTheWorld(owner: Page, member: Page, shots?: s
       404,
     );
 
-    // The owner presses E next to it: its chat opens as a window in the world.
+    // The owner presses E next to it: its chat opens as a window in the world. Out in the
+    // corridor, where nothing else is in reach of E (by a chair, E sits down first).
     await owner.bringToFront();
+    const corridor = { x: lobby.x + lobby.w / 2, z: lobby.z - 2 };
+    await expect(async () => {
+      const pose = await navPose(owner);
+      const there = Math.hypot(pose.x - corridor.x, pose.z - corridor.z) < 1;
+      if (!there && !pose.walking) await walkTo(owner, corridor.x, corridor.z);
+      const body = await bodyOf(owner, mine.id);
+      expect(there && !pose.walking && !!body && !body.moving).toBe(true);
+      expect(Math.hypot((body?.x ?? 0) - pose.x, (body?.z ?? 0) - pose.z)).toBeLessThan(2.2);
+    }).toPass({ timeout: 90_000, intervals: [500, 1_000] });
     await owner.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
     await owner.locator("canvas").first().hover();
     const chat = owner.getByRole("dialog", { name: mine.name });

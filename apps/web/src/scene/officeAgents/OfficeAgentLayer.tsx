@@ -247,20 +247,25 @@ export function OfficeAgentLayer({ grid, world }: { grid: NavGrid; world: Compou
     field.focusedId = useAgentChatWindow.getState().agentId;
   });
 
-  // `E` next to an agent we may talk to opens its chat.
+  // `E` next to an agent we may talk to opens its chat, when nothing else took the key: a
+  // follower is always within reach, and must not keep its owner from a chair or a free desk.
+  // So this looks only after every other listener has had the press.
   useHotkeyEvents(
     useCallback(
       (detail: HotkeyEventDetail) => {
-        if (detail.id !== "interact" || detail.handled || anyWindowOpen()) return;
-        const player = usePlayerStore.getState();
-        const bodies = useBuildingStore.getState().state?.officeAgents ?? {};
-        if (!player.spawned) return;
-        const near = [...walkers]
-          .filter(([id, w]) => !w.hidden && bodies[id] && canChatWith(bodies[id], viewer))
-          .map(([id, w]) => ({ id, x: w.pose.x, z: w.pose.z }));
-        const hit = nearestBody(near, player, AGENT_INTERACT_RADIUS);
-        const body = hit ? bodies[hit.id] : undefined;
-        if (body && openBodyChat(body, viewer)) detail.handled = true;
+        if (detail.id !== "interact") return;
+        queueMicrotask(() => {
+          if (detail.handled || anyWindowOpen()) return;
+          const player = usePlayerStore.getState();
+          const bodies = useBuildingStore.getState().state?.officeAgents ?? {};
+          if (!player.spawned) return;
+          const near = [...walkers]
+            .filter(([id, w]) => !w.hidden && bodies[id] && canChatWith(bodies[id], viewer))
+            .map(([id, w]) => ({ id, x: w.pose.x, z: w.pose.z }));
+          const hit = nearestBody(near, player, AGENT_INTERACT_RADIUS);
+          const body = hit ? bodies[hit.id] : undefined;
+          if (body) openBodyChat(body, viewer);
+        });
       },
       [walkers, viewer],
     ),
