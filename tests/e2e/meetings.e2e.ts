@@ -25,7 +25,14 @@ import {
   sh,
 } from "./agentOffice.ts";
 import { henchmen, scenePoint } from "./agentProbes.ts";
-import { navPose, roomNamed, walkTo, walkToSeat, wheelZoomTo } from "./compoundProbes.ts";
+import {
+  navPose,
+  roomNamed,
+  travelButton,
+  walkTo,
+  walkToSeat,
+  wheelZoomTo,
+} from "./compoundProbes.ts";
 import { type FakeGitHub, startFakeGitHub } from "./fakeGitHub.ts";
 import { createRemoteRepo } from "./gitRemote.ts";
 import { OFFICE_PROBE_PATH, waitForScene } from "./probes.ts";
@@ -164,10 +171,7 @@ async function enter(page: Page, name: string): Promise<void> {
   await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
   await page.keyboard.press("f");
   const travel = page.getByRole("dialog", { name: "Quick travel" });
-  await travel
-    .getByRole("list", { name: "Rooms you can enter" })
-    .getByRole("button", { name: new RegExp(`^${name}`) })
-    .click();
+  await travelButton(travel, name).click();
   await expect(travel).toHaveCount(0);
   const room = await roomNamed(page, name);
   await expect(async () => {
