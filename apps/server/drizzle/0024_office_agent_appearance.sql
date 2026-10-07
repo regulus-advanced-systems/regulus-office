@@ -1,0 +1,1 @@
+ALTER TABLE `office_agents` ADD `appearance` text DEFAULT 'standard' NOT NULL;

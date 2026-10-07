@@ -41,6 +41,8 @@ export const officeAgents = sqliteTable(
      * agent always names an office key (SPEC §8 rule 3, D2).
      */
     profileId: text("profile_id"),
+    /** How it looks (#280, D32): an id from the protocol's `OFFICE_AGENT_APPEARANCES`. Looks only. */
+    appearance: text("appearance").notNull().default("standard"),
     /** The role prompt. The soul and memories of #136 come on top of it. */
     instructions: text("instructions").notNull().default(""),
     status: enumText("status", OFFICE_AGENT_STATUSES).notNull().default("stopped"),

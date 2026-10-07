@@ -112,3 +112,57 @@
   display: grid;
   gap: 2px;
 }
+
+/* #280: the card's thumbnail and facts, the form's groups, model options and notes. */
+.rg-office-agent__head {
+  align-items: flex-start;
+  flex-wrap: nowrap;
+  gap: 10px;
+}
+.rg-office-agent__title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  min-width: 0;
+}
+.rg-office-agent__title > .rg-office-agent__facts {
+  flex-basis: 100%;
+}
+.rg-office-agent-form {
+  padding: 10px;
+  border: 1px solid var(--rg-color-panel-border);
+  border-radius: var(--rg-radius-panel);
+}
+.rg-office-agent-form__group {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.rg-office-agent-form__models {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 6px;
+}
+.rg-office-agent-form__tier {
+  margin-left: 6px;
+  padding: 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid var(--rg-color-panel-border);
+  border-radius: 999px;
+}
+.rg-office-agent-form__tier.is-strong {
+  border-color: var(--rg-color-gold);
+}
+.rg-office-agent-form__missing {
+  padding: 8px 10px;
+  border: 1px dashed var(--rg-color-gold);
+  border-radius: var(--rg-radius-panel);
+}
+.rg-office-agent-caps__help {
+  flex-basis: 100%;
+}
