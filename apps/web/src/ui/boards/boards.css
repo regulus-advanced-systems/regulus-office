@@ -3,9 +3,20 @@
    body, and the "carrying a card" chip. Badges are lamp chips (feedback.css). */
 .rg-board__columns {
   display: grid;
-  grid-template-columns: repeat(var(--rg-board-cols, 3), minmax(160px, 1fr));
+  /* Wide columns (#282): a title fits on two or three lines. On a screen too narrow
+     for all of them they keep 280px and the row scrolls sideways instead of squeezing. */
+  grid-template-columns: repeat(var(--rg-board-cols, 3), minmax(280px, 1fr));
   gap: 12px;
   align-items: start;
+  min-width: 0;
+  /* The board scrolls itself, both ways, so the sideways scrollbar stays in view at the
+     foot of the window however long a column is (the 200px are the window's frame,
+     nameplate and margins). */
+  max-height: calc(100vh - 200px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  /* Room for the scrollbar and the focus ring. */
+  padding: 2px 2px 8px;
 }
 @media (max-width: 720px) {
   .rg-board__columns {
@@ -44,7 +55,7 @@
   display: grid;
   gap: 4px;
   text-align: left;
-  padding: 8px 10px;
+  padding: 10px 12px;
   border: 1px solid var(--rg-color-panel-border);
   border-radius: 3px;
   background: var(--rg-color-raised);
@@ -61,12 +72,20 @@
   flex-wrap: wrap;
   gap: 6px;
   align-items: center;
-  font-size: 12px;
+  font-size: 13px;
 }
 .rg-board__card-title {
-  font-size: 13px;
+  font-size: 15px;
+  line-height: 1.35;
   font-weight: 600;
   overflow-wrap: anywhere;
+  /* The whole title on up to three lines; a longer one ends in an ellipsis (full in the
+     tooltip and the card's detail). */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
 }
 .rg-board__number {
   font-weight: 700;
@@ -93,7 +112,7 @@
   border: 1px solid var(--rg-color-ink-muted);
   border-radius: var(--rg-radius-chip);
   color: var(--rg-color-ink-muted);
-  font-size: 11px;
+  font-size: 12px;
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;

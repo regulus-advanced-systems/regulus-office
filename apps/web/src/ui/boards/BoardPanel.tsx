@@ -31,6 +31,27 @@ const NO_REPOS: readonly RepoSummary[] = [];
 const NO_HENCHMEN: Readonly<Record<string, HenchmanState>> = {};
 const NO_QUEUE: readonly QueueTask[] = [];
 
+/** Width a column gets when the window has it; a card title then fits on two or three lines. */
+export const BOARD_COLUMN_WIDTH = 340;
+/** Gap between columns (boards.css) and the dialog's own padding and frame. */
+const BOARD_COLUMN_GAP = 12;
+const BOARD_CHROME = 64;
+const BOARD_MIN_WIDTH = 960;
+/** A card's detail reads best as one column of text. */
+const BOARD_DETAIL_WIDTH = 860;
+
+/**
+ * The board window's width (#282): every column at `BOARD_COLUMN_WIDTH`. The
+ * dialog never grows past the screen (Modal caps it), and when the screen is
+ * narrower the columns keep a readable minimum and scroll sideways instead
+ * of squeezing (boards.css).
+ */
+export function boardPanelWidth(columns: number, detail: boolean): number {
+  if (detail) return BOARD_DETAIL_WIDTH;
+  const wanted = columns * BOARD_COLUMN_WIDTH + (columns - 1) * BOARD_COLUMN_GAP + BOARD_CHROME;
+  return Math.max(BOARD_MIN_WIDTH, wanted);
+}
+
 function Badge({ tone, children }: { tone: string; children: string }) {
   return <span className={`rg-board__badge rg-board__badge--${tone}`}>{children}</span>;
 }
@@ -54,7 +75,9 @@ export function CardButton({
           <span className="rg-board__number">#{card.number}</span>
           {card.repoChip && <span className="rg-board__chip">{card.repoChip}</span>}
         </span>
-        <span className="rg-board__card-title">{card.title}</span>
+        <span className="rg-board__card-title" title={card.title}>
+          {card.title}
+        </span>
         {card.labels.length > 0 && (
           <span className="rg-board__labels" aria-label="Labels">
             {card.labels.map((l) => (
@@ -79,7 +102,7 @@ export function CardButton({
   );
 }
 
-function Columns({
+export function BoardColumns({
   columns,
   onOpen,
 }: {
@@ -96,7 +119,13 @@ function Columns({
     );
   }
   return (
-    <div className="rg-board__columns" style={{ "--rg-board-cols": columns.length } as never}>
+    <section
+      className="rg-board__columns"
+      aria-label="Columns"
+      // Scrolls sideways on a narrow screen: reachable by keyboard too.
+      tabIndex={0}
+      style={{ "--rg-board-cols": columns.length } as never}
+    >
       {columns.map((col) => (
         <section key={col.id} className="rg-board__column" aria-label={col.title}>
           <h2 className="rg-board__column-title">
@@ -109,7 +138,7 @@ function Columns({
           </ul>
         </section>
       ))}
-    </div>
+    </section>
   );
 }
 
@@ -148,7 +177,7 @@ export function BoardPanel({ kind, api }: { kind: CardKind; api?: BoardsApi }) {
       open
       onClose={closeBoard}
       title={BOARD_TITLES[kind]}
-      width={selected ? 720 : Math.max(640, columns.length * 220)}
+      width={boardPanelWidth(columns.length, Boolean(selected))}
     >
       {selected && operationId ? (
         <CardDetail
@@ -166,7 +195,7 @@ export function BoardPanel({ kind, api }: { kind: CardKind; api?: BoardsApi }) {
           onCarried={closeBoard}
         />
       ) : (
-        <Columns columns={columns} onOpen={selectCard} />
+        <BoardColumns columns={columns} onOpen={selectCard} />
       )}
     </Modal>
   );

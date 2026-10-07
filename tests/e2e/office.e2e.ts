@@ -44,6 +44,7 @@ import { join } from "node:path";
 import { expect, type Page, test } from "@playwright/test";
 import { checkAccessWithdrawn } from "./accessChecks.ts";
 import { checkBlastDoor } from "./blastDoorChecks.ts";
+import { checkBoardLayout } from "./boardLayoutChecks.ts";
 import {
   addDeskInRoomSettings,
   aimAt,
@@ -833,6 +834,8 @@ test("a card from the issue board carried to a free desk opens the spawn dialog 
     const card = panel.getByRole("button", { name: "#7 Fix the lift doors" });
     await expect(card).toBeVisible({ timeout: 45_000 });
     await expect(panel.getByRole("region", { name: "Open" })).toContainText("#7");
+    // The board window is wide and still fits a 1280×720 window (#282).
+    await checkBoardLayout(ownerPage, panel, card);
     // In first person a window frees the cursor and holds the view; closing it resumes (#282).
     await checkFirstPersonWindow(ownerPage, panel, card);
     await card.click();
