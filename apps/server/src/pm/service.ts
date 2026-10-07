@@ -26,6 +26,7 @@ import {
   type OfficeAgentConversation,
   type OfficeAgentGrant,
   type OfficeAgentMessage,
+  type OfficeAgentRunsOnResponse,
   type OfficeAgentSettings,
   type OfficeAgentsResponse,
   type OfficeAgentTokenCreated,
@@ -40,9 +41,11 @@ import type { Conversations } from "./conversations.ts";
 import type { AgentCredentials } from "./engines/credentials.ts";
 import { EngineRefusal } from "./engines/types.ts";
 import type { HumanRequests } from "./requests.ts";
+import { runsOnChoices } from "./runs-on.ts";
 import type { AgentRuntime } from "./runtime.ts";
 import type { OfficeAgentRow, OfficeAgentStore } from "./store.ts";
 import type { OfficeAgentTokens } from "./tokens.ts";
+import { agentView } from "./view.ts";
 
 export type CreateInput = z.output<typeof CreateOfficeAgent>;
 export type UpdateInput = z.output<typeof UpdateOfficeAgent>;
@@ -81,44 +84,13 @@ export class OfficeAgentService {
     };
   }
 
+  /** What the actor could run an agent on right now: names and kinds, never a key. */
+  runsOn(actor: OperationActor): OfficeAgentRunsOnResponse {
+    return runsOnChoices(this.deps.store.db, actor);
+  }
+
   view(actor: OperationActor, row: OfficeAgentRow): OfficeAgentView {
-    const { store, tokens } = this.deps;
-    const owner = row.ownerUserId ? store.person(row.ownerUserId) : undefined;
-    const canConfigure = mayConfigureOfficeAgent(actor, row);
-    return {
-      id: row.id,
-      name: row.name,
-      owner: row.ownerUserId
-        ? { kind: "user", userId: row.ownerUserId, displayName: owner?.displayName ?? "" }
-        : { kind: "office" },
-      engine: row.engine,
-      role: row.role,
-      preset: row.preset,
-      provider: row.provider,
-      model: row.model,
-      ...(row.effort ? { effort: row.effort } : {}),
-      status: row.status,
-      ...(row.statusReason ? { statusReason: row.statusReason } : {}),
-      ...(row.lastActivityAt ? { lastActivityAt: row.lastActivityAt.getTime() } : {}),
-      createdAt: row.createdAt.getTime(),
-      canTalk: mayTalkToOfficeAgent(actor, row),
-      canConfigure,
-      ...(canConfigure
-        ? {
-            config: {
-              instructions: row.instructions,
-              ...(row.profileId ? { profileId: row.profileId } : {}),
-              grants: row.ownerUserId === null ? store.grants(row.id) : [],
-              tokens: tokens.list(row.id).map((t) => ({
-                id: t.id,
-                label: t.label,
-                createdAt: t.createdAt.getTime(),
-                ...(t.lastUsedAt ? { lastUsedAt: t.lastUsedAt.getTime() } : {}),
-              })),
-            },
-          }
-        : {}),
-    };
+    return agentView(this.deps, actor, row);
   }
 
   /** The agent, when the actor may see it at all. */
@@ -199,6 +171,7 @@ export class OfficeAgentService {
       model: input.model,
       effort: input.effort ?? null,
       profileId: input.profileId ?? null,
+      appearance: input.appearance,
       instructions: input.instructions,
       createdBy: actor.id,
     };
@@ -222,6 +195,7 @@ export class OfficeAgentService {
       preset: row.preset,
       provider: row.provider,
       model: row.model,
+      appearance: row.appearance,
     });
     return this.view(actor, row);
   }
@@ -243,17 +217,23 @@ export class OfficeAgentService {
       ...(patch.model !== undefined ? { model: patch.model } : {}),
       ...(patch.effort !== undefined ? { effort: patch.effort } : {}),
       ...(patch.profileId !== undefined ? { profileId: patch.profileId } : {}),
+      ...(patch.appearance !== undefined ? { appearance: patch.appearance } : {}),
       ...(patch.instructions !== undefined ? { instructions: patch.instructions } : {}),
     };
     this.#check(next, next);
     // The engine holds the configuration it was started with: stop it, the next message starts it anew.
-    if (runtime.isRunning(row.id)) await runtime.stop(row.id, row.engine, "configuration changed");
+    // Its looks are not part of that: changing only the appearance leaves it running.
+    const looksOnly = Object.keys(patch).every((key) => key === "appearance");
+    if (!looksOnly && runtime.isRunning(row.id)) {
+      await runtime.stop(row.id, row.engine, "configuration changed");
+    }
     const saved = store.update(row.id, {
       role: next.role,
       preset: next.preset,
       model: next.model,
       effort: next.effort,
       profileId: next.profileId,
+      appearance: next.appearance,
       instructions: next.instructions,
     });
     if (!saved) throw notFound();

@@ -5,6 +5,7 @@
  *
  * An office agent has an owner (the office for a *shared* agent, one person for
  * a *personal* one), a role, an engine, a model choice and a privilege preset.
+ * It also has an appearance (#280), which is looks only.
  * It acts only through the office tools (office-agent-tools.ts), offered over
  * MCP at `/mcp` and as REST, with a per-agent token.
  *
@@ -29,6 +30,13 @@ import {
   PROVIDER_IDS,
   type UserRole,
 } from "./enums.ts";
+import { OfficeAgentRunsOn } from "./office-agent-runs-on.ts";
+import {
+  DEFAULT_SKIN_ID,
+  HENCHMAN_SKIN_IDS,
+  HENCHMAN_SKIN_LABELS,
+  isHenchmanSkinId,
+} from "./skins.ts";
 
 export const OFFICE_AGENTS_API_PATH = "/api/office-agents";
 /** Settings (caps), owners and admins. */
@@ -57,8 +65,29 @@ export const DEFAULT_OFFICE_AGENT_PRESET: OfficeAgentPreset = "coordinator";
 export const OFFICE_AGENT_STATUSES = ["stopped", "starting", "ready", "busy", "error"] as const;
 export type OfficeAgentStatus = (typeof OFFICE_AGENT_STATUSES)[number];
 
-/** Providers the CLI session engine can run today (Codex is a follow-up). */
-export const CLI_SESSION_PROVIDERS = ["claude-code"] as const;
+/**
+ * How an agent looks (#280, D32): one of the forms the art provides. Stored on
+ * the agent and changeable at any time; it never changes what the agent is or
+ * may do. The list is the henchman skins plus `secretary`; a form added to
+ * `HENCHMAN_SKIN_IDS` (or listed here) appears in the picker with no other change.
+ */
+export const OFFICE_AGENT_APPEARANCES: readonly string[] = [
+  ...new Set<string>([...HENCHMAN_SKIN_IDS, "secretary"]),
+];
+export const DEFAULT_OFFICE_AGENT_APPEARANCE: string = DEFAULT_SKIN_ID;
+export const isOfficeAgentAppearance = (value: unknown): value is string =>
+  typeof value === "string" && OFFICE_AGENT_APPEARANCES.includes(value);
+
+/** "Lab coat" for a skin; for a form without a label yet, its id in words ("Secretary"). */
+export function officeAgentAppearanceLabel(id: string): string {
+  if (isHenchmanSkinId(id)) return HENCHMAN_SKIN_LABELS[id];
+  const words = id.replace(/[_-]+/g, " ").trim();
+  return words ? words.charAt(0).toUpperCase() + words.slice(1) : "Standard";
+}
+
+const Appearance = z.string().max(40).refine(isOfficeAgentAppearance, {
+  message: "unknown appearance",
+});
 
 export const OFFICE_AGENT_LIMITS = {
   nameMax: 40,
@@ -117,6 +146,10 @@ export const OfficeAgentView = z.object({
   provider: z.enum(PROVIDER_IDS),
   model: z.string(),
   effort: z.string().optional(),
+  /** What it runs on, in kind only (#280). */
+  runsOn: OfficeAgentRunsOn,
+  /** How it looks: an id from `OFFICE_AGENT_APPEARANCES` (a stored id the list lost is kept as is). */
+  appearance: z.string(),
   status: z.enum(OFFICE_AGENT_STATUSES),
   statusReason: z.string().optional(),
   lastActivityAt: TimestampMs.optional(),
@@ -174,6 +207,7 @@ export const CreateOfficeAgent = z.object({
   model: ModelName,
   effort: Effort.optional(),
   profileId: Id.optional(),
+  appearance: Appearance.default(DEFAULT_OFFICE_AGENT_APPEARANCE),
   instructions: Instructions.default(""),
 });
 export type CreateOfficeAgent = z.input<typeof CreateOfficeAgent>;
@@ -186,6 +220,7 @@ export const UpdateOfficeAgent = z
     model: ModelName,
     effort: Effort.nullable(),
     profileId: Id.nullable(),
+    appearance: Appearance,
     instructions: Instructions,
   })
   .partial()
