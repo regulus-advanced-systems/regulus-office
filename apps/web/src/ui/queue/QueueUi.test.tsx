@@ -75,6 +75,7 @@ const as = (id: string, access: OperationAccess) => {
     operations: [
       {
         operationId: "f1",
+        levelId: "lobby",
         name: "Apollo",
         slug: "apollo",
         index: 1,

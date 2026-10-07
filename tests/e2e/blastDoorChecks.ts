@@ -9,7 +9,7 @@
  * probe.ts, published with `?stats`) and walks by nav state (compoundProbes.ts).
  */
 import { expect, type Page } from "@playwright/test";
-import { navPose, waitStill, walkTo, walkToLobby } from "./compoundProbes.ts";
+import { goToLobbyLevel, navPose, waitStill, walkTo, walkToLobby } from "./compoundProbes.ts";
 
 type Point = { x: number; z: number };
 
@@ -71,6 +71,9 @@ async function pressE(page: Page): Promise<void> {
 }
 
 export async function checkBlastDoor(owner: Page, member: Page, ownerName: string): Promise<void> {
+  // Both on the lobby level (#268): people see each other only on the same level.
+  await goToLobbyLevel(owner);
+  await goToLobbyLevel(member);
   await walkToLobby(owner);
   const at = await points(owner);
   await expect.poll(async () => (await door(member)).phase).toBe("closed");

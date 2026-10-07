@@ -26,6 +26,7 @@ import { agents, operations } from "../db/schema/index.ts";
 import { type GitRunner, runGit, summarizeGitError } from "../github/git.ts";
 import type { RepoAccess, RepoCheckout } from "../github/repo-access.ts";
 import type { Logger } from "../logging.ts";
+import { operationDirName } from "../operations/dirs.ts";
 import { CLONES_DIR, humanAreaDir, humanAreaOf } from "../runners/layout.ts";
 import type { Runner } from "../runners/types.ts";
 import { ensureHumanClone, fetchOrigin } from "./clones.ts";
@@ -130,12 +131,16 @@ export class GitWorktreeWorkspaces implements Workspaces, HumanClones {
     const repo = this.#readyRepo(input.repoId);
     if (repo.operationId !== input.operationId) throw new WorkspaceError("repo_not_found");
     const operation = this.#deps.db
-      .select({ slug: operations.slug })
+      .select({ slug: operations.slug, dirSlug: operations.dirSlug })
       .from(operations)
       .where(eq(operations.id, input.operationId))
       .get();
     if (!operation) throw new WorkspaceError("repo_not_found", "operation not found");
-    const area = humanAreaDir(this.#deps.worktreesDir, operation.slug, input.ownerUserId);
+    const area = humanAreaDir(
+      this.#deps.worktreesDir,
+      operationDirName(operation),
+      input.ownerUserId,
+    );
     return { repo, area, clone: join(area, CLONES_DIR, basename(repo.workdir)) };
   }
 

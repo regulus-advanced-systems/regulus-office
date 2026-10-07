@@ -19,6 +19,8 @@ import {
   DEFAULT_GENIUS_LOOK,
   EMPTY_COMPOUND,
   type GeniusLookValue,
+  HOLDING_LEVEL_ID,
+  LOBBY_LEVEL_ID,
   LOBBY_OPERATION_ID,
   ROOM_NAMES,
   seatKey,
@@ -312,7 +314,8 @@ describe("BuildingRoom over the wire", () => {
   });
 
   test("doing is published; chat floods are refused (#49)", async () => {
-    const ada = await joinAs(user("u-ada9", "Ada"));
+    // An admin: admins may enter every operation.
+    const ada = await joinAs(user("u-ada9", "Ada", "admin"));
     const bob = await joinAs(user("u-bob9", "Bob"));
     await waitFor(() => bob.state.humans.has(ada.sessionId), "Ada visible");
     ada.send("doing", { doing: "  at the boards " });
@@ -397,5 +400,61 @@ describe("BuildingRoom over the wire", () => {
     await ada.leave();
     await waitFor(() => !bob.state.humans.has(ada.sessionId), "Ada gone");
     expect(bob.state.operations.get(LOBBY_OPERATION_ID)?.humansPresent).toBe(before - 1);
+  });
+
+  test("levels are published; presence is per level and follows the room (#268)", async () => {
+    const level = (levelId: string, kind: "lobby" | "org", login: string, order: number) => ({
+      levelId,
+      kind,
+      login,
+      name: login || "Lobby",
+      order,
+      state: { ...COMPOUND, version: 10 + order },
+    });
+    rooms.building.setCompound({
+      state: COMPOUND,
+      rooms: new Map(),
+      levels: [level(LOBBY_LEVEL_ID, "lobby", "", 0), level("lv-octo", "org", "octo", 1)],
+    });
+    // An admin: admins may enter every operation.
+    const ada = await joinAs(user("u-ada9", "Ada", "admin"));
+    const bob = await joinAs(user("u-bob9", "Bob"));
+    await waitFor(() => bob.state.levels.size === 2, "levels published");
+    expect(bob.state.levels.get("lv-octo")?.toJSON()).toMatchObject({
+      levelId: "lv-octo",
+      kind: "org",
+      login: "octo",
+      name: "octo",
+      order: 1,
+      compound: { width: 64, version: 11 },
+    });
+    const adaSeen = () => bob.state.humans.get(ada.sessionId);
+    await waitFor(() => adaSeen() !== undefined, "Ada visible");
+    expect(adaSeen()?.levelId).toBe(LOBBY_LEVEL_ID);
+
+    // The lobby id is "in no project room": the level says where.
+    ada.send("operation.go", { operationId: LOBBY_OPERATION_ID, levelId: "lv-octo" });
+    await waitFor(() => adaSeen()?.levelId === "lv-octo", "Ada on octo's level");
+    expect(adaSeen()?.operationId).toBe(LOBBY_OPERATION_ID);
+    const unknown = nextRejection(ada);
+    ada.send("operation.go", { operationId: LOBBY_OPERATION_ID, levelId: "lv-nope" });
+    expect((await unknown).reason).toBe("unknown level lv-nope");
+
+    // A project room is on one level: going there moves the human to it, whatever was named.
+    ada.send("operation.go", { operationId, levelId: "lv-octo" });
+    await waitFor(() => adaSeen()?.operationId === operationId, "Ada in the room");
+    expect(adaSeen()?.levelId).toBe(bob.state.operations.get(operationId)?.levelId);
+    expect(adaSeen()?.levelId).toBe(HOLDING_LEVEL_ID);
+    // Without a level, stepping out of the room stays on its level.
+    ada.send("operation.go", { operationId: LOBBY_OPERATION_ID });
+    await waitFor(() => adaSeen()?.operationId === LOBBY_OPERATION_ID, "Ada out of the room");
+    expect(adaSeen()?.levelId).toBe(HOLDING_LEVEL_ID);
+
+    // A level that is no longer shown: whoever was on it is in the lobby.
+    ada.send("operation.go", { operationId: LOBBY_OPERATION_ID, levelId: "lv-octo" });
+    await waitFor(() => adaSeen()?.levelId === "lv-octo", "Ada back on octo's level");
+    rooms.building.setCompound({ state: COMPOUND, rooms: new Map() });
+    await waitFor(() => bob.state.levels.size === 1, "one level left");
+    await waitFor(() => adaSeen()?.levelId === LOBBY_LEVEL_ID, "Ada in the lobby");
   });
 });

@@ -308,6 +308,58 @@ describe("OperationLifecycle", () => {
     expect((await t.make("Apollo")).slug).toBe("apollo");
   });
 
+  test("a room that shares its directories with another keeps them when it is deleted (#268)", async () => {
+    const t = await setup();
+    const original = await t.make("Apollo");
+    const sibling = await t.make("Apollo api");
+    // As the split leaves it: the sibling's files live in the original's directories.
+    t.db
+      .update(operationsTable)
+      .set({ dirSlug: "apollo" })
+      .where(eq(operationsTable.id, sibling.operationId))
+      .run();
+    // A new operation never takes a directory name that is in use, even with its slug free.
+    t.db
+      .update(operationsTable)
+      .set({ slug: "renamed" })
+      .where(eq(operationsTable.id, original.operationId))
+      .run();
+    t.db
+      .update(operationsTable)
+      .set({ dirSlug: "apollo" })
+      .where(eq(operationsTable.id, original.operationId))
+      .run();
+    expect((await t.make("Apollo")).slug).toBe("apollo-2");
+
+    expect(await t.operations.lifecycle.delete(t.owner, original.operationId, "Apollo")).toEqual(
+      [],
+    );
+    expect(await exists(join(t.projectsDir, "apollo", "hello", ".git"))).toBe(true);
+    expect(
+      await readFile(join(t.worktreesDir, "apollo", "u1", "agent-1", "work.txt"), "utf8"),
+    ).toBe("work\n");
+    const audit = t.db
+      .select()
+      .from(auditLog)
+      .where(
+        and(eq(auditLog.targetId, original.operationId), eq(auditLog.action, "operation.delete")),
+      )
+      .get();
+    expect(JSON.parse(audit?.metaJson ?? "{}")).toMatchObject({
+      ok: true,
+      removed: [],
+      filesKept: "apollo",
+      sharedWith: [sibling.operationId],
+    });
+    // The last room using the directories takes them along.
+    expect(await t.operations.lifecycle.delete(t.owner, sibling.operationId, "Apollo api")).toEqual(
+      [join(t.projectsDir, "apollo"), join(t.worktreesDir, "apollo")],
+    );
+    expect(await exists(join(t.projectsDir, "apollo"))).toBe(false);
+    // The sibling's own (unused) directories, made by the fixture, are not its files: untouched.
+    expect(await exists(join(t.projectsDir, "apollo-api"))).toBe(true);
+  });
+
   test("files that cannot be removed leave the operation archived, rows kept, retryable", async () => {
     const t = await setup();
     const operation = await t.make("Apollo");

@@ -10,6 +10,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { getOfficeClient } from "../../net/index.ts";
 import { cameraView } from "../../state/camera.ts";
 import { useConnectionStore } from "../../state/connection.ts";
+import { useLevelStore } from "../../state/level.ts";
 import { usePlayerStore } from "../../state/player.ts";
 import type { CorridorChunk } from "./corridors.ts";
 import type { Bounds, PlacedRoom } from "./placed.ts";
@@ -75,6 +76,8 @@ export function Culling({
 
 export interface PresenceTarget {
   setRooms(current: string | null, nearby: readonly string[]): Promise<void>;
+  /** The level the player is on (#268); absent in harnesses with one level. */
+  setLevel?(levelId: string): void;
 }
 
 export function RoomPresence({
@@ -96,6 +99,16 @@ export function RoomPresence({
       }),
     [],
   );
+  // The building hears which level we are on, at once and after every switch (#268).
+  useEffect(() => {
+    const tell = (levelId: string) => (target ?? getOfficeClient()).setLevel?.(levelId);
+    tell(useLevelStore.getState().levelId);
+    return useLevelStore.subscribe((s, prev) => {
+      if (s.levelId === prev.levelId) return;
+      last.current = null;
+      tell(s.levelId);
+    });
+  }, [target]);
   useFrame((_, dt) => {
     since.current += dt;
     if (since.current < PRESENCE_S) return;

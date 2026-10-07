@@ -57,6 +57,7 @@ import {
   cameraSettled,
   cameraState,
   clickInScene,
+  goToLevelOf,
   navPose,
   navRooms,
   roomNamed,
@@ -547,14 +548,22 @@ test("the owner adds an operation in build mode: a refused spot, then placed, bu
 
   // The member has no access: no Apollo in quick travel, a shut door with its plaque, and
   // nobody inside is drawn for them.
+  // Apollo is on the level of its repo's owner (#268); from the lobby level the member goes
+  // there with quick travel's level list.
+  expect((await navRooms(memberPage)).some((r) => r.name === "Apollo")).toBe(false);
+  expect(await goToLevelOf(memberPage, "Apollo")).toBe(true);
   const member = (await navRooms(memberPage)).find((r) => r.name === "Apollo");
   expect(member?.enterable).toBe(false);
   await memberPage.bringToFront();
   await memberPage.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
   await memberPage.keyboard.press("f");
   const travel = memberPage.getByRole("dialog", { name: "Quick travel" });
-  await expect(travel.getByRole("button", { name: /^Lobby/ })).toBeVisible();
-  await expect(travel.getByRole("button", { name: /^Apollo/ })).toHaveCount(0);
+  await expect(
+    travel.getByRole("list", { name: "Levels" }).getByRole("button", { name: /^octo/ }),
+  ).toHaveAttribute("aria-current", "true");
+  const listed = travel.getByRole("list", { name: "Rooms you can enter" });
+  await expect(listed.getByRole("button", { name: /^Lobby/ })).toBeVisible();
+  await expect(listed.getByRole("button", { name: /^Apollo/ })).toHaveCount(0);
   await memberPage.keyboard.press("Escape");
   await expect(travel).toHaveCount(0);
   await expect.poll(() => remoteHumans(memberPage)).toHaveLength(0);

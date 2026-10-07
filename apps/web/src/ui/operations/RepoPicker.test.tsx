@@ -118,10 +118,10 @@ describe("repo picker helpers", () => {
 });
 
 describe("Add operation with a GitHub connection", () => {
-  test("lists repos with visibility and branch; picks go first, in the order picked", async () => {
+  test("lists repos with visibility and branch; one repo is picked for the room (#268)", async () => {
     const f = await open({
       ...connected,
-      "POST /api/compound/rooms": { status: 400, body: { error: "duplicate_repo" } },
+      "POST /api/compound/rooms": { status: 400, body: { error: "one_repo_per_room" } },
     });
     expect(rows()).toEqual(["octo/api", "octo/hello", "octo/web"]);
     expect(text()).toContain("public · trunk · pushed 3 days ago");
@@ -136,34 +136,41 @@ describe("Add operation with a GitHub connection", () => {
     const api = checkbox("octo/api");
     if (!api) throw new Error("no checkbox");
     await click(api);
-    expect(text()).toContain("2 of 3 selected.");
+    // A room has one repo: the second pick replaces the first.
+    expect(text()).toContain("octo/api selected. A room has one repo.");
+    expect(checkbox("octo/web")?.checked).toBe(false);
+    expect(document.querySelector('[aria-label="Repo 2"]')).toBeNull();
+    expect(text()).not.toContain("Add another repo");
 
     await typeUncontrolled(inputFor("Operation name"), "Apollo");
-    // A repo outside the connection, with its own token, goes after the picked ones.
+    // A picked repo and a typed one together are two repos: refused before build mode.
     await typeUncontrolled(document.querySelector('[aria-label="Repo 1"]'), "other/thing");
     await typeUncontrolled(
       document.querySelector('[aria-label="Access token for repo 1"]'),
       "github_pat_FAKE_other_0123456789",
     );
-    await act(async () => {
-      document
-        .querySelector('form[aria-label="New operation"]')
-        ?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
-    });
+    const submit = () =>
+      act(async () => {
+        document
+          .querySelector('form[aria-label="New operation"]')
+          ?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+      });
+    await submit();
+    await settle();
+    expect(text()).toContain("A room has exactly one repo. Add another room for each other repo.");
+    expect(f.calls.find((c) => c.method === "POST")).toBeUndefined();
+
+    await typeUncontrolled(document.querySelector('[aria-label="Repo 1"]'), "");
+    await typeUncontrolled(document.querySelector('[aria-label="Access token for repo 1"]'), "");
+    await submit();
     await settle();
     // Build mode takes the request; building there sends it with the room's spot.
     await act(() => confirmBuild(createCompoundApi({ fetch: f.fetch })));
     await settle();
-    const post = f.calls.find((c) => c.method === "POST");
-    expect(post?.body).toMatchObject({
-      name: "Apollo",
-      repos: [
-        { repo: "octo/web" },
-        { repo: "octo/api" },
-        { repo: "other/thing", token: "github_pat_FAKE_other_0123456789" },
-      ],
-    });
-    expect(text()).toContain("The same repo is listed twice.");
+    const post = f.calls.find((c) => c.method === "POST" && c.path === "/api/compound/rooms");
+    expect(post?.body).toMatchObject({ name: "Apollo", repos: [{ repo: "octo/api" }] });
+    // The server's own refusal of several repos reads the same.
+    expect(text()).toContain("A room has exactly one repo. Add another room for each other repo.");
     expect(document.body.innerHTML).not.toContain("github_pat_FAKE_other");
   });
 

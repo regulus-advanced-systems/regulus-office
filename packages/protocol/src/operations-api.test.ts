@@ -5,13 +5,14 @@ import {
   DeleteOperationRequest,
   hasOperationAccess,
   MAX_REPOS_PER_OPERATION,
+  ONE_REPO_PER_ROOM_MESSAGE,
   OperationHasHenchmenResponse,
   OperationInfo,
   RepoToken,
 } from "./operations-api.ts";
 
 describe("operations REST shapes", () => {
-  test("create request defaults the tier and requires at least one repo", () => {
+  test("create request defaults the tier and takes exactly one repo", () => {
     const parsed = CreateOperationRequest.parse({
       name: " Apollo ",
       repos: [{ repo: "octo/hello" }],
@@ -21,7 +22,10 @@ describe("operations REST shapes", () => {
     const many = Array.from({ length: MAX_REPOS_PER_OPERATION + 1 }, (_, i) => ({
       repo: `o/r${i}`,
     }));
-    expect(CreateOperationRequest.safeParse({ name: "x", repos: many }).success).toBe(false);
+    const refused = CreateOperationRequest.safeParse({ name: "x", repos: many });
+    expect(MAX_REPOS_PER_OPERATION).toBe(1);
+    expect(refused.success).toBe(false);
+    expect(refused.error?.issues[0]?.message).toBe(ONE_REPO_PER_ROOM_MESSAGE);
   });
 
   test("tokens cannot carry whitespace or header breaks", () => {
@@ -34,6 +38,7 @@ describe("operations REST shapes", () => {
   test("operation info never has a token field and reports clone status", () => {
     const info = OperationInfo.parse({
       operationId: "f1",
+      levelId: "lv1",
       name: "Apollo",
       slug: "apollo",
       index: 1,

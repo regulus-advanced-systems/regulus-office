@@ -7,11 +7,17 @@
  * refused while henchmen run in the room. New rooms are created through the
  * operation service, which calls {@link CompoundService.claim} inside its create
  * transaction; removal is the operation delete (#150).
+ *
+ * Each level has its own grid of rooms (#268; SPEC D26): a placement is only
+ * ever checked against the rooms of its own level, and the layout (corridors)
+ * is computed and published per level. The grid's size and the lobby's
+ * footprint are the same on every level.
  */
 
 import {
   type CompoundLayoutResponse,
   type CompoundRoomInfo,
+  LOBBY_LEVEL_ID,
   LOBBY_OPERATION_ID,
   type PlacementCheckResponse,
   type RoomPlacement,
@@ -30,14 +36,15 @@ import {
 import { AUDIT_ACTIONS, type DbOrTx, writeAudit } from "../auth/audit.ts";
 import { AuthHttpError, forbidden } from "../auth/errors.ts";
 import type { Db } from "../db/index.ts";
+import { levelInfo, shownLevels } from "../levels/store.ts";
 import type { Logger } from "../logging.ts";
 import { isOfficeManager, type OperationActor } from "../operations/access.ts";
 import { henchmenOn } from "../operations/lifecycle.ts";
 import { BuildTimers } from "./build.ts";
 import type { CompoundConfig } from "./config.ts";
 import { ensureCompound } from "./migrate.ts";
-import type { CompoundSnapshot, RoomFields } from "./room-state.ts";
-import { liveRooms, type RoomRow, readSpec, writePlacement } from "./store.ts";
+import type { CompoundSnapshot, LevelSnapshot, RoomFields } from "./room-state.ts";
+import { liveRooms, type RoomRow, readSpec, roomsOnLevel, writePlacement } from "./store.ts";
 
 /** Placement columns for a new `operations` row. */
 export interface NewRoomColumns {
@@ -54,7 +61,8 @@ export interface NewRoomColumns {
 export interface RoomPlacer {
   /**
    * Inside the create transaction, before the row is inserted: check the
-   * requested placement (or find one) and audit it. Throws 409 when refused.
+   * requested placement on the grid of `levelId` (or find one) and audit it.
+   * Throws 409 when refused.
    */
   claim(
     tx: DbOrTx,
@@ -62,6 +70,7 @@ export interface RoomPlacer {
     operationId: string,
     requested: RoomPlacement | undefined,
     deskSeats: number,
+    levelId: string,
   ): NewRoomColumns;
 }
 
@@ -145,34 +154,51 @@ export class CompoundService implements RoomPlacer {
     return this.#builds.endsAt(room.buildStartedAt?.getTime() ?? 0);
   }
 
-  #layout(): { layout: CompoundLayout; rooms: RoomRow[] } {
-    const rooms = liveRooms(this.#db);
-    return { layout: computeCompoundLayout(this.#spec(), placed(rooms)), rooms };
-  }
-
-  /** The published shape: layout state plus each room's placement and build fields. */
+  /**
+   * The published shape: every shown level with its own layout, plus each
+   * room's placement and build fields (rooms of all levels; the lobby under
+   * its fixed id). The lobby level is always there.
+   */
   snapshot(): CompoundSnapshot {
-    const { layout, rooms } = this.#layout();
+    const spec = this.#spec();
+    const rooms = liveRooms(this.#db);
     const byId = new Map(rooms.map((r) => [r.id, r]));
     const fields = new Map<string, RoomFields>();
-    const lobby = layout.specialRooms.find((s) => s.kind === "lobby");
-    if (lobby) {
-      fields.set(LOBBY_OPERATION_ID, {
-        ...roomSummaryPlacement(lobby),
-        buildState: "ready",
-        buildEndsAt: 0,
-      });
+    const levels: LevelSnapshot[] = [];
+    let lobbyState: CompoundSnapshot["state"] | undefined;
+    for (const level of shownLevels(this.#db)) {
+      const layout: CompoundLayout = computeCompoundLayout(
+        spec,
+        placed(roomsOnLevel(rooms, level.id)),
+      );
+      const state = compoundStateOf(layout);
+      levels.push({ ...levelInfo(level), state });
+      if (level.id === LOBBY_LEVEL_ID) {
+        lobbyState = state;
+        const lobby = layout.specialRooms.find((s) => s.kind === "lobby");
+        if (lobby) {
+          fields.set(LOBBY_OPERATION_ID, {
+            ...roomSummaryPlacement(lobby),
+            buildState: "ready",
+            buildEndsAt: 0,
+          });
+        }
+      }
+      for (const room of layout.rooms) {
+        const row = byId.get(room.id);
+        if (!row) continue;
+        fields.set(room.id, {
+          ...roomSummaryPlacement(room),
+          buildState: row.buildState,
+          buildEndsAt: this.#buildEndsAt(row),
+        });
+      }
     }
-    for (const room of layout.rooms) {
-      const row = byId.get(room.id);
-      if (!row) continue;
-      fields.set(room.id, {
-        ...roomSummaryPlacement(room),
-        buildState: row.buildState,
-        buildEndsAt: this.#buildEndsAt(row),
-      });
-    }
-    return { state: compoundStateOf(layout), rooms: fields };
+    return {
+      state: lobbyState ?? compoundStateOf(computeCompoundLayout(spec, [])),
+      rooms: fields,
+      levels,
+    };
   }
 
   publish(): void {
@@ -186,14 +212,16 @@ export class CompoundService implements RoomPlacer {
 
   /** `GET /api/compound`: layout and room summaries (any signed-in human). */
   layoutResponse(): CompoundLayoutResponse {
-    const { state, rooms } = this.snapshot();
-    const names = new Map(liveRooms(this.#db).map((r) => [r.id, r.name]));
+    const { state, rooms, levels = [] } = this.snapshot();
+    const rows = new Map(liveRooms(this.#db).map((r) => [r.id, r]));
     const list: CompoundRoomInfo[] = [];
     for (const [operationId, f] of rooms) {
-      if (operationId === LOBBY_OPERATION_ID) continue;
+      const row = rows.get(operationId);
+      if (operationId === LOBBY_OPERATION_ID || !row) continue;
       list.push({
         operationId,
-        name: names.get(operationId) ?? "",
+        levelId: row.levelId,
+        name: row.name,
         gridX: f.gridX,
         gridY: f.gridY,
         width: f.width,
@@ -205,19 +233,32 @@ export class CompoundService implements RoomPlacer {
         buildEndsAt: f.buildEndsAt,
       });
     }
-    return { compound: state, rooms: list };
+    return {
+      compound: state,
+      levels: levels.map(({ state: compound, ...level }) => ({ ...level, compound })),
+      rooms: list,
+    };
   }
 
-  /** Build-mode ghost: would `placement` be valid (ignoring room `operationId`, when moving it)? */
+  /**
+   * Build-mode ghost: would `placement` be valid on a level's grid? Moving a
+   * room (`operationId`): its own level, ignoring the room itself. A new room:
+   * `levelId`, or the lobby level's grid, which has no project rooms and so
+   * equals the grid of a level that does not exist yet.
+   */
   check(
     actor: OperationActor,
     placement: RoomPlacement,
     operationId?: string,
+    levelId?: string,
   ): PlacementCheckResponse {
     requireManager(actor);
+    const rooms = liveRooms(this.#db);
+    const moving = operationId ? rooms.find((r) => r.id === operationId) : undefined;
+    const level = moving?.levelId ?? levelId ?? LOBBY_LEVEL_ID;
     const result = checkPlacement(
       this.#spec(),
-      placed(liveRooms(this.#db)),
+      placed(roomsOnLevel(rooms, level)),
       operationId ?? "new",
       placement,
     );
@@ -232,10 +273,11 @@ export class CompoundService implements RoomPlacer {
     operationId: string,
     requested: RoomPlacement | undefined,
     deskSeats: number,
+    levelId: string,
   ): NewRoomColumns {
     requireManager(actor);
     const spec = this.#spec(tx);
-    const others = placed(liveRooms(tx));
+    const others = placed(roomsOnLevel(liveRooms(tx), levelId));
     let placement: RoomPlacement;
     if (requested) {
       const result = checkPlacement(spec, others, operationId, requested);
@@ -258,7 +300,7 @@ export class CompoundService implements RoomPlacer {
       action: AUDIT_ACTIONS.compoundRoomPlace,
       targetKind: "operation",
       targetId: operationId,
-      meta: { placement, auto: !requested },
+      meta: { placement, auto: !requested, levelId },
     });
     const instant = this.#deps.config.buildMs <= 0;
     return {
@@ -281,7 +323,8 @@ export class CompoundService implements RoomPlacer {
         if (running.length > 0) {
           throw new AuthHttpError(409, "room_has_running_henchmen", { henchmen: running });
         }
-        const result = checkPlacement(spec, placed(rooms), operationId, placement);
+        const onLevel = roomsOnLevel(rooms, room.levelId);
+        const result = checkPlacement(spec, placed(onLevel), operationId, placement);
         if (!result.ok) {
           throw new AuthHttpError(409, "placement_invalid", {
             reason: result.reason,

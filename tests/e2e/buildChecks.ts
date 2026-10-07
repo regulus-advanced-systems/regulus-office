@@ -5,7 +5,7 @@
  * way an owner does: Add operation, Choose a spot…, then build on the map.
  */
 import { expect, type Page } from "@playwright/test";
-import { cameraSettled, navRooms } from "./compoundProbes.ts";
+import { cameraSettled, goToLevelOf, navRooms } from "./compoundProbes.ts";
 import { screenPointOf } from "./probes.ts";
 
 export interface Placement {
@@ -93,7 +93,11 @@ export async function openBuildMode(page: Page, name: string, repo: string): Pro
  */
 export async function ensureOperation(page: Page, name: string, repo: string): Promise<void> {
   await page.bringToFront();
-  const room = async () => (await navRooms(page)).find((r) => r.name === name);
+  // A room is on its repo owner's level (#268): look there, not only on the level in view.
+  const room = async () => {
+    await goToLevelOf(page, name);
+    return (await navRooms(page)).find((r) => r.name === name);
+  };
   if (!(await room())) {
     expect((await openBuildMode(page, name, repo)).server?.ok).toBe(true);
     await page.keyboard.press("Enter");

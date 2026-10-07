@@ -1,7 +1,7 @@
 /** Merge gong (#43): which merges ring, where, once; manual bangs; the queue's triple ring. */
 import { describe, expect, test } from "bun:test";
 import { GongRing, PrMerged } from "@regulus/protocol";
-import { githubPulls, operationRepos } from "../db/schema/index.ts";
+import { githubPulls } from "../db/schema/index.ts";
 import { type AnyGitHubEvent, GitHubEventBus } from "../github/events.ts";
 import { createLogger } from "../logging.ts";
 import { seededDb } from "../notifications/testing.ts";
@@ -137,23 +137,10 @@ describe("merged PRs", () => {
   });
 
   test("a repo that backs two operations rings on both, each once", () => {
+    // One repo per operation (#268): the same GitHub repo may still be the repo of two rooms.
     const s = setup();
-    s.db
-      .insert(operationRepos)
-      .values({
-        id: "repo-3",
-        operationId: "operation-2",
-        owner: "octo",
-        name: "web",
-        url: "file:///dev/null",
-        defaultBranch: "main",
-        workdir: "/nonexistent",
-        isPrimary: false,
-        cloneStatus: "ready",
-      })
-      .run();
-    s.bus.emit(closed(["repo-1", "repo-3"], 30));
-    s.bus.emit(closed(["repo-1", "repo-3"], 30, { source: "poll" }));
+    s.bus.emit(closed(["repo-1", "repo-2"], 30));
+    s.bus.emit(closed(["repo-1", "repo-2"], 30, { source: "poll" }));
     expect(s.sent.map((m) => m.operationId).sort()).toEqual(["operation-1", "operation-2"]);
   });
 

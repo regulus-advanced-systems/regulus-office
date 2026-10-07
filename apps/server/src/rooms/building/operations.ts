@@ -5,8 +5,11 @@
  */
 import {
   type AgentStatus,
+  HOLDING_LEVEL_ID,
+  LOBBY_LEVEL_ID,
   LOBBY_OPERATION_ID,
   type OperationSummary,
+  type OperationSummarySchema,
   type RoomSummaryFields,
 } from "@regulus/protocol";
 import { count, isNull } from "drizzle-orm";
@@ -16,7 +19,13 @@ import { agents, type Db, operations } from "../../db/index.ts";
  * Operation rows without the presence counter, which the room computes itself,
  * and without the placement fields, which come from the compound (#181).
  */
-export type OperationRecord = Omit<OperationSummary, "humansPresent" | keyof RoomSummaryFields>;
+export type OperationRecord = Omit<
+  OperationSummary,
+  "humansPresent" | "levelId" | keyof RoomSummaryFields
+> & {
+  /** The room's level (#268); a record without one is shown on the holding level. */
+  levelId?: string;
+};
 
 export interface OperationSource {
   /** Every non-archived operation, lobby first, ordered by elevator index. */
@@ -39,6 +48,7 @@ export const PRESENT_STATUSES: readonly AgentStatus[] = [
 
 export const LOBBY_OPERATION: OperationRecord = {
   operationId: LOBBY_OPERATION_ID,
+  levelId: LOBBY_LEVEL_ID,
   name: "Lobby",
   slug: "lobby",
   index: 0,
@@ -61,6 +71,7 @@ export class DrizzleOperationSource implements OperationSource {
     const rows = await this.#db
       .select({
         id: operations.id,
+        levelId: operations.levelId,
         name: operations.name,
         slug: operations.slug,
         index: operations.index,
@@ -91,6 +102,7 @@ export class DrizzleOperationSource implements OperationSource {
         const acc = byOperation.get(row.id) ?? { working: 0, waiting: 0, total: 0 };
         return {
           operationId: row.id,
+          levelId: row.levelId,
           name: row.name,
           slug: row.slug,
           index: row.index,
@@ -124,4 +136,23 @@ export function isKnownOperation(operationId: string, known: Iterable<OperationR
   if (operationId === LOBBY_OPERATION_ID) return true;
   for (const f of known) if (f.operationId === operationId) return true;
   return false;
+}
+
+/** Copy a record into its `BuildingState.operations` entry, touching only what changed. */
+export function applyOperationRecord(
+  entry: InstanceType<typeof OperationSummarySchema>,
+  f: OperationRecord,
+): void {
+  entry.operationId = f.operationId;
+  const levelId = f.levelId ?? HOLDING_LEVEL_ID;
+  if (entry.levelId !== levelId) entry.levelId = levelId;
+  entry.name = f.name;
+  entry.slug = f.slug;
+  entry.index = f.index;
+  entry.paletteId = f.paletteId;
+  entry.henchmenWorking = f.henchmenWorking;
+  entry.henchmenWaiting = f.henchmenWaiting;
+  entry.henchmenTotal = f.henchmenTotal;
+  if (entry.deskCount !== f.deskCount) entry.deskCount = f.deskCount;
+  if (entry.decorStyle !== f.decorStyle) entry.decorStyle = f.decorStyle;
 }

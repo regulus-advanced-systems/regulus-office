@@ -29,6 +29,7 @@ import { mountCredentialPanel } from "./credentials/panel.ts";
 import { closeDatabase, databasePathFor, openDatabase, runMigrations } from "./db/index.ts";
 import { deprecatedEnvMessage } from "./deprecated-env.ts";
 import { createGitHubAccess } from "./github/access/index.ts";
+import { createGitHubCaller } from "./github/api.ts";
 import { createBoardGitHub } from "./github/board-actions.ts";
 import { mountBoardRoutes } from "./github/board-routes.ts";
 import { createPullRequestClient } from "./github/pulls.ts";
@@ -38,6 +39,7 @@ import { createGitHubSync, type GitHubSync, mountGitHubSyncRoutes } from "./gith
 import { createOfficeServer } from "./http/server.ts";
 import { WsRouter } from "./http/ws-router.ts";
 import { createJukebox } from "./jukebox/setup.ts";
+import { LevelOwnerLookup } from "./levels/index.ts";
 import { createShutdownController, installSignalHandlers } from "./lifecycle.ts";
 import { createLogger } from "./logging.ts";
 import {
@@ -141,8 +143,21 @@ async function main(): Promise<void> {
 
   const dbPath = databasePathFor(config.dataDir);
   const db = openDatabase({ path: dbPath });
-  runMigrations(db);
+  const reshaped = runMigrations(db);
   logger.info({ path: dbPath }, "database ready");
+  // The levels migration's data step (#268): say what it did, once, on the boot that does it.
+  for (const split of reshaped.split) {
+    logger.warn(
+      { operationId: split.operationId, name: split.name, kept: split.kept, rooms: split.rooms },
+      "operation with several repos split into one room per repo; files on disk were not touched",
+    );
+  }
+  if (reshaped.levelled.length > 0) {
+    logger.info(
+      { operations: reshaped.levelled.length, levelsCreated: reshaped.levels.length },
+      "operations moved to the level of their repo's owner",
+    );
+  }
 
   const shutdown = createShutdownController({ logger, timeoutMs: config.shutdownTimeoutMs });
   // Hooks run last-registered-first: rooms disconnect, HTTP drains, then the database closes.
@@ -327,6 +342,7 @@ async function main(): Promise<void> {
   const runner = await createRunner(config, production, logger);
   logger.info({ backend: config.runnerBackend }, "agent runner backend selected");
   // The compound (#181): room placement, build phase, layout in the BuildingRoom.
+  let levelOwners: LevelOwnerLookup | undefined;
   const compound = new CompoundService({
     db,
     logger: logger.child({ module: "compound" }),
@@ -357,6 +373,7 @@ async function main(): Promise<void> {
       logger,
     }),
     placer: compound,
+    onLevelCreated: () => void levelOwners?.run(),
     onChange: (operationId) => {
       compound.operationChanged(operationId);
       rooms
@@ -369,6 +386,15 @@ async function main(): Promise<void> {
     onAccessChange: (operationId, userId) =>
       liveAccess.accessChanged({ userId, operationIds: [operationId] }),
   });
+  // Levels (#268): ask GitHub whether each repo owner is an organisation or an account.
+  levelOwners = new LevelOwnerLookup({
+    db,
+    repos: operations.repos,
+    api: createGitHubCaller({ apiBase: config.githubApiBase }),
+    logger: logger.child({ module: "levels" }),
+    onChange: () => compound.publish(),
+  });
+  void levelOwners.run();
   // Webhooks (signed, no session), polling fallback, board cache → OperationRoom summaries (#35).
   githubSync = createGitHubSync({
     db,

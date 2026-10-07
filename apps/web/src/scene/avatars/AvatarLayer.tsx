@@ -9,13 +9,17 @@ import { Suspense } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { type BuildingStore, useBuildingStore } from "../../state/building.ts";
 import { useCompoundStore } from "../../state/compound.ts";
+import { onViewedLevel } from "../../state/level.ts";
 import { type CompoundWorld, isOpenRoom, roomAt } from "../compound/world.ts";
 import { useChatBubbleFeed } from "../social/Overhead.tsx";
 import { SeatLayer } from "../social/SeatLayer.tsx";
 import { LocalAvatar } from "./LocalAvatar.tsx";
 import { RemoteAvatar } from "./RemoteAvatar.tsx";
 
-/** Session ids of the other humans to draw: everyone not inside a room we cannot see into. */
+/**
+ * Session ids of the other humans to draw: everyone on the level we are
+ * looking at (#268) who is not inside a room we cannot see into.
+ */
 export function selectRemoteSessionIds(
   store: BuildingStore,
   world: CompoundWorld | null = null,
@@ -26,6 +30,7 @@ export function selectRemoteSessionIds(
     .filter((id) => id !== store.sessionId)
     .filter((id) => {
       const h = humans[id];
+      if (h && !onViewedLevel(h)) return false;
       if (!h || !world) return true;
       const room = roomAt(world, h.position.x, h.position.z);
       return !room || isOpenRoom(room);

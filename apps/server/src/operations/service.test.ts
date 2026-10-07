@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto";
 import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ROOM_TEMPLATE_TIERS } from "@regulus/protocol";
+import { HOLDING_LEVEL_ID, LOBBY_LEVEL_ID, ROOM_TEMPLATE_TIERS } from "@regulus/protocol";
 import {
   legacyDeskCount,
   officeL2Template,
@@ -15,7 +15,8 @@ import {
 } from "@regulus/room-layout";
 import { eq } from "drizzle-orm";
 import { AuthHttpError } from "../auth/errors.ts";
-import { auditLog, desks, operationRepos } from "../db/schema/index.ts";
+import { auditLog, desks, levels, operationRepos } from "../db/schema/index.ts";
+import { shownLevels } from "../levels/store.ts";
 import { createLogger } from "../logging.ts";
 import { createOperations, type Operations } from "./index.ts";
 import { FAKE_PAT, makeBareRepo, testDb } from "./test-helpers.ts";
@@ -75,12 +76,12 @@ describe("OperationService", () => {
     expect([...ROOM_TEMPLATE_TIERS]).toEqual([...ROOM_TIERS]);
   });
 
-  test("an admin creates an operation: repos clone, desks come from the generated room", async () => {
+  test("an admin creates an operation: its repo clones, desks come from the generated room", async () => {
     const t = setup();
     const { operation, cloned } = t.operations.service.create(t.admin, {
       name: "Apollo Moon",
       tier: "small",
-      repos: [{ repo: "octo/hello", token: FAKE_PAT }, { repo: "https://github.com/octo/tools" }],
+      repos: [{ repo: "octo/hello", token: FAKE_PAT }],
     });
     expect(operation).toMatchObject({
       name: "Apollo Moon",
@@ -92,7 +93,6 @@ describe("OperationService", () => {
     });
     expect(operation.repos.map((r) => [r.owner, r.name, r.cloneStatus, r.isPrimary])).toEqual([
       ["octo", "hello", "cloning", true],
-      ["octo", "tools", "cloning", false],
     ]);
     expect(operation.repos[0]?.hasCredential).toBe(true);
     expect(JSON.stringify(operation)).not.toContain(FAKE_PAT);
@@ -100,10 +100,7 @@ describe("OperationService", () => {
 
     await cloned;
     const ready = t.operations.service.get(t.admin, operation.operationId);
-    expect(ready.repos.map((r) => [r.cloneStatus, r.defaultBranch])).toEqual([
-      ["ready", "trunk"],
-      ["ready", "main"],
-    ]);
+    expect(ready.repos.map((r) => [r.cloneStatus, r.defaultBranch])).toEqual([["ready", "trunk"]]);
     const workdir = join(t.projectsDir, "apollo-moon", "hello");
     expect((await stat(join(workdir, "README.md"))).isFile()).toBe(true);
     const gitConfig = await readFile(join(workdir, ".git", "config"), "utf8");
@@ -155,7 +152,7 @@ describe("OperationService", () => {
     expect(legacyDeskCount(officeL2Template.id)).toBe(3);
   });
 
-  test("palettes cycle, slugs stay unique, same-named repos get owner-prefixed dirs", async () => {
+  test("palettes cycle, slugs stay unique, the mirror is <projects>/<slug>/<repo>", async () => {
     const t = setup();
     const a = t.operations.service.create(t.owner, {
       name: "Twin",
@@ -166,7 +163,7 @@ describe("OperationService", () => {
       name: "Twin",
       tier: "small",
       paletteId: "teal-cream",
-      repos: [{ repo: "octo/tools" }, { repo: "other/tools" }],
+      repos: [{ repo: "other/tools" }],
     });
     await Promise.all([a.cloned, b.cloned]);
     expect([a.operation.slug, b.operation.slug]).toEqual(["twin", "twin-2"]);
@@ -175,10 +172,64 @@ describe("OperationService", () => {
       "teal-cream",
     ]);
     const repos = t.operations.repos.listOperationRepos(b.operation.operationId);
-    expect(repos.map((r) => r.workdir)).toEqual([
-      join(t.projectsDir, "twin-2", "octo-tools"),
-      join(t.projectsDir, "twin-2", "other-tools"),
+    expect(repos.map((r) => r.workdir)).toEqual([join(t.projectsDir, "twin-2", "tools")]);
+  });
+
+  test("a room goes on its repo owner's level, created with the owner's first room (#268)", async () => {
+    const t = setup();
+    const made: string[] = [];
+    const operations = createOperations({
+      db: t.db,
+      logger,
+      config: { projectsDir: t.projectsDir, githubRemoteBase: remoteBase },
+      keyring: undefined,
+      onLevelCreated: (levelId) => made.push(levelId),
+    });
+    const create = (name: string, repo: string) => {
+      const { operation, cloned } = operations.service.create(t.owner, {
+        name,
+        tier: "small",
+        repos: [{ repo }],
+      });
+      return cloned.then(() => operation);
+    };
+    const hello = await create("Hello", "octo/hello");
+    const tools = await create("Tools", "OCTO/tools");
+    const other = await create("Other", "other/tools");
+    // Logins are case-insensitive: both octo rooms share one level; `other` has its own.
+    expect(tools.levelId).toBe(hello.levelId);
+    expect(other.levelId).not.toBe(hello.levelId);
+    expect(made).toEqual([hello.levelId, other.levelId]);
+    const rows = t.db.select().from(levels).all();
+    expect(rows.map((l) => [l.id, l.kind, l.login, l.name, l.githubId, l.position])).toEqual([
+      [LOBBY_LEVEL_ID, "lobby", null, "Lobby", null, 0],
+      [HOLDING_LEVEL_ID, "holding", null, "Unassigned", null, 65535],
+      // An owner's level is an unconfirmed account until GitHub says what it is.
+      [hello.levelId, "account", "octo", "octo", null, 1],
+      [other.levelId, "account", "other", "other", null, 2],
     ]);
+    // Only the lobby and levels with a live room are shown; the lobby level has no rooms.
+    expect(shownLevels(t.db).map((l) => l.id)).toEqual([
+      LOBBY_LEVEL_ID,
+      hello.levelId,
+      other.levelId,
+    ]);
+    operations.service.archive(t.owner, other.operationId);
+    expect(shownLevels(t.db).map((l) => l.id)).toEqual([LOBBY_LEVEL_ID, hello.levelId]);
+    expect(operations.service.get(t.owner, hello.operationId).levelId).toBe(hello.levelId);
+    // The database refuses a second repo on an operation, whatever the code above it does.
+    expect(() =>
+      t.db
+        .insert(operationRepos)
+        .values({
+          operationId: hello.operationId,
+          owner: "octo",
+          name: "second",
+          url: "https://github.com/octo/second",
+          workdir: "/nonexistent",
+        })
+        .run(),
+    ).toThrow(/UNIQUE constraint failed: operation_repos.operation_id/);
   });
 
   test("validation: roles, repo refs, duplicates, palette, PAT without a master key", () => {
@@ -187,9 +238,11 @@ describe("OperationService", () => {
       code(() => t.operations.service.create(actor, { name: "X", tier: "small", repos, ...extra }));
     expect(create(t.member, [{ repo: "octo/hello" }])).toBe("403 owner_or_admin_required");
     expect(create(t.owner, [{ repo: "https://gitlab.com/o/r" }])).toBe("400 unsupported_host");
-    expect(create(t.owner, [{ repo: "octo/hello" }, { repo: "OCTO/Hello" }])).toBe(
-      "400 duplicate_repo",
+    // One repo per room (#268): a second repo is refused with a pointer to adding a room.
+    expect(create(t.owner, [{ repo: "octo/hello" }, { repo: "octo/tools" }])).toBe(
+      "400 one_repo_per_room",
     );
+    expect(create(t.owner, [])).toBe("400 one_repo_per_room");
     expect(create(t.owner, [{ repo: "octo/hello" }], { paletteId: "nope" })).toBe(
       "400 unknown_palette",
     );

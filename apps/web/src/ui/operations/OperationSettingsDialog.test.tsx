@@ -32,6 +32,7 @@ const OPERATION_ID = "f1";
 
 const operationInfo = (access: OperationInfo["access"]): OperationInfo => ({
   operationId: OPERATION_ID,
+  levelId: "lobby",
   name: "Hangar",
   slug: "hangar",
   index: 1,

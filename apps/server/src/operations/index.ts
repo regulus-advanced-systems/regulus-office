@@ -54,6 +54,8 @@ export interface OperationsDeps {
   onAccessChange?(operationId: string, userId: string): void;
   /** Places new operations in the compound (#181). */
   placer?: RoomPlacer;
+  /** A level was created for a repo owner with its first operation (#268). */
+  onLevelCreated?(levelId: string): void;
   git?: GitRunner;
   /**
    * The office GitHub connection (#141): its token is used for repos it
@@ -92,6 +94,7 @@ export function createOperations(deps: OperationsDeps): Operations {
     cloner,
     projectsDir: deps.config.projectsDir,
     onChange: deps.onChange,
+    onLevelCreated: deps.onLevelCreated,
     onAccessChange: deps.onAccessChange,
     placer: deps.placer,
   });

@@ -14,8 +14,10 @@ export { type CompoundConfig, CompoundConfigError, loadCompoundConfig } from "./
 export { type EnsureCompoundResult, ensureCompound } from "./migrate.ts";
 export {
   applyCompoundState,
+  applyLevels,
   applyRoomFields,
   type CompoundSnapshot,
+  type LevelSnapshot,
   type RoomFields,
   UNPLACED,
 } from "./room-state.ts";

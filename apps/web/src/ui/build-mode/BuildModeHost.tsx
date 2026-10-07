@@ -13,6 +13,7 @@ import { statsEnabled } from "../../scene/perf/stats.ts";
 import { useCompoundStore } from "../../state/compound.ts";
 import { useOperationsStore } from "../../state/operations.ts";
 import { usePlayerStore } from "../../state/player.ts";
+import { showLevelWhenKnown } from "../../state/travel.ts";
 import { useUiStore } from "../../state/ui.ts";
 import { describeOperationError } from "../operations/api.ts";
 import { type CompoundApi, createCompoundApi } from "./api.ts";
@@ -44,6 +45,8 @@ export async function confirmBuild(api: CompoundApi): Promise<void> {
     const res = await api.place({ ...intent.request, placement });
     if (res.ok) {
       useOperationsStore.getState().upsert(res.data.operation);
+      // The first room of a repo owner opens a new level (#268): look at it, to watch the build.
+      showLevelWhenKnown(res.data.operation.levelId);
       useBuildModeStore.getState().finish({ placed: res.data.operation.operationId });
       return;
     }

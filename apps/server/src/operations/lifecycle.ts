@@ -30,6 +30,7 @@ import {
 import type { Logger } from "../logging.ts";
 import type { OperationDirRemover } from "../worktrees/operation-dirs.ts";
 import { isOfficeManager, type OperationActor } from "./access.ts";
+import { operationDirName, sharesDir } from "./dirs.ts";
 import { operationInfo } from "./info.ts";
 
 /** Sends one henchman home keeping its branch (the AgentManager, wired at boot). */
@@ -208,9 +209,13 @@ export class OperationLifecycle {
     );
     this.#deps.onChange?.(operationId);
 
+    // A room split off a multi-repo operation shares the original's directories
+    // (dirs.ts, #268): they go only with the last operation that uses them.
+    const dir = operationDirName(row);
+    const sharedWith = sharesDir(this.#db, row);
     let removed: string[];
     try {
-      removed = await this.#deps.dirs.removeOperationDirs(row.slug);
+      removed = sharedWith.length > 0 ? [] : await this.#deps.dirs.removeOperationDirs(dir);
     } catch (err) {
       const error = err instanceof Error ? err.message : String(err);
       this.#deps.logger.error(
@@ -236,11 +241,23 @@ export class OperationLifecycle {
         action: AUDIT_ACTIONS.operationDelete,
         targetKind: "operation",
         targetId: operationId,
-        meta: { name: row.name, slug: row.slug, repos, removed, ok: true },
+        meta: {
+          name: row.name,
+          slug: row.slug,
+          repos,
+          removed,
+          ok: true,
+          ...(sharedWith.length > 0
+            ? { filesKept: dir, sharedWith: sharedWith.map((o) => o.id) }
+            : {}),
+        },
       });
     });
     this.#deps.onChange?.(operationId);
-    this.#deps.logger.info({ operationId, slug: row.slug, removed }, "operation deleted");
+    this.#deps.logger.info(
+      { operationId, slug: row.slug, removed, filesKeptFor: sharedWith.map((o) => o.id) },
+      "operation deleted",
+    );
     return removed;
   }
 }

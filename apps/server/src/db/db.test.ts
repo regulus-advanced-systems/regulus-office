@@ -57,6 +57,7 @@ const EXTRA_TABLES = [
   "meetings",
   "meeting_members",
   "meeting_turns",
+  "levels",
   "office_agents",
   "office_agent_tokens",
   "office_agent_grants",

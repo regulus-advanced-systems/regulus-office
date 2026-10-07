@@ -17,13 +17,16 @@ import {
   type CommandRejected,
   EMOTE_MS,
   type GeniusLookValue,
+  HOLDING_LEVEL_ID,
   HumanPresenceSchema,
+  LOBBY_LEVEL_ID,
   LOBBY_OPERATION_ID,
   OperationSummarySchema,
   type UsageSummary,
 } from "@regulus/protocol";
 import {
   applyCompoundState,
+  applyLevels,
   applyRoomFields,
   type CompoundSnapshot,
 } from "../../compound/room-state.ts";
@@ -35,8 +38,14 @@ import { CHAT_REPLAY, type ChatStore } from "../chat/store.ts";
 import type { RoomClient, RoomDefinition, RoomHandle } from "../transport.ts";
 import { type BlastDoorOptions, createBlastDoor } from "./blast-door.ts";
 import { checkCommand, wrapHeading } from "./commands.ts";
+import { leaveHiddenLevels, levelOfGo } from "./levels.ts";
 import { applyLobbyCommand } from "./lobby-commands.ts";
-import { isKnownOperation, type OperationRecord, type OperationSource } from "./operations.ts";
+import {
+  applyOperationRecord,
+  isKnownOperation,
+  type OperationRecord,
+  type OperationSource,
+} from "./operations.ts";
 import { RateLimiter } from "./rate-limiter.ts";
 import { applyLook, chatLine } from "./schema-copy.ts";
 import { createScreenShareRules, type ScreenShareRules } from "./screen-share.ts";
@@ -140,16 +149,7 @@ export function createBuildingRoom(deps: BuildingRoomDeps): BuildingRoom {
     for (const f of known) {
       seen.add(f.operationId);
       const entry = handle.state.operations.get(f.operationId) ?? new OperationSummarySchema();
-      entry.operationId = f.operationId;
-      entry.name = f.name;
-      entry.slug = f.slug;
-      entry.index = f.index;
-      entry.paletteId = f.paletteId;
-      entry.henchmenWorking = f.henchmenWorking;
-      entry.henchmenWaiting = f.henchmenWaiting;
-      entry.henchmenTotal = f.henchmenTotal;
-      if (entry.deskCount !== f.deskCount) entry.deskCount = f.deskCount;
-      if (entry.decorStyle !== f.decorStyle) entry.decorStyle = f.decorStyle;
+      applyOperationRecord(entry, f);
       applyRoomFields(entry, compound?.rooms.get(f.operationId));
       if (!handle.state.operations.has(f.operationId))
         handle.state.operations.set(f.operationId, entry);
@@ -270,8 +270,22 @@ export function createBuildingRoom(deps: BuildingRoomDeps): BuildingRoom {
           reject(client, command.type, `no access to operation ${command.operationId}`);
           return;
         }
-        if (human.operationId !== command.operationId) {
+        // A project room is on one level; the lobby id means "in no project room" on
+        // the level the client names (or the one the human is on already).
+        const levelId = levelOfGo(
+          known,
+          compound,
+          command.operationId,
+          command.levelId,
+          human.levelId,
+        );
+        if (levelId === null) {
+          reject(client, command.type, `unknown level ${command.levelId}`);
+          return;
+        }
+        if (human.operationId !== command.operationId || human.levelId !== levelId) {
           human.operationId = command.operationId;
+          human.levelId = levelId;
           human.seatId = "";
           setAnimation(human, "idle");
           recountHumans();
@@ -307,7 +321,10 @@ export function createBuildingRoom(deps: BuildingRoomDeps): BuildingRoom {
       await refreshOperations();
       for (const line of await chat.recent(CHAT_REPLAY)) room.state.chat.push(chatLine(line));
       if (usage) applyUsageSummary(room.state.usage, usage);
-      if (compound) applyCompoundState(room.state.compound, compound.state);
+      if (compound) {
+        applyCompoundState(room.state.compound, compound.state);
+        applyLevels(room.state.levels, compound);
+      }
       deps.jukebox?.restore(room.state.jukebox);
       room.state.lobbyWhiteboardVersion = lobbyWhiteboard;
       room.setInterval(sweep, SWEEP_MS);
@@ -322,6 +339,7 @@ export function createBuildingRoom(deps: BuildingRoomDeps): BuildingRoom {
       human.role = client.user.role;
       applyLook(human, client.user.avatar);
       human.operationId = LOBBY_OPERATION_ID;
+      human.levelId = LOBBY_LEVEL_ID;
       human.animation = "idle";
       human.joinedAt = now();
       room.state.humans.set(client.sessionId, human);
@@ -399,6 +417,9 @@ export function createBuildingRoom(deps: BuildingRoomDeps): BuildingRoom {
       compound = snapshot;
       if (!handle) return;
       applyCompoundState(handle.state.compound, snapshot.state);
+      applyLevels(handle.state.levels, snapshot);
+      leaveHiddenLevels(handle.state.humans, snapshot);
+      recountHumans();
       handle.state.operations.forEach((entry, operationId) =>
         applyRoomFields(entry, snapshot.rooms.get(operationId)),
       );
