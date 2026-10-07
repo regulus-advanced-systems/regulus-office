@@ -7,7 +7,9 @@
  * or couch humans may take is (#49); `terminalDesk`
  * is the desk `E` would open (the same rule the live laptop panel uses).
  */
+import { useBuildingStore } from "../../state/building.ts";
 import { cameraView, useCameraStore } from "../../state/camera.ts";
+import { useLevelStore } from "../../state/level.ts";
 import { useOperationStore } from "../../state/operation.ts";
 import { usePlayerStore } from "../../state/player.ts";
 import { terminalDeskAt } from "../laptops/focus.ts";
@@ -51,6 +53,10 @@ export interface NavProbe {
   terminalDesk(): string | null;
   /** The 3/4 camera: the yaw and zoom it shows and the ones asked for (radians, 0..1). */
   camera(): { yaw: number; wantYaw: number; zoom: number; wantZoom: number; distance: number };
+  /** The level being looked at (#268); `rooms()` lists that level's rooms only. */
+  level(): string;
+  /** The level the room called `roomName` is on, with the level's name; null when unknown. */
+  levelOf(roomName: string): { levelId: string; name: string } | null;
 }
 
 declare global {
@@ -130,6 +136,13 @@ export function createNavProbe(getWorld: () => CompoundWorld | null): NavProbe {
         wantZoom: want.zoom,
         distance: cameraView.distance,
       };
+    },
+    level: () => useLevelStore.getState().levelId,
+    levelOf(roomName) {
+      const state = useBuildingStore.getState().state;
+      const room = Object.values(state?.operations ?? {}).find((f) => f.name === roomName);
+      const level = room ? state?.levels?.[room.levelId] : undefined;
+      return level ? { levelId: level.levelId, name: level.name } : null;
     },
     terminalDesk() {
       const world = getWorld();

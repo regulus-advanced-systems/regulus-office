@@ -9,6 +9,7 @@
 import { useFrame } from "@react-three/fiber";
 import { useMemo, useRef } from "react";
 import { useBuildingStore } from "../../state/building.ts";
+import { humansOnViewedLevel } from "../../state/level.ts";
 import { usePlayerStore } from "../../state/player.ts";
 import { Beacons } from "../lair/components/Beacons.tsx";
 import { type DoorState, SlidingDoors } from "../lair/components/SlidingDoors.tsx";
@@ -58,7 +59,7 @@ export function CompoundDoors({
     const me = usePlayerStore.getState();
     const people: { x: number; z: number }[] = me.spawned ? [{ x: me.x, z: me.z }] : [];
     const building = useBuildingStore.getState();
-    for (const [sid, h] of Object.entries(building.state?.humans ?? {}))
+    for (const [sid, h] of humansOnViewedLevel(building.state))
       if (sid !== building.sessionId) people.push(h.position);
     for (const e of entries) e.door.open = e.openable && someoneNear(e.door, people);
   });

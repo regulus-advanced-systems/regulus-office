@@ -24,6 +24,7 @@ const BASE = `/api/operations/${OPERATION_ID}`;
 
 const operationInfo = (archivedAt: number | null = null): OperationInfo => ({
   operationId: OPERATION_ID,
+  levelId: "lobby",
   name: "Hangar",
   slug: "hangar",
   index: 1,

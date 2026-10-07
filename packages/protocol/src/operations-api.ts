@@ -18,8 +18,15 @@ import {
 
 export const OPERATIONS_API_PATH = "/api/operations";
 
-/** Most repos an operation may be created with in one request. */
-export const MAX_REPOS_PER_OPERATION = 8;
+/**
+ * An operation has exactly one repo (D7 as changed 2026-10-07): one room per
+ * repo. The create request keeps the `repos` list of the 1..n days, with
+ * exactly one entry; work on another repo is another room.
+ */
+export const MAX_REPOS_PER_OPERATION = 1;
+/** Shown when a request names several repos for one room. */
+export const ONE_REPO_PER_ROOM_MESSAGE =
+  "A room has exactly one repo. Add another room for each other repo.";
 
 /**
  * A GitHub token: printable ASCII only, so it can never smuggle a header
@@ -45,7 +52,8 @@ export const CreateOperationRequest = z.object({
   /** Palette id from @regulus/room-layout; omitted = next in the cycle. */
   paletteId: z.string().trim().min(1).max(32).optional(),
   tier: z.enum(ROOM_TEMPLATE_TIERS).default("medium"),
-  repos: z.array(RepoInput).min(1).max(MAX_REPOS_PER_OPERATION),
+  /** Exactly one (see {@link MAX_REPOS_PER_OPERATION}); its owner decides the room's level (D26). */
+  repos: z.array(RepoInput).min(1).max(MAX_REPOS_PER_OPERATION, ONE_REPO_PER_ROOM_MESSAGE),
 });
 export type CreateOperationRequest = z.input<typeof CreateOperationRequest>;
 
@@ -67,6 +75,8 @@ export type OperationRepoInfo = z.infer<typeof OperationRepoInfo>;
 
 export const OperationInfo = z.object({
   operationId: Id,
+  /** The level the room is on: its repo owner's (D7, D26). */
+  levelId: Id,
   name: z.string().max(80),
   slug: z.string().max(80),
   index: z.number().int().positive(),
@@ -75,6 +85,7 @@ export const OperationInfo = z.object({
   archivedAt: TimestampMs.nullable(),
   /** The caller's effective access (owner/admin: always `manage`). */
   access: z.enum(OPERATION_ACCESSES),
+  /** The room's one repo; empty only for an operation from before repos were required. */
   repos: z.array(OperationRepoInfo),
 });
 export type OperationInfo = z.infer<typeof OperationInfo>;

@@ -1,5 +1,5 @@
 /**
- * Searchable multi-select of the repos the office GitHub connection can see
+ * Searchable pick-one list of the repos the office GitHub connection can see
  * (#141), for "Add operation". Each row shows the name, private or public, the
  * default branch and the last push. Selection order is kept: the first repo
  * picked becomes the operation's primary repo. Plain checkboxes, so it works from
@@ -39,7 +39,7 @@ export function RepoPicker({
   disabled,
 }: {
   repos: readonly GitHubRepoInfo[];
-  /** Picked `owner/name`s in the order they were picked. */
+  /** The picked `owner/name`: none or one (a room has exactly one repo, #268). */
   selected: readonly string[];
   onChange: (next: string[]) => void;
   disabled?: boolean;
@@ -50,8 +50,8 @@ export function RepoPicker({
   const shown = matches.slice(0, MAX_SHOWN_REPOS);
   const picked = new Set(selected);
 
-  const toggle = (fullName: string, on: boolean) =>
-    onChange(on ? [...selected, fullName] : selected.filter((s) => s !== fullName));
+  // One repo per room: picking another repo replaces the pick.
+  const toggle = (fullName: string, on: boolean) => onChange(on ? [fullName] : []);
 
   return (
     <div className="rg-repo-picker">
@@ -89,7 +89,9 @@ export function RepoPicker({
           ? "No repo matches that search."
           : matches.length > shown.length
             ? `Showing ${shown.length} of ${matches.length}; search to narrow.`
-            : `${selected.length} of ${repos.length} selected.`}
+            : selected[0]
+              ? `${selected[0]} selected. A room has one repo.`
+              : "Pick one repo. A room has one repo."}
       </div>
     </div>
   );

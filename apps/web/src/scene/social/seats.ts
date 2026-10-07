@@ -7,6 +7,7 @@
  */
 import { type BuildingState, parseSeatKey, SIT_REACH_METRES, seatKey } from "@regulus/protocol";
 import { isHumanSeat, type Seat, specialRoomSeats } from "@regulus/room-layout";
+import { humansOnViewedLevel } from "../../state/level.ts";
 import { roomLayout } from "../compound/layouts.ts";
 import { type CompoundWorld, isOpenRoom, roomById, type WorldRoom } from "../compound/world.ts";
 
@@ -51,13 +52,13 @@ export function seatByKey(world: CompoundWorld, key: string): HumanSeat | null {
   return room && seat ? place(room, seat) : null;
 }
 
-/** Seat keys held by humans other than `selfSessionId`. */
+/** Seat keys held by humans other than `selfSessionId` on the level being viewed (#268). */
 export function takenSeats(
   state: Pick<BuildingState, "humans"> | null | undefined,
   selfSessionId: string | null,
 ): Set<string> {
   const taken = new Set<string>();
-  for (const [id, h] of Object.entries(state?.humans ?? {}))
+  for (const [id, h] of humansOnViewedLevel(state))
     if (id !== selfSessionId && h.seatId) taken.add(h.seatId);
   return taken;
 }

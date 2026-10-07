@@ -25,6 +25,7 @@ export const HumanPresenceSchema = schema(
     role: t.string().default("viewer"),
     avatar: GeniusLookSchema,
     operationId: t.string().default(""),
+    levelId: t.string().default("lobby"),
     position: WorldPosSchema,
     animation: t.string().default("idle"),
     doing: t.string().default(""),
@@ -38,6 +39,7 @@ export const HumanPresenceSchema = schema(
 export const OperationSummarySchema = schema(
   {
     operationId: t.string().default(""),
+    levelId: t.string().default("lobby"),
     name: t.string().default(""),
     slug: t.string().default(""),
     index: t.uint16().default(0),
@@ -181,6 +183,18 @@ export const CompoundStateSchema = schema(
   "CompoundState",
 );
 
+export const LevelStateSchema = schema(
+  {
+    levelId: t.string().default(""),
+    kind: t.string().default("account"),
+    login: t.string().default(""),
+    name: t.string().default(""),
+    order: t.uint16().default(0),
+    compound: CompoundStateSchema,
+  },
+  "LevelState",
+);
+
 export const BlastDoorStateSchema = schema(
   {
     phase: t.string().default("closed"),
@@ -201,6 +215,7 @@ export const BuildingStateSchema = schema(
     usage: UsageSummarySchema,
     pm: PmStateSchema,
     compound: CompoundStateSchema,
+    levels: t.map(LevelStateSchema),
     blastDoor: BlastDoorStateSchema,
     lobbyWhiteboardVersion: t.uint32().default(0),
   },

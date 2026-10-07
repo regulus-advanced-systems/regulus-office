@@ -123,6 +123,7 @@ export function fakeHumans(
     const id = `h${i}`;
     out[id] = {
       sessionId: id,
+      levelId: "lobby",
       userId: `u${i}`,
       displayName: ["Mia", "Olga", "Linus", "Ada", "Ben"][i - 1] ?? `Human ${i}`,
       role: "member",

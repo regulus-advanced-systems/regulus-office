@@ -1,14 +1,18 @@
 /**
- * The compound as this viewer sees it (#186, scene/compound/world.ts), kept
+ * The compound as this viewer sees it (#186, scene/compound/world.ts): the
+ * one level they are looking at (#268, level.ts), kept
  * current from the BuildingRoom state and the REST operation list. The object
  * only changes when something drawn changes (layout, access, build state,
  * settings, counters), never on a presence patch, so the scene can memoise
  * on it. Quick travel, search jumps and notifications read it too.
  */
+
+import { LOBBY_LEVEL_ID } from "@regulus/protocol";
 import { useEffect } from "react";
 import { create } from "zustand";
 import { type CompoundWorld, compoundWorld } from "../scene/compound/world.ts";
 import { useBuildingStore } from "./building.ts";
+import { isKnownLevel, levelView, useLevelStore } from "./level.ts";
 import { useOperationsStore } from "./operations.ts";
 
 export interface CompoundStore {
@@ -55,7 +59,10 @@ export function syncCompoundWorld(): void {
   const building = useBuildingStore.getState().state;
   const operations = useOperationsStore.getState().operations;
   const enterable = operations ? new Set(operations.map((f) => f.operationId)) : null;
-  const next = compoundWorld(building, enterable);
+  // A level that is gone (its last room archived or deleted) leaves its viewers in the lobby.
+  const level = useLevelStore.getState();
+  if (building && !isKnownLevel(building, level.levelId)) level.set(LOBBY_LEVEL_ID);
+  const next = compoundWorld(levelView(building, useLevelStore.getState().levelId), enterable);
   const store = useCompoundStore.getState();
   if (worldKey(next) !== worldKey(store.world)) store.set(next);
 }
@@ -67,14 +74,17 @@ export function useCompoundWorldSync(): void {
     const offBuilding = useBuildingStore.subscribe((s, prev) => {
       if (
         s.state?.compound !== prev.state?.compound ||
+        s.state?.levels !== prev.state?.levels ||
         s.state?.operations !== prev.state?.operations
       )
         syncCompoundWorld();
     });
     const offOperations = useOperationsStore.subscribe(syncCompoundWorld);
+    const offLevel = useLevelStore.subscribe(syncCompoundWorld);
     return () => {
       offBuilding();
       offOperations();
+      offLevel();
       useCompoundStore.getState().set(null);
     };
   }, []);

@@ -24,6 +24,7 @@ import type { GitHubConnection } from "../github/connection.ts";
 import type { GitRunner } from "../github/git.ts";
 import type { RepoAccess } from "../github/repo-access.ts";
 import type { Logger } from "../logging.ts";
+import { operationDirName } from "../operations/dirs.ts";
 import type { Runner } from "../runners/types.ts";
 import type { MasterKeyring } from "../secrets/index.ts";
 import type { UsageRecorder } from "../usage/index.ts";
@@ -115,13 +116,17 @@ export class WorkflowExecutor {
   async cleanup(runId: string, operationId: string): Promise<void> {
     await this.deps.runner.kill({ userId: WORKFLOW_RUNNER_USER, agentId: runId }).catch(() => {});
     const operation = this.deps.db
-      .select({ slug: operations.slug })
+      .select({ slug: operations.slug, dirSlug: operations.dirSlug })
       .from(operations)
       .where(eq(operations.id, operationId))
       .get();
     if (operation) {
       await removeCheckout(
-        checkoutDir({ worktreesDir: this.deps.worktreesDir, operationSlug: operation.slug, runId }),
+        checkoutDir({
+          worktreesDir: this.deps.worktreesDir,
+          operationSlug: operationDirName(operation),
+          runId,
+        }),
       );
     }
   }
@@ -165,7 +170,7 @@ export class WorkflowExecutor {
           "the repo is no longer in the operation",
         );
       const operation = deps.db
-        .select({ slug: operations.slug })
+        .select({ slug: operations.slug, dirSlug: operations.dirSlug })
         .from(operations)
         .where(eq(operations.id, wf.operationId))
         .get();
@@ -222,7 +227,7 @@ export class WorkflowExecutor {
 
       const checkout = await prepareCheckout(deps.git, {
         worktreesDir: deps.worktreesDir,
-        operationSlug: operation.slug,
+        operationSlug: operationDirName(operation),
         runId: row.id,
         remoteUrl: repoRow.remoteUrl,
         mirror: repoRow.workdir,

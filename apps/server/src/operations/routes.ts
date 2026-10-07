@@ -19,7 +19,6 @@
  * Repo tokens are accepted in bodies and never echoed back.
  */
 import {
-  CreateOperationRequest,
   DeleteOperationRequest,
   OFFICE_USERS_API_PATH,
   OPERATIONS_API_PATH,
@@ -33,6 +32,7 @@ import { checkOrigin } from "../auth/origin.ts";
 import { readJsonBody } from "../http/body.ts";
 import { json, type RouteContext, type RouteHandler, type Router } from "../http/router.ts";
 import type { OperationActor } from "./access.ts";
+import { CreateOperationBody } from "./body.ts";
 import type { OperationLifecycle } from "./lifecycle.ts";
 import type { OperationService } from "./service.ts";
 
@@ -90,7 +90,7 @@ export function mountOperationRoutes(
   router.post(
     OPERATIONS_API_PATH,
     route(async (ctx, actor) => {
-      const body = await readJsonBody(ctx.request, CreateOperationRequest);
+      const body = await readJsonBody(ctx.request, CreateOperationBody);
       const { operation } = operations.create(actor, body);
       return json(operation, { status: 201 });
     }, true),

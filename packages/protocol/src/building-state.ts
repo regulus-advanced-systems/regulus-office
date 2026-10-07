@@ -6,7 +6,7 @@
 import { z } from "zod";
 import { BlastDoorState } from "./blast-door.ts";
 import { Count, Id, TimestampMs, WorldPos } from "./common.ts";
-import { CompoundState, DOOR_SIDES, ROOM_BUILD_STATES } from "./compound.ts";
+import { CompoundState, DOOR_SIDES, LevelState, ROOM_BUILD_STATES } from "./compound.ts";
 import {
   AVATAR_ANIMATIONS,
   JUKEBOX_SOURCES,
@@ -65,6 +65,11 @@ export const HumanPresence = z.object({
   avatar: GeniusLook,
   /** Operation the human is currently on; the lobby has index 0. */
   operationId: Id,
+  /**
+   * Level the human is on (D26, #268). Positions are per level: two humans
+   * at the same spot on different levels do not see each other.
+   */
+  levelId: Id,
   position: WorldPos,
   animation: z.enum(AVATAR_ANIMATIONS),
   /** Free-text status such as "watching henchman Ada" or "at the whiteboard". */
@@ -86,6 +91,8 @@ const RoomTile = z.number().int().min(-1);
  */
 export const OperationSummary = z.object({
   operationId: Id,
+  /** The level the room is on: its repo owner's (D7, D26); the lobby level for the lobby. */
+  levelId: Id,
   name: z.string().max(80),
   slug: z.string().max(80),
   index: Count,
@@ -250,8 +257,14 @@ export const BuildingState = z.object({
   jukebox: JukeboxState,
   usage: UsageSummary,
   pm: PmState,
-  /** Compound grid, special rooms and corridors (SPEC §9.1); rooms are in `operations`. */
+  /**
+   * The lobby level's grid, special rooms and corridors (SPEC §9.1); rooms are
+   * in `operations`. Every level's layout, the lobby level's included, is in
+   * `levels`; this field stays for the lobby's own features (blast door, seats).
+   */
   compound: CompoundState,
+  /** Levels of the lair by level id (D26, #268), each with its own layout. */
+  levels: z.record(Id, LevelState),
   /** The lobby's blast door (#188): shared, opened by a button, shuts on a timer. */
   blastDoor: BlastDoorState,
   /** Snapshot version of the lobby's compound-wide whiteboard (#45); 0 until first drawn on. */

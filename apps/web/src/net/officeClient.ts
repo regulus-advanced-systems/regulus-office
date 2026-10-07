@@ -66,6 +66,8 @@ export class OfficeClient {
   private readonly rooms: typeof useRoomsStore;
   /** The room the player is in, as last told to the building (`operation.go`). */
   private announcedOperation: string | null = null;
+  /** The level the player is on (#268), once told; null = wherever the building has us. */
+  private level: string | null = null;
   private closed = false;
   private attempt = 0;
   private cancelBuildingRetry: (() => void) | null = null;
@@ -154,7 +156,7 @@ export class OfficeClient {
     this.bindBuilding(handle);
     // A new building session starts in the lobby; tell it if we are in a room.
     this.announcedOperation = LOBBY_OPERATION_ID;
-    if (this.operations.primary) this.announce(this.operations.primary, true);
+    if (this.operations.primary || this.level) this.announce(this.operations.primary, true);
     await this.operations.rejoin();
   }
 
@@ -202,11 +204,25 @@ export class OfficeClient {
     await this.setRooms(operationId, []);
   }
 
+  /**
+   * The level the player is looking at changed (#268): tell the building, so
+   * other people only see us on that level. Positions are per level.
+   */
+  setLevel(levelId: string): void {
+    if (this.level === levelId) return;
+    this.level = levelId;
+    this.announce(this.operations.primary, true);
+  }
+
   private announce(operationId: string | null, force: boolean): void {
     const id = operationId ?? LOBBY_OPERATION_ID;
     if (!this.building || (!force && id === this.announcedOperation)) return;
     this.announcedOperation = id;
-    this.building.send("operation.go", { operationId: id, mode: "teleport" });
+    this.building.send("operation.go", {
+      operationId: id,
+      mode: "teleport",
+      ...(this.level ? { levelId: this.level } : {}),
+    });
   }
 
   /** Send a typed command to the room that owns it. Throws when that room is not joined. */

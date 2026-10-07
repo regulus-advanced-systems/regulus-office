@@ -4,8 +4,9 @@ import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { eq } from "drizzle-orm";
-import { agents } from "../db/schema/index.ts";
+import { agents, operations } from "../db/schema/index.ts";
 import { basicAuthHeader } from "../github/git.ts";
+import { runnerId } from "../runners/layout.ts";
 import { agentGitEnv, branchSlug, parsePorcelain } from "./git-ops.ts";
 import {
   commitIn,
@@ -254,6 +255,25 @@ describe("prepare", () => {
     // Send-home never removes the human's clone.
     await f.worktrees.workspaces.release({ agentId, keepBranch: false });
     expect(await exists(join(f.cloneOf(), ".git"))).toBe(true);
+  });
+
+  test("a room split off another operation keeps using that operation's directory (#268)", async () => {
+    const f = await setupOperation(root);
+    // As the split leaves it: the room has its own slug, its files are under the original's.
+    f.db.update(operations).set({ slug: "wt-operation-api", dirSlug: "wt-operation" }).run();
+    const input = {
+      agentId: f.addAgent("a1"),
+      operationId: f.operationId,
+      repoId: f.repo.repoId,
+      slug: "x",
+      ownerUserId: f.owner.id,
+    };
+    const clone = await f.worktrees.workspaces.prepareClone(input);
+    expect(clone.workdir).toBe(f.cloneOf());
+    expect(clone.workdir).toContain("/wt-operation/");
+    const ws = await f.worktrees.workspaces.prepare({ ...input, agentId: f.addAgent("a2") });
+    expect(ws.workdir).toStartWith(join(f.worktreesDir, "wt-operation", runnerId(f.owner.id)));
+    expect(await exists(join(f.worktreesDir, "wt-operation-api"))).toBe(false);
   });
 
   test("unknown or foreign repos are refused", async () => {

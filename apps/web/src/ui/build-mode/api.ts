@@ -89,13 +89,16 @@ export function createCompoundApi(options: { fetch?: typeof fetch; baseUrl?: str
     return { ok: true, data: parsed.data };
   }
   return {
-    /** Would `placement` be valid (ignoring room `operationId` when moving it)? */
-    check: (placement: RoomPlacement, operationId?: string) =>
+    /**
+     * Would `placement` be valid: for a move, on the room's own level ignoring
+     * room `operationId`; for a new room, on the grid of `levelId` (#268)?
+     */
+    check: (placement: RoomPlacement, operationId?: string, levelId?: string) =>
       call<PlacementCheckResponse>(
         "POST",
         COMPOUND_CHECK_API_PATH,
         PlacementCheckSchema,
-        operationId ? { placement, operationId } : { placement },
+        operationId ? { placement, operationId } : levelId ? { placement, levelId } : { placement },
       ),
     /** Create the operation with its room at `placement` (201: the operation and its room). */
     place: (request: PlaceRoomRequest) =>

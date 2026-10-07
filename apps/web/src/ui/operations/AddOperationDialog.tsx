@@ -1,8 +1,9 @@
 /**
  * "Add operation" dialog (SPEC §9.1, D7, D14): an owner or admin names the
- * operation, picks a palette (default: next in the cycle) and chooses one or
- * more GitHub repos. With the office GitHub connection (#141)
- * they are picked from a searchable list of every repo it can see; "Other
+ * operation, picks a palette (default: next in the cycle) and chooses its
+ * one GitHub repo (one repo per room, #268; the repo's owner decides the
+ * level the room is built on). With the office GitHub connection (#141)
+ * it is picked from a searchable list of every repo it can see; "Other
  * repo…" (or, without a connection, the only option) takes a typed
  * owner/name with an optional fine-grained PAT scoped to that repo.
  * "Choose a spot…" then continues in build mode (#187): the room's size,
@@ -15,10 +16,18 @@
  * again (the server reports `hasCredential`).
  */
 
-import type { GitHubRepoInfo, PlaceRoomRequest } from "@regulus/protocol";
+import {
+  type GitHubRepoInfo,
+  LOBBY_LEVEL_ID,
+  levelLoginOf,
+  ONE_REPO_PER_ROOM_MESSAGE,
+  type PlaceRoomRequest,
+} from "@regulus/protocol";
 import { PALETTES } from "@regulus/room-layout";
 import { useEffect, useId, useState } from "react";
-import { useCompoundStore } from "../../state/compound.ts";
+import { useBuildingStore } from "../../state/building.ts";
+import { syncCompoundWorld, useCompoundStore } from "../../state/compound.ts";
+import { levelList, useLevelStore } from "../../state/level.ts";
 import { canManageOffice, useSessionStore } from "../../state/session.ts";
 import { useUiStore } from "../../state/ui.ts";
 import { FormAlert } from "../auth/AuthCard.tsx";
@@ -109,9 +118,7 @@ export function AddOperationForm({
   draft?: AddOperationDraft | null;
   onSubmit: (request: AddOperationRequest) => void;
 }) {
-  const [rows, setRows] = useState<number[]>(() =>
-    draft && draft.repos.length > 0 ? draft.repos.map(() => ++rowSeq) : [++rowSeq],
-  );
+  const [rows] = useState<number[]>(() => [++rowSeq]);
   const [picked, setPicked] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(draft?.error ?? null);
   const ids = { name: useId(), palette: useId() };
@@ -123,7 +130,11 @@ export function AddOperationForm({
     const form = event.currentTarget;
     const request = readAddOperationForm(form, rows, listed ? picked : []);
     if (!request.name || request.repos.length === 0) {
-      setError("Give the operation a name and at least one repo.");
+      setError("Give the operation a name and a repo.");
+      return;
+    }
+    if (request.repos.length > 1) {
+      setError(`${ONE_REPO_PER_ROOM_MESSAGE} Pick the repo from the list or type one, not both.`);
       return;
     }
     // Tokens leave the page's inputs here; build mode holds them until the room is built.
@@ -153,27 +164,13 @@ export function AddOperationForm({
             aria-label={`Access token for repo ${i + 1}`}
             placeholder="Fine-grained token (private repos)"
           />
-          {rows.length > 1 && (
-            <Button
-              variant="ghost"
-              size="sm"
-              aria-label={`Remove repo ${i + 1}`}
-              onClick={() => setRows((r) => r.filter((k) => k !== key))}
-            >
-              Remove
-            </Button>
-          )}
         </div>
       ))}
       <div className="rg-field__hint">
-        The first repo is the operation's primary repo. Public repos, and repos the office GitHub
-        connection covers, need no token; for another private repo use a fine-grained token scoped
-        to that repo only. Tokens are stored encrypted and never shown again.
-      </div>
-      <div>
-        <Button variant="secondary" size="sm" onClick={() => setRows((r) => [...r, ++rowSeq])}>
-          Add another repo
-        </Button>
+        A room has one repo; add another room for another repo. The room is built on the level of
+        the repo's owner. Public repos, and repos the office GitHub connection covers, need no
+        token; for another private repo use a fine-grained token scoped to that repo only. Tokens
+        are stored encrypted and never shown again.
       </div>
     </>
   );
@@ -213,7 +210,7 @@ export function AddOperationForm({
         </div>
       </div>
       <fieldset className="rg-field rg-operation-form__repos">
-        <legend className="rg-field__label">Repos</legend>
+        <legend className="rg-field__label">Repo</legend>
         {connection.state === "loading" && (
           <div className="rg-field__hint">Loading repos from GitHub…</div>
         )}
@@ -253,6 +250,14 @@ export function AddOperationForm({
   );
 }
 
+/** The level a new room for `repo` (`owner/name` or a GitHub URL) is built on, as far as we know it. */
+export function levelForRepo(repo: string): string {
+  const path = repo.trim().replace(/^https?:\/\/[^/]+\//i, "");
+  const owner = levelLoginOf(path.split("/")[0] ?? "");
+  const levels = levelList(useBuildingStore.getState().state);
+  return levels.find((l) => l.login !== "" && l.login === owner)?.levelId ?? LOBBY_LEVEL_ID;
+}
+
 /**
  * Mounted in the HUD; managers only. The form hands over to build mode,
  * which creates the operation once its room is placed.
@@ -271,6 +276,14 @@ export function AddOperationDialogHost({ github = defaultGitHubApi }: { github?:
   useGitHubResultOverlay();
   if (!allowed) return null;
   const toBuildMode = (request: AddOperationRequest) => {
+    // The room goes on its repo owner's level (#268): build mode shows that level's grid.
+    // An owner without a level yet gets a new, empty one; the lobby level's grid is the
+    // same (it has no project rooms), so that is where the spot is picked.
+    const levelId = levelForRepo(request.repos[0]?.repo ?? "");
+    if (levelId !== useLevelStore.getState().levelId) {
+      useLevelStore.getState().set(levelId);
+      syncCompoundWorld();
+    }
     const world = useCompoundStore.getState().world;
     if (!world) {
       setError("The compound map is still loading. Try again in a moment.");

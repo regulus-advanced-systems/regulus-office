@@ -4,6 +4,7 @@ import { currentOperationName, LOBBY_NAME } from "./operationName.ts";
 
 const operation = (index: number, name: string): OperationSummary => ({
   operationId: `f${index}`,
+  levelId: "lobby",
   name,
   slug: name.toLowerCase(),
   index,

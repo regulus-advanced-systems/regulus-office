@@ -16,6 +16,7 @@ import { mkdirSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { type BunSQLiteDatabase, drizzle } from "drizzle-orm/bun-sqlite";
 import { migrate } from "drizzle-orm/bun-sqlite/migrator";
+import { ensureOneRepoPerRoom, type OneRepoPerRoomResult } from "./one-repo-per-room.ts";
 import * as schema from "./schema/index.ts";
 
 export * as schema from "./schema/index.ts";
@@ -70,8 +71,16 @@ export function openDatabase(config: DatabaseConfig): Db {
  * nothing, and a table rebuild (create the new copy, copy rows, drop the old
  * one) must not cascade the drop into the tables that point at it (0018).
  * The previous setting is restored afterwards.
+ *
+ * Then the data step of 0020 (#268, one-repo-per-room.ts): split multi-repo
+ * operations into one per repo, put every operation on its repo owner's
+ * level, and create the one-repo-per-operation index. It runs with foreign
+ * keys on, in its own transaction, and does nothing once the data is in shape.
  */
-export function runMigrations(db: Db, migrationsFolder: string = MIGRATIONS_DIR): void {
+export function runMigrations(
+  db: Db,
+  migrationsFolder: string = MIGRATIONS_DIR,
+): OneRepoPerRoomResult {
   const client = db.$client;
   const row = client.query("PRAGMA foreign_keys").get() as { foreign_keys: number } | null;
   const enforced = row?.foreign_keys === 1;
@@ -81,6 +90,7 @@ export function runMigrations(db: Db, migrationsFolder: string = MIGRATIONS_DIR)
   } finally {
     if (enforced) client.run("PRAGMA foreign_keys = ON");
   }
+  return ensureOneRepoPerRoom(client);
 }
 
 /** Checkpoint the WAL and close the underlying connection. */
