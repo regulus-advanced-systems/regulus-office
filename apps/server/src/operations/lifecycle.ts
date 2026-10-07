@@ -151,7 +151,7 @@ export class OperationLifecycle {
         await henchmen.sendHome(actor, henchman.agentId);
         sentHome += 1;
       } catch (err) {
-        const reason = err instanceof Error ? err.message : "could not be sent home";
+        const reason = err instanceof Error ? err.message : "could not be sent to barracks";
         failed.push({ agentId: henchman.agentId, reason: reason.slice(0, 500) });
       }
     }

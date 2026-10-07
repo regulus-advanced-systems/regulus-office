@@ -12,12 +12,12 @@ import {
   CARD_KINDS,
   CHECKS_STATES,
   DECOR_KINDS,
+  DECOR_STYLES,
   PROVIDER_IDS,
   REVIEW_STATES,
   TASK_KINDS,
   TASK_STATES,
 } from "./enums.ts";
-import { DECOR_STYLES } from "./room-settings-api.ts";
 import { HENCHMAN_SKIN_IDS } from "./skins.ts";
 
 /** Counters behind the GDT-style work bubbles (SPEC §9.3), reset per task. */

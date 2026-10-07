@@ -66,7 +66,7 @@ describe("AgentPanel", () => {
       { type: "agent.interrupt", payload: { agentId: "a1" } },
       { type: "agent.stop", payload: { agentId: "a1" } },
     ]);
-    await click(buttonByText("Send home") as HTMLButtonElement);
+    await click(buttonByText("Send to barracks") as HTMLButtonElement);
     expect(useAgentStore.getState().dialog).toBe("sendHome");
     await act(async () => useTerminalModal.getState().closeTerminal());
     await m.unmount();
@@ -137,7 +137,7 @@ describe("AgentPanel", () => {
     expect(document.querySelector("textarea")).toBeNull();
     expect(buttonByText("Stop")).toBeUndefined();
     expect(buttonByText("Interrupt")).toBeUndefined();
-    expect(buttonByText("Send home")).toBeUndefined();
+    expect(buttonByText("Send to barracks")).toBeUndefined();
     expect(buttonByText("Open PR")).toBeUndefined();
     expect(buttonByText("Watch terminal")).toBeDefined();
     await m.unmount();
@@ -223,7 +223,7 @@ describe("SendHomeDialog", () => {
     const radios = document.querySelectorAll<HTMLInputElement>("input[type=radio]");
     expect(radios[0]?.checked).toBe(true);
     await click(radios[1] as HTMLInputElement);
-    await click(buttonByText("Send home") as HTMLButtonElement);
+    await click(buttonByText("Send to barracks") as HTMLButtonElement);
     expect(sent.at(-1)).toEqual({
       type: "agent.sendHome",
       payload: { agentId: "a1", keepBranch: false },

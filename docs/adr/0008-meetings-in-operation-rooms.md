@@ -30,7 +30,7 @@ worktrees live in each human's own area of the operation (D17).
   meeting, on an `office/meeting-…` branch (from the PR's branch for a review
   panel), shared by the members. Sharing never crosses humans (D17).
   `.meeting/` holds the turn notes and is ignored through the clone's
-  `info/exclude`. A member going home never removes the shared worktree; the
+  `info/exclude`. A member going back to barracks never removes the shared worktree; the
   meeting removes it once its henchmen have left, keeping the branch.
 - **Orchestration.** The agenda (who speaks when) follows from the pattern,
   the member count and the round budget (`planMeeting` in the protocol). The

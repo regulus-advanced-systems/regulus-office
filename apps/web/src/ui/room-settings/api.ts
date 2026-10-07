@@ -77,7 +77,7 @@ export function describeRoomSettingsError(err: Extract<RoomSettingsResult, { ok:
     case "too_many_desks":
       return `This room fits at most ${err.maxDeskCount ?? "that many"} desks.`;
     case "desks_occupied":
-      return `Henchmen are working at desk ${(err.desks ?? []).join(", ")}. Send them home first, or keep those desks.`;
+      return `Henchmen are working at desk ${(err.desks ?? []).join(", ")}. Send them to barracks first, or keep those desks.`;
     case "room_not_generated":
       return "This room still uses its old fixed layout, so its desks cannot change yet. Its decor style can.";
     case "room_size_unknown":
