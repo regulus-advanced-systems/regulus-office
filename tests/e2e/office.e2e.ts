@@ -44,7 +44,6 @@ import { join } from "node:path";
 import { expect, type Page, test } from "@playwright/test";
 import { checkAccessWithdrawn } from "./accessChecks.ts";
 import { checkAgentForm } from "./agentFormChecks.ts";
-import { checkHermesConnection } from "./hermesChecks.ts";
 import { checkBlastDoor } from "./blastDoorChecks.ts";
 import { checkBoardLayout } from "./boardLayoutChecks.ts";
 import {
@@ -75,6 +74,7 @@ import { checkFirstPersonWindow } from "./fpvWindowChecks.ts";
 import { type GeniusLook, geniusOf } from "./geniusChecks.ts";
 import { ensureRemoteRepo } from "./gitRemote.ts";
 import { checkMergeGong } from "./gongChecks.ts";
+import { checkHermesConnection } from "./hermesChecks.ts";
 import { checkJukebox } from "./jukeboxChecks.ts";
 import { loadOwnerGenius, type OfficeSession, openOffice, owner } from "./officeSession.ts";
 import { reportFramePerf } from "./perfProbe.ts";
