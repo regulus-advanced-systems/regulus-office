@@ -75,6 +75,8 @@ export default function WhiteboardEditor({ boardId, onStatus, api }: WhiteboardE
   const rest = useRef<WhiteboardApi>(api ?? createWhiteboardApi());
   const user = useSessionStore((s) => s.user);
   const [access, setAccess] = useState<"edit" | "view" | null>(null);
+  /** Bumped when the server says this human's access changed: ask again and reopen (#244). */
+  const [generation, setGeneration] = useState(0);
   const [sync, setSync] = useState<BoardSync | null>(null);
   const [excalidraw, setExcalidraw] = useState<ExcalidrawImperativeAPI | null>(null);
   const [binding, setBinding] = useState<ExcalidrawBinding | null>(null);
@@ -90,6 +92,7 @@ export default function WhiteboardEditor({ boardId, onStatus, api }: WhiteboardE
   useEffect(() => {
     let live = true;
     let opened: BoardSync | null = null;
+    let lost = false;
     report("loading");
     rest.current
       .info(boardId)
@@ -97,10 +100,28 @@ export default function WhiteboardEditor({ boardId, onStatus, api }: WhiteboardE
         if (!live) return;
         setAccess(info.access);
         const me = user ?? { id: "anonymous", displayName: "Guest" };
-        opened = openBoardSync(boardId, { name: me.displayName, color: cursorColor(me.id) });
-        opened.provider.on("status", ({ status: s }: { status: string }) =>
-          report(s === "connected" ? (info.access === "view" ? "read_only" : "live") : "offline"),
+        opened = openBoardSync(
+          boardId,
+          { name: me.displayName, color: cursorColor(me.id) },
+          {
+            onAccessClosed: (kind) => {
+              if (!live) return;
+              if (kind === "changed") {
+                // Edit became read-only (or the reverse): open again with what applies now.
+                setGeneration((n) => n + 1);
+                return;
+              }
+              lost = true;
+              // Strokes would go nowhere now: freeze the canvas.
+              setAccess("view");
+              report("revoked");
+            },
+          },
         );
+        opened.provider.on("status", ({ status: s }: { status: string }) => {
+          if (lost) return;
+          report(s === "connected" ? (info.access === "view" ? "read_only" : "live") : "offline");
+        });
         setSync(opened);
       })
       .catch(() => live && report("unavailable"));
@@ -110,7 +131,7 @@ export default function WhiteboardEditor({ boardId, onStatus, api }: WhiteboardE
       setSync(null);
     };
     // `user` is read once per board; a rename shows on the next open.
-  }, [boardId]);
+  }, [boardId, generation]);
 
   // Bind Excalidraw to the document once both exist.
   useEffect(() => {

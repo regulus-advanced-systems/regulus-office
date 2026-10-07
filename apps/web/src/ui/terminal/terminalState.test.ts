@@ -55,6 +55,16 @@ describe("terminal UI state", () => {
     );
   });
 
+  test("access withdrawn shows a plain, final notice (#244)", () => {
+    const open = terminalReducer(INITIAL_TERMINAL_STATE, hello);
+    const lost = terminalReducer(open, { kind: "access_lost", signedOut: false });
+    expect(lost.status).toBe("unavailable");
+    expect(lost.mode).toBeNull();
+    expect(lost.notice).toBe("You no longer have access to this terminal.");
+    const out = terminalReducer(open, { kind: "access_lost", signedOut: true });
+    expect(out.notice).toBe("You were signed out. Sign in again to continue.");
+  });
+
   test("uniquePeers merges tabs and prefers the control entry", () => {
     expect(
       uniquePeers([

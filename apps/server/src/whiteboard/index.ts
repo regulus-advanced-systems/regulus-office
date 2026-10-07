@@ -10,6 +10,7 @@
  */
 import { readdir, unlink } from "node:fs/promises";
 import { join } from "node:path";
+import type { LiveAccess } from "../auth/live-access.ts";
 import type { OriginPolicy } from "../auth/origin.ts";
 import type { Db } from "../db/index.ts";
 import type { Router } from "../http/router.ts";
@@ -32,6 +33,8 @@ export interface WhiteboardsOptions {
   /** OFFICE_DATA_DIR; snapshots go to `<dataDir>/whiteboards`. */
   dataDir: string;
   originPolicy: OriginPolicy;
+  /** Ends open board sockets on lost or reduced access (#244). */
+  liveAccess?: LiveAccess;
   /** A board has a new wall snapshot: publish its version to the room state. */
   onSnapshot: (boardId: string, version: number) => void;
   saveDelayMs?: number;
@@ -65,6 +68,7 @@ export function createWhiteboards(options: WhiteboardsOptions): Whiteboards {
     access,
     originPolicy: options.originPolicy,
     logger,
+    liveAccess: options.liveAccess,
     saveDelayMs: options.saveDelayMs,
     maxSaveDelayMs: options.maxSaveDelayMs,
   });

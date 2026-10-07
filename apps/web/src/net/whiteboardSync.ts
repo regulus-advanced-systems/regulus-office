@@ -7,6 +7,9 @@
  * this module, so Yjs stays out of the main bundle.
  */
 import {
+  type AccessCloseKind,
+  accessCloseKind,
+  isFinalAccessClose,
   WHITEBOARD_FULL_CODE,
   WHITEBOARD_Y_ASSETS,
   WHITEBOARD_Y_ELEMENTS,
@@ -28,6 +31,8 @@ export interface BoardSyncOptions {
   /** ws(s) origin of the office; defaults to the page's. */
   wsOrigin?: string;
   WebSocketPolyfill?: typeof WebSocket;
+  /** The server closed the board on this human: access withdrawn or changed (#244). */
+  onAccessClosed?: (kind: AccessCloseKind) => void;
 }
 
 export function openBoardSync(
@@ -40,10 +45,16 @@ export function openBoardSync(
   const provider = new WebsocketProvider(base, encodeURIComponent(boardId), doc, {
     maxBackoffTime: 10_000,
     // A board that is full refuses edits for good; reconnecting would not help.
-    shouldReconnect: (event) => event.code !== WHITEBOARD_FULL_CODE,
+    // Nor one this human may no longer open: the server would refuse the upgrade each time.
+    shouldReconnect: (event) =>
+      event.code !== WHITEBOARD_FULL_CODE && !isFinalAccessClose(event.code),
     ...(options.WebSocketPolyfill ? { WebSocketPolyfill: options.WebSocketPolyfill } : {}),
   });
   provider.awareness.setLocalStateField("user", user);
+  provider.on("connection-close", (event) => {
+    const kind = event ? accessCloseKind(event.code) : null;
+    if (kind) options.onAccessClosed?.(kind);
+  });
   return {
     doc,
     provider,

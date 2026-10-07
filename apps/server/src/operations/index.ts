@@ -50,6 +50,8 @@ export interface OperationsDeps {
   dirs?: OperationDirRemover;
   /** An operation was created, archived, restored or deleted, or one of its repos finished cloning. */
   onChange?(operationId: string): void;
+  /** A human's access to an operation was set or removed (live access, #244). */
+  onAccessChange?(operationId: string, userId: string): void;
   /** Places new operations in the compound (#181). */
   placer?: RoomPlacer;
   git?: GitRunner;
@@ -90,6 +92,7 @@ export function createOperations(deps: OperationsDeps): Operations {
     cloner,
     projectsDir: deps.config.projectsDir,
     onChange: deps.onChange,
+    onAccessChange: deps.onAccessChange,
     placer: deps.placer,
   });
   const roots = [deps.config.projectsDir, deps.config.worktreesDir].filter(

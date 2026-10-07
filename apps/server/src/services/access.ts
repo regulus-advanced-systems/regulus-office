@@ -22,6 +22,8 @@ export type AppAccess = "control" | "watch";
 export interface AppUser {
   id: string;
   role: UserRole;
+  /** The Better Auth session behind an office-origin request (live access, #244). */
+  sessionId?: string;
 }
 
 export type AppDecision =
