@@ -1,35 +1,39 @@
 /**
- * Outfit layers over the jumpsuit body (#184): the lab coat's tails and
- * lapels, the black-ops vest, the chef's buttons, apron and neckerchief, the
- * number two's lapels and tie. Whatever a skin has in the provider colour
- * (`trim`) keeps the henchman's provider readable under any skin.
+ * Outfit layers over the jumpsuit body (#184, refitted to the slim body in
+ * #281): the lab coat's tails and lapels, the black-ops vest, the cook's
+ * buttons, apron and neckerchief, the number two's lapels and tie. Whatever a
+ * skin has in the provider colour (`trim`) keeps the henchman's provider
+ * readable under any skin.
  */
+import { CHEST_FRONT, TORSO_DEPTH } from "./body.ts";
 import { box, cylinder, ellipsoid, lathe, type Part, part } from "./shapes.ts";
 
 export const OUTFITS = ["jumpsuit", "labcoat", "vest", "chef", "suit"] as const;
 export type Outfit = (typeof OUTFITS)[number];
 
+const F = CHEST_FRONT;
+
 /** Back-and-sides coat tails from the waist to mid-thigh (open at the front so the legs can sit). */
 function coatTails(): Part {
   const g = lathe(
     [
-      [0.235, 0.74],
-      [0.245, 0.62],
-      [0.265, 0.5],
-      [0.28, 0.4],
+      [0.18, 0.66],
+      [0.172, 0.78],
+      [0.162, 0.9],
+      [0.152, 1.0],
     ],
-    0.8,
+    TORSO_DEPTH + 0.08,
     {},
-    14,
+    12,
   );
-  // LatheGeometry has no phi range in our helper: keep the back two thirds by dropping front triangles.
+  // LatheGeometry has no phi range in our helper: keep the back and sides by dropping front triangles.
   const pos = g.attributes.position;
   const index = g.index;
   if (pos && index) {
     const keep: number[] = [];
     for (let i = 0; i < index.count; i += 3) {
       const tri = [index.getX(i), index.getX(i + 1), index.getX(i + 2)];
-      const front = tri.every((v) => pos.getZ(v) > 0.07);
+      const front = tri.every((v) => pos.getZ(v) > 0.05);
       if (!front) keep.push(...tri);
     }
     g.setIndex(keep);
@@ -38,9 +42,9 @@ function coatTails(): Part {
 }
 
 const lapels = (slot: "suitDark" | "shirt"): Part[] => [
-  part(box([0.07, 0.22, 0.014], { at: [0.065, 1.06, 0.186], rot: [-0.08, 0, 0.38] }), slot, "Body"),
+  part(box([0.05, 0.18, 0.012], { at: [0.045, 1.3, F - 0.004], rot: [-0.12, 0, 0.32] }), slot, "Body"),
   part(
-    box([0.07, 0.22, 0.014], { at: [-0.065, 1.06, 0.186], rot: [-0.08, 0, -0.38] }),
+    box([0.05, 0.18, 0.012], { at: [-0.045, 1.3, F - 0.004], rot: [-0.12, 0, -0.32] }),
     slot,
     "Body",
   ),
@@ -52,38 +56,38 @@ const builders: Readonly<Record<Outfit, () => Part[]>> = {
     coatTails(),
     ...lapels("suitDark"),
     // A pen in the provider colour in the breast pocket.
-    part(cylinder(0.008, 0.008, 0.07, { at: [0.09, 1.05, 0.178] }, 6), "trim", "Body"),
+    part(cylinder(0.006, 0.006, 0.06, { at: [0.085, 1.29, 0.105] }, 5), "trim", "Body"),
   ],
   vest: () => [
-    part(box([0.52, 0.3, 0.4], { at: [0, 0.98, 0.0] }, 0.09), "suitDark", "Body"),
-    part(box([0.09, 0.1, 0.05], { at: [0.11, 0.92, 0.2] }), "belt", "Body"),
-    part(box([0.09, 0.1, 0.05], { at: [0, 0.92, 0.205] }), "belt", "Body"),
-    part(box([0.09, 0.1, 0.05], { at: [-0.11, 0.92, 0.2] }), "belt", "Body"),
+    part(box([0.36, 0.25, 0.25], { at: [0, 1.25, 0.0] }, 0.07), "suitDark", "Body"),
+    part(box([0.06, 0.07, 0.035], { at: [0.085, 1.2, 0.12] }), "belt", "Body"),
+    part(box([0.06, 0.07, 0.035], { at: [0, 1.2, 0.125] }), "belt", "Body"),
+    part(box([0.06, 0.07, 0.035], { at: [-0.085, 1.2, 0.12] }), "belt", "Body"),
   ],
   chef: () => {
     const button = (x: number, y: number) =>
-      part(ellipsoid([0.014, 0.014, 0.008], { at: [x, y, 0.186] }, [6, 4]), "suitDark", "Body");
+      part(ellipsoid([0.01, 0.01, 0.006], { at: [x, y, F - 0.004] }, [5, 3]), "suitDark", "Body");
     return [
-      button(0.07, 1.06),
-      button(0.07, 0.98),
-      button(0.07, 0.9),
-      button(-0.03, 1.06),
-      button(-0.03, 0.98),
-      button(-0.03, 0.9),
+      button(0.05, 1.3),
+      button(0.05, 1.23),
+      button(0.05, 1.16),
+      button(-0.02, 1.3),
+      button(-0.02, 1.23),
+      button(-0.02, 1.16),
       // Waist apron over the belt.
-      part(box([0.34, 0.16, 0.02], { at: [0, 0.6, 0.17], rot: [0.1, 0, 0] }), "white", "Hips"),
+      part(box([0.24, 0.2, 0.014], { at: [0, 0.9, 0.102], rot: [0.04, 0, 0] }), "white", "Hips"),
       // Neckerchief knot.
-      part(ellipsoid([0.035, 0.03, 0.025], { at: [0, 1.19, 0.12] }, [8, 6]), "trim", "Body"),
+      part(ellipsoid([0.026, 0.022, 0.018], { at: [0, 1.415, 0.08] }, [6, 4]), "trim", "Body"),
     ];
   },
   suit: () => [
     // Shirt front, lapels, and a tie in the provider colour.
-    part(box([0.11, 0.15, 0.012], { at: [0, 1.11, 0.18] }), "shirt", "Body"),
+    part(box([0.07, 0.13, 0.01], { at: [0, 1.345, F - 0.012], rot: [-0.2, 0, 0] }), "shirt", "Body"),
     ...lapels("suitDark"),
-    part(box([0.04, 0.03, 0.02], { at: [0, 1.165, 0.185] }), "trim", "Body"),
-    part(box([0.05, 0.25, 0.012], { at: [0, 1.03, 0.19], rot: [-0.06, 0, 0] }), "trim", "Body"),
+    part(box([0.028, 0.024, 0.016], { at: [0, 1.4, 0.084] }), "trim", "Body"),
+    part(box([0.034, 0.2, 0.01], { at: [0, 1.29, F + 0.001], rot: [-0.1, 0, 0] }), "trim", "Body"),
     // Pocket square.
-    part(box([0.05, 0.025, 0.012], { at: [0.11, 1.045, 0.178] }), "white", "Body"),
+    part(box([0.036, 0.018, 0.01], { at: [0.085, 1.3, 0.103] }), "white", "Body"),
   ],
 };
 

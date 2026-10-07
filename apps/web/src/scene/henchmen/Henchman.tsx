@@ -130,6 +130,7 @@ function HenchmanImpl({
         <HenchmanAvatar
           skin={avatar.skin}
           trim={avatar.trim}
+          seed={avatar.seed}
           animation={animation}
           seated={look.seated}
           cheer={cheer}

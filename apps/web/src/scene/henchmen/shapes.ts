@@ -42,6 +42,8 @@ export interface Part {
   slot: Slot;
   bone: BoneName;
   blend?: readonly Blend[];
+  /** Weights per vertex instead of `bone` and `blend` (a skirt shared by both legs). */
+  weigh?: (v: Vector3) => ReadonlyArray<readonly [BoneName, number]>;
 }
 
 export interface Placement {
@@ -153,6 +155,12 @@ const smooth = (t: number) => {
 
 /** Bone indices and weights of one vertex of a part. */
 export function weightsAt(p: Part, v: Vector3): Array<[number, number]> {
+  if (p.weigh)
+    return p
+      .weigh(v)
+      .filter(([, w]) => w > 1e-4)
+      .slice(0, 4)
+      .map(([bone, w]) => [BONE_INDEX[bone], w]);
   const out: Array<[number, number]> = [[BONE_INDEX[p.bone], 1]];
   for (const b of p.blend ?? []) {
     const d = v

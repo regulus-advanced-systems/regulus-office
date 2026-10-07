@@ -1,16 +1,17 @@
 /**
- * One henchman's scene graph (#184): a `SkinnedMesh` on the skin's shared
- * geometry with its own bones, and the status light on the head bone. Used
- * by `<HenchmanAvatar>` and by the tests, which pose it with a mixer.
+ * One henchman's scene graph (#184): a `SkinnedMesh` on the form's shared
+ * geometry with its own bones, and the status light (the two shoulder lamps,
+ * one mesh) on the Body bone. Used by `<HenchmanAvatar>` and by the tests,
+ * which pose it with a mixer.
  */
-import { type Bone, Group, Mesh, SkinnedMesh, Sphere, SphereGeometry, Vector3 } from "three";
-import { LIGHT_RADIUS } from "./headwear.ts";
+import { type Bone, Group, Mesh, SkinnedMesh, Sphere, Vector3 } from "three";
 import { bindPosition, buildSkeleton } from "./rig.ts";
-import { lightAt, skinGeometry } from "./skins.ts";
+import { buildOf, lightAt, skinGeometry } from "./skins.ts";
+import { lightGeometry } from "./statusLight.ts";
+import { type CrewVariant, DEFAULT_VARIANT } from "./variety.ts";
 
-const LIGHT_GEOMETRY = new SphereGeometry(LIGHT_RADIUS, 12, 8);
 /** Every pose stays inside this sphere (model space), for frustum culling. */
-const POSE_BOUNDS = new Sphere(new Vector3(0, 0.8, 0.1), 1.25);
+const POSE_BOUNDS = new Sphere(new Vector3(0, 0.9, 0.1), 1.35);
 
 export interface Instance {
   group: Group;
@@ -19,10 +20,13 @@ export interface Instance {
   light: Mesh;
 }
 
-/** A henchman wearing `skin`, in its bind pose, facing +z. Materials are set by the caller. */
-export function buildHenchman(skin: string | undefined): Instance {
+/** A henchman in the form `skin`, in its bind pose, facing +z. Materials are set by the caller. */
+export function buildHenchman(
+  skin: string | undefined,
+  variant: CrewVariant = DEFAULT_VARIANT,
+): Instance {
   const { root, bones, skeleton } = buildSkeleton();
-  const mesh = new SkinnedMesh(skinGeometry(skin));
+  const mesh = new SkinnedMesh(skinGeometry(skin, variant));
   mesh.name = "henchman";
   mesh.add(root);
   mesh.bind(skeleton);
@@ -31,11 +35,12 @@ export function buildHenchman(skin: string | undefined): Instance {
   mesh.receiveShadow = true;
   mesh.raycast = () => {};
   const head = bones.find((b) => b.name === "Head") as Bone;
-  const light = new Mesh(LIGHT_GEOMETRY);
+  const chest = bones.find((b) => b.name === "Body") as Bone;
+  const light = new Mesh(lightGeometry(buildOf(skin)));
   light.name = "statusLight";
   light.raycast = () => {};
-  light.position.copy(new Vector3(...lightAt(skin)).sub(bindPosition("Head")));
-  head.add(light);
+  light.position.copy(new Vector3(...lightAt(skin)).sub(bindPosition("Body")));
+  chest.add(light);
   const group = new Group();
   group.add(mesh);
   return { group, mesh, head, light };

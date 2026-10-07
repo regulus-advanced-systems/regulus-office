@@ -1,17 +1,19 @@
 /**
  * Dev-only showcase (apps/web/dev/henchmen.html, #184): the henchmen on a
  * plain floor under a toon light rig, for screenshots and the §11 frame-rate
- * budget. Query: view=skins|trims|poses|crowd (default skins), n=<crowd size>,
- * zoom=<ortho zoom>, cam=front|iso, anim=<animation for every henchman>,
- * status=<agent status>, seated=1, hand=1, shadows=0. Not part of the build.
+ * budget. Query: view=skins|trims|heads|lights|secretary|poses|crowd (default
+ * skins), n=<crowd size>, zoom=<ortho zoom>, cam=front|iso, anim=<animation for
+ * every henchman>, status=<agent status>, seated=1, hand=1, shadows=0,
+ * skin=<form for the poses view>. Not part of the build.
  */
 import { OrbitControls } from "@react-three/drei";
 import { Canvas } from "@react-three/fiber";
 import {
   type AgentStatus,
+  AGENT_STATUSES,
   AVATAR_ANIMATIONS,
   type AvatarAnimation,
-  HENCHMAN_SKIN_IDS,
+  CHARACTER_FORM_IDS,
   isAgentStatus,
   isOneOf,
   PROVIDER_IDS,
@@ -24,7 +26,10 @@ import { HENCHMAN_GESTURES, type HenchmanGesture } from "../henchmanAnimation.ts
 
 const isAnimation = isOneOf(AVATAR_ANIMATIONS);
 const isGesture = isOneOf(HENCHMAN_GESTURES);
-type View = "skins" | "trims" | "poses" | "crowd";
+type View = "skins" | "trims" | "heads" | "lights" | "secretary" | "poses" | "crowd";
+
+/** Ids that between them show every hair style, several skin tones and hair colours. */
+const CREW = ["rivet", "klaxon", "soot", "gasket", "winch", "dowel", "shim", "fuse", "bolt", "cog"];
 
 interface Entry {
   key: string;
@@ -67,8 +72,55 @@ function entries(view: View, params: URLSearchParams): Entry[] {
       key: p,
       x: row(PROVIDER_IDS.length, i),
       z: 0,
-      props: { ...base, trim: providerLightColor(p) },
+      props: { ...base, trim: providerLightColor(p), seed: CREW[i] },
     }));
+  if (view === "heads")
+    return CREW.map((seed, i) => ({
+      key: seed,
+      x: row(5, i % 5, 1.0),
+      z: Math.floor(i / 5) * 1.6 - 0.8,
+      props: { ...base, seed, trim: providerLightColor(PROVIDER_IDS[i % 2] ?? "codex") },
+    }));
+  if (view === "lights") {
+    const seated = [true, false];
+    return seated.flatMap((sit, r) =>
+      AGENT_STATUSES.map((s, i) => ({
+        key: `${s}-${r}`,
+        x: row(AGENT_STATUSES.length, i, 0.95),
+        z: r * 1.7 - 0.85,
+        props: {
+          ...base,
+          animation: sit ? ("sit_idle" as const) : ("idle" as const),
+          seated: sit,
+          status: s,
+          seed: CREW[i],
+          trim: providerLightColor("claude-code"),
+        },
+      })),
+    );
+  }
+  if (view === "secretary") {
+    const shows: Array<[AvatarAnimation, boolean, string, string]> = [
+      ["idle", false, "moneypenny", "claude-code"],
+      ["walk", false, "ada", "codex"],
+      ["think", false, "vesper", "claude-code"],
+      ["wave", false, "tilly", "codex"],
+      ["sit_type", true, "greta", "claude-code"],
+    ];
+    return shows.map(([a, seated, seed, provider], i) => ({
+      key: seed,
+      x: row(shows.length, i),
+      z: 0,
+      props: {
+        ...base,
+        skin: "secretary",
+        animation: a,
+        seated,
+        seed,
+        trim: providerLightColor(provider as (typeof PROVIDER_IDS)[number]),
+      },
+    }));
+  }
   if (view === "poses")
     return POSES.map(([a, seated, gesture, status], i) => ({
       key: `${a}-${gesture}`,
@@ -80,6 +132,8 @@ function entries(view: View, params: URLSearchParams): Entry[] {
         seated,
         gesture,
         status: status ?? base.status,
+        skin: params.get("skin") ?? undefined,
+        seed: CREW[i % CREW.length],
         trim: providerLightColor("claude-code"),
       },
     }));
@@ -96,17 +150,18 @@ function entries(view: View, params: URLSearchParams): Entry[] {
           seated,
           gesture,
           status: "working",
-          skin: HENCHMAN_SKIN_IDS[i % HENCHMAN_SKIN_IDS.length],
+          skin: CHARACTER_FORM_IDS[i % CHARACTER_FORM_IDS.length],
+          seed: `crowd-${i}`,
           trim: providerLightColor(PROVIDER_IDS[i % 2] ?? "codex"),
         },
       };
     });
   }
-  return HENCHMAN_SKIN_IDS.map((skin, i) => ({
+  return CHARACTER_FORM_IDS.map((skin, i) => ({
     key: skin,
-    x: row(HENCHMAN_SKIN_IDS.length, i),
+    x: row(CHARACTER_FORM_IDS.length, i),
     z: 0,
-    props: { ...base, skin, trim: providerLightColor("claude-code") },
+    props: { ...base, skin, seed: CREW[i], trim: providerLightColor("claude-code") },
   }));
 }
 
@@ -147,7 +202,7 @@ export function HenchmenShowcase({ search }: { search: string }) {
         <HenchmanAvatar key={e.key} position={[e.x, 0, e.z]} rotation-y={Math.PI} {...e.props} />
       ))}
       <FpsProbe probe={false} />
-      <OrbitControls target={[0, 0.75, 0]} makeDefault />
+      <OrbitControls target={[0, 0.85, 0]} makeDefault />
     </Canvas>
   );
 }

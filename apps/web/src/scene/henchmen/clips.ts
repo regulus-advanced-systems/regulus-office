@@ -5,7 +5,7 @@
  * Every full clip has a rotation track for every bone and the Hips position,
  * so a crossfade never strands a bone where the last clip put it. The
  * partial clips (the done hand, the "needs you" wave and its still pose, the
- * carry) only have tracks for the bones they move and are blended over the
+ * carry, the secretary's held clipboard) only have tracks for the bones they move and are blended over the
  * base clip at a high weight (HenchmanAvatar).
  *
  * Seated clips start from the same still pose (`SIT_IDLE`); the merge-gong
@@ -28,6 +28,7 @@ import {
   CHIN_IN_HAND,
   type Deg3,
   HAND_UP,
+  HOLD_CLIPBOARD,
   HOLD_PAPERS,
   merge,
   NEEDS_YOU,
@@ -60,6 +61,7 @@ export const HENCHMAN_CLIPS = {
   needsYou: "Henchman|NeedsYou",
   needsYouStill: "Henchman|NeedsYouStill",
   carry: "Henchman|Carry",
+  hold: "Henchman|Hold",
 } as const;
 export type HenchmanClipName = (typeof HENCHMAN_CLIPS)[keyof typeof HENCHMAN_CLIPS];
 
@@ -335,6 +337,13 @@ export const CLIP_SPECS: readonly ClipSpec[] = [
     duration: 1,
     keys: [[0, CARRY]],
     bones: ["UpperArmL", "UpperArmR", "LowerArmL", "LowerArmR"],
+  },
+  {
+    // A form that carries something in its left arm (the secretary's clipboard, #281).
+    name: HENCHMAN_CLIPS.hold,
+    duration: 1,
+    keys: [[0, HOLD_CLIPBOARD]],
+    bones: Object.keys(HOLD_CLIPBOARD) as BoneName[],
   },
 ];
 
