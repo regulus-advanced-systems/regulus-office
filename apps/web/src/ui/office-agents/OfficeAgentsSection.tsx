@@ -17,6 +17,7 @@ import { canManageOffice, useSessionStore } from "../../state/session.ts";
 import { FormAlert } from "../auth/AuthCard.tsx";
 import type { ApiFailure, ApiResult } from "../auth/api.ts";
 import { Button } from "../components/Button.tsx";
+import { openProvidersPanel } from "../providers/providersStore.ts";
 import { AgentCard } from "./AgentCard.tsx";
 import { AgentForm } from "./AgentForm.tsx";
 import { createOfficeAgentsApi, describeOfficeAgentsError, type OfficeAgentsApi } from "./api.ts";
@@ -78,9 +79,10 @@ export function OfficeAgentsSection({
     <section className="rg-settings__group" aria-label="Office agents">
       <h3 className="rg-settings__heading">Office agents</h3>
       <p className="rg-field__hint">
-        Long-lived agents that work through the office's own tools. A shared agent serves everyone
-        and runs on an office key. A personal agent belongs to one person: it has exactly their
-        rights, and only they can talk to it.
+        Agents that stay around and that you talk to, unlike henchmen, who come for one task and
+        leave. A shared agent works for everyone and is paid for by the office's own key. A personal
+        agent belongs to one person: it has exactly that person's rights, and only they can talk to
+        it.
       </p>
       <PendingRequests
         requests={requests}
@@ -93,8 +95,9 @@ export function OfficeAgentsSection({
           engines={data?.engines ?? []}
           canCreateShared={manager}
           busy={busy}
-          onSubmit={(input) => void create(input)}
+          onCreate={(input) => void create(input)}
           onCancel={() => setCreating(false)}
+          onConnect={() => openProvidersPanel("claude-code")}
         />
       ) : (
         <div>
@@ -130,6 +133,8 @@ export function OfficeAgentsSection({
               start: () => void run(() => api.start(agent.id)),
               stop: () => void run(() => api.stop(agent.id)),
               remove: () => void run(() => api.remove(agent.id)),
+              update: async (patch) => (await run(() => api.update(agent.id, patch))) !== undefined,
+              connect: () => openProvidersPanel("claude-code"),
               setPreset: (preset) => void run(() => api.update(agent.id, { preset })),
               setGrants: (grants) => void run(() => api.setGrants(agent.id, grants)),
               revokeToken: (tokenId) => void run(() => api.revokeToken(agent.id, tokenId)),
@@ -171,7 +176,7 @@ function CapsForm({
   return (
     <form
       className="rg-office-agent-caps"
-      aria-label="Agent limits"
+      aria-label="Limits for agents"
       onSubmit={(e) => {
         e.preventDefault();
         if (valid)
@@ -183,7 +188,7 @@ function CapsForm({
       }}
     >
       <label>
-        <span className="rg-field__label">Personal agents per person</span>
+        <span className="rg-field__label">Personal agents each person may have</span>
         <input
           className="rg-input"
           inputMode="numeric"
@@ -192,7 +197,7 @@ function CapsForm({
         />
       </label>
       <label>
-        <span className="rg-field__label">Henchmen a manager agent may spawn per day</span>
+        <span className="rg-field__label">Henchmen one agent may start per day</span>
         <input
           className="rg-input"
           inputMode="numeric"
@@ -201,7 +206,9 @@ function CapsForm({
         />
       </label>
       <label>
-        <span className="rg-field__label">Messages a person may send a shared agent per hour</span>
+        <span className="rg-field__label">
+          Messages one person may send a shared agent per hour
+        </span>
         <input
           className="rg-input"
           inputMode="numeric"
@@ -212,6 +219,10 @@ function CapsForm({
       <Button type="submit" size="sm" disabled={busy || !valid}>
         Save limits
       </Button>
+      <div className="rg-field__hint rg-office-agent-caps__help">
+        Limits for the whole office, set by owners and admins. The last two keep an agent from
+        spending the office's key too fast.
+      </div>
     </form>
   );
 }

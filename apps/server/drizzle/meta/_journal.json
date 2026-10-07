@@ -169,6 +169,13 @@
       "when": 1791372562236,
       "tag": "0023_henchman_names",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "6",
+      "when": 1791379788918,
+      "tag": "0024_office_agent_appearance",
+      "breakpoints": true
     }
   ]
 }

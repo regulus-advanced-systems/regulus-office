@@ -1,124 +1,50 @@
-/** Settings → Agents (#271): the list, who gets which controls, creating, the one-time token, chat and questions. */
+/** Settings → Agents (#271, #280): the list in plain words, who gets which controls, the one-time access code, chat and questions. The form is AgentForm.test.tsx. */
 import { afterEach, describe, expect, test } from "bun:test";
-import type {
-  HumanRequest,
-  OfficeAgentConversation,
-  OfficeAgentsResponse,
-  OfficeAgentView,
-  UserRole,
-} from "@regulus/protocol";
+import type { OfficeAgentConversation } from "@regulus/protocol";
 import { act } from "react";
-import { useSessionStore } from "../../state/session.ts";
-import { click, type Mounted, mount, useDom } from "../a11y/dom.ts";
-import { fakeFetch } from "../auth/fakeFetch.ts";
-import { button, settle, submit, text, typeInto } from "../auth/testDom.tsx";
-import { createOfficeAgentsApi } from "./api.ts";
+import { click, useDom } from "../a11y/dom.ts";
+import { button, settle, text } from "../auth/testDom.tsx";
 import { useChatRequest } from "./chatRequest.ts";
 import { ago } from "./labels.ts";
-import { OfficeAgentsSection } from "./OfficeAgentsSection.tsx";
+import {
+  agent,
+  card,
+  cleanup,
+  mounted,
+  NOW,
+  QUESTION,
+  response,
+  SHARED,
+  SOMEONES,
+  show,
+  within,
+} from "./testKit.tsx";
 
 useDom();
-
-const NOW = 1_800_000_000_000;
-const agent = (over: Partial<OfficeAgentView>): OfficeAgentView => ({
-  id: "a1",
-  name: "Hermes",
-  owner: { kind: "user", userId: "u1", displayName: "Ante" },
-  engine: "cli-session",
-  role: "pm",
-  preset: "coordinator",
-  provider: "claude-code",
-  model: "sonnet",
-  status: "ready",
-  lastActivityAt: NOW - 5 * 60_000,
-  createdAt: NOW - 86_400_000,
-  canTalk: true,
-  canConfigure: true,
-  config: { instructions: "", grants: [], tokens: [] },
-  ...over,
-});
-const SHARED = agent({
-  id: "a2",
-  name: "Number Two",
-  owner: { kind: "office" },
-  status: "stopped",
-  canConfigure: false,
-  config: undefined,
-});
-const SOMEONES = agent({
-  id: "a3",
-  name: "Mias helper",
-  owner: { kind: "user", userId: "u9", displayName: "Mia" },
-  canTalk: false,
-  canConfigure: false,
-  config: undefined,
-});
-const response = (agents: OfficeAgentView[]): OfficeAgentsResponse => ({
-  agents,
-  settings: { personalAgentCap: 3, managerDailySpawnCap: 10, sharedMessagesPerHour: 20 },
-  engines: ["cli-session"],
-});
-const QUESTION: HumanRequest = {
-  id: "r1",
-  agentId: "a1",
-  agentName: "Hermes",
-  forUserId: "u1",
-  question: "Ship on Friday?",
-  options: ["Yes", "No"],
-  status: "pending",
-  createdAt: NOW,
-};
-
-const mounted: Mounted[] = [];
-afterEach(async () => {
-  for (const m of mounted.splice(0)) await m.unmount();
-  await settle();
-  useSessionStore.setState({ status: "unknown", user: null, error: null });
-});
-
-async function show(role: UserRole, routes: Parameters<typeof fakeFetch>[0]) {
-  useSessionStore.setState({
-    status: "authenticated",
-    user: { id: "u1", displayName: "Ante", role },
-    error: null,
-  });
-  const f = fakeFetch({
-    "GET /api/office-agents/requests": { body: { requests: [] } },
-    "GET /api/credential-profiles": { body: { profiles: [] } },
-    ...routes,
-  });
-  mounted.push(
-    await mount(
-      <OfficeAgentsSection api={createOfficeAgentsApi({ fetch: f.fetch })} now={() => NOW} />,
-    ),
-  );
-  await settle();
-  return f;
-}
-
-const card = (name: string) => {
-  const el = document.querySelector<HTMLElement>(`article[aria-label=${JSON.stringify(name)}]`);
-  if (!el) throw new Error(`no card ${name}`);
-  return el;
-};
-const within = (root: HTMLElement, label: string) =>
-  Array.from(root.querySelectorAll("button")).find((b) => b.textContent?.trim() === label);
+afterEach(cleanup);
 
 describe("office agents section", () => {
-  test("lists engine, status, last activity and privileges; controls follow what the viewer may do", async () => {
+  test("a card says in plain words what the agent is, runs on and looks like; controls follow what the viewer may do", async () => {
     await show("admin", {
       "GET /api/office-agents": { body: response([agent({}), SHARED, SOMEONES]) },
     });
     const mine = card("Hermes");
     expect(mine.textContent).toContain("Ready");
-    expect(mine.textContent).toContain("Claude Code session");
-    expect(mine.textContent).toContain("Coordinator");
+    expect(mine.textContent).toContain("Runs as: Claude Code session");
+    expect(mine.textContent).toContain("Runs on: Claude subscription");
+    expect(mine.textContent).toContain("Model: Sonnet");
+    expect(mine.textContent).toContain("Job: Project manager");
+    expect(mine.textContent).toContain("May: Organise work");
+    expect(mine.textContent).toContain("Looks: Standard jumpsuit");
+    for (const jargon of ["Coordinator", "preset", "grant", "token", "Engine"]) {
+      expect(mine.textContent).not.toContain(jargon);
+    }
     expect(mine.textContent).toContain("Last active 5 min ago");
     expect(within(mine, "Chat")).toBeDefined();
     expect(within(mine, "Stop")).toBeDefined();
     // A shared agent this viewer cannot configure: chat only.
     const shared = card("Number Two");
-    expect(shared.textContent).toContain("Shared");
+    expect(shared.textContent).toContain("Shared by the office");
     expect(within(shared, "Chat")).toBeDefined();
     expect(within(shared, "Start")).toBeUndefined();
     expect(within(shared, "Delete…")).toBeUndefined();
@@ -133,56 +59,16 @@ describe("office agents section", () => {
     expect(ago(NOW - 3 * 3_600_000, NOW)).toBe("3 h ago");
   });
 
-  test("a member creates a personal agent; the owner choice is for admins only", async () => {
-    const f = await show("member", {
-      "GET /api/office-agents": { body: response([]) },
-      "POST /api/office-agents": { status: 201, body: agent({ name: "Notes" }) },
-    });
-    expect(text()).toContain("No agents yet.");
-    await click(button("New agent…") as HTMLButtonElement);
-    expect(document.querySelector("label[for]")?.textContent).toBe("Name");
-    expect(text()).not.toContain("Belongs to");
-    // An empty name sends nothing.
-    await submit("New agent");
-    expect(f.calls.some((c) => c.method === "POST")).toBe(false);
-    await typeInto("Name", "Notes");
-    await submit("New agent");
-    expect(f.calls.find((c) => c.method === "POST")?.body).toEqual({
-      name: "Notes",
-      owner: "me",
-      engine: "cli-session",
-      role: "assistant",
-      preset: "coordinator",
-      provider: "claude-code",
-      model: "sonnet",
-      instructions: "",
-    });
-  });
-
-  test("a shared agent cannot be created without an office key, and says why", async () => {
-    await show("owner", { "GET /api/office-agents": { body: response([]) } });
-    await click(button("New agent…") as HTMLButtonElement);
-    const owner = Array.from(document.querySelectorAll("select")).find((s) =>
-      Array.from(s.options).some((o) => o.value === "office"),
-    ) as HTMLSelectElement;
-    await act(async () => {
-      owner.value = "office";
-      owner.dispatchEvent(new Event("change", { bubbles: true }));
-    });
-    expect(text()).toContain("never on anyone's subscription login");
-    expect((button("Create agent") as HTMLButtonElement).disabled).toBe(true);
-  });
-
-  test("a new token is shown once and is gone after the next change", async () => {
+  test("a new access code is shown once and is gone after the next change", async () => {
     const f = await show("member", {
       "GET /api/office-agents": { body: response([agent({})]) },
       "POST /api/office-agents/a1/tokens": {
         status: 201,
-        body: { id: "t1", label: "External engine", token: "roa_SHOWN-ONCE" },
+        body: { id: "t1", label: "Outside program", token: "roa_SHOWN-ONCE" },
       },
       "POST /api/office-agents/a1/stop": { body: agent({ status: "stopped" }) },
     });
-    await click(within(card("Hermes"), "Create a token") as HTMLButtonElement);
+    await click(within(card("Hermes"), "Create an access code") as HTMLButtonElement);
     await settle();
     expect(f.calls.some((c) => c.path === "/api/office-agents/a1/tokens")).toBe(true);
     expect(text()).toContain("roa_SHOWN-ONCE");
