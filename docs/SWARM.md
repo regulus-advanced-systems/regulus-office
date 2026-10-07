@@ -15,7 +15,8 @@ Ground truth, in priority order:
 4. CONTRIBUTING.md (branching, quality gates, credential rules)
 
 Your job:
-- Work through the milestones strictly in order: M0 (#1), M1 (#2), M2 (#3), M3 (#4), M4 (#5), M5 (#6), M6 (#7).
+- Work through the milestones strictly in order: M0 (#1), M1 (#2), M2 (#3), M3 (#4), M5 (#6), M6 (#7).
+  The old M4 (#5, more providers) is optional and deferred (SPEC D25): do not start it unless the owner asks.
   Do not start a milestone until the previous epic's exit criteria are met and demonstrated.
 - Inside a milestone, order tasks by dependency. For M0: #8 (protocol package) first, alone. Then in parallel
   #9, #10, #13, #19, #20. Then #11, #12, #14, #16, #18. Then #15, #17. Then #21 last. For later milestones,
