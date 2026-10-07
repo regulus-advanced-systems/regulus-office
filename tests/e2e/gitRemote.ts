@@ -4,7 +4,7 @@
  * creation is tested without network access.
  */
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -34,4 +34,10 @@ export function createRemoteRepo(dataDir: string, owner: string, name: string, b
   git(["add", "README.md"], work);
   git(["commit", "--quiet", "-m", "initial"], work);
   git(["push", "--quiet", bare, `${branch}:${branch}`], work);
+}
+
+/** `createRemoteRepo` unless that remote is there already (a step may run on its own, #248). */
+export function ensureRemoteRepo(dataDir: string, owner: string, name: string, branch = "trunk") {
+  if (!existsSync(join(dataDir, "remotes", owner, `${name}.git`)))
+    createRemoteRepo(dataDir, owner, name, branch);
 }
