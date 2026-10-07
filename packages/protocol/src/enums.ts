@@ -187,3 +187,18 @@ export const isOperationAccess = isOneOf(OPERATION_ACCESSES);
 export const isRepoCloneStatus = isOneOf(REPO_CLONE_STATUSES);
 export const isCredentialAuthKind = isOneOf(CREDENTIAL_AUTH_KINDS);
 export const isPmPrivilege = isOneOf(PM_PRIVILEGES);
+
+// ---- Rooms (SPEC §9.1, §12) ---------------------------------------------------
+
+/**
+ * Lair decor styles a room can have (SPEC §12): picked when the operation is
+ * added and changed in room settings. The first is the default.
+ */
+export const DECOR_STYLES = ["ops_room", "lab", "workshop", "war_room", "armory"] as const;
+export type DecorStyle = (typeof DECOR_STYLES)[number];
+
+export const DEFAULT_DECOR_STYLE: DecorStyle = "ops_room";
+
+export function isDecorStyle(value: unknown): value is DecorStyle {
+  return typeof value === "string" && (DECOR_STYLES as readonly string[]).includes(value);
+}

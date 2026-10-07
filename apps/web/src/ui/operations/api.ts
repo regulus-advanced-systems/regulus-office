@@ -166,8 +166,6 @@ export function describeOperationError(err: ApiFailure): string {
       return `${err.reason ?? "A repo"} has a token in its URL. Put the token in the token field instead.`;
     case "one_repo_per_room":
       return ONE_REPO_PER_ROOM_MESSAGE;
-    case "unknown_palette":
-      return "That palette does not exist.";
     case "master_key_required":
       return "Tokens cannot be stored: the server has no OFFICE_MASTER_KEY. Use public repos or ask the operator to set one.";
     case "invalid_body":

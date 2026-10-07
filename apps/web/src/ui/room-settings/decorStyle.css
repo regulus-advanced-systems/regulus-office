@@ -1,0 +1,55 @@
+/* The lair style picker (#282): radio cards with a small preview. */
+.rg-decor-style {
+  border: 0;
+  padding: 0;
+  min-width: 0;
+}
+.rg-decor-style > legend {
+  padding: 0;
+}
+.rg-decor-style__list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+}
+.rg-decor-style__card {
+  position: relative;
+  display: grid;
+  gap: 4px;
+  align-content: start;
+  padding: 6px;
+  border: 2px solid var(--rg-color-panel-border);
+  border-radius: 6px;
+  background: var(--rg-color-raised);
+  cursor: pointer;
+}
+.rg-decor-style__card:hover {
+  background: var(--rg-color-hover);
+}
+/* The radio stays in the tab order and for screen readers; the card shows the choice. */
+.rg-decor-style__card > input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.rg-decor-style__card:has(input:checked) {
+  border-color: var(--rg-color-gold);
+}
+.rg-decor-style__card:has(input:focus-visible) {
+  outline: 2px solid var(--rg-color-blue);
+  outline-offset: 2px;
+}
+.rg-decor-style__preview {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 3px;
+}
+.rg-decor-style__name {
+  font-weight: 700;
+}
+.rg-decor-style__blurb {
+  color: var(--rg-color-ink-muted);
+  font-size: 12px;
+  line-height: 1.3;
+}

@@ -4,6 +4,8 @@
  * draws each piece of furniture and which props fill the decor sites. Every
  * prop a style picks for a site has the same footprint in all styles, so
  * seats, desks, boards, the door and the lanes are identical across styles.
+ * `name` and `blurb` are what people read wherever a style is picked: the
+ * Add operation dialog and room settings show the same list.
  *
  * Model ids are plain strings (`lair/<style>/<thing>`) that the lair art kit
  * (#183) maps to assets; the scene falls back on the obstacle kind when it
@@ -67,7 +69,7 @@ const models = (style: string, pairs: Record<string, string>) =>
 export const DECOR_STYLE_SPECS: Readonly<Record<DecorStyle, DecorStyleSpec>> = {
   ops_room: {
     id: "ops_room",
-    name: "Ops room",
+    name: "Control room",
     blurb: "Console desks, filing cabinets and teal screen glow on polished concrete.",
     palette: palette(
       {
@@ -112,7 +114,7 @@ export const DECOR_STYLE_SPECS: Readonly<Record<DecorStyle, DecorStyleSpec>> = {
   },
   lab: {
     id: "lab",
-    name: "Lab",
+    name: "Laboratory",
     blurb: "Lab benches, specimen shelves and planters under cool white light on tiles.",
     palette: palette(
       {
@@ -245,6 +247,53 @@ export const DECOR_STYLE_SPECS: Readonly<Record<DecorStyle, DecorStyleSpec>> = {
       plant_small: "brass-pot",
       floor_lamp: "brass-lamp",
       poster: "campaign-map",
+    }),
+  },
+  armory: {
+    id: "armory",
+    name: "Armory",
+    blurb: "Weapon racks, gun lockers and ammo crates on a painted deck, behind riveted steel.",
+    palette: palette(
+      {
+        floor: "#3E4A42",
+        floorAlt: "#2F3833",
+        wall: "#5B636B",
+        wallAlt: "#6A737B",
+        accent: "#F28C28",
+        exterior: "#3A4046",
+        cap: "#2B2B2E",
+      },
+      "lair-armory",
+      "Armory: olive deck and steel, signal orange",
+    ),
+    floorMaterial: "armory_deck",
+    wallMaterial: "riveted_steel",
+    rugTone: "alt",
+    lighting: {
+      sky: "#E9EFD9",
+      ground: "#2C332E",
+      ambient: 0.5,
+      pendant: "#FFE2B0",
+      pendantIntensity: 1.25,
+      lamp: "#FFC98A",
+      accent: "#F28C28",
+    },
+    corner: "cabinet",
+    wallLong: "bookshelf",
+    wallShort: "cabinet",
+    clutter: ["mugs", "books", "mugs", "desk_plant"],
+    wallDecor: ["poster", "clock", "shelf", "corkboard"],
+    models: models("armory", {
+      shared_table: "armourers-bench",
+      chair: "range-stool",
+      cabinet: "gun-locker",
+      bookshelf: "weapon-rack",
+      plant: "drum-palm",
+      plant_small: "tin-cactus",
+      floor_lamp: "range-light",
+      poster: "target-sheet",
+      corner: "ammo-crates",
+      wallShort: "shell-stand",
     }),
   },
 };

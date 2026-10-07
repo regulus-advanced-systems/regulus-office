@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import type { UserRole } from "@regulus/protocol";
+import { DECOR_STYLES, type DecorStyle, type UserRole } from "@regulus/protocol";
+import { DECOR_STYLE_SPECS } from "@regulus/room-layout";
 import { act } from "react";
 import { testWorld } from "../../scene/compound/testing.ts";
 import { useCompoundStore } from "../../state/compound.ts";
@@ -48,6 +49,12 @@ const nameField = () =>
       .find((l) => l.textContent === "Operation name")
       ?.getAttribute("for") ?? "",
   );
+
+const styleRadio = (style: DecorStyle) => {
+  const el = document.querySelector(`input[name="decorStyle"][value="${style}"]`);
+  if (!(el instanceof HTMLInputElement)) throw new Error(`no ${style} radio`);
+  return el;
+};
 
 async function submit() {
   const form = document.querySelector('form[aria-label="New operation"]');
@@ -102,7 +109,11 @@ describe("Add operation dialog", () => {
     const intent = useBuildModeStore.getState().intent;
     expect(intent).toEqual({
       kind: "create",
-      request: { name: "Apollo", repos: [{ repo: "octo/hello", token: TOKEN }] },
+      request: {
+        name: "Apollo",
+        decorStyle: "ops_room",
+        repos: [{ repo: "octo/hello", token: TOKEN }],
+      },
     });
     expect(useUiStore.getState().overlay).toBe(BUILD_MODE_OVERLAY);
     expect(document.body.innerHTML).not.toContain(TOKEN);
@@ -110,11 +121,40 @@ describe("Add operation dialog", () => {
     expect(useBuildModeStore.getState().ghost.y).toBeGreaterThan(0);
   });
 
+  test("the room's style is a lair style, the same list as room settings; no office palettes", async () => {
+    signedInAs("owner");
+    await mount(<AddOperationDialogHost />);
+    await act(async () => useUiStore.getState().openOverlay(ADD_OPERATION_OVERLAY));
+    const names = Array.from(document.querySelectorAll(".rg-decor-style__name")).map(
+      (el) => el.textContent,
+    );
+    expect(names).toEqual(DECOR_STYLES.map((s) => DECOR_STYLE_SPECS[s].name));
+    expect(names).toEqual(["Control room", "Laboratory", "Workshop", "War room", "Armory"]);
+    // Every style has its own small preview.
+    const previews = Array.from(document.querySelectorAll(".rg-decor-style__preview"));
+    expect(previews.map((p) => p.getAttribute("data-style"))).toEqual([...DECOR_STYLES]);
+    expect(new Set(previews.map((p) => p.innerHTML)).size).toBe(DECOR_STYLES.length);
+    expect(text()).not.toContain("Palette");
+    expect(text()).not.toContain("Teal carpet");
+    expect(document.querySelector('[name="palette"]')).toBeNull();
+    expect(styleRadio("ops_room").checked).toBe(true);
+
+    await typeInto(nameField(), "Arsenal");
+    await typeInto(byLabel("Repo 1"), "octo/hello");
+    await click(styleRadio("armory"));
+    await submit();
+    expect(useBuildModeStore.getState().intent).toEqual({
+      kind: "create",
+      request: { name: "Arsenal", decorStyle: "armory", repos: [{ repo: "octo/hello" }] },
+    });
+  });
+
   test("a refusal build mode cannot fix goes back to the dialog, without the token", async () => {
     signedInAs("owner");
     await mount(<AddOperationDialogHost />);
     await act(async () => useUiStore.getState().openOverlay(ADD_OPERATION_OVERLAY));
     await typeInto(nameField(), "X");
+    await click(styleRadio("workshop"));
     await typeInto(byLabel("Repo 1"), "https://gitlab.com/o/r");
     await typeInto(byLabel("Access token for repo 1"), TOKEN);
     await submit();
@@ -123,11 +163,17 @@ describe("Add operation dialog", () => {
     });
     await act(() => confirmBuild(createCompoundApi({ fetch: f.fetch })));
     await settle();
-    expect(f.calls[0]?.body).toMatchObject({ name: "X", placement: { width: 8, depth: 8 } });
+    expect(f.calls[0]?.body).toMatchObject({
+      name: "X",
+      decorStyle: "workshop",
+      placement: { width: 8, depth: 8 },
+    });
+    expect(f.calls[0]?.body).not.toHaveProperty("paletteId");
     expect(useBuildModeStore.getState().intent).toBeNull();
     expect(useUiStore.getState().overlay).toBe(ADD_OPERATION_OVERLAY);
     expect(text()).toContain("repo 1 is not on github.com");
     expect((nameField() as HTMLInputElement).value).toBe("X");
+    expect(styleRadio("workshop").checked).toBe(true);
     expect((byLabel("Repo 1") as HTMLInputElement).value).toBe("https://gitlab.com/o/r");
     expect((byLabel("Access token for repo 1") as HTMLInputElement).value).toBe("");
   });

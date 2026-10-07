@@ -9,6 +9,7 @@ import { Count, Id, TimestampMs, WorldPos } from "./common.ts";
 import { CompoundState, DOOR_SIDES, LevelState, ROOM_BUILD_STATES } from "./compound.ts";
 import {
   AVATAR_ANIMATIONS,
+  DECOR_STYLES,
   JUKEBOX_SOURCES,
   PM_ACTIVITIES,
   PM_PRIVILEGES,
@@ -23,7 +24,6 @@ import {
   GENIUS_SKINS,
   GENIUS_TRIMS,
 } from "./genius.ts";
-import { DECOR_STYLES } from "./room-settings-api.ts";
 
 /**
  * Henchman colour set and accessory, derived on the client (scene/henchmen); not

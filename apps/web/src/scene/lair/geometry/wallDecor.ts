@@ -81,7 +81,8 @@ export type PosterVariant =
   | "world_map"
   | "element_chart"
   | "blueprint"
-  | "campaign_map";
+  | "campaign_map"
+  | "target";
 
 /** A 0.7 x 1.0 m framed poster; `variant` picks the design. */
 export function poster(variant: PosterVariant): PieceGeometry {
@@ -207,6 +208,28 @@ export function poster(variant: PosterVariant): PieceGeometry {
       }
       b.box([0.08, 0.015, 0.002], [0, 0.08, z + 0.004], LAIR.black, { rot: [0, 0, 0.78] });
       b.box([0.08, 0.015, 0.002], [0, 0.08, z + 0.004], LAIR.black, { rot: [0, 0, -0.78] });
+      break;
+    }
+    case "target": {
+      // The armory's range sheet (#282): rings on buff paper, a tight group low and left.
+      b.panelZ(x0, y0, x1, y1, z, "#D8C49A");
+      const rings = [
+        [0.28, LAIR.black],
+        [0.19, "#D8C49A"],
+        [0.1, "#F28C28"],
+      ] as const;
+      rings.forEach(([r, c], i) => {
+        b.cylinder(r, r, 0.001, 12, [0, 0.08, z + 0.001 + i * 0.001], c, {
+          rot: [Math.PI / 2, 0, 0],
+        });
+      });
+      for (const [hx, hy] of [
+        [-0.07, 0.02],
+        [-0.03, -0.03],
+        [-0.1, -0.05],
+      ] as const)
+        b.panelZ(hx - 0.012, hy - 0.012, hx + 0.012, hy + 0.012, z + 0.005, LAIR.black);
+      b.panelZ(x0 + 0.08, y0 + 0.05, x1 - 0.08, y0 + 0.09, z + 0.001, LAIR.black);
       break;
     }
   }

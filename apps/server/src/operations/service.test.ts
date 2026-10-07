@@ -15,7 +15,7 @@ import {
 } from "@regulus/room-layout";
 import { eq } from "drizzle-orm";
 import { AuthHttpError } from "../auth/errors.ts";
-import { auditLog, desks, levels, operationRepos } from "../db/schema/index.ts";
+import { auditLog, desks, levels, operationRepos, operations } from "../db/schema/index.ts";
 import { shownLevels } from "../levels/store.ts";
 import { createLogger } from "../logging.ts";
 import { createOperations, type Operations } from "./index.ts";
@@ -152,7 +152,7 @@ describe("OperationService", () => {
     expect(legacyDeskCount(officeL2Template.id)).toBe(3);
   });
 
-  test("palettes cycle, slugs stay unique, the mirror is <projects>/<slug>/<repo>", async () => {
+  test("the room takes the style picked, slugs stay unique, the mirror is <projects>/<slug>/<repo>", async () => {
     const t = setup();
     const a = t.operations.service.create(t.owner, {
       name: "Twin",
@@ -162,14 +162,19 @@ describe("OperationService", () => {
     const b = t.operations.service.create(t.owner, {
       name: "Twin",
       tier: "small",
-      paletteId: "teal-cream",
+      decorStyle: "armory",
       repos: [{ repo: "other/tools" }],
     });
     await Promise.all([a.cloned, b.cloned]);
     expect([a.operation.slug, b.operation.slug]).toEqual(["twin", "twin-2"]);
+    // No style picked: the default. Nobody picks the old palette any more (#282); the
+    // column keeps cycling so it is never empty.
+    const styleOf = (id: string) =>
+      t.db.select().from(operations).where(eq(operations.id, id)).get()?.decorStyle;
+    expect([a, b].map((r) => styleOf(r.operation.operationId))).toEqual(["ops_room", "armory"]);
     expect([a.operation.paletteId, b.operation.paletteId]).toEqual([
       PALETTES[1]?.id ?? "",
-      "teal-cream",
+      PALETTES[2]?.id ?? "",
     ]);
     const repos = t.operations.repos.listOperationRepos(b.operation.operationId);
     expect(repos.map((r) => r.workdir)).toEqual([join(t.projectsDir, "twin-2", "tools")]);
@@ -232,7 +237,7 @@ describe("OperationService", () => {
     ).toThrow(/UNIQUE constraint failed: operation_repos.operation_id/);
   });
 
-  test("validation: roles, repo refs, duplicates, palette, PAT without a master key", () => {
+  test("validation: roles, repo refs, duplicates, PAT without a master key", () => {
     const t = setup();
     const create = (actor: typeof t.owner, repos: { repo: string; token?: string }[], extra = {}) =>
       code(() => t.operations.service.create(actor, { name: "X", tier: "small", repos, ...extra }));
@@ -243,9 +248,6 @@ describe("OperationService", () => {
       "400 one_repo_per_room",
     );
     expect(create(t.owner, [])).toBe("400 one_repo_per_room");
-    expect(create(t.owner, [{ repo: "octo/hello" }], { paletteId: "nope" })).toBe(
-      "400 unknown_palette",
-    );
     const noKey = setup({ keyring: false });
     expect(
       code(() =>
