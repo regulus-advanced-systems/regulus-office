@@ -5,6 +5,7 @@
  */
 import {
   mayConfigureOfficeAgent,
+  mayRemoveOfficeAgent,
   mayTalkToOfficeAgent,
   type OfficeAgentView,
 } from "@regulus/protocol";
@@ -41,6 +42,7 @@ export function agentView(
     createdAt: row.createdAt.getTime(),
     canTalk: mayTalkToOfficeAgent(actor, row),
     canConfigure,
+    canRemove: mayRemoveOfficeAgent(actor, row),
     ...(canConfigure
       ? {
           config: {

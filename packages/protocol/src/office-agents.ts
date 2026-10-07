@@ -158,6 +158,8 @@ export const OfficeAgentView = z.object({
   canTalk: z.boolean(),
   /** The viewer may configure, start, stop and delete it and mint tokens. */
   canConfigure: z.boolean(),
+  /** The viewer may remove it with everything it holds (those who configure it, and office admins). */
+  canRemove: z.boolean().optional(),
   /** Only for viewers who may configure it. */
   config: z
     .object({
@@ -326,6 +328,15 @@ export function maySeeOfficeAgent(actor: OfficeAgentActor, agent: OfficeAgentOwn
 /** Stop someone else's personal agent in an emergency (audited); nothing else. */
 export function mayEmergencyStopOfficeAgent(actor: OfficeAgentActor, agent: OfficeAgentOwnership) {
   return agent.ownerUserId !== null && agent.ownerUserId !== actor.id && isOfficeAdmin(actor.role);
+}
+
+/**
+ * Remove it with its soul, memories, notes and conversations. Whoever
+ * configures it, and office owners and admins for anyone's personal agent
+ * (audited): they can remove what they cannot read (D20).
+ */
+export function mayRemoveOfficeAgent(actor: OfficeAgentActor, agent: OfficeAgentOwnership) {
+  return mayConfigureOfficeAgent(actor, agent) || isOfficeAdmin(actor.role);
 }
 
 /** Create a shared agent: office owners and admins. Viewers create nothing. */

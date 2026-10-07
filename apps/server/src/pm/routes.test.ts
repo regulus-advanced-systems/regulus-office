@@ -132,7 +132,8 @@ describe("office agents: people", () => {
       [o.people.olga, 403],
     ] as const) {
       expect((await o.send(path, "PATCH", who.cookie, { preset: "manager" })).status).toBe(status);
-      expect((await o.send(path, "DELETE", who.cookie)).status).toBe(status);
+      // Removing it is the one thing admins may do besides stopping it (#136; mind.test.ts).
+      if (status === 404) expect((await o.send(path, "DELETE", who.cookie)).status).toBe(404);
       expect((await o.send(`${path}/tokens`, "POST", who.cookie, { label: "x" })).status).toBe(
         status,
       );

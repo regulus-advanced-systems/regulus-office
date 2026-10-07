@@ -17,6 +17,12 @@
  * - a shared agent in the office agents' own runner identity, which is no
  *   human's and holds no login, with an office-wide metered key only.
  *
+ * Soul and memories (#136, D20): the soul the agent was started with and a
+ * digest of what it remembers go into each turn's system prompt, from the
+ * office's copy, in a file only its runner identity can read; the agent
+ * saves and looks up memories and notes through the office tools. A change
+ * to the soul stops the agent, so the next message starts it with the new one.
+ *
  * Turns of one agent run one at a time, in order.
  */
 import { CLI_SESSION_PROVIDERS } from "@regulus/protocol";
@@ -191,6 +197,8 @@ export class CliSessionEngine implements OfficeAgentEngine {
       credential,
       sessionId,
       resume: known !== undefined,
+      // The soul is the one it was started with; what it remembers is read from the office now.
+      memory: office.mind.digest(),
       prompt: `[From ${message.fromName}, user id ${message.userId}]\n${message.text}`,
       command: this.opts.command,
     });

@@ -20,6 +20,14 @@
 import { z } from "zod";
 import { ChatText, Effort, GhNumber, Id, ModelName, PROMPT_MAX, ShortText } from "./common.ts";
 import { CARD_KINDS, PROVIDER_IDS, TASK_KINDS } from "./enums.ts";
+import {
+  MemoryText,
+  MindQuery,
+  MindSource,
+  NoteText,
+  NoteTitle,
+  OFFICE_AGENT_MIND_LIMITS,
+} from "./office-agent-mind.ts";
 import { OFFICE_AGENT_LIMITS, type OfficeAgentPreset } from "./office-agents.ts";
 
 export const OFFICE_MCP_PATH = "/mcp";
@@ -46,6 +54,14 @@ const TaskFields = {
   ),
   onBehalfOf: OnBehalfOf,
 };
+
+const PageLimit = z
+  .number()
+  .int()
+  .min(1)
+  .max(OFFICE_AGENT_MIND_LIMITS.pageMax)
+  .optional()
+  .describe("How many to return at most (default 20).");
 
 /** Input schemas by tool name. Plain objects, so they publish as JSON Schema. */
 export const OFFICE_TOOL_INPUTS = {
@@ -95,6 +111,28 @@ export const OFFICE_TOOL_INPUTS = {
     henchmanId: Id.describe("Henchman id, from list_henchmen."),
     onBehalfOf: OnBehalfOf,
   }),
+  soul_read: z.object({}),
+  memory_save: z.object({
+    text: MemoryText.describe("One fact, preference or decision, in a sentence or two."),
+    source: MindSource.optional().describe('Where it comes from, e.g. "Ante, in chat".'),
+  }),
+  memory_search: z.object({
+    query: MindQuery.describe("Words to look for; every word must appear."),
+    limit: PageLimit,
+  }),
+  memory_list: z.object({ limit: PageLimit }),
+  memory_forget: z.object({ id: Id.describe("Memory id, from memory_list or memory_search.") }),
+  note_write: z.object({
+    title: NoteTitle.describe("The note's name; writing to an existing title replaces that note."),
+    text: NoteText,
+    append: z
+      .boolean()
+      .optional()
+      .describe("Add the text to the end of the existing note instead of replacing it."),
+  }),
+  note_read: z.object({ title: NoteTitle }),
+  note_list: z.object({}),
+  note_delete: z.object({ title: NoteTitle }),
 } as const;
 
 export type OfficeToolName = keyof typeof OFFICE_TOOL_INPUTS;
@@ -199,6 +237,73 @@ export const OFFICE_TOOLS: readonly OfficeToolSpec[] = [
     preset: "manager",
     readOnly: false,
   },
+  // What the agent is and knows (#136). Its own only; kept by the office across conversations.
+  {
+    name: "soul_read",
+    title: "Read who you are",
+    description:
+      "Your own standing document: who you are and how you work, as your person wrote it.",
+    preset: "observer",
+    readOnly: true,
+  },
+  {
+    name: "memory_save",
+    title: "Remember something",
+    description:
+      "Save one thing to remember across conversations. Never a password, key or token: those are refused.",
+    preset: "observer",
+    readOnly: false,
+  },
+  {
+    name: "memory_search",
+    title: "Search what you remember",
+    description: "Find memories and notes that contain the words you give.",
+    preset: "observer",
+    readOnly: true,
+  },
+  {
+    name: "memory_list",
+    title: "List what you remember",
+    description: "Your memories, newest first.",
+    preset: "observer",
+    readOnly: true,
+  },
+  {
+    name: "memory_forget",
+    title: "Forget a memory",
+    description: "Delete one memory for good.",
+    preset: "observer",
+    readOnly: false,
+  },
+  {
+    name: "note_write",
+    title: "Write a note",
+    description:
+      "Create, replace or add to a titled note (a journal day, a draft, a decision log). Never a password, key or token.",
+    preset: "observer",
+    readOnly: false,
+  },
+  {
+    name: "note_read",
+    title: "Read a note",
+    description: "One of your notes, by title.",
+    preset: "observer",
+    readOnly: true,
+  },
+  {
+    name: "note_list",
+    title: "List your notes",
+    description: "The titles of your notes, most recently changed first.",
+    preset: "observer",
+    readOnly: true,
+  },
+  {
+    name: "note_delete",
+    title: "Delete a note",
+    description: "Delete one note for good, by title.",
+    preset: "observer",
+    readOnly: false,
+  },
 ];
 
 const RANK: Readonly<Record<OfficeAgentPreset, number>> = {
@@ -232,6 +337,8 @@ export const OFFICE_TOOL_ERRORS = [
   "on_behalf_required",
   "not_waiting",
   "cap_reached",
+  /** The text looks like it holds a key, a token or a password (#136). */
+  "secret_rejected",
   "unavailable",
   "failed",
 ] as const;
