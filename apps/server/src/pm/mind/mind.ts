@@ -16,10 +16,10 @@
  */
 import {
   diffStat,
+  OFFICE_AGENT_MIND_LIMITS as LIMITS,
   type MindAuthor,
   type MindEntry,
   type MindEntryKind,
-  OFFICE_AGENT_MIND_LIMITS as LIMITS,
   type OfficeAgentSoul,
   type SoulVersion,
   type SoulVersionKind,

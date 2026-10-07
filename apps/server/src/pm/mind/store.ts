@@ -48,20 +48,13 @@ export class MindStore {
       .get()?.instructions;
   }
 
-  #versions(agentId: string) {
-    return this.db
-      .select({
-        row: officeAgentSoulVersions,
-        by: userProfiles.displayName,
-      })
-      .from(officeAgentSoulVersions)
-      .leftJoin(userProfiles, eq(userProfiles.userId, officeAgentSoulVersions.editedBy))
-      .where(eq(officeAgentSoulVersions.agentId, agentId));
-  }
-
   /** Newest first. */
   versions(agentId: string): SoulVersionRow[] {
-    return this.#versions(agentId)
+    return this.db
+      .select({ row: officeAgentSoulVersions, by: userProfiles.displayName })
+      .from(officeAgentSoulVersions)
+      .leftJoin(userProfiles, eq(userProfiles.userId, officeAgentSoulVersions.editedBy))
+      .where(eq(officeAgentSoulVersions.agentId, agentId))
       .orderBy(desc(officeAgentSoulVersions.version))
       .all()
       .map(({ row, by }) => ({ ...row, by }));

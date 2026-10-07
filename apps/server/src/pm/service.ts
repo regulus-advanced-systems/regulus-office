@@ -234,7 +234,9 @@ export class OfficeAgentService {
     }
     // The engine holds the configuration it was started with: stop it, the next message starts it anew.
     // Its looks are not part of that: changing only the appearance leaves it running.
-    const restart = Object.keys(patch).some((key) => key !== "appearance" && key !== "instructions");
+    const restart = Object.keys(patch).some(
+      (key) => key !== "appearance" && key !== "instructions",
+    );
     if (restart && runtime.isRunning(row.id)) {
       await runtime.stop(row.id, row.engine, "configuration changed");
     }

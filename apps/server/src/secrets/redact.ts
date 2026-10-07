@@ -65,7 +65,8 @@ export function redact(value: unknown): unknown {
 }
 
 /** Provider keys and GitHub tokens, whatever surrounds them. */
-const PROVIDER_KEY = "\\b(?:sk-[A-Za-z0-9_-]{8,}|gh[pousr]_[A-Za-z0-9]{8,}|github_pat_[A-Za-z0-9_]{8,})";
+const PROVIDER_KEY =
+  "\\b(?:sk-[A-Za-z0-9_-]{8,}|gh[pousr]_[A-Za-z0-9]{8,}|github_pat_[A-Za-z0-9_]{8,})";
 /** Env assignments: a name in capitals, `=`, a value. */
 const ENV_ASSIGNMENT = "\\b([A-Z][A-Z0-9_]{1,63})=(\"[^\"]*\"|'[^']*'|\\S*)";
 /** Long token-like runs: keys, container and exec ids, base64 blobs. */
@@ -90,7 +91,12 @@ export function redactText(text: string): string {
   return out;
 }
 
-export type SecretLikeKind = "provider_key" | "office_token" | "private_key" | "env_secret" | "token";
+export type SecretLikeKind =
+  | "provider_key"
+  | "office_token"
+  | "private_key"
+  | "env_secret"
+  | "token";
 
 const UUID = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi;
 
