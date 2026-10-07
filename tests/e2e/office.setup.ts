@@ -6,7 +6,9 @@
  * per database, so they run in order and every other office step depends on them.
  */
 import { type BrowserContext, expect, type Page, test } from "@playwright/test";
+import { MEMBER_GITHUB, OWNER_GITHUB } from "./fakeGitHub.ts";
 import { pickGenius, pickGeniusByKeyboard } from "./geniusChecks.ts";
+import { linkGitHub } from "./githubAccess.ts";
 import { type Account, member, owner, saveOwnerGenius, saveSessions } from "./officeSession.ts";
 
 test.describe.configure({ mode: "serial" });
@@ -59,6 +61,26 @@ test("the first-login genius picker works by keyboard; the server keeps the pick
   await expect(ownerPage.getByRole("dialog", { name: "Choose your genius" })).toBeHidden();
 });
 
+test("without a linked GitHub account every room is closed; the lobby says so, and linking opens them (#270)", async () => {
+  // The office owner too: the role runs the office, GitHub opens the rooms (D27).
+  const prompt = ownerPage.getByTestId("github-link-prompt");
+  await expect(prompt).toHaveText("Link your GitHub account to enter your rooms.");
+  const section = ownerPage.getByRole("region", { name: "Link your GitHub account" });
+  await expect(section.getByRole("button", { name: "Link GitHub account…" })).toBeVisible();
+  const origin = new URL(ownerPage.url()).origin;
+  const refused = await ownerPage.request.post("/api/operations", {
+    data: { name: "Too early", repos: [{ repo: "octo/hello" }] },
+    headers: { origin },
+  });
+  expect(refused.status()).toBe(403);
+  expect(((await refused.json()) as { error: string }).error).toBe("github_link_required");
+
+  await linkGitHub(ownerPage, OWNER_GITHUB);
+  await ownerPage.reload();
+  await expect(ownerPage.getByRole("button", { name: "Settings" })).toBeVisible();
+  await expect(prompt).toHaveCount(0);
+});
+
 test("the owner creates an invite link in the UI", async () => {
   await ownerPage.getByRole("button", { name: "Settings" }).click();
   await ownerPage.getByRole("tab", { name: "You" }).click();
@@ -80,5 +102,8 @@ test("a second browser joins through the invite", async () => {
   const me = await memberPage.request.get("/api/me");
   expect(await me.json()).toMatchObject({ displayName: member.name, role: "member" });
   await pickGenius(memberPage, "Diva");
+  // The member links too; their account sees no repo until a step gives it one (#270).
+  await expect(memberPage.getByTestId("github-link-prompt")).toBeVisible();
+  await linkGitHub(memberPage, MEMBER_GITHUB);
   await saveSessions(ownerCtx, memberCtx);
 });

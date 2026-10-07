@@ -46,8 +46,15 @@ import {
   checkLaptopCopy,
   checkLoginTerminalCopy,
 } from "./copyChecks.ts";
-import { type FakeGitHub, startFakeGitHub } from "./fakeGitHub.ts";
+import {
+  ADMIN_GITHUB,
+  type FakeGitHub,
+  MEMBER_GITHUB,
+  OWNER_GITHUB,
+  startFakeGitHub,
+} from "./fakeGitHub.ts";
 import { pickGenius } from "./geniusChecks.ts";
+import { linkGitHub, setRepoPermission } from "./githubAccess.ts";
 import { createRemoteRepo } from "./gitRemote.ts";
 import { checkHenchmanCheers } from "./gongChecks.ts";
 import { freeDeskPoint, OFFICE_PROBE_PATH, waitForScene } from "./probes.ts";
@@ -268,6 +275,17 @@ test("the owner, an invited member and an invited admin sign in", async () => {
   await adminPage.goto(adminInvite.url);
   await register(adminPage, admin, "Create account and join");
   expect(await api(adminPage, "GET", "/api/me")).toMatchObject({ role: "admin" });
+
+  // Rooms open with each person's own GitHub access (#270): all three link their accounts.
+  // On GitHub the owner administers the repo; the member and the admin may read it, so they
+  // can watch in its room. The office roles themselves open nothing.
+  const repo = `${REPO.owner}/${REPO.name}`;
+  await setRepoPermission(github.url, OWNER_GITHUB, repo, "admin");
+  await setRepoPermission(github.url, MEMBER_GITHUB, repo, "read");
+  await setRepoPermission(github.url, ADMIN_GITHUB, repo, "read");
+  await linkGitHub(ownerPage, OWNER_GITHUB);
+  await linkGitHub(memberPage, MEMBER_GITHUB);
+  await linkGitHub(adminPage, ADMIN_GITHUB);
 });
 
 test("1. the owner connects GitHub, picks the repo in Add operation and walks into its room", async () => {
@@ -302,17 +320,23 @@ test("1. the owner connects GitHub, picks the repo in Add operation and walks in
   const added = ownerPage.getByRole("dialog", { name: "Operation set up" });
   await expect(added.getByText(`Ready on ${REPO.branch}`)).toBeVisible();
 
-  // A new operation offers "Add people" straight away: the owner lets the member watch (#131).
-  await added.getByRole("button", { name: "Add people…" }).click();
+  // "Who can enter" says where access comes from; nobody is let in from here (#270). The
+  // member watches because their GitHub account can read the repo.
+  await added.getByRole("button", { name: "Who can enter…" }).click();
   const settings = ownerPage.getByRole("dialog", { name: "Operation settings" });
-  await settings.getByLabel("Search people").fill("ben");
-  await settings.getByRole("checkbox", { name: new RegExp(member.name) }).check();
-  await settings.getByLabel("Access for the people you add").selectOption("view");
-  await settings.getByRole("button", { name: "Add 1 person" }).click();
-  await expect(settings.getByLabel(`Access for ${member.name}`)).toHaveValue("view");
+  await expect(settings).toContainText("comes from each person's own access to its repo on GitHub");
+  await expect(settings.getByText("No one is limited in this room.")).toBeVisible();
   await settings.getByRole("button", { name: "Done" }).click();
   await expect(settings).toHaveCount(0);
   await walkInto(ownerPage, OPERATION);
+  await expect
+    .poll(async () => {
+      const list = (await api(memberPage, "GET", "/api/operations")) as {
+        operations: { name: string; access: string }[];
+      };
+      return list.operations.find((o) => o.name === OPERATION)?.access;
+    })
+    .toBe("view");
 
   await memberPage.goto(OFFICE_PROBE_PATH);
   await waitForScene(memberPage);

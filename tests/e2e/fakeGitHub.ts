@@ -7,10 +7,33 @@
  * With `boards` (#36), it also serves those repos' issues and PRs to the board poller (#35)
  * and the board panel: lists, comments, reviews, check suites and assignable users, and a merge
  * from the PR board (#43: `PUT …/pulls/{n}/merge` closes the PR as merged).
+ * It also plays GitHub for people (#270): rooms open with each person's own GitHub access, so
+ * the e2e people link accounts of this fake through the office's real OAuth flow
+ * (githubAccess.ts) and get the rooms those accounts can see. The people, their tokens and
+ * their permissions are the server's own test fake (apps/server/src/github/fake-github-users.ts).
+ * `/__e2e/*` lets a test change a person's permission, as an org admin would on GitHub, and
+ * (for the office flow, whose fake runs beside the office for the whole run) load board data.
  * Listens on 127.0.0.1 only; nothing here talks to the real GitHub.
  */
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
+import {
+  type FakeGitHubUser,
+  fakeGitHubUsers,
+} from "../../apps/server/src/github/fake-github-users.ts";
+import { E2E_GITHUB_CLIENT } from "./githubClient.ts";
+
+/** The office owner's account: admin on every repo, as the owner of the org would be. */
+export const OWNER_GITHUB = "ada-owner";
+/** The member's account: sees nothing until a test gives it a permission on a repo. */
+export const MEMBER_GITHUB = "ben-member";
+/** A second office admin's account (the agents flow): sees nothing until a test says so. */
+export const ADMIN_GITHUB = "cy-admin";
+const PEOPLE: FakeGitHubUser[] = [
+  { id: 9001, login: OWNER_GITHUB, repos: { "*": "admin" } },
+  { id: 9002, login: MEMBER_GITHUB, repos: {} },
+  { id: 9003, login: ADMIN_GITHUB, repos: {} },
+];
 
 export interface RecordedRequest {
   method: string;
@@ -62,9 +85,15 @@ function boardAnswer(boards: FakeBoards, path: string, url: URL): unknown {
 }
 
 export async function startFakeGitHub(
-  org?: FakeOrgConnection,
+  firstOrg?: FakeOrgConnection,
   options: { port?: number; boards?: FakeBoards } = {},
 ): Promise<FakeGitHub> {
+  let org = firstOrg;
+  const people = fakeGitHubUsers({
+    clientId: E2E_GITHUB_CLIENT.id,
+    clientSecret: E2E_GITHUB_CLIENT.secret,
+    users: PEOPLE,
+  });
   const requests: RecordedRequest[] = [];
   const pulls: { number: number; html_url: string; draft: boolean; head: string }[] = [];
   const server: Server = createServer((req, res) => {
@@ -84,12 +113,44 @@ export async function startFakeGitHub(
         res.writeHead(status, { "content-type": "application/json" });
         res.end(JSON.stringify(payload));
       };
+      if (url.pathname === "/__e2e/up") return send(200, { ok: true });
+      // Test controls: what an org admin, or the test's own setup, does on "GitHub".
+      if (url.pathname === "/__e2e/permission" && req.method === "POST") {
+        const b = body as {
+          login: string;
+          repo: string;
+          permission: "none" | "read" | "write" | "admin";
+        };
+        people.setPermission(b.login, b.repo, b.permission);
+        return send(200, { ok: true });
+      }
+      if (url.pathname === "/__e2e/boards" && req.method === "POST") {
+        const b = body as { org?: FakeOrgConnection; boards?: FakeBoards };
+        org = b.org;
+        options.boards = b.boards;
+        return send(200, { ok: true });
+      }
+      // A person: the OAuth pages, and whatever their own token may read.
+      const headers = new Headers();
+      for (const [name, value] of Object.entries(req.headers)) {
+        if (typeof value === "string") headers.set(name, value);
+      }
+      const asPerson = people.handle(
+        new Request(`http://fake-github${req.url ?? "/"}`, { method: req.method, headers }),
+        url,
+        body,
+      );
+      if (asPerson) {
+        res.writeHead(asPerson.status, Object.fromEntries(asPerson.headers));
+        void asPerson.text().then((payload) => res.end(payload));
+        return;
+      }
       const authorized = org && req.headers.authorization === `Bearer ${org.orgToken}`;
       if (url.pathname === "/user" || url.pathname === "/user/repos") {
         if (!authorized) return send(401, { message: "Bad credentials" });
         if (url.pathname === "/user") return send(200, { login: "org-bot" });
         const page = Number(url.searchParams.get("page") ?? "1");
-        const listed = page > 1 ? [] : org.repos;
+        const listed = page > 1 ? [] : (org?.repos ?? []);
         return send(
           200,
           listed.map((r) => ({

@@ -68,8 +68,8 @@ import {
   wheelZoomTo,
 } from "./compoundProbes.ts";
 import { insideViewport, settledDialogLayout } from "./dialogLayout.ts";
-import { type FakeGitHub, startFakeGitHub } from "./fakeGitHub.ts";
 import { type GeniusLook, geniusOf } from "./geniusChecks.ts";
+import { loadBoards } from "./githubAccess.ts";
 import { ensureRemoteRepo } from "./gitRemote.ts";
 import { checkMergeGong } from "./gongChecks.ts";
 import { checkJukebox } from "./jukeboxChecks.ts";
@@ -813,14 +813,12 @@ test("a card from the issue board carried to a free desk opens the spawn dialog 
     head: { ref: "office/oil", sha: "e2e8" },
     base: { ref: "trunk" },
   };
-  let gh: FakeGitHub | undefined;
+  let gh: { close(): Promise<void> } | undefined;
   try {
-    gh = await startFakeGitHub(
+    // The fake GitHub runs beside the office (#270); this step loads its org and boards into it.
+    gh = await loadBoards(
       { orgToken, repos: [{ owner: "octo", name: "hello", defaultBranch: "trunk" }] },
-      {
-        port: Number(process.env.E2E_GITHUB_PORT),
-        boards: { "octo/hello": { issues: [issue], pulls: [pull] } },
-      },
+      { "octo/hello": { issues: [issue], pulls: [pull] } },
     );
     await ownerPage.bringToFront();
     const origin = new URL(ownerPage.url()).origin;
@@ -879,10 +877,7 @@ test("a card from the issue board carried to a free desk opens the spawn dialog 
 test("a PR merged on the board rings the gong; henchmen cheer and sit back as they were (#43)", async () => {
   test.skip(!process.env.E2E_DATA_DIR, "needs the locally started server and its fake GitHub");
   await ensureApollo();
-  await checkMergeGong(ownerPage, {
-    githubPort: Number(process.env.E2E_GITHUB_PORT),
-    operation: "Apollo",
-  });
+  await checkMergeGong(ownerPage, { operation: "Apollo" });
 });
 
 test("the blast door opens for everyone, the owner walks out onto the dock, it shuts by itself (#188)", async () => {
@@ -899,12 +894,12 @@ test("wall pictures: uploaded, hung on a free wall, seen by the other browser, r
   test.skip(!process.env.E2E_DATA_DIR, "needs the locally started server (local git remotes)");
   test.setTimeout(240_000);
   await ensureApollo();
-  await checkWallPictures(ownerPage, memberPage, "Apollo");
+  await checkWallPictures(ownerPage, memberPage, "Apollo", "octo/hello");
 });
 
 test("access taken away while in a room: a plain message, no reconnect loop (#244)", async () => {
   test.skip(!process.env.E2E_DATA_DIR, "needs the locally started server (local git remotes)");
   test.setTimeout(240_000);
   await ensureApollo();
-  await checkAccessWithdrawn(ownerPage, memberPage, "Apollo");
+  await checkAccessWithdrawn(ownerPage, memberPage, "Apollo", "octo/hello");
 });

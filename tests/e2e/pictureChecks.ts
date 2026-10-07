@@ -24,6 +24,8 @@ import {
   walkToLobby,
   wheelZoomTo,
 } from "./compoundProbes.ts";
+import { MEMBER_GITHUB } from "./fakeGitHub.ts";
+import { checkGitHubNow, officeGitHubUrl, setRepoPermission } from "./githubAccess.ts";
 import { waitForScene } from "./probes.ts";
 
 /** A small PNG drawn here (a sunset over the sea): the test's own picture, nothing copied. */
@@ -124,17 +126,17 @@ async function aimAtFreeWall(page: Page): Promise<{ x: number; y: number } | nul
   return null;
 }
 
-export async function checkWallPictures(owner: Page, member: Page, operation: string) {
+export async function checkWallPictures(
+  owner: Page,
+  member: Page,
+  operation: string,
+  repo: string,
+) {
   const room = await roomNamed(owner, operation);
   const zoom = (await cameraState(owner)).wantZoom;
-  // The member may look into the room, nothing more.
-  const memberId = ((await (await member.request.get("/api/me")).json()) as { id: string }).id;
-  const origin = new URL(owner.url()).origin;
-  const grant = await owner.request.put(`/api/operations/${room.id}/members/${memberId}`, {
-    data: { access: "view" },
-    headers: { origin },
-  });
-  expect(grant.status(), await grant.text()).toBeLessThan(300);
+  // The member may look into the room, nothing more: read access to its repo on GitHub (#270).
+  await setRepoPermission(officeGitHubUrl(), MEMBER_GITHUB, repo, "read");
+  await checkGitHubNow(member);
   // The member's operation list (and with it room access) refreshes on reload.
   await member.reload();
   await waitForScene(member);
