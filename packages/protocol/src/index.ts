@@ -14,10 +14,12 @@
  * - changes-api.ts     REST shapes for a henchman's changes window: diff, commit, discard (#38)
  * - celebrations.ts    merge gong messages: `pr.merged`, `gong.ring` (#43)
  * - clock-sync.ts     four-timestamp clock sync for the jukebox (#47)
+ * - live-access.ts    close codes for connections ended on lost or changed access (#244)
  * - jukebox.ts        jukebox limits, playhead maths, permissions, library REST (#47)
  * - meeting-plan.ts   meeting patterns, roles and agenda (#50); meetings-api.ts their REST shapes
  * - media.ts          LiveKit tokens, media grants per role, TV sharing, voice permissions (#48)
  * - github-api.ts      REST shapes for the office GitHub connection, its repo list and board sync
+ * - github-access.ts   a person's own GitHub link: repo permission levels, their room access, REST (#267)
  * - notifications.ts   desktop/tab-badge messages, per-user prefs, team webhook channels
  * - credentials-api.ts read-only credential profile list (ids and labels only)
  * - provider-connect.ts "Connect providers": key profiles, key presets, CLI login flows
@@ -56,8 +58,10 @@ export * from "./compound.ts";
 export * from "./credentials-api.ts";
 export * from "./enums.ts";
 export * from "./genius.ts";
+export * from "./github-access.ts";
 export * from "./github-api.ts";
 export * from "./jukebox.ts";
+export * from "./live-access.ts";
 export * from "./media.ts";
 export * from "./meeting-plan.ts";
 export * from "./meetings-api.ts";

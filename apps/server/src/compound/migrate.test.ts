@@ -215,7 +215,7 @@ describe("compound migration", () => {
     expect(old.grid_x).toBeNull();
 
     // Repos, members, desks with their henchmen, and the henchmen themselves are untouched.
-    // (Henchmen from before 0020 have no name yet; the AgentStore names them on first sight, #256.)
+    // (Henchmen from before the henchman_names migration have no name yet; the AgentStore names them on first sight, #256.)
     expect(keptRows(db)).toEqual({
       ...before,
       agents: before.agents.map((a) => ({ ...a, name: "" })),

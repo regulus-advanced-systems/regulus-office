@@ -20,6 +20,8 @@ export interface TerminalUser {
   role: UserRole;
   /** Shown to the other viewers (faces, "X is typing"); the id is used when absent. */
   displayName?: string;
+  /** The Better Auth session behind the request (live access, #244). */
+  sessionId?: string;
 }
 
 /** Whether `user` may see operation `operationId` at all. */

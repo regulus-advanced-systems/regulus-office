@@ -9,6 +9,7 @@
  * `screens` is the laptop screen feed (`/ws/screens/<operationId>`, #25).
  */
 import { join } from "node:path";
+import type { LiveAccess } from "../auth/live-access.ts";
 import type { OriginPolicy } from "../auth/origin.ts";
 import type { Db } from "../db/index.ts";
 import type { Logger } from "../logging.ts";
@@ -61,6 +62,8 @@ export interface TerminalsOptions {
   /** OFFICE_DATA_DIR; snapshots go to `<dataDir>/terminals/scrollback`. */
   dataDir: string;
   originPolicy: OriginPolicy;
+  /** Ends open terminals and screen feeds on lost access (#244). */
+  liveAccess?: LiveAccess;
   /** Runner backends by human; empty until the AgentManager (#26) registers one. */
   runners?: RunnerRegistry;
 }
@@ -92,6 +95,7 @@ export function createTerminals(options: TerminalsOptions): Terminals {
     canViewOperation,
     originPolicy: options.originPolicy,
     logger,
+    liveAccess: options.liveAccess,
     scrollback,
   });
   const screens = new ScreenFeed({
@@ -100,6 +104,7 @@ export function createTerminals(options: TerminalsOptions): Terminals {
     canViewOperation,
     originPolicy: options.originPolicy,
     logger,
+    liveAccess: options.liveAccess,
   });
   return {
     bridge,

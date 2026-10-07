@@ -13,11 +13,12 @@
  */
 import { SCREEN_FEED_INTERVAL_MS, SCREENS_WS_PREFIX } from "@regulus/protocol";
 import type { Server, ServerWebSocket, WebSocketHandler } from "bun";
+import { type LiveAccess, sessionRefOf } from "../auth/live-access.ts";
 import { checkOrigin, type OriginPolicy } from "../auth/origin.ts";
 import type { WsRoute } from "../http/ws-router.ts";
 import type { Logger } from "../logging.ts";
 import { UPGRADED } from "../rooms/transport.ts";
-import type { OperationVisibility } from "./acl.ts";
+import type { OperationVisibility, TerminalUser } from "./acl.ts";
 import type { TerminalSessionLookup } from "./bridge.ts";
 import { ScreenPoller, type ScreenSubscriber } from "./screen-poller.ts";
 import { AGENT_ID_PATTERN, type OperationTerminalTargets } from "./targets.ts";
@@ -31,6 +32,8 @@ export interface ScreenFeedOptions {
   canViewOperation: OperationVisibility;
   originPolicy: OriginPolicy;
   logger: Logger;
+  /** Ends feeds whose subscriber can no longer see the operation (#244). */
+  liveAccess?: LiveAccess;
   /** Poll period; never below {@link SCREEN_FEED_INTERVAL_MS} in production. */
   intervalMs?: number;
   idleAfterTicks?: number;
@@ -41,7 +44,10 @@ export interface ScreenFeedOptions {
 interface ScreenSocketData {
   operationId: string;
   userId: string;
+  user: TerminalUser;
   subscriber?: ScreenSubscriber;
+  /** Stop live access tracking. */
+  release?: () => void;
 }
 
 const reject = (status: number, error: string): Response =>
@@ -96,7 +102,7 @@ export class ScreenFeed implements WsRoute {
     if (!AGENT_ID_PATTERN.test(operationId) || !this.#opts.canViewOperation(user, operationId)) {
       return reject(404, "not_found");
     }
-    const data: ScreenSocketData = { operationId, userId: user.id };
+    const data: ScreenSocketData = { operationId, userId: user.id, user };
     if (!server.upgrade(request, { data })) return reject(400, "upgrade_failed");
     return UPGRADED;
   };
@@ -129,10 +135,31 @@ export class ScreenFeed implements WsRoute {
     };
     ws.data.subscriber = subscriber;
     poller.add(subscriber);
+    const { user } = ws.data;
+    ws.data.release = this.#opts.liveAccess?.register({
+      kind: "screens",
+      user: { id: user.id, role: user.role },
+      session: sessionRefOf(user),
+      operationId,
+      check: (now) => (this.#opts.canViewOperation(now, operationId) ? "keep" : "revoked"),
+      close: (code, reason) => {
+        // Unsubscribe first: no further screen goes out.
+        this.#leave(ws);
+        ws.close(code, reason);
+      },
+    });
   }
 
   #close(ws: ServerWebSocket<ScreenSocketData>): void {
+    this.#leave(ws);
+  }
+
+  /** Unsubscribe the socket from its operation's poller (idempotent). */
+  #leave(ws: ServerWebSocket<ScreenSocketData>): void {
     const { operationId, subscriber } = ws.data;
+    ws.data.release?.();
+    ws.data.release = undefined;
+    ws.data.subscriber = undefined;
     const poller = this.#pollers.get(operationId);
     if (!poller || !subscriber) return;
     if (poller.remove(subscriber)) this.#pollers.delete(operationId);

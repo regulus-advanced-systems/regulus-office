@@ -21,6 +21,8 @@ export interface RoomAuthUser {
   displayName: string;
   role: UserRole;
   avatar: GeniusLookValue;
+  /** The Better Auth session behind the join; absent for the development header (#244). */
+  sessionId?: string;
 }
 
 export interface RoomAuth {
@@ -66,6 +68,7 @@ export function createSessionRoomAuth(sessions: SessionLookup): RoomAuth {
         displayName: user.displayName,
         role: user.role,
         avatar: user.avatar,
+        sessionId: user.sessionId,
       };
     },
   };

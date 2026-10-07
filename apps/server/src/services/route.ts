@@ -18,6 +18,7 @@
  */
 import { servicesProxyPath } from "@regulus/protocol";
 import type { Server } from "bun";
+import { type LiveAccess, type SessionRef, sessionRefOf } from "../auth/live-access.ts";
 import { checkOrigin, type OriginPolicy } from "../auth/origin.ts";
 import type { WsRoute } from "../http/ws-router.ts";
 import type { Logger } from "../logging.ts";
@@ -42,7 +43,7 @@ import {
   requestHeaders,
   upstreamUrl,
 } from "./proxy-http.ts";
-import { openUpstream, relayHandler } from "./proxy-ws.ts";
+import { endRelay, openUpstream, relayHandler } from "./proxy-ws.ts";
 import type { ProxyableService, ServiceRegistry } from "./registry.ts";
 
 export const SERVICES_PREFIX = "/p/";
@@ -64,6 +65,16 @@ export interface ServicesRouteOptions {
   appDomain: AppDomain | null;
   tokens: AppTokens;
   logger: Logger;
+  /** Ends relayed WebSockets whose human lost the app (#244). */
+  liveAccess?: LiveAccess;
+}
+
+/** Who a forwarded request is for, to ask again while its WebSocket is open. */
+interface Viewer {
+  user: AppUser;
+  session: SessionRef;
+  /** App domain mode (watching is offered only there). */
+  isolated: boolean;
 }
 
 const isUpgrade = (r: Request) => r.headers.get("upgrade")?.toLowerCase() === "websocket";
@@ -133,7 +144,8 @@ export class ServicesRoute implements WsRoute {
       const q = new URLSearchParams({ t: ticket, to });
       return redirect(`${appOrigin(d, label)}${APP_AUTH_PATH}?${q}`);
     }
-    return this.#forward(request, url, server, svc, decision.access, prefix);
+    const viewer = { user, session: sessionRefOf(user), isolated: false };
+    return this.#forward(request, url, server, svc, decision.access, prefix, viewer);
   }
 
   async #appHost(
@@ -178,7 +190,12 @@ export class ServicesRoute implements WsRoute {
     if (!svc) return appError(404, "No such app.");
     const decision = decideAppAccess(user, svc, this.#o.canViewOperation, true);
     if (!decision.ok) return this.#denied(decision.reason, user, svc);
-    return this.#unreachable(svc) ?? this.#forward(request, url, server, svc, decision.access, "");
+    // The app cookie carries only the user id: the socket lives while they are signed in at all.
+    const viewer = { user, session: "any" as const, isolated: true };
+    return (
+      this.#unreachable(svc) ??
+      this.#forward(request, url, server, svc, decision.access, "", viewer)
+    );
   }
 
   async #forward(
@@ -188,6 +205,7 @@ export class ServicesRoute implements WsRoute {
     svc: ProxyableService,
     access: AppAccess,
     prefix: string,
+    viewer: Viewer,
   ): Promise<Response | typeof UPGRADED> {
     const target = svc.target;
     if (!target) return appError(502, "The app is not reachable.");
@@ -228,6 +246,19 @@ export class ServicesRoute implements WsRoute {
       data.upstream.close();
       return appError(400, "WebSocket upgrade failed.");
     }
+    const app = { ownerUserId: svc.ownerUserId, operationId: svc.operationId };
+    data.release = this.#o.liveAccess?.register({
+      kind: "service",
+      user: { id: viewer.user.id, role: viewer.user.role },
+      session: viewer.session,
+      operationId: svc.operationId,
+      check: (now) => {
+        const d = decideAppAccess(now, app, this.#o.canViewOperation, viewer.isolated);
+        if (!d.ok) return "revoked";
+        return d.access === access ? "keep" : "changed";
+      },
+      close: (code, reason) => endRelay(data, code, reason),
+    });
     return UPGRADED;
   }
 

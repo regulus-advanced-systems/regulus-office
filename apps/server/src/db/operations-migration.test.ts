@@ -69,7 +69,7 @@ describe("0018_operations_henchmen", () => {
     for (const [old, now] of TABLES) {
       const rows = was.get(old) ?? [];
       expect(rows.length).toBeGreaterThan(0);
-      // 0020 adds the henchman's name, empty on rows from before it (#256).
+      // The henchman_names migration adds the name, empty on rows from before it (#256).
       const later = now === "agents" ? { name: "" } : {};
       expect(all(sql, now)).toEqual(rows.map((row) => ({ ...renamed(row), ...later })));
     }

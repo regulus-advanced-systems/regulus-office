@@ -9,8 +9,12 @@
  * retried as watch; the server's ACL is the authority. Close codes:
  * 4000 session ended (stop), 4008 slow consumer (reconnect at once, the
  * scrollback resyncs the screen), 4011 attach failed (retry with backoff).
+ * Access closes (#244, protocol `ACCESS_CLOSE_CODES`): signed out or access
+ * withdrawn stop for good with a plain notice; control taken away comes back
+ * in watch mode.
  */
 import {
+  accessCloseKind,
   parseTerminalServerMessage,
   TERMINAL_CLOSE_CODES,
   TERMINAL_MAX_INPUT_BYTES,
@@ -46,7 +50,14 @@ export const TERMINAL_MAX_ATTEMPTS = 6;
 /** A connection that stayed up this long resets the failure count. */
 export const TERMINAL_STABLE_MS = 10_000;
 
-export type CloseAction = "ended" | "downgrade" | "retry_now" | "retry" | "give_up";
+export type CloseAction =
+  | "ended"
+  | "signed_out"
+  | "revoked"
+  | "downgrade"
+  | "retry_now"
+  | "retry"
+  | "give_up";
 
 /** What to do after a close; pure so the policy is testable on its own. */
 export function closeAction(
@@ -57,6 +68,11 @@ export function closeAction(
   maxAttempts = TERMINAL_MAX_ATTEMPTS,
 ): CloseAction {
   if (code === TERMINAL_CLOSE_CODES.sessionEnded) return "ended";
+  const access = accessCloseKind(code);
+  if (access === "signedOut") return "signed_out";
+  if (access === "revoked") return "revoked";
+  // Still allowed, differently: a controller may only watch now.
+  if (access === "changed") return mode === "control" ? "downgrade" : "retry_now";
   if (!opened && mode === "control") return "downgrade";
   if (code === TERMINAL_CLOSE_CODES.slowConsumer && opened) return "retry_now";
   if (failures >= maxAttempts) return "give_up";
@@ -226,6 +242,10 @@ export class TerminalConnection {
     switch (action) {
       case "ended":
         onEvent({ kind: "ended" });
+        return;
+      case "signed_out":
+      case "revoked":
+        onEvent({ kind: "access_lost", signedOut: action === "signed_out" });
         return;
       case "give_up":
         onEvent({ kind: "unavailable" });

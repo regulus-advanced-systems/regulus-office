@@ -9,6 +9,7 @@
  */
 import type { ServiceState } from "@regulus/protocol";
 import { eq } from "drizzle-orm";
+import type { LiveAccess } from "../auth/live-access.ts";
 import type { OriginPolicy } from "../auth/origin.ts";
 import type { Db } from "../db/index.ts";
 import { userProfiles } from "../db/schema/index.ts";
@@ -33,6 +34,8 @@ export interface ServicesOptions {
   /** `OFFICE_SERVICES_DOMAIN`. */
   appDomain?: string;
   logger: Logger;
+  /** Ends relayed WebSockets whose human lost the app (#244). */
+  liveAccess?: LiveAccess;
   intervalMs?: number;
 }
 
@@ -98,6 +101,7 @@ export function createServices(opts: ServicesOptions): Services {
     appDomain,
     tokens: new AppTokens(),
     logger,
+    liveAccess: opts.liveAccess,
   });
   logger.info(
     { mode: appDomain ? "app-domain" : "path", domain: appDomain?.domain },

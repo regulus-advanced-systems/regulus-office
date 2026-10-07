@@ -15,6 +15,7 @@ import {
 } from "@regulus/protocol";
 import { eq } from "drizzle-orm";
 import { createAuth } from "../auth/auth.ts";
+import { dbAccessSubjects, LiveAccess } from "../auth/live-access.ts";
 import { cookieHeaderFrom, mountAuthRoutes } from "../auth/routes.ts";
 import { PASSWORD, TEST_SECRET } from "../auth/test-helpers.ts";
 import { MEMORY_DB_PATH, openDatabase, runMigrations } from "../db/index.ts";
@@ -51,9 +52,12 @@ export async function startTerminalOffice(options: TerminalOfficeOptions) {
     getSessionFromRequest: (request: Request) =>
       auth?.getSessionFromRequest(request) ?? Promise.resolve(null),
   };
+  // Live access (#244), wired as in index.ts.
+  const liveAccess = new LiveAccess({ subjects: dbAccessSubjects(db), logger });
   const rooms = createRooms({
     db,
     logger,
+    liveAccess,
     auth: createSessionRoomAuth(sessions),
     publicUrl: "http://127.0.0.1",
     production: false,
@@ -76,7 +80,9 @@ export async function startTerminalOffice(options: TerminalOfficeOptions) {
       openSignup: true,
     },
   });
-  mountAuthRoutes(server.router, auth);
+  mountAuthRoutes(server.router, auth, {
+    onUserChanged: (userId) => liveAccess.accessChanged({ userId }),
+  });
   const targets = new DbTerminalTargets(db, new RunnerRegistry().setDefault(options.runner));
   const bridge = new TerminalBridge({
     targets,
@@ -85,6 +91,7 @@ export async function startTerminalOffice(options: TerminalOfficeOptions) {
     // Production policy: only the office's own origin, no localhost wildcard.
     originPolicy: { publicUrl: String(server.url) },
     logger,
+    liveAccess,
     ...options.bridge,
   });
   const screens = new ScreenFeed({
@@ -93,6 +100,7 @@ export async function startTerminalOffice(options: TerminalOfficeOptions) {
     canViewOperation: dbOperationVisibility(db),
     originPolicy: { publicUrl: String(server.url) },
     logger,
+    liveAccess,
     ...options.screens,
   });
   router.use(bridge).use(screens).use(rooms.transport.attachment);
@@ -183,6 +191,7 @@ export async function startTerminalOffice(options: TerminalOfficeOptions) {
     bridge,
     screens,
     rooms,
+    liveAccess,
     signUp,
     addOperation,
     addAgent,

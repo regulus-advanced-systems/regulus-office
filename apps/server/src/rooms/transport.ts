@@ -54,6 +54,12 @@ export interface RoomDefinition<S extends object, J = unknown> {
    * is reserved; `false` rejects the join with 403.
    */
   authorize?(user: RoomAuthUser, options: J): boolean | Promise<boolean>;
+  /**
+   * The operation a seat joined with these options shows, for live access
+   * (#244): when the human loses that operation the seat is closed. Omit for
+   * office-wide rooms.
+   */
+  operationOf?(options: J): string | null;
   /** `options` are the parsed join options of the join that created the instance. */
   onCreate?(room: RoomHandle<S>, options: J): void | Promise<void>;
   onJoin?(room: RoomHandle<S>, client: RoomClient, options: J): void | Promise<void>;
