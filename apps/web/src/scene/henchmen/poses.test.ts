@@ -1,7 +1,7 @@
 /**
  * The henchman posed by its clips through a mixer, the way HenchmanAvatar
  * plays them (#184): still when idle and waiting with the hand up (#159),
- * moving while typing, the raised hand above the helmet, and the merge-gong
+ * moving while typing, the raised hand above the head, and the merge-gong
  * cheer (#43, #202) dancing the arms and upper body in the chair and ending
  * in exactly the seated pose it started from.
  */
@@ -10,6 +10,7 @@ import { AnimationMixer, type Bone, Vector3 } from "three";
 import { CROSSFADE_SECONDS } from "../avatar/clips.ts";
 import { ARM_OVERLAY_WEIGHT, HENCHMAN_CLIPS, henchmanClips } from "./clips.ts";
 import { buildHenchman } from "./instance.ts";
+import { HEAD_HEIGHT } from "./rig.ts";
 
 type Snapshot = Map<string, { q: number[]; p: Vector3 }>;
 
@@ -79,14 +80,15 @@ describe("henchman poses (#184)", () => {
     expect(moved).toBeGreaterThan(5 * DEG);
   });
 
-  test("the raised hand goes up above the helmet and then holds still", () => {
+  test("the raised hand goes up above the head and then holds still", () => {
     const r = rig();
     r.action(HENCHMAN_CLIPS.sitIdle).play();
     const hand = r.action(HENCHMAN_CLIPS.hand);
     hand.weight = ARM_OVERLAY_WEIGHT;
     hand.reset().fadeIn(CROSSFADE_SECONDS).play();
     for (let i = 0; i < 20; i++) r.mixer.update(1 / 30);
-    expect(r.world("HandR").y).toBeGreaterThan(r.world("Head").y + 0.2);
+    // The wrist clears the crown (the Head bone is at the chin, HEAD_HEIGHT below it).
+    expect(r.world("HandR").y).toBeGreaterThan(r.world("Head").y + HEAD_HEIGHT + 0.1);
     expect(r.world("HandL").y).toBeLessThan(r.world("Head").y);
     const a = r.snap();
     for (let i = 0; i < 60; i++) r.mixer.update(1 / 30);

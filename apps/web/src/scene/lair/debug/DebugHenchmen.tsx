@@ -137,6 +137,7 @@ export function DebugHenchmen({ spots }: { spots: readonly HenchmanSpot[] }) {
           seated={s.seated}
           skin={s.skin}
           trim={s.trim}
+          seed={s.key}
         />
       ))}
     </group>

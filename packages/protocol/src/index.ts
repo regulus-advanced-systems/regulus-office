@@ -37,6 +37,7 @@
  * - office-agents.ts  office agents (shared and personal): model, REST shapes, who may do what (#271)
  * - office-agent-mind.ts an office agent's soul, memories and notes, and who may read them (#136)
  * - office-agent-tools.ts the office tools they act through, over MCP and REST (#271)
+ * - forms.ts          character forms: the skins plus office-agent-only forms such as the secretary (#281)
  * - skins.ts          henchman skins and the admin `skin_rules` that assign them (#184)
  * - schema/            @colyseus/schema classes mirroring the state shapes
  * - terminal.ts        terminal WebSocket control messages and constants
@@ -61,6 +62,7 @@ export * from "./common.ts";
 export * from "./compound.ts";
 export * from "./credentials-api.ts";
 export * from "./enums.ts";
+export * from "./forms.ts";
 export * from "./genius.ts";
 export * from "./github-access.ts";
 export * from "./github-api.ts";

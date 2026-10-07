@@ -31,6 +31,7 @@ import {
   PROVIDER_IDS,
   type UserRole,
 } from "./enums.ts";
+import { CHARACTER_FORM_IDS, CHARACTER_FORM_LABELS, isCharacterFormId } from "./forms.ts";
 import { OfficeAgentRunsOn } from "./office-agent-runs-on.ts";
 import {
   DEFAULT_SKIN_ID,
@@ -69,19 +70,18 @@ export type OfficeAgentStatus = (typeof OFFICE_AGENT_STATUSES)[number];
 /**
  * How an agent looks (#280, D32): one of the forms the art provides. Stored on
  * the agent and changeable at any time; it never changes what the agent is or
- * may do. The list is the henchman skins plus `secretary`; a form added to
- * `HENCHMAN_SKIN_IDS` (or listed here) appears in the picker with no other change.
+ * may do. The list is the character forms of forms.ts (#281): the henchman
+ * skins plus the office-agent-only forms, starting with `secretary`; a form
+ * added there appears in the picker with no other change.
  */
-export const OFFICE_AGENT_APPEARANCES: readonly string[] = [
-  ...new Set<string>([...HENCHMAN_SKIN_IDS, "secretary"]),
-];
+export const OFFICE_AGENT_APPEARANCES: readonly string[] = CHARACTER_FORM_IDS;
 export const DEFAULT_OFFICE_AGENT_APPEARANCE: string = DEFAULT_SKIN_ID;
 export const isOfficeAgentAppearance = (value: unknown): value is string =>
   typeof value === "string" && OFFICE_AGENT_APPEARANCES.includes(value);
 
 /** "Lab coat" for a skin; for a form without a label yet, its id in words ("Secretary"). */
 export function officeAgentAppearanceLabel(id: string): string {
-  if (isHenchmanSkinId(id)) return HENCHMAN_SKIN_LABELS[id];
+  if (isCharacterFormId(id)) return CHARACTER_FORM_LABELS[id];
   const words = id.replace(/[_-]+/g, " ").trim();
   return words ? words.charAt(0).toUpperCase() + words.slice(1) : "Standard";
 }
