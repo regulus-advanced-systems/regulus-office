@@ -1,0 +1,87 @@
+/**
+ * What an office agent may reach (SPEC §10 M5, D27, D28, D32; #271).
+ *
+ * A personal agent has no rights of its own: every check is made as its
+ * owner, as they are at that moment (role and operation membership read from
+ * the database on each call), through the office's operation access gate
+ * (`operationAccessFor`). Whatever that gate learns to check later (levels,
+ * GitHub-based access, #251 part D) applies to personal agents without a
+ * change here. An owner who is gone leaves the agent with nothing.
+ *
+ * A shared agent has the operations its admins granted it (live operations
+ * only). When it acts for a person (`onBehalfOf`), the result is the lower of
+ * its grant and that person's own access, so it never does for someone what
+ * they could not do themselves.
+ */
+import type { OperationAccess, UserRole } from "@regulus/protocol";
+import { asc, isNull } from "drizzle-orm";
+import { operations } from "../db/schema/index.ts";
+import { type OperationActor, operationAccessFor } from "../operations/access.ts";
+import type { OfficeAgentRow, OfficeAgentStore } from "./store.ts";
+
+export interface AgentPerson extends OperationActor {
+  role: UserRole;
+  displayName: string;
+}
+
+const RANK: Readonly<Record<OperationAccess, number>> = { view: 1, spawn: 2, manage: 3 };
+
+/** The lower of two accesses; null when either is missing. */
+export function lowerAccess(
+  a: OperationAccess | null,
+  b: OperationAccess | null,
+): OperationAccess | null {
+  if (!a || !b) return null;
+  return RANK[a] <= RANK[b] ? a : b;
+}
+
+export const accessAtLeast = (access: OperationAccess | null, needed: OperationAccess): boolean =>
+  access !== null && RANK[access] >= RANK[needed];
+
+export class AgentAccess {
+  constructor(private readonly store: OfficeAgentStore) {}
+
+  /** The owner of a personal agent as they are now; null for a shared agent or a vanished owner. */
+  owner(agent: OfficeAgentRow): AgentPerson | null {
+    if (agent.ownerUserId === null) return null;
+    return this.store.person(agent.ownerUserId) ?? null;
+  }
+
+  /**
+   * The agent's access to a live operation right now, or null. `forPerson` is the
+   * person a shared agent acts for; it is ignored for personal agents, which
+   * only ever act as their owner.
+   */
+  operation(
+    agent: OfficeAgentRow,
+    operationId: string,
+    forPerson?: OperationActor,
+  ): OperationAccess | null {
+    if (agent.ownerUserId !== null) {
+      const owner = this.owner(agent);
+      return owner ? operationAccessFor(this.store.db, owner, operationId) : null;
+    }
+    const grant = this.store.grantFor(agent.id, operationId);
+    if (!forPerson) return grant;
+    return lowerAccess(grant, operationAccessFor(this.store.db, forPerson, operationId));
+  }
+
+  /** Every live operation open to the agent, with its access. */
+  operations(agent: OfficeAgentRow): Array<{ operationId: string; access: OperationAccess }> {
+    if (agent.ownerUserId === null) return this.store.grants(agent.id);
+    const owner = this.owner(agent);
+    if (!owner) return [];
+    const out: Array<{ operationId: string; access: OperationAccess }> = [];
+    const live = this.store.db
+      .select({ id: operations.id })
+      .from(operations)
+      .where(isNull(operations.archivedAt))
+      .orderBy(asc(operations.createdAt))
+      .all();
+    for (const { id } of live) {
+      const access = operationAccessFor(this.store.db, owner, id);
+      if (access) out.push({ operationId: id, access });
+    }
+    return out;
+  }
+}

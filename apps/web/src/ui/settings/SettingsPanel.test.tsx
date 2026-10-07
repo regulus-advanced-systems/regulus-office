@@ -70,12 +70,14 @@ describe("settings tabs", () => {
       "you",
       "office",
       "henchmen",
+      "agents",
       "notifications",
       "display",
     ]);
-    expect(visibleSettingsTabs("admin")).toHaveLength(5);
+    expect(visibleSettingsTabs("admin")).toHaveLength(6);
     await show("member");
-    expect(tabNames()).toEqual(["You", "Notifications", "Display and sound"]);
+    // Agents (#271) is for everyone: each person has their own.
+    expect(tabNames()).toEqual(["You", "Agents", "Notifications", "Display and sound"]);
     expect(document.body.textContent).not.toContain("Henchman skins");
     // The office's GitHub connection is for owners and admins; everyone has their own link (#267).
     expect(document.querySelector('section[aria-label="GitHub"]')).toBeNull();
@@ -86,8 +88,15 @@ describe("settings tabs", () => {
     await show("owner");
     const list = document.querySelector('[role="tablist"]');
     expect(list?.getAttribute("aria-label")).toBe("Settings sections");
-    expect(tabNames()).toEqual(["You", "Office", "Henchmen", "Notifications", "Display and sound"]);
-    expect(tabs().map((t) => t.tabIndex)).toEqual([0, -1, -1, -1, -1]);
+    expect(tabNames()).toEqual([
+      "You",
+      "Office",
+      "Henchmen",
+      "Agents",
+      "Notifications",
+      "Display and sound",
+    ]);
+    expect(tabs().map((t) => t.tabIndex)).toEqual([0, -1, -1, -1, -1, -1]);
     const [panel] = visiblePanel();
     expect(visiblePanel()).toHaveLength(1);
     expect(panel?.getAttribute("aria-labelledby")).toBe(tab("You").id);
@@ -117,14 +126,17 @@ describe("settings tabs", () => {
     expect(selected()).toBe("Display and sound");
     await press(document.activeElement as Element, "Home");
     expect(selected()).toBe("You");
-    expect(tabs().map((t) => t.tabIndex)).toEqual([0, -1, -1, -1, -1]);
+    expect(tabs().map((t) => t.tabIndex)).toEqual([0, -1, -1, -1, -1, -1]);
   });
 
   test("members move only between their own tabs", async () => {
     await show("member");
     tab("You").focus();
     await press(document.activeElement as Element, "ArrowDown");
+    expect(selected()).toBe("Agents");
+    await press(document.activeElement as Element, "ArrowDown");
     expect(selected()).toBe("Notifications");
+    await press(document.activeElement as Element, "ArrowLeft");
     await press(document.activeElement as Element, "ArrowLeft");
     await press(document.activeElement as Element, "ArrowLeft");
     expect(selected()).toBe("Display and sound");

@@ -33,6 +33,8 @@
  * - room-settings-api.ts room desk count and decor style (#182)
  * - search-api.ts     search across chat and terminal scrollback (#41)
  * - social.ts         seat keys, emote and chat limits, chat bubble timing (#49)
+ * - office-agents.ts  office agents (shared and personal): model, REST shapes, who may do what (#271)
+ * - office-agent-tools.ts the office tools they act through, over MCP and REST (#271)
  * - skins.ts          henchman skins and the admin `skin_rules` that assign them (#184)
  * - schema/            @colyseus/schema classes mirroring the state shapes
  * - terminal.ts        terminal WebSocket control messages and constants
@@ -66,6 +68,8 @@ export * from "./media.ts";
 export * from "./meeting-plan.ts";
 export * from "./meetings-api.ts";
 export * from "./notifications.ts";
+export * from "./office-agent-tools.ts";
+export * from "./office-agents.ts";
 export * from "./operation-state.ts";
 export * from "./operations-api.ts";
 export * from "./permission-modes.ts";

@@ -5,7 +5,7 @@
  * - `apollo`: three repos (octo/web primary, octo/api, Acme/docs), two
  *   members, eight desks, henchmen on two of the repos (one of them running),
  *   queue tasks, a meeting, boards, a dev server, workflows, wall decor, a
- *   whiteboard and chat.
+ *   whiteboard, chat, and a shared office agent's grant and question.
  * - `solo`: one repo (Octo/Solo: the same owner as apollo's, typed differently).
  * - `empty`: no repo at all.
  * - `retired`: archived, two repos of a third owner.
@@ -266,6 +266,39 @@ export function seedMultiRepoOffice(sql: Database, root: string): void {
     provider: "claude-code",
     day: "2026-10-01",
     queued_at: 10,
+    ...T,
+  });
+
+  // A shared office agent (#271) granted on apollo and on solo, with a question asked in apollo.
+  insert(sql, "office_agents", {
+    id: "oa-pm",
+    name: "Moneypenny",
+    name_key: "moneypenny",
+    engine: "cli-session",
+    role: "pm",
+    preset: "coordinator",
+    provider: "claude-code",
+    model: "opus",
+    ...T,
+  });
+  for (const [id, operationId, access] of [
+    ["g-apollo", "apollo", "spawn"],
+    ["g-solo", "solo", "view"],
+  ] as const) {
+    insert(sql, "office_agent_grants", {
+      id,
+      agent_id: "oa-pm",
+      operation_id: operationId,
+      access,
+      ...T,
+    });
+  }
+  insert(sql, "office_agent_requests", {
+    id: "q1",
+    agent_id: "oa-pm",
+    for_user_id: "u2",
+    question: "Ship it?",
+    operation_id: "apollo",
     ...T,
   });
 

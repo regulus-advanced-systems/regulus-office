@@ -291,6 +291,18 @@ describe("levels_one_repo_per_room migration", async () => {
     expect(members(docs.id)).toEqual(everyone);
     expect(members("solo")).toEqual([["u2", "view"]]);
     expect(members("retired-b")).toEqual([]);
+    // A shared office agent's grant (#271) covers every resulting room, like a member's
+    // access; its grant elsewhere is as it was, and its question stays where it was asked.
+    const grants = (operationId: unknown) =>
+      on("office_agent_grants", operationId).map((g) => [g.agent_id, g.access]);
+    expect(grants("apollo")).toEqual([["oa-pm", "spawn"]]);
+    expect(grants(api.id)).toEqual([["oa-pm", "spawn"]]);
+    expect(grants(docs.id)).toEqual([["oa-pm", "spawn"]]);
+    expect(grants("solo")).toEqual([["oa-pm", "view"]]);
+    expect(all(sql, "office_agent_grants")).toHaveLength(4);
+    expect(sql.query("SELECT operation_id FROM office_agent_requests").all()).toEqual([
+      { operation_id: "apollo" },
+    ]);
   });
 
   test("workflows end up in the rooms whose repo they were for", () => {

@@ -1,0 +1,244 @@
+/**
+ * The office tools an office agent acts through (SPEC §10 M5, D3; #135, #271),
+ * the single list behind both transports:
+ *
+ * - MCP, streamable HTTP at `/mcp` (`tools/list`, `tools/call`);
+ * - REST: `GET /api/agent-tools` and `POST /api/agent-tools/<name>` with the
+ *   tool's input as the JSON body, for engines without MCP.
+ *
+ * Both take the agent's token as `Authorization: Bearer <token>`.
+ *
+ * Every call is authorised by the server and audited:
+ * 1. the preset must include the tool (`presetAllows`);
+ * 2. the operation it names must be open to the agent: for a personal agent,
+ *    to its owner at that moment (the office's operation access gate); for a
+ *    shared agent, by the grants its admins gave it;
+ * 3. a shared agent that queues a task or spawns or stops a henchman does it
+ *    for a person (`onBehalfOf`) who is waiting for its answer, within that
+ *    person's own rights, and on an office key.
+ */
+import { z } from "zod";
+import { ChatText, Effort, GhNumber, Id, ModelName, PROMPT_MAX, ShortText } from "./common.ts";
+import { CARD_KINDS, PROVIDER_IDS, TASK_KINDS } from "./enums.ts";
+import { OFFICE_AGENT_LIMITS, type OfficeAgentPreset } from "./office-agents.ts";
+
+export const OFFICE_MCP_PATH = "/mcp";
+export const OFFICE_AGENT_TOOLS_API_PATH = "/api/agent-tools";
+/** Name the office MCP server announces and CLI engines register it under. */
+export const OFFICE_MCP_SERVER_NAME = "office";
+/** Prefix of every office agent token, so leaked ones are recognisable (and redactable). */
+export const OFFICE_AGENT_TOKEN_PREFIX = "roa_";
+
+const OnBehalfOf = Id.optional().describe(
+  "Shared agents only: the id of the person who asked for this and is waiting for your answer. The action runs with that person's rights.",
+);
+const OperationId = Id.describe("Operation (room) id, from list_operations.");
+const RepoId = Id.describe("Repo id on that operation, from list_operations.");
+
+const TaskFields = {
+  operationId: OperationId,
+  repoId: RepoId,
+  provider: z.enum(PROVIDER_IDS).describe("Coding CLI the henchman runs."),
+  model: ModelName,
+  effort: Effort.optional(),
+  profileId: Id.optional().describe(
+    "Credential profile for the henchman. Personal agents: one of the owner's profiles, or omit for their CLI login. Shared agents always use the office key.",
+  ),
+  onBehalfOf: OnBehalfOf,
+};
+
+/** Input schemas by tool name. Plain objects, so they publish as JSON Schema. */
+export const OFFICE_TOOL_INPUTS = {
+  list_operations: z.object({}),
+  list_henchmen: z.object({ operationId: OperationId }),
+  read_board: z.object({ operationId: OperationId }),
+  read_queue: z.object({ operationId: OperationId }),
+  read_usage: z.object({}),
+  enqueue_task: z.object({
+    ...TaskFields,
+    kind: z.enum(TASK_KINDS),
+    refNumber: GhNumber.optional().describe("Issue or PR number; required unless freeform."),
+    title: ShortText.optional(),
+    prompt: z.string().trim().max(PROMPT_MAX).optional().describe("Required for freeform tasks."),
+  }),
+  comment_on_card: z.object({
+    operationId: OperationId,
+    repoId: RepoId,
+    kind: z.enum(CARD_KINDS),
+    number: GhNumber,
+    body: z.string().trim().min(1).max(8000),
+  }),
+  post_chat: z.object({
+    text: ChatText,
+    operationId: Id.optional().describe("Post as being in this operation; omit for the lobby."),
+  }),
+  ask_human: z.object({
+    question: z.string().trim().min(1).max(OFFICE_AGENT_LIMITS.questionMax),
+    options: z
+      .array(z.string().trim().min(1).max(OFFICE_AGENT_LIMITS.optionMax))
+      .max(OFFICE_AGENT_LIMITS.optionsMax)
+      .optional(),
+    userId: Id.optional().describe(
+      "Who to ask. A personal agent can only ask its owner (the default); a shared agent must name someone.",
+    ),
+    operationId: Id.optional().describe("The operation the question is about, if any."),
+  }),
+  read_human_request: z.object({ requestId: Id }),
+  spawn_henchman: z.object({
+    ...TaskFields,
+    prompt: z.string().trim().max(PROMPT_MAX).default(""),
+    taskTitle: ShortText.optional(),
+    issueNumber: GhNumber.optional(),
+    prNumber: GhNumber.optional(),
+  }),
+  stop_henchman: z.object({
+    henchmanId: Id.describe("Henchman id, from list_henchmen."),
+    onBehalfOf: OnBehalfOf,
+  }),
+} as const;
+
+export type OfficeToolName = keyof typeof OFFICE_TOOL_INPUTS;
+export type OfficeToolInput<N extends OfficeToolName> = z.output<(typeof OFFICE_TOOL_INPUTS)[N]>;
+
+export interface OfficeToolSpec {
+  name: OfficeToolName;
+  title: string;
+  description: string;
+  /** The lowest preset that includes the tool. */
+  preset: OfficeAgentPreset;
+  /** Reads change nothing in the office. */
+  readOnly: boolean;
+}
+
+export const OFFICE_TOOLS: readonly OfficeToolSpec[] = [
+  {
+    name: "list_operations",
+    title: "List operations",
+    description: "The operations (project rooms) open to you, with their repos and your access.",
+    preset: "observer",
+    readOnly: true,
+  },
+  {
+    name: "list_henchmen",
+    title: "List henchmen",
+    description:
+      "The coding henchmen on an operation: status, task, provider, issue or PR, and owner.",
+    preset: "observer",
+    readOnly: true,
+  },
+  {
+    name: "read_board",
+    title: "Read the boards",
+    description: "The operation's issue and pull request boards (open and recently closed cards).",
+    preset: "observer",
+    readOnly: true,
+  },
+  {
+    name: "read_queue",
+    title: "Read the task queue",
+    description: "The operation's task queue and its concurrency settings.",
+    preset: "observer",
+    readOnly: true,
+  },
+  {
+    name: "read_usage",
+    title: "Read usage",
+    description:
+      "Token usage and estimated spend: your owner's own for a personal agent, the office totals for a shared one.",
+    preset: "observer",
+    readOnly: true,
+  },
+  {
+    name: "ask_human",
+    title: "Ask a human",
+    description:
+      "Put a question to a person. It shows in the office until they answer; read the answer with read_human_request, and it also arrives as their next message.",
+    preset: "observer",
+    readOnly: false,
+  },
+  {
+    name: "read_human_request",
+    title: "Read a question's answer",
+    description: "The state and answer of a question you asked with ask_human.",
+    preset: "observer",
+    readOnly: true,
+  },
+  {
+    name: "enqueue_task",
+    title: "Queue a task",
+    description:
+      "Put an issue, PR or freeform task on an operation's queue. A henchman picks it up when a desk is free.",
+    preset: "coordinator",
+    readOnly: false,
+  },
+  {
+    name: "comment_on_card",
+    title: "Comment on an issue or PR",
+    description: "Post a comment on an issue or pull request of an operation repo, as the office.",
+    preset: "coordinator",
+    readOnly: false,
+  },
+  {
+    name: "post_chat",
+    title: "Post in the office chat",
+    description: "Say something in the office chat under your name.",
+    preset: "coordinator",
+    readOnly: false,
+  },
+  {
+    name: "spawn_henchman",
+    title: "Spawn a henchman",
+    description: "Start a coding henchman at a free desk now, within the daily cap.",
+    preset: "manager",
+    readOnly: false,
+  },
+  {
+    name: "stop_henchman",
+    title: "Stop a henchman",
+    description: "Stop a henchman of the person you act for. Its branch is kept.",
+    preset: "manager",
+    readOnly: false,
+  },
+];
+
+const RANK: Readonly<Record<OfficeAgentPreset, number>> = {
+  observer: 0,
+  coordinator: 1,
+  manager: 2,
+};
+
+export function officeToolSpec(name: string): OfficeToolSpec | undefined {
+  return OFFICE_TOOLS.find((t) => t.name === name);
+}
+
+/** Does the preset include the tool? */
+export function presetAllows(preset: OfficeAgentPreset, tool: OfficeToolName): boolean {
+  const spec = officeToolSpec(tool);
+  return spec !== undefined && RANK[preset] >= RANK[spec.preset];
+}
+
+/** The tools a preset includes, in list order. */
+export function toolsForPreset(preset: OfficeAgentPreset): OfficeToolSpec[] {
+  return OFFICE_TOOLS.filter((t) => RANK[preset] >= RANK[t.preset]);
+}
+
+/** Error codes a refused or failed tool call carries (REST `error`, MCP `structuredContent.error`). */
+export const OFFICE_TOOL_ERRORS = [
+  "unknown_tool",
+  "invalid_input",
+  "preset_forbids",
+  "not_found",
+  "forbidden",
+  "on_behalf_required",
+  "not_waiting",
+  "cap_reached",
+  "unavailable",
+  "failed",
+] as const;
+export type OfficeToolError = (typeof OFFICE_TOOL_ERRORS)[number];
+
+export const OfficeToolResult = z.discriminatedUnion("ok", [
+  z.object({ ok: z.literal(true), result: z.unknown() }),
+  z.object({ ok: z.literal(false), error: z.enum(OFFICE_TOOL_ERRORS), message: z.string() }),
+]);
+export type OfficeToolResult = z.infer<typeof OfficeToolResult>;

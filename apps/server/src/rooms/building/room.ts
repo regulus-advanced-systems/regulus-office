@@ -95,6 +95,8 @@ export interface BuildingRoom extends RoomDefinition<BuildingState, BuildingJoin
   setLobbyWhiteboard(version: number): void;
   /** Whose connected session this is (media tokens, #48); null when it is not connected. */
   presence(sessionId: string): { userId: string } | null;
+  /** A chat line from the office itself (an office agent's `post_chat` tool, #271). */
+  postChat(line: { userId: string; displayName: string; operationId: string; text: string }): void;
 }
 
 interface ClientBookkeeping {
@@ -395,6 +397,15 @@ export function createBuildingRoom(deps: BuildingRoomDeps): BuildingRoom {
     presence(sessionId) {
       const human = handle?.state.humans.get(sessionId);
       return human ? { userId: human.userId } : null;
+    },
+
+    postChat(line) {
+      const message: ChatMessage = { id: crypto.randomUUID(), ...line, ts: now() };
+      if (handle) {
+        handle.state.chat.push(chatLine(message));
+        while (handle.state.chat.length > CHAT_REPLAY) handle.state.chat.shift();
+      }
+      chat.append(message).catch((err) => logger.error({ err }, "chat persistence failed"));
     },
 
     setLobbyWhiteboard(version) {

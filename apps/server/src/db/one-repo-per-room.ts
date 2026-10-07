@@ -10,7 +10,9 @@
  *    What follows a repo to its new operation: its henchmen and their desks,
  *    its queue tasks, its meetings, its boards and dev servers (they hang off
  *    the repo or the henchman), the queue settings, the workflows that target
- *    it, and a copy of every member. The whiteboard, wall pictures and chat stay with the original.
+ *    it, and a copy of every member and of every shared office agent's grant
+ *    (#271). The whiteboard, wall pictures, chat and office agents' questions
+ *    stay with the original.
  * 2. Every operation with a repo that is still on the holding level moves to
  *    the level of its repo's owner, created on first use.
  * 3. The unique index that makes "one repo per operation" a rule of the
@@ -224,6 +226,28 @@ function splitOff(sql: Sql, from: OperationRow, repo: RepoRow, now: number): Spl
       now,
       now,
     );
+  }
+  // So are a shared office agent's grants (#271): it may do in every resulting room what
+  // it was allowed in the original. Its questions to people stay with the original room.
+  if (hasTable(sql, "office_agent_grants")) {
+    const grants = all<{ agent_id: string; access: string }>(
+      sql,
+      "SELECT agent_id, access FROM office_agent_grants WHERE operation_id = ? ORDER BY rowid",
+      from.id,
+    );
+    for (const grant of grants) {
+      run(
+        sql,
+        `INSERT INTO office_agent_grants (id, agent_id, operation_id, access, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        crypto.randomUUID(),
+        grant.agent_id,
+        id,
+        grant.access,
+        now,
+        now,
+      );
+    }
   }
   return {
     operationId: id,

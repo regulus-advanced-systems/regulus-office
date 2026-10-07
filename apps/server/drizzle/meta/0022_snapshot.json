@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "3f59c04f-c8e5-4d5f-8f8c-6bd3fa542bf7",
-  "prevId": "2e28c785-8975-4cb8-9afe-c5547665e8d7",
+  "id": "44ec2d5b-f2e6-42e8-a6dc-b4e629705f48",
+  "prevId": "3f59c04f-c8e5-4d5f-8f8c-6bd3fa542bf7",
   "tables": {
     "agent_events": {
       "name": "agent_events",
@@ -3290,6 +3290,83 @@
         }
       }
     },
+    "levels": {
+      "name": "levels",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "github_id": {
+          "name": "github_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "login": {
+          "name": "login",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "position": {
+          "name": "position",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "levels_login_unique": {
+          "name": "levels_login_unique",
+          "columns": ["login"],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "levels_kind_check": {
+          "name": "levels_kind_check",
+          "value": "\"kind\" IN ('lobby', 'org', 'account', 'holding')"
+        }
+      }
+    },
     "operation_members": {
       "name": "operation_members",
       "columns": {
@@ -3481,6 +3558,11 @@
           "name": "operation_repos_operation_owner_name_unique",
           "columns": ["operation_id", "owner", "name"],
           "isUnique": true
+        },
+        "operation_repos_operation_unique": {
+          "name": "operation_repos_operation_unique",
+          "columns": ["operation_id"],
+          "isUnique": true
         }
       },
       "foreignKeys": {
@@ -3525,6 +3607,21 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
+          "autoincrement": false
+        },
+        "level_id": {
+          "name": "level_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'holding'"
+        },
+        "dir_slug": {
+          "name": "dir_slug",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
           "autoincrement": false
         },
         "index": {
@@ -3649,9 +3746,24 @@
           "name": "operations_index_idx",
           "columns": ["index"],
           "isUnique": false
+        },
+        "operations_level_id_idx": {
+          "name": "operations_level_id_idx",
+          "columns": ["level_id"],
+          "isUnique": false
         }
       },
-      "foreignKeys": {},
+      "foreignKeys": {
+        "operations_level_id_levels_id_fk": {
+          "name": "operations_level_id_levels_id_fk",
+          "tableFrom": "operations",
+          "tableTo": "levels",
+          "columnsFrom": ["level_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}
