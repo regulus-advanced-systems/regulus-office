@@ -8,18 +8,14 @@
  *   room) change them; everyone with room access may read them.
  * - The desk count is bounded by what the room's size fits, and shrinking is
  *   refused while a henchman sits at a desk that would go away.
+ * - The decor styles themselves (`DECOR_STYLES`) live in enums.ts, because the
+ *   create request (operations-api.ts) takes one too.
  * - A decor style changes props, materials and lighting, never function:
  *   seats, desks, boards, the door and the spawn point stay where they are.
  */
 import { z } from "zod";
 import { DOOR_SIDES } from "./compound.ts";
-import type { OperationAccess } from "./enums.ts";
-
-/** Lair decor styles a room can pick (SPEC §12). The first is the default. */
-export const DECOR_STYLES = ["ops_room", "lab", "workshop", "war_room"] as const;
-export type DecorStyle = (typeof DECOR_STYLES)[number];
-
-export const DEFAULT_DECOR_STYLE: DecorStyle = "ops_room";
+import { DECOR_STYLES, type OperationAccess } from "./enums.ts";
 
 /** A new room starts vanilla: one desk of four seats (D8). */
 export const DEFAULT_DESK_COUNT = 1;
@@ -29,10 +25,6 @@ export const SEATS_PER_DESK = 4;
 
 /** Upper bound on any room's desk count (the 12×12 room's grid); the size usually caps lower. */
 export const MAX_DESK_COUNT = 16;
-
-export function isDecorStyle(value: unknown): value is DecorStyle {
-  return typeof value === "string" && (DECOR_STYLES as readonly string[]).includes(value);
-}
 
 /** `GET|PUT /api/operations/:operationId/room-settings`. */
 export function roomSettingsPath(operationId: string): string {

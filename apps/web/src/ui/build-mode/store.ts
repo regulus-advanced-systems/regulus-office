@@ -7,7 +7,7 @@
  * the global hotkeys and cursor-facing pause; its own keys (arrows, R,
  * Enter, Escape, Z/C) are handled by useBuildModeKeys.
  *
- * The create request (name, palette, repos and any typed repo token) is
+ * The create request (name, room style, repos and any typed repo token) is
  * kept in memory only between "Choose a spot…" and the confirm or cancel,
  * then dropped.
  */
