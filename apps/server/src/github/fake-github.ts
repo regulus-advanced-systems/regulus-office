@@ -1,10 +1,12 @@
 /**
  * A fake GitHub REST API for tests (#141): app installations and installation
  * tokens (checking the app JWT's RS256 signature), installation and PAT repo
- * lists, and the manifest conversion. Listens on 127.0.0.1 only; nothing here
+ * lists, the manifest conversion, and people's own tokens (#267, through
+ * ./fake-github-users.ts). Listens on 127.0.0.1 only; nothing here
  * talks to the real GitHub. Only imported by tests.
  */
 import { createVerify, generateKeyPairSync, type KeyObject } from "node:crypto";
+import type { FakeGitHubUsers } from "./fake-github-users.ts";
 
 export interface FakeRepo {
   owner: string;
@@ -58,6 +60,8 @@ export function startFakeGitHub(opts: {
   app?: Record<string, unknown>;
   /** When set, the JWT's `iss` must be one of these (the app id or client id). */
   issuers?: string[];
+  /** People, their OAuth tokens and what each can see (#267; ./fake-github-users.ts). */
+  users?: FakeGitHubUsers;
   /** More routes (the boards fake, #35); undefined falls through to 404. */
   extra?: (req: Request, url: URL, body: unknown) => Response | undefined;
 }) {
@@ -96,6 +100,8 @@ export function startFakeGitHub(opts: {
       const perPage = Number(url.searchParams.get("per_page") ?? "30");
       const slice = <T>(list: T[]) => list.slice((page - 1) * perPage, page * perPage);
       if (state.failAll) return Response.json({ message: "Server Error" }, { status: 500 });
+      const asPerson = opts.users?.handle(req, url, body);
+      if (asPerson) return asPerson;
 
       if (url.pathname === "/app/installations") {
         if (!verifyJwt(authorization))

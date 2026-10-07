@@ -35,13 +35,17 @@ export const APP_PERMISSIONS = {
   metadata: "read",
   issues: "write",
   checks: "write",
+  // Organisation permission: lets the app receive member, team and organisation events (#267).
+  members: "read",
 } as const;
 
 /**
  * Webhook events (#35): the boards (issues, PRs, reviews, checks) plus what
  * #155 workflows trigger on (pushes, comments). Only subscribed when the
  * office has a public webhook URL. `installation` events reach every app
- * without a subscription.
+ * without a subscription. The access events (#267) need the organisation
+ * permission Members: read; an App created earlier gets them once the owner
+ * adds that permission and the events on GitHub (until then the timer catches up).
  * https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/choosing-permissions-for-a-github-app
  */
 export const APP_EVENTS = [
@@ -52,6 +56,12 @@ export const APP_EVENTS = [
   "check_suite",
   "check_run",
   "push",
+  // Who may see what changed (#267): people's access snapshots are refreshed.
+  "member",
+  "membership",
+  "organization",
+  "repository",
+  "team",
 ] as const;
 
 /** Hosts GitHub cannot deliver to: loopback, private ranges, `.local` / `.internal` names. */
