@@ -38,11 +38,9 @@ afterAll(async () => {
 });
 
 /**
- * `create` is called here as `createChecked` calls it once GitHub has answered
+ * `create` is called as `createChecked` calls it once GitHub has answered
  * (create-checked.test.ts): with the creator's own permission on the repo,
- * which is what opens the new room to them (#270). The office owner and admin
- * have linked GitHub accounts; the member and the viewer link in the tests
- * that give them a room.
+ * which is what opens the new room to them (#270).
  */
 function setup(options: { keyring?: boolean } = {}) {
   const { db, addUser } = testDb();

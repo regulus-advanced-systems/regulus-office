@@ -14,7 +14,8 @@ import {
 } from "@regulus/protocol";
 import { eq } from "drizzle-orm";
 import { type Office, startOffice } from "../auth/test-helpers.ts";
-import { auditLog, operationMembers, operationRepos, operations } from "../db/schema/index.ts";
+import { auditLog, operationRepos, operations } from "../db/schema/index.ts";
+import { seedGitHubLink, seedRoomMember } from "../github/access/test-snapshot.ts";
 import type { RepoCheckout } from "../github/repo-access.ts";
 import { createLogger } from "../logging.ts";
 import type { Runner } from "../runners/types.ts";
@@ -30,6 +31,8 @@ let manager: U;
 let spawner: U;
 let stranger: U;
 let admin: U;
+/** An office admin with a linked GitHub account that cannot see the room's repo (#270). */
+let blindAdmin: U;
 
 const repo = {
   repoId: "r1",
@@ -46,7 +49,9 @@ beforeAll(async () => {
   spawner = await office.signUp("Sam");
   stranger = await office.signUp("Stan");
   admin = await office.signUp("Ada");
-  office.db.$client.run(`update user_profiles set role = 'admin' where user_id = '${admin.id}'`);
+  blindAdmin = await office.signUp("Bea");
+  for (const who of [admin, blindAdmin])
+    office.db.$client.run(`update user_profiles set role = 'admin' where user_id = '${who.id}'`);
   office.db
     .insert(operations)
     .values({
@@ -70,14 +75,11 @@ beforeAll(async () => {
       isPrimary: true,
     })
     .run();
-  office.db
-    .insert(operationMembers)
-    .values({ operationId: "f1", userId: manager.id, access: "manage" })
-    .run();
-  office.db
-    .insert(operationMembers)
-    .values({ operationId: "f1", userId: spawner.id, access: "spawn" })
-    .run();
+  // Each person's access is their own GitHub permission on octo/hello (#270):
+  // the office owner and one admin administer it, as does the room's manager.
+  for (const who of [owner, admin, manager]) seedRoomMember(office.db, who.id, "f1", "manage");
+  seedRoomMember(office.db, spawner.id, "f1", "spawn");
+  seedGitHubLink(office.db, blindAdmin.id);
   workflows = createWorkflows({
     db: office.db,
     keyring: undefined,
@@ -155,7 +157,17 @@ describe("access", () => {
       403,
     );
     expect((await send(workflowPath(wf.id), "DELETE", stranger)).status).toBe(404);
-    // Owners are office managers: they may edit every operation's workflows.
+    // An office admin whose GitHub account cannot see the repo has no room, so no workflows.
+    expect((await send(list, "GET", blindAdmin)).status).toBe(404);
+    expect(
+      (await send(WORKFLOWS_API_PATH, "POST", blindAdmin, { operationId: "f1", ...input() }))
+        .status,
+    ).toBe(404);
+    expect(
+      (await send(workflowPath(wf.id), "PATCH", blindAdmin, input({ name: "Blind" }))).status,
+    ).toBe(404);
+    expect((await send(workflowPath(wf.id), "DELETE", blindAdmin)).status).toBe(404);
+    // The owner edits them as an admin of the repo on GitHub, not through the office role.
     expect(
       (await send(workflowPath(wf.id), "PATCH", owner, input({ name: "Renamed" }))).status,
     ).toBe(200);

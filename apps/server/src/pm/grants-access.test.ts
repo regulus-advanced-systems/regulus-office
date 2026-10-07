@@ -64,14 +64,18 @@ afterAll(async () => {
 describe("granting rooms to a shared agent", () => {
   test("the office role gives nothing to grant: an owner without GitHub access is refused", async () => {
     // Olga owns the office and may configure the agent, but has linked no GitHub account.
-    const refused = await setGrants(o.people.olga.cookie, [{ operationId: APOLLO, access: "view" }]);
+    const refused = await setGrants(o.people.olga.cookie, [
+      { operationId: APOLLO, access: "view" },
+    ]);
     expect(refused.status).toBe(400);
     expect(refused.body.error).toBe("unknown_operation");
     expect(await openTo()).toEqual([]);
   });
 
   test("a room the admin cannot see is refused like one that does not exist", async () => {
-    const hidden = await setGrants(o.people.ada.cookie, [{ operationId: BOREALIS, access: "view" }]);
+    const hidden = await setGrants(o.people.ada.cookie, [
+      { operationId: BOREALIS, access: "view" },
+    ]);
     expect(hidden.status).toBe(400);
     expect(hidden.body.error).toBe("unknown_operation");
     const missing = await setGrants(o.people.ada.cookie, [{ operationId: "nope", access: "view" }]);

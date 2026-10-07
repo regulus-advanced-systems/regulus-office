@@ -44,6 +44,8 @@ function client(sessionId: string, userId: string) {
       if (type === COMMAND_REJECTED_MESSAGE) rejected.push((payload as CommandRejected).reason);
     },
     leave: () => {},
+    show: () => {},
+    hide: () => {},
   };
   return { c, rejected };
 }

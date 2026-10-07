@@ -14,7 +14,17 @@ const { privateKey, publicKey } = testAppKey();
 const gh = startFakeGitHub({
   publicKey,
   installations: [{ id: 3, account: "octo", repos: [{ owner: "octo", name: "hello" }] }],
-  pats: { [PAT]: { login: "octo-bot", repos: [{ owner: "octo", name: "hello" }] } },
+  pats: {
+    [PAT]: {
+      login: "octo-bot",
+      // The office's connection covers more than any one person may see.
+      repos: [
+        { owner: "octo", name: "hello" },
+        { owner: "octo", name: "secret" },
+        { owner: "Octo", name: "Mixed" },
+      ],
+    },
+  },
   conversions: {
     goodcode: {
       id: 77,
@@ -34,6 +44,13 @@ let office: Office;
 let owner: { id: string; cookie: string };
 let member: { id: string; cookie: string };
 let admin: { id: string; cookie: string };
+/**
+ * What each person's own GitHub account can see (the `ownRepos` dep, #270);
+ * someone not in the map has no linked account.
+ */
+type Own = { names: Set<string>; truncated: boolean } | "not_linked" | "unavailable";
+const ownRepos = new Map<string, Own>();
+const sees = (...names: string[]): Own => ({ names: new Set(names), truncated: false });
 
 beforeAll(async () => {
   office = startOffice();
@@ -52,11 +69,13 @@ beforeAll(async () => {
     db: office.db,
     logger: createLogger({ level: "silent" }),
     ...github,
+    ownRepos: async (userId) => ownRepos.get(userId) ?? "not_linked",
   });
   owner = await office.signUp("Olga");
   member = await office.signUp("Mia");
   admin = await office.signUp("Ada");
   office.db.$client.run(`update user_profiles set role = 'admin' where user_id = '${admin.id}'`);
+  ownRepos.set(owner.id, sees("octo/hello", "elsewhere/unconnected"));
 });
 
 afterAll(async () => {
@@ -116,6 +135,38 @@ describe("org PAT", () => {
     expect(text).not.toContain(PAT);
     expect(everything()).not.toContain(PAT);
     expect(everything()).toContain("github.connect");
+  });
+
+  test("the repo picker lists only what the caller's own GitHub account can see (#270)", async () => {
+    const names = async (cookie: string) => {
+      const res = await call("GET", "/api/github/repos", cookie);
+      const body = (await res.json()) as { repos?: { fullName: string }[]; truncated?: boolean };
+      return { status: res.status, repos: body.repos?.map((r) => r.fullName), body };
+    };
+    // The connection covers three repos; the owner's account sees one of them
+    // (and one the connection does not cover, which is not offered either).
+    expect(await names(owner.cookie)).toMatchObject({ status: 200, repos: ["octo/hello"] });
+    // An admin who has not linked GitHub learns nothing about the connection's repos.
+    const unlinked = await names(admin.cookie);
+    expect(unlinked.status).toBe(403);
+    expect(unlinked.body).toMatchObject({ error: "github_link_required" });
+    expect(JSON.stringify(unlinked.body)).not.toContain("octo");
+    // Linked: their own repos, whatever the case GitHub spells them in, and nobody else's.
+    ownRepos.set(admin.id, { names: new Set(["octo/secret", "octo/mixed"]), truncated: true });
+    const mine = await names(admin.cookie);
+    expect(mine.repos?.sort()).toEqual(["Octo/Mixed", "octo/secret"]);
+    expect(mine.body.truncated).toBe(true);
+    ownRepos.set(admin.id, sees());
+    expect(await names(admin.cookie)).toMatchObject({ status: 200, repos: [] });
+    // GitHub could not list the person's repos: no list, not the connection's.
+    ownRepos.set(admin.id, "unavailable");
+    const down = await names(admin.cookie);
+    expect([down.status, down.body]).toMatchObject([502, { error: "github_unavailable" }]);
+    expect(down.repos).toBeUndefined();
+    // Office members do not pick repos at all, linked or not.
+    ownRepos.set(member.id, sees("octo/hello"));
+    expect((await names(member.cookie)).status).toBe(403);
+    ownRepos.delete(admin.id);
   });
 
   test("disconnect removes it", async () => {

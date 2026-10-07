@@ -18,6 +18,8 @@ type Actor = { id: string; role: UserRole };
 let office: PictureOffice;
 let owner: Actor;
 let admin: Actor;
+/** An office admin whose GitHub account cannot see op1's repo (#270). */
+let adminOutside: Actor;
 let manager: Actor;
 let spawner: Actor;
 let other: Actor;
@@ -53,6 +55,7 @@ beforeAll(async () => {
   office = await startPictureOffice();
   owner = await office.signUp("Owner", "owner");
   admin = await office.signUp("Admin", "admin");
+  adminOutside = await office.signUp("Ops", "admin");
   manager = await office.signUp("Manager");
   spawner = await office.signUp("Spawner");
   other = await office.signUp("Other");
@@ -61,6 +64,8 @@ beforeAll(async () => {
   viewerRole = await office.signUp("Viewer", "viewer");
   outsider = await office.signUp("Outsider");
   office.addOperation("op1", {
+    [owner.id]: "manage",
+    [admin.id]: "manage",
     [manager.id]: "manage",
     [spawner.id]: "spawn",
     [other.id]: "spawn",
@@ -73,7 +78,7 @@ beforeAll(async () => {
 afterAll(() => office.stop());
 
 describe("permission matrix", () => {
-  test("placing: spawn, manage, admins and owners; not view, viewers or outsiders", async () => {
+  test("placing: spawn and manage, whatever the office role; not view, viewers, outsiders or an admin outside the repo", async () => {
     for (const actor of [spawner, manager, admin, owner]) {
       const id = await hang(actor, { x: 6.6, y: 2.5 });
       expect(pictures().some((p) => p.id === id && p.placedBy === actor.id)).toBe(true);
@@ -87,10 +92,12 @@ describe("permission matrix", () => {
       expect(out).toEqual({ ok: false, reason: "you may only look around this room" });
       office.pictures.pending.take(uploadId);
     }
-    const uploadId = await uploadAs(spawner);
-    const out = await run(outsider, { type: "decor.place", kind: "picture", uploadId, ...spot });
-    expect(out.ok).toBe(false);
-    office.pictures.pending.take(uploadId);
+    for (const actor of [outsider, adminOutside]) {
+      const uploadId = await uploadAs(spawner);
+      const out = await run(actor, { type: "decor.place", kind: "picture", uploadId, ...spot });
+      expect(out.ok).toBe(false);
+      office.pictures.pending.take(uploadId);
+    }
   });
 
   test("an upload is only good for its uploader and its operation", async () => {
@@ -126,7 +133,7 @@ describe("permission matrix", () => {
       ...size,
       x,
     });
-    for (const actor of [other, watcher, viewerRole, outsider]) {
+    for (const actor of [other, watcher, viewerRole, outsider, adminOutside]) {
       expect((await run(actor, moveTo(6.5))).ok).toBe(false);
       expect((await run(actor, { type: "decor.remove", decorId: id })).ok).toBe(false);
     }
@@ -142,11 +149,11 @@ describe("permission matrix", () => {
   test("a placer downgraded to view only looks", async () => {
     const id = await hang(other);
     office.db.update(decor).set({ placedBy: other.id }).where(eq(decor.id, id)).run();
+    // A member row cannot grant, but it narrows what GitHub gives (#270).
     const { operationMembers } = await import("../db/schema/index.ts");
     office.db
-      .update(operationMembers)
-      .set({ access: "view" })
-      .where(eq(operationMembers.userId, other.id))
+      .insert(operationMembers)
+      .values({ operationId: "op1", userId: other.id, access: "view" })
       .run();
     expect((await run(other, { type: "decor.remove", decorId: id })).ok).toBe(false);
     expect((await run(manager, { type: "decor.remove", decorId: id })).ok).toBe(true);

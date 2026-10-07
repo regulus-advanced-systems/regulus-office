@@ -14,7 +14,10 @@ export interface FakeGitHubUser {
   id: number;
   login: string;
   orgs?: { login: string; id?: number; role?: "admin" | "member" }[];
-  /** `owner/name` → permission; a repo that is not listed is invisible (404). */
+  /**
+   * `owner/name` → permission; a repo that is not listed is invisible (404),
+   * unless `*` gives a permission on every repo that is not listed.
+   */
   repos?: Record<string, GitHubRepoPermission>;
 }
 
@@ -152,10 +155,28 @@ export function fakeGitHubUsers(opts: {
           })),
         );
       }
+      if (url.pathname === "/user/repos") {
+        // What the account can see (#270: the repo picker); one page is plenty here.
+        if ((url.searchParams.get("page") ?? "1") !== "1") return Response.json([]);
+        return Response.json(
+          Object.entries(u.repos ?? {})
+            .filter(([name, p]) => name !== "*" && p !== "none")
+            .map(([fullName]) => ({
+              name: fullName.split("/")[1],
+              full_name: fullName,
+              owner: { login: fullName.split("/")[0] },
+              private: true,
+              default_branch: "main",
+              pushed_at: "2026-09-01T10:00:00Z",
+              description: null,
+            })),
+        );
+      }
       const repo = /^\/repos\/([^/]+)\/([^/]+)$/.exec(url.pathname);
       if (repo) {
         const fullName = `${repo[1]}/${repo[2]}`;
-        const level = LEVELS.indexOf(u.repos?.[fullName.toLowerCase()] ?? "none");
+        // `*` is the person's permission on every repo not listed (an org owner in the e2e).
+        const level = LEVELS.indexOf(u.repos?.[fullName.toLowerCase()] ?? u.repos?.["*"] ?? "none");
         if (level <= 0) return Response.json({ message: "Not Found" }, { status: 404 });
         return Response.json({
           full_name: fullName,

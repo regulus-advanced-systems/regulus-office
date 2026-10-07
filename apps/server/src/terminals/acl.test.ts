@@ -1,7 +1,8 @@
 import { afterAll, describe, expect, test } from "bun:test";
 import { TERMINAL_MODES, type UserRole } from "@regulus/protocol";
 import { MEMORY_DB_PATH, openDatabase, runMigrations } from "../db/index.ts";
-import { operationMembers, operations, users } from "../db/schema/index.ts";
+import { operations, users } from "../db/schema/index.ts";
+import { seedRoomMember } from "../github/access/test-snapshot.ts";
 import { dbOperationVisibility, decideTerminalAccess, mayUseTerminal } from "./acl.ts";
 
 const OWNER_ID = "henchman-owner";
@@ -84,29 +85,28 @@ describe("dbOperationVisibility", () => {
       },
     ])
     .run();
-  db.insert(operationMembers)
-    .values([
-      { operationId: "f1", userId: "m1", access: "spawn" },
-      { operationId: "f1", userId: "v1", access: "view" },
-      { operationId: "f2", userId: "m1", access: "manage" },
-    ])
-    .run();
+  // Each person's GitHub permission on the operation's repo (#270); m2 has none.
+  seedRoomMember(db, "m1", "f1", "spawn");
+  seedRoomMember(db, "v1", "f1", "view");
+  seedRoomMember(db, "m1", "f2", "manage");
   const canView = dbOperationVisibility(db);
 
-  test("members need a membership row", () => {
+  test("people need their own GitHub access to the repo", () => {
     expect(canView({ id: "m1", role: "member" }, "f1")).toBe(true);
     expect(canView({ id: "m2", role: "member" }, "f1")).toBe(false);
     expect(canView({ id: "v1", role: "viewer" }, "f1")).toBe(true);
   });
 
-  test("office owners and admins see every live operation", () => {
-    expect(canView({ id: "m2", role: "admin" }, "f1")).toBe(true);
-    expect(canView({ id: "m2", role: "owner" }, "f1")).toBe(true);
+  test("office owners and admins get nothing from their role (#270)", () => {
+    expect(canView({ id: "m2", role: "admin" }, "f1")).toBe(false);
+    expect(canView({ id: "m2", role: "owner" }, "f1")).toBe(false);
+    expect(canView({ id: "m1", role: "admin" }, "f1")).toBe(true);
+    expect(canView({ id: "m1", role: "owner" }, "f1")).toBe(true);
   });
 
   test("archived and unknown operations are invisible", () => {
     expect(canView({ id: "m1", role: "member" }, "f2")).toBe(false);
-    expect(canView({ id: "m2", role: "owner" }, "f2")).toBe(false);
+    expect(canView({ id: "m1", role: "owner" }, "f2")).toBe(false);
     expect(canView({ id: "m2", role: "owner" }, "nope")).toBe(false);
   });
 });

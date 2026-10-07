@@ -59,12 +59,11 @@ async function setup() {
   // The office owner and admin both administer the repo on GitHub, which is what
   // opens its rooms to them (#270; without it: lifecycle-access.test.ts).
   const make = async (name: string) => {
-    const { operation, cloned } = operations.service.create(
-      owner,
-      { name, tier: "small", repos: [{ repo: "octo/hello" }] },
-      undefined,
-      "admin",
-    );
+    const { operation, cloned } = operations.service.create(owner, {
+      name,
+      tier: "small",
+      repos: [{ repo: "octo/hello" }],
+    });
     await cloned;
     seedRoomMember(db, owner.id, operation.operationId, "manage");
     seedRoomMember(db, admin.id, operation.operationId, "manage");

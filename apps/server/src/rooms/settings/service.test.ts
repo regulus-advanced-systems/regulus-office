@@ -1,17 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { randomUUID } from "node:crypto";
-import type { OperationAccess, RoomShape } from "@regulus/protocol";
+import type { RoomShape } from "@regulus/protocol";
 import { maxDeskCount, ROOM_LAYOUT_ID, roomDeskSeatIds } from "@regulus/room-layout";
 import { and, asc, eq } from "drizzle-orm";
 import { AuthHttpError } from "../../auth/errors.ts";
-import {
-  agents,
-  auditLog,
-  desks,
-  operationMembers,
-  operationRepos,
-  operations,
-} from "../../db/schema/index.ts";
+import { agents, auditLog, desks, operationRepos, operations } from "../../db/schema/index.ts";
+import { seedRoomMember } from "../../github/access/test-snapshot.ts";
 import { testDb } from "../../operations/test-helpers.ts";
 import { RoomSettingsService, syncDeskRows } from "./service.ts";
 
@@ -20,6 +14,8 @@ const SIZE: RoomShape = { width: 6, depth: 6, doorSide: "south" };
 function setup() {
   const { db, addUser } = testDb();
   const owner = addUser("Olga", "owner");
+  /** An office admin whose GitHub account cannot see the rooms' repos (#270). */
+  const admin = addUser("Ada", "admin");
   const manager = addUser("Mona", "member");
   const spawner = addUser("Sam", "member");
   const viewer = addUser("Vic", "member");
@@ -49,14 +45,14 @@ function setup() {
     db.insert(operationRepos)
       .values({ id: `repo-${seq}`, operationId, owner: "o", name: "r", url: "u", workdir: "/w" })
       .run();
+    // Each person's GitHub permission on the room's repo (#270); the admin and the stranger have none.
     for (const [user, access] of [
+      [owner, "manage"],
       [manager, "manage"],
       [spawner, "spawn"],
       [viewer, "view"],
     ] as const)
-      db.insert(operationMembers)
-        .values({ operationId, userId: user.id, access: access as OperationAccess })
-        .run();
+      seedRoomMember(db, user.id, operationId, access);
     if (seatIds.length > 0)
       db.insert(desks)
         .values(seatIds.map((seatId) => ({ operationId, seatId })))
@@ -102,6 +98,7 @@ function setup() {
     db,
     settings,
     owner,
+    admin,
     manager,
     spawner,
     viewer,
@@ -125,7 +122,7 @@ const failure = (fn: () => unknown): string => {
 };
 
 describe("room settings ACL", () => {
-  test("anyone with room access reads; only room managers (and owners/admins) change", () => {
+  test("anyone with room access reads; only room managers change; an office role alone opens nothing", () => {
     const t = setup();
     const id = t.addOperation(ROOM_LAYOUT_ID, 1, roomDeskSeatIds(1));
     for (const who of [t.owner, t.manager, t.spawner, t.viewer])
@@ -139,6 +136,10 @@ describe("room settings ACL", () => {
       );
     expect(failure(() => t.settings.update(t.stranger, id, { decorStyle: "lab" }))).toStartWith(
       "404",
+    );
+    expect(failure(() => t.settings.get(t.admin, id))).toStartWith("404 operation_not_found");
+    expect(failure(() => t.settings.update(t.admin, id, { decorStyle: "lab" }))).toStartWith(
+      "404 operation_not_found",
     );
     expect(failure(() => t.settings.get(t.owner, "nope"))).toStartWith("404");
     expect(t.settings.update(t.owner, id, { decorStyle: "war_room" }).decorStyle).toBe("war_room");

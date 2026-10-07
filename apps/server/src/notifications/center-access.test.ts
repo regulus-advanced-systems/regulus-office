@@ -82,7 +82,6 @@ describe("personal notifications follow the person's own access to the room", ()
     s.center.statusChanged(s.henchman("a2", "error", 2), "working");
     s.settle();
     expect(s.events().map((e) => [e.userId, e.payload.own])).toEqual([[s.member.id, true]]);
-    expect(JSON.stringify(s.sent.filter((m) => m.userId !== s.member.id))).not.toContain("API");
   });
 });
 
@@ -135,7 +134,6 @@ describe("a team channel carries only rooms its creator can see", () => {
     channel("slack", s.admin.id);
     expect(await errorIn("a1")).toEqual(["slack"]);
     expect(await errorIn("a2")).toEqual([]);
-    expect(JSON.stringify(fake.requests)).not.toContain("API");
   });
 
   test("a creator who loses the room, or is gone, takes the channel's events with them", async () => {

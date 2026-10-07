@@ -200,6 +200,12 @@ export function mountNotificationRoutes(router: Router, deps: NotificationRoutes
           checkSecret(existing.kind, patch.secret);
         }
         checkOperations(actor, patch.operationIds);
+        // Rooms the editor cannot see were not shown to them: they stay as they are.
+        if (patch.operationIds && existing.operationIds) {
+          const open = accessibleOperations(db, actor);
+          const hidden = existing.operationIds.filter((op) => !open.has(op));
+          patch.operationIds = [...hidden, ...patch.operationIds];
+        }
         const view = channels.update(id, patch);
         const { secret, ...changed } = patch;
         audit(actor, "update", id, {

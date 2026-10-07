@@ -605,6 +605,9 @@ async function main(): Promise<void> {
   shutdown.register("http", async () => {
     await server.stop(false);
   });
+  // The route table, for diagnostics and for the access walk (#270), which fails
+  // on a route nobody has said is, or is not, about a room.
+  logger.debug({ routes: server.router.table }, "routes mounted");
   await rooms.transport.listen();
   // Re-adopt first: it stops agents still in the shared-clone layout, then the
   // layout migration (#114) takes runner access to that layout away.

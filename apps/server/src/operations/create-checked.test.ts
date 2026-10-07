@@ -136,9 +136,9 @@ describe("OperationService.createChecked", () => {
 
   test("malformed input gets create's refusals without asking GitHub", async () => {
     const t = setup("admin");
-    expect(await code(() => t.service.createChecked(t.owner, input("https://gitlab.com/o/r")))).toBe(
-      "400 unsupported_host",
-    );
+    expect(
+      await code(() => t.service.createChecked(t.owner, input("https://gitlab.com/o/r"))),
+    ).toBe("400 unsupported_host");
     const two = { ...input(), repos: [{ repo: "octo/hello" }, { repo: "octo/tools" }] };
     expect(await code(() => t.service.createChecked(t.owner, two))).toBe("400 one_repo_per_room");
     expect(t.asked).toEqual([]);

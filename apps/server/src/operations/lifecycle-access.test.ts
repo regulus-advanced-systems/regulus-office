@@ -33,7 +33,12 @@ async function setup() {
   const member = addUser("Mia", "member");
   for (const user of [owner, admin, member]) seedGitHubLink(db, user.id);
   const make = async (name: string, repo: string) => {
-    const made = service.create(owner, { name, tier: "small", repos: [{ repo }] }, undefined, "admin");
+    const made = service.create(
+      owner,
+      { name, tier: "small", repos: [{ repo }] },
+      undefined,
+      "admin",
+    );
     await made.cloned;
     return made.operation;
   };
@@ -80,10 +85,12 @@ describe("OperationLifecycle and GitHub access", () => {
     const t = await setup();
     t.service.archive(t.owner, t.seen.operationId);
     t.service.archive(t.owner, t.unseen.operationId);
-    expect(t.lifecycle.listArchived(t.owner).map((o) => o.name).sort()).toEqual([
-      "Apollo",
-      "Hermes",
-    ]);
+    expect(
+      t.lifecycle
+        .listArchived(t.owner)
+        .map((o) => o.name)
+        .sort(),
+    ).toEqual(["Apollo", "Hermes"]);
     expect(t.lifecycle.listArchived(t.admin).map((o) => o.name)).toEqual(["Apollo"]);
     const id = t.unseen.operationId;
     expect(await failure(() => t.lifecycle.restore(t.admin, id))).toBe("404 operation_not_found");

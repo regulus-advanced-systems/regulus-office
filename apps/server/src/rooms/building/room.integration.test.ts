@@ -460,9 +460,22 @@ describe("BuildingRoom over the wire", () => {
       rooms: new Map(),
       levels: [level(LOBBY_LEVEL_ID, "lobby", "", 0), level("lv-octo", "org", "octo", 1)],
     });
-    // An admin: admins may enter every operation.
-    const ada = await joinAs(user("u-ada9", "Ada", "admin"));
-    const bob = await joinAs(user("u-bob9", "Bob"));
+    // The project room is on octo's level; a level is reached through a room on it (#270).
+    db.insert(schema.levels)
+      .values({ id: "lv-octo", kind: "org", login: "octo", name: "octo", position: 1 })
+      .run();
+    const moveRoom = async (levelId: string) => {
+      db.update(schema.operations)
+        .set({ levelId })
+        .where(eq(schema.operations.id, operationId))
+        .run();
+      await rooms.refreshOperations();
+    };
+    await moveRoom("lv-octo");
+    const ada = await joinAs(person("u-ada9", "Ada", "member", "spawn"));
+    const bob = await joinAs(person("u-bob9", "Bob", "member", "view"));
+    // An office admin whose GitHub account sees no repo of octo's.
+    const ops = await joinAs(person("u-ops9", "Ops", "admin", null));
     await waitFor(() => bob.state.levels.size === 2, "levels published");
     expect(bob.state.levels.get("lv-octo")?.toJSON()).toMatchObject({
       levelId: "lv-octo",
@@ -475,6 +488,8 @@ describe("BuildingRoom over the wire", () => {
     const adaSeen = () => bob.state.humans.get(ada.sessionId);
     await waitFor(() => adaSeen() !== undefined, "Ada visible");
     expect(adaSeen()?.levelId).toBe(LOBBY_LEVEL_ID);
+    await waitFor(() => ops.state.humans.has(ada.sessionId), "Ada visible in the lobby");
+    expect([...ops.state.levels.keys()]).toEqual([LOBBY_LEVEL_ID]);
 
     // The lobby id is "in no project room": the level says where.
     ada.send("operation.go", { operationId: LOBBY_OPERATION_ID, levelId: "lv-octo" });
@@ -483,20 +498,26 @@ describe("BuildingRoom over the wire", () => {
     const unknown = nextRejection(ada);
     ada.send("operation.go", { operationId: LOBBY_OPERATION_ID, levelId: "lv-nope" });
     expect((await unknown).reason).toBe("unknown level lv-nope");
+    // A level the person cannot reach is not there for them, nor is anyone on it.
+    await waitFor(() => !ops.state.humans.has(ada.sessionId), "Ada out of Ops's sight");
+    const unreachable = nextRejection(ops);
+    ops.send("operation.go", { operationId: LOBBY_OPERATION_ID, levelId: "lv-octo" });
+    expect((await unreachable).reason).toBe("unknown level lv-octo");
 
     // A project room is on one level: going there moves the human to it, whatever was named.
-    ada.send("operation.go", { operationId, levelId: "lv-octo" });
+    ada.send("operation.go", { operationId: LOBBY_OPERATION_ID, levelId: LOBBY_LEVEL_ID });
+    await waitFor(() => adaSeen()?.levelId === LOBBY_LEVEL_ID, "Ada back in the lobby");
+    ada.send("operation.go", { operationId, levelId: LOBBY_LEVEL_ID });
     await waitFor(() => adaSeen()?.operationId === operationId, "Ada in the room");
     expect(adaSeen()?.levelId).toBe(bob.state.operations.get(operationId)?.levelId);
-    expect(adaSeen()?.levelId).toBe(HOLDING_LEVEL_ID);
+    expect(adaSeen()?.levelId).toBe("lv-octo");
     // Without a level, stepping out of the room stays on its level.
     ada.send("operation.go", { operationId: LOBBY_OPERATION_ID });
     await waitFor(() => adaSeen()?.operationId === LOBBY_OPERATION_ID, "Ada out of the room");
-    expect(adaSeen()?.levelId).toBe(HOLDING_LEVEL_ID);
+    expect(adaSeen()?.levelId).toBe("lv-octo");
 
-    // A level that is no longer shown: whoever was on it is in the lobby.
-    ada.send("operation.go", { operationId: LOBBY_OPERATION_ID, levelId: "lv-octo" });
-    await waitFor(() => adaSeen()?.levelId === "lv-octo", "Ada back on octo's level");
+    // A level that is no longer shown (its last room gone): whoever was on it is in the lobby.
+    await moveRoom(HOLDING_LEVEL_ID);
     rooms.building.setCompound({ state: COMPOUND, rooms: new Map() });
     await waitFor(() => bob.state.levels.size === 1, "one level left");
     await waitFor(() => adaSeen()?.levelId === LOBBY_LEVEL_ID, "Ada in the lobby");

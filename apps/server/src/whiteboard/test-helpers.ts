@@ -16,7 +16,8 @@ import { dbAccessSubjects, LiveAccess } from "../auth/live-access.ts";
 import { cookieHeaderFrom, mountAuthRoutes } from "../auth/routes.ts";
 import { PASSWORD, TEST_SECRET } from "../auth/test-helpers.ts";
 import { MEMORY_DB_PATH, openDatabase, runMigrations } from "../db/index.ts";
-import { operationMembers, operations, userProfiles } from "../db/schema/index.ts";
+import { operations, userProfiles } from "../db/schema/index.ts";
+import { seedRoomMember, seedRoomRepo } from "../github/access/test-snapshot.ts";
 import { createOfficeServer } from "../http/server.ts";
 import { WsRouter } from "../http/ws-router.ts";
 import { createLogger } from "../logging.ts";
@@ -87,13 +88,15 @@ export async function startWhiteboardOffice(options: { saveDelayMs?: number } = 
     return { id: body.user.id, cookie: cookieHeaderFrom(res.headers) };
   };
 
+  /** An operation with a repo; `members` is each person's GitHub-given access to it (#270). */
   const addOperation = (id: string, members: Record<string, "manage" | "spawn" | "view"> = {}) => {
     seq += 1;
     db.insert(operations)
       .values({ id, name: id, slug: id, index: seq, paletteId: "p", layoutTemplateId: "t" })
       .run();
+    seedRoomRepo(db, id);
     for (const [userId, access] of Object.entries(members)) {
-      db.insert(operationMembers).values({ operationId: id, userId, access }).run();
+      seedRoomMember(db, userId, id, access);
     }
   };
 

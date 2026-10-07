@@ -12,7 +12,8 @@ import { createAuth } from "../auth/auth.ts";
 import { cookieHeaderFrom, mountAuthRoutes } from "../auth/routes.ts";
 import { PASSWORD, TEST_SECRET } from "../auth/test-helpers.ts";
 import { MEMORY_DB_PATH, openDatabase, runMigrations } from "../db/index.ts";
-import { operationMembers, operations, userProfiles } from "../db/schema/index.ts";
+import { operations, userProfiles } from "../db/schema/index.ts";
+import { seedRoomMember, seedRoomRepo } from "../github/access/test-snapshot.ts";
 import { createOfficeServer } from "../http/server.ts";
 import { createLogger } from "../logging.ts";
 import type { OperationDecorCommands } from "../rooms/operation/decor.ts";
@@ -90,8 +91,10 @@ export async function startPictureOffice() {
         doorSide: "south",
       })
       .run();
+    // The room has a repo; `members` is each person's GitHub-given access to it (#270).
+    seedRoomRepo(db, id);
     for (const [userId, access] of Object.entries(members)) {
-      db.insert(operationMembers).values({ operationId: id, userId, access }).run();
+      seedRoomMember(db, userId, id, access);
     }
   };
 
