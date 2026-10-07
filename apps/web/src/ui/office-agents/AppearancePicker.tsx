@@ -5,7 +5,7 @@
  * form with no thumbnail yet gets a plain plate with its initial.
  */
 import {
-  isHenchmanSkinId,
+  isCharacterFormId,
   OFFICE_AGENT_APPEARANCES,
   officeAgentAppearanceLabel,
 } from "@regulus/protocol";
@@ -17,7 +17,7 @@ import "../settings/skinRules.css";
 const TRIM = providerLightColor("claude-code");
 
 export function AppearanceThumb({ id, size = "md" }: { id: string; size?: "sm" | "md" }) {
-  if (isHenchmanSkinId(id)) return <SkinThumb skin={id} trim={TRIM} size={size} />;
+  if (isCharacterFormId(id)) return <SkinThumb skin={id} trim={TRIM} size={size} />;
   return (
     <span
       className={`rg-skin-thumb rg-skin-thumb--${size}`}
