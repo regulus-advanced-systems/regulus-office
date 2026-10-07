@@ -223,7 +223,11 @@ export class MeetingService {
     const members = store.members(row.id);
     const spawned = members.every((m) => m.agentId);
     if (spawned && members.some((m) => m.agentId && henchmen.seatOf(m.agentId) === null)) {
-      throw new MeetingError(409, "member_left", "a member went home; stop this meeting instead");
+      throw new MeetingError(
+        409,
+        "member_left",
+        "a member went back to barracks; stop this meeting instead",
+      );
     }
     store.setStatus(row.id, row.workdir && spawned ? "running" : "starting");
     engine.launch(row.id);
@@ -241,7 +245,7 @@ export class MeetingService {
       throw new MeetingError(409, "conflict", `the meeting is ${row.status}`);
     }
     const reason = control
-      ? "stopped by its starter; the henchmen stay at their desks until sent home"
+      ? "stopped by its starter; the henchmen stay at their desks until sent to barracks"
       : "emergency-stopped by an office admin; the henchmen stay at their desks";
     // The starter interrupts their own henchmen; an admin only has the emergency stop (D12).
     await this.deps.engine.halt(row.id, "stopped", reason, { interrupt: control });

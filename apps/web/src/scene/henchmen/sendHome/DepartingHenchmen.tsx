@@ -22,7 +22,7 @@ import {
 const BOX_COLOR = "#C8955A";
 const TAPE_COLOR = "#E8D2A6";
 /** Height of the box's centre, between the henchman's hands (CARRY pose). */
-const CARRY_HEIGHT = 0.82;
+const CARRY_HEIGHT = 1.13;
 
 function DepartingHenchman({ override }: { override: HenchmanOverride }) {
   const group = useRef<Group>(null);
@@ -44,7 +44,7 @@ function DepartingHenchman({ override }: { override: HenchmanOverride }) {
         carrying={override.carrying}
       />
       {override.carrying && (
-        <group position={[0, CARRY_HEIGHT, -0.4]}>
+        <group position={[0, CARRY_HEIGHT, -0.47]}>
           <mesh castShadow>
             <boxGeometry args={[0.42, 0.3, 0.32]} />
             <meshToonMaterial color={BOX_COLOR} />

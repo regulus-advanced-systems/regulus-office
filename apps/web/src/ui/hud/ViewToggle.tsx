@@ -24,7 +24,8 @@ export function useViewHotkey(target?: Window): void {
   useHotkeyEvents(handler, target);
 }
 
-export function viewHint(pointerLocked: boolean): string {
+export function viewHint(pointerLocked: boolean, lookPaused = false): string {
+  if (lookPaused) return "Looking around is paused while a window is open";
   return pointerLocked
     ? "Mouse to look, WASD to walk, Esc to return"
     : "Click the scene to look around, Esc to return";
@@ -33,6 +34,7 @@ export function viewHint(pointerLocked: boolean): string {
 export function ViewToggle() {
   const mode = useViewStore((s) => s.mode);
   const locked = useViewStore((s) => s.pointerLocked);
+  const paused = useViewStore((s) => s.lookPaused);
   const toggle = useViewStore((s) => s.toggle);
   const firstPerson = mode === "first_person";
   const key =
@@ -56,7 +58,7 @@ export function ViewToggle() {
       </div>
       {firstPerson && (
         <div className="rg-viewtoggle__hint rg-muted" aria-live="polite">
-          {viewHint(locked)}
+          {viewHint(locked, paused)}
         </div>
       )}
     </div>

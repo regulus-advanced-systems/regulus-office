@@ -1,13 +1,14 @@
 /**
  * `<HenchmanAvatar>` (#184, SPEC §9.3 D22): a coding agent drawn as a
  * henchman in a yellow jumpsuit (or a special skin), with its provider's
- * colour as trim and a status light on top whose colour ladder is the
- * antenna bulb's (avatar/statusBulb.ts). Its gesture (#235) is blended over
+ * colour as trim and a status light (a lamp on each shoulder, #281) whose
+ * colour ladder is the antenna bulb's (avatar/statusBulb.ts). Its hair and
+ * skin tone come from `seed`, the agent's id (variety.ts). Its gesture (#235) is blended over
  * the base clip: the right arm held straight up when it is done, both arms up
  * and waving (or held, with reduced motion) while it waits for its human.
  *
- * One instance is one `SkinnedMesh` (geometry shared per skin, material
- * shared per skin and trim colour) with its own bones and `AnimationMixer`,
+ * One instance is one `SkinnedMesh` (geometry shared per skin and hair style,
+ * material shared per palette) with its own bones and `AnimationMixer`,
  * plus the light: two draw calls. Clicks hit an invisible box instead of the
  * skinned triangles, so hovering over 20 henchmen stays cheap.
  */
@@ -25,9 +26,10 @@ import { gestureForStatus, type HenchmanGesture } from "./henchmanAnimation.ts";
 import { buildHenchman } from "./instance.ts";
 import { henchmanMaterial } from "./palette.ts";
 import { HENCHMAN_HEIGHT } from "./rig.ts";
-import { paletteFor } from "./skins.ts";
+import { paletteFor, skinLook } from "./skins.ts";
+import { crewVariant } from "./variety.ts";
 
-const HIT_GEOMETRY = new BoxGeometry(0.7, HENCHMAN_HEIGHT, 0.7).translate(
+const HIT_GEOMETRY = new BoxGeometry(0.6, HENCHMAN_HEIGHT, 0.6).translate(
   0,
   HENCHMAN_HEIGHT / 2,
   0,
@@ -39,6 +41,8 @@ export type HenchmanAvatarProps = Omit<ThreeElements["group"], "ref" | "children
   skin?: string;
   /** Provider trim colour; omit for the skin's own. */
   trim?: string;
+  /** Who this is (the agent id): picks the hair and skin tone (variety.ts). Omit for the default crew member. */
+  seed?: string;
   animation?: AvatarAnimation;
   /** Drives the status light and (unless `gesture` is given) the gesture. */
   status?: AgentStatus;
@@ -55,6 +59,7 @@ export type HenchmanAvatarProps = Omit<ThreeElements["group"], "ref" | "children
 export function HenchmanAvatar({
   skin,
   trim,
+  seed,
   animation = "sit_idle",
   status,
   gesture: givenGesture,
@@ -63,7 +68,8 @@ export function HenchmanAvatar({
   carrying = false,
   ...groupProps
 }: HenchmanAvatarProps) {
-  const instance = useMemo(() => buildHenchman(skin), [skin]);
+  const variant = useMemo(() => crewVariant(seed), [seed]);
+  const instance = useMemo(() => buildHenchman(skin, variant), [skin, variant]);
   const root = useRef<Group>(null);
   const clips = useMemo(() => henchmanClips(), []);
   const { actions, mixer } = useAnimations(clips, root);
@@ -73,8 +79,8 @@ export function HenchmanAvatar({
 
   // Look: the palette material (skin + trim) and the status light.
   useLayoutEffect(() => {
-    instance.mesh.material = henchmanMaterial(paletteFor(skin, trim));
-  }, [instance, skin, trim]);
+    instance.mesh.material = henchmanMaterial(paletteFor(skin, trim, variant));
+  }, [instance, skin, trim, variant]);
   const bulb = bulbColorFor(status);
   const lit = bulbLitFor(status);
   useLayoutEffect(() => {
@@ -102,6 +108,10 @@ export function HenchmanAvatar({
   useOverlay(actions, HENCHMAN_CLIPS.needsYou, shown === "needs_you");
   useOverlay(actions, HENCHMAN_CLIPS.needsYouStill, shown === "needs_you_still");
   useOverlay(actions, HENCHMAN_CLIPS.carry, carrying);
+  // What the form carries stays in its left arm, unless that arm is needed for something else.
+  const leftArmBusy = carrying || shown === "needs_you" || shown === "needs_you_still";
+  const holds = skinLook(skin).holds && !leftArmBusy && clip !== HENCHMAN_CLIPS.sitCheer;
+  useOverlay(actions, HENCHMAN_CLIPS.hold, holds);
 
   // Procedural head tilt for "think" (after the mixer ran).
   const tilt = PROCEDURAL_HEAD_TILT.has(animation) && clip !== HENCHMAN_CLIPS.sitCheer;

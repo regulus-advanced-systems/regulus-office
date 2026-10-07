@@ -347,7 +347,7 @@ test("the room shows the meeting; a member watches the transcript without contro
   expect(refused.status()).toBe(403);
 });
 
-test("the meeting ends in a draft PR from the shared worktree; the henchmen go home", async () => {
+test("the meeting ends in a draft PR from the shared worktree; the henchmen go back to barracks", async () => {
   await ownerPage.bringToFront();
   holdTheFloor(false);
   await expect

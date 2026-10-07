@@ -10,6 +10,7 @@ import { z } from "zod";
 import { Count, Id, TimestampMs } from "./common.ts";
 import {
   AGENT_STATUSES,
+  DECOR_STYLES,
   OPERATION_ACCESSES,
   REPO_CLONE_STATUSES,
   ROOM_TEMPLATE_TIERS,
@@ -49,8 +50,8 @@ export type RepoInput = z.infer<typeof RepoInput>;
 
 export const CreateOperationRequest = z.object({
   name: z.string().trim().min(1).max(80),
-  /** Palette id from @regulus/room-layout; omitted = next in the cycle. */
-  paletteId: z.string().trim().min(1).max(32).optional(),
+  /** The room's decor style (room settings can change it later); omitted = the default. */
+  decorStyle: z.enum(DECOR_STYLES).optional(),
   tier: z.enum(ROOM_TEMPLATE_TIERS).default("medium"),
   /** Exactly one (see {@link MAX_REPOS_PER_OPERATION}); its owner decides the room's level (D26). */
   repos: z.array(RepoInput).min(1).max(MAX_REPOS_PER_OPERATION, ONE_REPO_PER_ROOM_MESSAGE),

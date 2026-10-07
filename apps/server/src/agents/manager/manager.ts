@@ -358,7 +358,7 @@ export class AgentManager extends AgentRuntime {
 
   async #sendHome(live: LiveAgent, opts: { keepBranch: boolean }): Promise<void> {
     const { agentId } = live.view;
-    if (live.view.status !== "exited") await this.#halt(live, "sent home");
+    if (live.view.status !== "exited") await this.#halt(live, "sent to barracks");
     this.processGone(live);
     await this.#workspaces().release({ agentId, keepBranch: opts.keepBranch });
     this.store.freeDesk(agentId);

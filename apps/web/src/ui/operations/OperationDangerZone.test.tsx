@@ -1,7 +1,7 @@
 /**
  * Danger zone of Operation settings and Settings → Operations (#150): only office
  * owners and admins see them; archive, restore, and delete with the typed
- * name, the henchmen in the way and "Send all home".
+ * name, the henchmen in the way and "Send all to barracks".
  */
 import { afterEach, describe, expect, test } from "bun:test";
 import type { OperationHenchmanInfo, OperationInfo, UserRole } from "@regulus/protocol";
@@ -160,9 +160,9 @@ describe("Operation settings danger zone", () => {
     const henchmen = document.querySelector('[aria-label="Henchmen in this operation"]');
     expect(henchmen?.textContent).toContain("Fix the login page (Ben Member, working)");
     expect(text()).toContain("Henchmen are still working in this operation.");
-    await click(exactButton("Send all home") as HTMLButtonElement);
+    await click(exactButton("Send all to barracks") as HTMLButtonElement);
     await settle();
-    expect(text()).toContain("Sent 1 henchman home. You can delete the operation now.");
+    expect(text()).toContain("Sent 1 henchman to barracks. You can delete the operation now.");
     expect(document.querySelector('[aria-label="Henchmen in this operation"]')).toBeNull();
 
     await click(remove());

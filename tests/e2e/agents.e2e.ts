@@ -846,15 +846,15 @@ test("7e. the merge gong: the henchman cheers in its chair and sits back exactly
   await checkHenchmanCheers(ownerPage, agentId);
 });
 
-test("8. send home frees the desk and deletes the branch as chosen", async () => {
+test("8. send to barracks frees the desk and deletes the branch as chosen", async () => {
   const ownerPanel = ownerPage.locator("section.rg-agent-panel");
   await openHenchmanPanel(ownerPage);
   const branch = await ownerPanel.locator('[data-key="branch"] dd').innerText();
-  await ownerPanel.getByRole("button", { name: "Send home" }).click();
-  const dialog = ownerPage.getByRole("dialog", { name: "Send henchman home" });
+  await ownerPanel.getByRole("button", { name: "Send to barracks" }).click();
+  const dialog = ownerPage.getByRole("dialog", { name: "Send henchman to barracks" });
   await expect(dialog.getByText(branch)).toBeVisible();
   await dialog.getByLabel(/Delete the branch/).check();
-  await dialog.getByRole("button", { name: "Send home" }).click();
+  await dialog.getByRole("button", { name: "Send to barracks" }).click();
   await expect(dialog).toHaveCount(0);
 
   for (const page of [ownerPage, memberPage]) {

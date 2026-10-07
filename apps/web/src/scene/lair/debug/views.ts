@@ -1,7 +1,7 @@
 /**
  * Debug-scene options from the query string (#183) and the camera presets
  * the PR screenshots use: `?view=overview|corner|junction|door|console|
- * scaffold|pieces|lounge|styles`, `style=ops_room|lab|workshop|war_room`
+ * scaffold|pieces|lounge|styles`, `style=ops_room|lab|workshop|war_room|armory`
  * (the main room's decor), `door=open|closed`, `alarm=1`, `cut=0` (no cutaway),
  * `labels=0` (no catalogue labels), `stats=0` (no draw-call panel),
  * `henchmen=0` (no henchmen).

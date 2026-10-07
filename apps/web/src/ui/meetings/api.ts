@@ -91,7 +91,7 @@ const MESSAGES: Record<string, string> = {
   in_session: "A meeting is already in session in this room",
   repo_not_ready: "The repo is not cloned yet",
   no_pull_branch: "That pull request cannot be reviewed here",
-  member_left: "A member went home",
+  member_left: "A member went back to barracks",
 };
 
 export function describeMeetingError(f: ApiFailure): string {

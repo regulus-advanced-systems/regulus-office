@@ -23,6 +23,7 @@ import type {
 } from "@regulus/protocol";
 import {
   CreateOperationRequest,
+  DEFAULT_DECOR_STYLE,
   DEFAULT_DESK_COUNT,
   hasOperationAccess,
   MAX_REPOS_PER_OPERATION,
@@ -31,7 +32,6 @@ import {
 } from "@regulus/protocol";
 import {
   legacyDeskCount,
-  paletteById,
   paletteForOperation,
   ROOM_LAYOUT_ID,
   roomDeskSeatIds,
@@ -199,9 +199,6 @@ export class OperationService {
     if (repoInput.token && !this.#deps.vault.available) {
       throw new AuthHttpError(400, "master_key_required");
     }
-    if (input.paletteId && !paletteById(input.paletteId)) {
-      throw new AuthHttpError(400, "unknown_palette");
-    }
     // Every new operation is a generated room (#182, #186). A room placed in build mode (#187)
     // starts vanilla (D8: one desk; any size fits it) and grows through room settings;
     // an auto-placed one gets its tier's desks (its size is picked to fit them).
@@ -236,7 +233,10 @@ export class OperationService {
             name: input.name,
             slug,
             index,
-            paletteId: input.paletteId ?? paletteForOperation(index).id,
+            // The old office palette: nothing draws from it since the lair styles (#182),
+            // nobody picks it (#282); the column is still NOT NULL, so new rows keep the cycle.
+            paletteId: paletteForOperation(index).id,
+            decorStyle: input.decorStyle ?? DEFAULT_DECOR_STYLE,
             layoutTemplateId: ROOM_LAYOUT_ID,
             ...room,
             deskCount,

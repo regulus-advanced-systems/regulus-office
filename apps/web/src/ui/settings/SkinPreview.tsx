@@ -33,8 +33,8 @@ export default function SkinPreview({ skin, trim }: SkinPreviewProps) {
         orthographic
         flat
         dpr={1}
-        camera={{ position: [0, 1.6, 6], zoom: 125, near: 0.1, far: 50 }}
-        onCreated={({ camera }) => camera.lookAt(0, 0.8, 0)}
+        camera={{ position: [0, 1.7, 6], zoom: 112, near: 0.1, far: 50 }}
+        onCreated={({ camera }) => camera.lookAt(0, 0.88, 0)}
       >
         <hemisphereLight args={[HEMI_SKY, HEMI_GROUND, 1.15]} />
         <directionalLight position={[-3, 5, 4]} intensity={KEY_INTENSITY} />

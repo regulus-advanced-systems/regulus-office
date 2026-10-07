@@ -4,8 +4,8 @@
  *
  * - Archive hides the operation and keeps everything; Settings → Operations restores it.
  * - Delete is permanent and needs the operation's name typed. While henchmen are on
- *   the operation the server refuses it with their list; "Send all home" sends
- *   them home (their branches are kept), then delete again. Nothing on
+ *   the operation the server refuses it with their list; "Send all to barracks" sends
+ *   them there (their branches are kept), then delete again. Nothing on
  *   GitHub is deleted.
  */
 import type { OperationHenchmanInfo } from "@regulus/protocol";
@@ -34,7 +34,7 @@ function HenchmanList({ henchmen }: { henchmen: readonly OperationHenchmanInfo[]
   );
 }
 
-/** Type the name, delete; shows the henchmen in the way and a "Send all home" helper. */
+/** Type the name, delete; shows the henchmen in the way and a "Send all to barracks" helper. */
 export function DeleteOperationForm({
   operation,
   api,
@@ -77,9 +77,9 @@ export function DeleteOperationForm({
     setHenchmen((left) => left.filter((r) => failed.some((f) => f.agentId === r.agentId)));
     const n = `${sentHome} ${sentHome === 1 ? "henchman" : "henchmen"}`;
     if (failed.length > 0) {
-      setError(`Sent ${n} home; ${failed.length} could not be: ${failed[0]?.reason ?? ""}`);
+      setError(`Sent ${n} to barracks; ${failed.length} could not be: ${failed[0]?.reason ?? ""}`);
     } else {
-      setStatus(`Sent ${n} home. You can delete the operation now.`);
+      setStatus(`Sent ${n} to barracks. You can delete the operation now.`);
     }
   };
 
@@ -121,11 +121,11 @@ export function DeleteOperationForm({
               disabled={busy}
               onClick={() => void sendAllHome()}
             >
-              Send all home
+              Send all to barracks
             </Button>
           </div>
           <div className="rg-field__hint">
-            Each henchman is stopped and sent home; its branch is kept.
+            Each henchman is stopped and sent to barracks; its branch is kept.
           </div>
         </>
       )}

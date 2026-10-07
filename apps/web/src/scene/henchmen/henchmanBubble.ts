@@ -7,8 +7,8 @@ import type { AgentBubble, HenchmanState } from "@regulus/protocol";
 
 const FOR_YOU = /^waiting for you\b/;
 
-/** Height of the label's base over a seated henchman's origin, metres: clear of the status light. */
-export const OVERHEAD_HEIGHT = 1.42;
+/** Height of the label's base over a seated henchman's origin, metres: clear of the head (the status light is on the shoulders, #281). */
+export const OVERHEAD_HEIGHT = 1.36;
 
 export function bubbleForViewer(
   henchman: Pick<HenchmanState, "bubble" | "ownerUserId" | "ownerName">,
