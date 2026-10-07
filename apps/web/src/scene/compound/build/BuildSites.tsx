@@ -175,7 +175,7 @@ function Site({
       <group position={[room.origin.x, 0, room.origin.z]}>
         {spots.map((s) => (
           <group key={s.key} position={[s.x, 0, s.z]} rotation-y={s.heading}>
-            <HenchmanAvatar animation="point" status="working" trim={s.trim} />
+            <HenchmanAvatar animation="point" status="working" trim={s.trim} seed={s.key} />
             <Hammer phase={s.phase} still={still} />
           </group>
         ))}
