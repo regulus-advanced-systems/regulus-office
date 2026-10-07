@@ -43,6 +43,7 @@ const USAGE: UsageSummary = {
 
 const operation = (index: number, name: string, working: number, total: number) => ({
   operationId: `kit-${index}`,
+  levelId: "lobby",
   name,
   slug: name.toLowerCase().replace(/\s+/g, "-"),
   index,
@@ -79,6 +80,7 @@ function seedOperations() {
       lastBriefAt: 0,
     },
     compound: current?.compound ?? EMPTY_COMPOUND,
+    levels: current?.levels ?? {},
     blastDoor: current?.blastDoor ?? BLAST_DOOR_CLOSED,
     lobbyWhiteboardVersion: current?.lobbyWhiteboardVersion ?? 0,
     operations: {

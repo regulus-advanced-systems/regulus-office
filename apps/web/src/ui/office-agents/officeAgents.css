@@ -1,0 +1,114 @@
+/* Settings → Agents (#271): agent cards, the new-agent form, the chat. */
+.rg-office-agents {
+  display: grid;
+  gap: 8px;
+}
+.rg-office-agent,
+.rg-office-agent-request {
+  display: grid;
+  gap: 6px;
+  padding: 8px 10px;
+  background: var(--rg-color-panel-surface);
+  border: 1px solid var(--rg-color-panel-border);
+  border-radius: var(--rg-radius-panel);
+}
+.rg-office-agent__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+}
+.rg-office-agent__status {
+  font-size: 12px;
+  padding: 1px 8px;
+  border: 1px solid var(--rg-color-panel-border);
+  border-radius: 999px;
+}
+.rg-office-agent__status.is-ready,
+.rg-office-agent__status.is-busy {
+  border-color: var(--rg-color-gold);
+}
+.rg-office-agent__facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  font-size: 12px;
+  opacity: 0.85;
+}
+.rg-office-agent__actions,
+.rg-office-agent-chat__form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 6px;
+}
+.rg-office-agent-chat__form > .rg-input {
+  flex: 1 1 180px;
+}
+.rg-office-agent__config,
+.rg-office-agent-form,
+.rg-office-agent-chat {
+  display: grid;
+  gap: 6px;
+}
+.rg-office-agent__grants {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.rg-office-agent__grant,
+.rg-office-agent__tokens > li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.rg-office-agent__tokens,
+.rg-office-agent-requests,
+.rg-office-agent-chat__log {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.rg-office-agent__minted code {
+  display: block;
+  padding: 6px 8px;
+  overflow-wrap: anywhere;
+  user-select: all;
+  border: 1px dashed var(--rg-color-gold);
+  border-radius: var(--rg-radius-panel);
+}
+.rg-office-agent-chat__log {
+  max-height: 260px;
+  overflow-y: auto;
+}
+.rg-office-agent-chat__line {
+  display: grid;
+  grid-template-columns: 84px 1fr;
+  gap: 8px;
+}
+.rg-office-agent-chat__who {
+  font-size: 12px;
+  opacity: 0.75;
+}
+.rg-office-agent-chat__text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.rg-office-agent-chat__line.is-system .rg-office-agent-chat__text {
+  font-style: italic;
+}
+.rg-office-agent-caps {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
+}
+.rg-office-agent-caps label {
+  display: grid;
+  gap: 2px;
+}

@@ -37,6 +37,11 @@ function renamed(row: Row): Row {
   return out;
 }
 
+/** Columns later migrations added (levels, #268); not part of what 0018 must keep. */
+const LATER_COLUMNS = ["level_id", "dir_slug"];
+const without = (row: Row): Row =>
+  Object.fromEntries(Object.entries(row).filter(([k]) => !LATER_COLUMNS.includes(k)));
+
 const TABLES: Array<[string, string]> = [
   ["floors", "operations"],
   ["floor_repos", "operation_repos"],
@@ -71,7 +76,9 @@ describe("0018_operations_henchmen", () => {
       expect(rows.length).toBeGreaterThan(0);
       // The henchman_names migration adds the name, empty on rows from before it (#256).
       const later = now === "agents" ? { name: "" } : {};
-      expect(all(sql, now)).toEqual(rows.map((row) => ({ ...renamed(row), ...later })));
+      expect(all(sql, now).map(without)).toEqual(
+        rows.map((row) => ({ ...renamed(row), ...later })),
+      );
     }
   });
 

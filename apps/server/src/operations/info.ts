@@ -21,7 +21,7 @@ export function repoInfo(row: RepoRow): OperationRepoInfo {
   };
 }
 
-/** One operation with its repos, primary first. */
+/** One operation with its repo (a list of one, #268; none only for a pre-repo operation). */
 export function operationInfo(
   db: DbOrTx,
   row: OperationRow,
@@ -36,6 +36,7 @@ export function operationInfo(
     .sort((a, b) => Number(b.isPrimary) - Number(a.isPrimary));
   return {
     operationId: row.id,
+    levelId: row.levelId,
     name: row.name,
     slug: row.slug,
     index: row.index,

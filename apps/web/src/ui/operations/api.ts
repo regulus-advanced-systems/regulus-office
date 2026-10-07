@@ -10,6 +10,7 @@ import {
   type CreateOperationRequest,
   OFFICE_USERS_API_PATH,
   OfficeUsersResponse,
+  ONE_REPO_PER_ROOM_MESSAGE,
   OPERATIONS_API_PATH,
   OPERATIONS_ARCHIVED_API_PATH,
   type OperationAccess,
@@ -163,8 +164,8 @@ export function describeOperationError(err: ApiFailure): string {
       return `${err.reason ?? "A repo"} is not on github.com.`;
     case "credentials_in_url":
       return `${err.reason ?? "A repo"} has a token in its URL. Put the token in the token field instead.`;
-    case "duplicate_repo":
-      return "The same repo is listed twice.";
+    case "one_repo_per_room":
+      return ONE_REPO_PER_ROOM_MESSAGE;
     case "unknown_palette":
       return "That palette does not exist.";
     case "master_key_required":

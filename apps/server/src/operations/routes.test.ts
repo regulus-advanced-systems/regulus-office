@@ -73,6 +73,20 @@ describe("operation routes", () => {
     expect(text).not.toContain(FAKE_PAT);
   });
 
+  test("several repos for one room are refused with what to do instead (#268)", async () => {
+    const res = await send(
+      "POST",
+      "/api/operations",
+      { name: "Two", repos: [{ repo: "octo/hello" }, { repo: "octo/tools" }] },
+      owner.cookie,
+    );
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({
+      error: "one_repo_per_room",
+      message: "A room has exactly one repo. Add another room for each other repo.",
+    });
+  });
+
   test("cross-origin writes are refused", async () => {
     const res = await send(
       "POST",

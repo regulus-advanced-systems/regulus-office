@@ -1,5 +1,6 @@
 /** Sample state objects used by tests. Not exported from the package index. */
 import type { BuildingState, HumanPresence } from "./building-state.ts";
+import type { CompoundState } from "./compound.ts";
 import type { HenchmanState, OperationState } from "./operation-state.ts";
 
 export const humanFixture: HumanPresence = {
@@ -16,6 +17,7 @@ export const humanFixture: HumanPresence = {
     accessory: "goggles",
   },
   operationId: "lobby",
+  levelId: "lobby",
   position: { x: 1.5, z: -2.25, heading: 0.5 },
   animation: "walk",
   doing: "heading to the elevator",
@@ -24,11 +26,39 @@ export const humanFixture: HumanPresence = {
   joinedAt: 1_700_000_000_000,
 };
 
+const compoundFixture: CompoundState = {
+  width: 64,
+  depth: 64,
+  tileMetres: 2,
+  outsideDepth: 6,
+  version: 123_456,
+  specialRooms: [
+    {
+      kind: "lobby",
+      gridX: 26,
+      gridY: 56,
+      width: 12,
+      depth: 8,
+      doorSide: "north",
+      doorX: 31,
+      doorY: 56,
+    },
+  ],
+  corridors: [
+    { x: 2, y: 54, w: 60, d: 2 },
+    { x: 8, y: 52, w: 2, d: 2 },
+  ],
+  blastDoorX: 30,
+  blastDoorY: 64,
+  blastDoorWidth: 4,
+};
+
 export const buildingFixture: BuildingState = {
   humans: { s1: humanFixture },
   operations: {
     lobby: {
       operationId: "lobby",
+      levelId: "lobby",
       name: "Lobby",
       slug: "lobby",
       index: 0,
@@ -51,6 +81,7 @@ export const buildingFixture: BuildingState = {
     },
     f1: {
       operationId: "f1",
+      levelId: "lv1",
       name: "Regulus Office",
       slug: "regulus-office",
       index: 1,
@@ -142,31 +173,24 @@ export const buildingFixture: BuildingState = {
     targetAgentId: "a1",
     lastBriefAt: 1_700_000_000_000,
   },
-  compound: {
-    width: 64,
-    depth: 64,
-    tileMetres: 2,
-    outsideDepth: 6,
-    version: 123_456,
-    specialRooms: [
-      {
-        kind: "lobby",
-        gridX: 26,
-        gridY: 56,
-        width: 12,
-        depth: 8,
-        doorSide: "north",
-        doorX: 31,
-        doorY: 56,
-      },
-    ],
-    corridors: [
-      { x: 2, y: 54, w: 60, d: 2 },
-      { x: 8, y: 52, w: 2, d: 2 },
-    ],
-    blastDoorX: 30,
-    blastDoorY: 64,
-    blastDoorWidth: 4,
+  compound: compoundFixture,
+  levels: {
+    lobby: {
+      levelId: "lobby",
+      kind: "lobby",
+      login: "",
+      name: "Lobby",
+      order: 0,
+      compound: compoundFixture,
+    },
+    lv1: {
+      levelId: "lv1",
+      kind: "org",
+      login: "regulus-advanced-systems",
+      name: "Regulus Advanced Systems",
+      order: 1,
+      compound: { ...compoundFixture, version: 654_321 },
+    },
   },
   blastDoor: {
     phase: "open",

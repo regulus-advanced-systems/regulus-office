@@ -31,6 +31,7 @@ const pairs: Array<[string, z.ZodObject, SchemaClass]> = [
   ["TileRect", compound.TileRect, schemas.TileRectSchema],
   ["SpecialRoomState", compound.SpecialRoomState, schemas.SpecialRoomStateSchema],
   ["CompoundState", compound.CompoundState, schemas.CompoundStateSchema],
+  ["LevelState", compound.LevelState, schemas.LevelStateSchema],
   ["BlastDoorState", blastDoor.BlastDoorState, schemas.BlastDoorStateSchema],
   ["BuildingState", building.BuildingState, schemas.BuildingStateSchema],
   ["BubbleEmits", operation.BubbleEmits, schemas.BubbleEmitsSchema],

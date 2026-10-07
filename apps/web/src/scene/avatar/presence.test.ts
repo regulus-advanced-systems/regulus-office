@@ -6,6 +6,7 @@ import { SEATED_CLIPS } from "./seatedClips.ts";
 
 const humanFixture: HumanPresence = {
   sessionId: "s1",
+  levelId: "lobby",
   userId: "u1",
   displayName: "Ada",
   role: "member",

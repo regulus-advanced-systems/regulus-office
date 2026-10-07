@@ -24,6 +24,7 @@ const emptyBuilding = (): BuildingState => ({
   operations: {
     f1: {
       operationId: "f1",
+      levelId: "lobby",
       name: "One",
       slug: "one",
       index: 1,
@@ -61,6 +62,7 @@ const emptyBuilding = (): BuildingState => ({
     lastBriefAt: 0,
   },
   compound: EMPTY_COMPOUND,
+  levels: {},
   blastDoor: BLAST_DOOR_CLOSED,
   lobbyWhiteboardVersion: 0,
 });
@@ -320,6 +322,24 @@ describe("OfficeClient", () => {
     expect(transport.building.sent.at(-1)).toEqual({
       type: "operation.go",
       payload: { operationId: "lobby", mode: "teleport" },
+    });
+  });
+
+  test("the building hears which level we are on, also after a reconnect (#268)", async () => {
+    const { transport, client } = setup();
+    await client.connect();
+    client.setLevel("lv-octo");
+    client.setLevel("lv-octo"); // no-op
+    expect(transport.building.sent).toEqual([
+      {
+        type: "operation.go",
+        payload: { operationId: "lobby", mode: "teleport", levelId: "lv-octo" },
+      },
+    ]);
+    await client.setRooms("f1");
+    expect(transport.building.sent.at(-1)).toEqual({
+      type: "operation.go",
+      payload: { operationId: "f1", mode: "teleport", levelId: "lv-octo" },
     });
   });
 

@@ -39,11 +39,17 @@ export const DoingCommand = z.object({
   doing: z.string().trim().max(DOING_MAX),
 });
 
-/** Change operation; `ride` plays the elevator animation, `teleport` is the quick menu. */
+/**
+ * Change operation; `ride` plays the elevator animation, `teleport` is the quick menu.
+ * A project room is on one level, so going to it also moves the human to that
+ * level. `levelId` matters for the lobby id, which stands for "in no project
+ * room": it says which level the human is on (absent = stay on the current one).
+ */
 export const OperationGoCommand = z.object({
   type: z.literal("operation.go"),
   operationId: Id,
   mode: z.enum(["ride", "teleport"]).default("ride"),
+  levelId: Id.optional(),
 });
 
 export const presenceCommands = [

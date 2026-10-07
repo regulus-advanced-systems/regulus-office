@@ -82,6 +82,7 @@ describe("compound nav grid", () => {
       henchmenWaiting: 0,
       henchmenTotal: 0,
       humansPresent: 0,
+      levelId: "lobby",
       buildState: "ready" as const,
       buildEndsAt: 0,
       deskCount: 1,

@@ -1,10 +1,20 @@
-import { beforeEach, describe, expect, test } from "bun:test";
+import { afterAll, beforeEach, describe, expect, test } from "bun:test";
 import type { PendingPermission } from "@regulus/protocol";
+import { useUiStore } from "../../state/ui.ts";
+import { useChatRequest } from "../office-agents/chatRequest.ts";
+import { useSettingsTabStore } from "../settings/settingsTabs.ts";
 import { useTerminalModal } from "../terminal/terminalStore.ts";
 import { useAgentStore } from "./agentStore.ts";
 import { openBubbleTarget, openHenchmanRequest, setConversationOpener } from "./bubbleTarget.ts";
 
 const request = { requestId: "r1" } as PendingPermission;
+
+afterAll(() => {
+  // Settings is one store for the whole test run: leave it on its first tab, closed.
+  useSettingsTabStore.getState().setTab("you");
+  useUiStore.getState().closeOverlay();
+  useChatRequest.setState({ agentId: null });
+});
 
 beforeEach(() => {
   useAgentStore.getState().reset();
@@ -30,14 +40,28 @@ describe("a click on a bubble", () => {
     expect(openBubbleTarget({ targetKind: "terminal", targetId: "" })).toBe(false);
   });
 
-  test("a conversation target waits for office agents to register how it opens", () => {
-    expect(openBubbleTarget({ targetKind: "conversation", targetId: "pm" })).toBe(false);
+  test("a conversation target opens that office agent's chat in Settings, or a registered opener", () => {
+    expect(openBubbleTarget({ targetKind: "conversation", targetId: "pm" })).toBe(true);
+    expect(useChatRequest.getState().agentId).toBe("pm");
+    expect(useSettingsTabStore.getState().tab).toBe("agents");
+    expect(useUiStore.getState().overlay).toBe("settings");
+    // Only that agent's card takes the request.
+    useChatRequest.getState().taken("someone-else");
+    expect(useChatRequest.getState().agentId).toBe("pm");
+    useChatRequest.getState().taken("pm");
+    expect(useChatRequest.getState().agentId).toBeNull();
+    useUiStore.getState().closeOverlay();
+
     const opened: string[] = [];
     const off = setConversationOpener((id) => opened.push(id));
     expect(openBubbleTarget({ targetKind: "conversation", targetId: "pm" })).toBe(true);
     expect(opened).toEqual(["pm"]);
+    expect(useChatRequest.getState().agentId).toBeNull();
     off();
-    expect(openBubbleTarget({ targetKind: "conversation", targetId: "pm" })).toBe(false);
+    expect(openBubbleTarget({ targetKind: "conversation", targetId: "pm" })).toBe(true);
+    expect(useChatRequest.getState().agentId).toBe("pm");
+    useChatRequest.getState().taken("pm");
+    useUiStore.getState().closeOverlay();
   });
 });
 

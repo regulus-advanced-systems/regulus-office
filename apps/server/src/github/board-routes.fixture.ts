@@ -20,6 +20,8 @@ import { createGitHubConnection } from "./setup.ts";
 export const ORG_PAT = "github_pat_ORGboards_0123456789abcdefghijkl";
 export const REPO_PAT = "github_pat_REPOsecret_0123456789abcdefghij";
 export const OPERATION = "operation-apollo";
+/** The room of the `secret` repo: one repo per operation (#268). */
+export const SECRET_OPERATION = "operation-secret";
 export const HELLO = "repo-hello";
 export const SECRET = "repo-secret";
 
@@ -149,19 +151,29 @@ export async function boardRoutesFixture() {
       layoutTemplateId: "t",
     })
     .run();
-  for (const [id, name, credential] of [
-    [HELLO, "hello", null],
-    [SECRET, "secret", REPO_PAT],
+  db.insert(operations)
+    .values({
+      id: SECRET_OPERATION,
+      name: "Secret",
+      slug: "secret",
+      index: 3,
+      paletteId: "p",
+      layoutTemplateId: "t",
+    })
+    .run();
+  for (const [id, name, credential, operationId] of [
+    [HELLO, "hello", null, OPERATION],
+    [SECRET, "secret", REPO_PAT, SECRET_OPERATION],
   ] as const) {
     db.insert(operationRepos)
       .values({
         id,
-        operationId: OPERATION,
+        operationId,
         owner: "octo",
         name,
         url: `https://github.com/octo/${name}`,
         workdir: `/tmp/rg36-none/${name}`,
-        isPrimary: id === HELLO,
+        isPrimary: true,
         cloneStatus: "ready",
         // Not a real envelope: the routes must never even try the repo's own PAT.
         encryptedCredential: credential,
@@ -173,7 +185,8 @@ export async function boardRoutesFixture() {
     [spawner, "spawn"],
     [viewer, "view"],
   ] as const) {
-    db.insert(operationMembers).values({ operationId: OPERATION, userId: user.id, access }).run();
+    for (const operationId of [OPERATION, SECRET_OPERATION])
+      db.insert(operationMembers).values({ operationId, userId: user.id, access }).run();
   }
 
   const cache = new BoardCache(db);

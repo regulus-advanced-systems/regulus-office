@@ -39,6 +39,7 @@ export function testState(rooms: readonly TestRoom[], size = 48) {
   const operations: Record<string, OperationSummary> = {
     [LOBBY_OPERATION_ID]: {
       operationId: LOBBY_OPERATION_ID,
+      levelId: "lobby",
       name: "Lobby",
       slug: "lobby",
       index: 0,
@@ -56,6 +57,7 @@ export function testState(rooms: readonly TestRoom[], size = 48) {
     const laid = layout.rooms.find((l) => l.id === r.id);
     operations[r.id] = {
       operationId: r.id,
+      levelId: "lobby",
       name: r.name ?? r.id,
       slug: r.id,
       index: i + 1,

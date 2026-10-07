@@ -7,6 +7,7 @@
 import { type BuildingState, LOBBY_OPERATION_ID } from "@regulus/protocol";
 import { type CompoundWorld, roomAt } from "../scene/compound/world.ts";
 import { inTvRange, type TvSpot } from "../scene/tv/spot.ts";
+import { onViewedLevel } from "../state/level.ts";
 import type { UiSettings } from "../ui/settings/settingsStorage.ts";
 import type { MediaHuman, MediaView } from "./session.ts";
 
@@ -28,6 +29,8 @@ export function mediaView(input: ViewInput): MediaView {
   let self: MediaHuman | null = null;
   for (const [id, h] of Object.entries(state?.humans ?? {})) {
     const mine = id === sessionId;
+    // Proximity is per level (#268): someone at the same spot a level away is not near.
+    if (!mine && !onViewedLevel(h)) continue;
     const x = mine && player.spawned ? player.x : h.position.x;
     const z = mine && player.spawned ? player.z : h.position.z;
     const human: MediaHuman = {

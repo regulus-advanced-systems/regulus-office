@@ -14,6 +14,7 @@
  * - changes-api.ts     REST shapes for a henchman's changes window: diff, commit, discard (#38)
  * - celebrations.ts    merge gong messages: `pr.merged`, `gong.ring` (#43)
  * - clock-sync.ts     four-timestamp clock sync for the jukebox (#47)
+ * - levels.ts         levels of the lair: one per GitHub organisation or account, plus the lobby (D26, #268)
  * - live-access.ts    close codes for connections ended on lost or changed access (#244)
  * - jukebox.ts        jukebox limits, playhead maths, permissions, library REST (#47)
  * - meeting-plan.ts   meeting patterns, roles and agenda (#50); meetings-api.ts their REST shapes
@@ -33,6 +34,8 @@
  * - room-settings-api.ts room desk count and decor style (#182)
  * - search-api.ts     search across chat and terminal scrollback (#41)
  * - social.ts         seat keys, emote and chat limits, chat bubble timing (#49)
+ * - office-agents.ts  office agents (shared and personal): model, REST shapes, who may do what (#271)
+ * - office-agent-tools.ts the office tools they act through, over MCP and REST (#271)
  * - skins.ts          henchman skins and the admin `skin_rules` that assign them (#184)
  * - schema/            @colyseus/schema classes mirroring the state shapes
  * - terminal.ts        terminal WebSocket control messages and constants
@@ -61,11 +64,14 @@ export * from "./genius.ts";
 export * from "./github-access.ts";
 export * from "./github-api.ts";
 export * from "./jukebox.ts";
+export * from "./levels.ts";
 export * from "./live-access.ts";
 export * from "./media.ts";
 export * from "./meeting-plan.ts";
 export * from "./meetings-api.ts";
 export * from "./notifications.ts";
+export * from "./office-agent-tools.ts";
+export * from "./office-agents.ts";
 export * from "./operation-state.ts";
 export * from "./operations-api.ts";
 export * from "./permission-modes.ts";

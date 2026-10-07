@@ -21,6 +21,7 @@ const REQUEST = { name: "Hermes", repos: [{ repo: "octo/hello" }] };
 
 const OPERATION = {
   operationId: "f2",
+  levelId: "lobby",
   name: "Hermes",
   slug: "hermes",
   index: 2,
@@ -108,6 +109,7 @@ describe("build mode", () => {
           room: {
             ...(call.body as { placement: object }).placement,
             operationId: "f2",
+            levelId: "lobby",
             name: "Hermes",
             doorX: 0,
             doorY: 0,

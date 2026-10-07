@@ -16,7 +16,7 @@ import {
   COMPOUND_ROOMS_API_PATH,
   DeleteOperationRequest,
   MoveRoomRequest,
-  PlaceRoomRequest,
+  RoomPlacement,
 } from "@regulus/protocol";
 import type { OfficeAuth } from "../auth/auth.ts";
 import { AuthHttpError, forbidden, unauthorized } from "../auth/errors.ts";
@@ -24,6 +24,7 @@ import { checkOrigin } from "../auth/origin.ts";
 import { readJsonBody } from "../http/body.ts";
 import { json, type RouteContext, type RouteHandler, type Router } from "../http/router.ts";
 import type { OperationActor } from "../operations/access.ts";
+import { CreateOperationBody } from "../operations/body.ts";
 import type { OperationLifecycle } from "../operations/lifecycle.ts";
 import type { OperationService } from "../operations/service.ts";
 import type { CompoundService } from "./service.ts";
@@ -34,6 +35,9 @@ export interface CompoundRouteDeps {
   operations: OperationService;
   lifecycle: OperationLifecycle;
 }
+
+/** `PlaceRoomRequest` read leniently, so several repos get the service's clear refusal (#268). */
+const PlaceRoomBody = CreateOperationBody.extend({ placement: RoomPlacement });
 
 export function mountCompoundRoutes(router: Router, deps: CompoundRouteDeps): void {
   const { auth, compound, operations, lifecycle } = deps;
@@ -71,14 +75,14 @@ export function mountCompoundRoutes(router: Router, deps: CompoundRouteDeps): vo
     COMPOUND_CHECK_API_PATH,
     route(async (ctx, actor) => {
       const body = await readJsonBody(ctx.request, CheckPlacementRequest);
-      return json(compound.check(actor, body.placement, body.operationId));
+      return json(compound.check(actor, body.placement, body.operationId, body.levelId));
     }, true),
   );
 
   router.post(
     COMPOUND_ROOMS_API_PATH,
     route(async (ctx, actor) => {
-      const { placement, ...input } = await readJsonBody(ctx.request, PlaceRoomRequest);
+      const { placement, ...input } = await readJsonBody(ctx.request, PlaceRoomBody);
       const { operation } = operations.create(actor, input, placement);
       const room = compound
         .layoutResponse()

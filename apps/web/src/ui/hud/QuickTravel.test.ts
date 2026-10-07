@@ -1,8 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import type { OperationInfo } from "@regulus/protocol";
-import { rowPlacement, testWorld } from "../../scene/compound/testing.ts";
+import type { CompoundState, LevelState, OperationInfo } from "@regulus/protocol";
+import { rowPlacement, testState, testWorld } from "../../scene/compound/testing.ts";
+import { compoundWorld } from "../../scene/compound/world.ts";
+import { levelView } from "../../state/level.ts";
 import { anyCloning, cloneBadge } from "../../state/operations.ts";
-import { travelRooms } from "./QuickTravel.tsx";
+import { levelKindLabel, levelRooms, travelRooms } from "./QuickTravel.tsx";
 
 describe("quick travel rooms (#186)", () => {
   test("special rooms first, then finished rooms this viewer may enter", () => {
@@ -22,6 +24,58 @@ describe("quick travel rooms (#186)", () => {
     ]);
   });
 
+  test("rooms are grouped by level: this level's first, then the other levels' (#268)", () => {
+    const spot = rowPlacement(4);
+    const octo = testState([{ id: "apollo", placement: spot }]);
+    const acme = testState([
+      { id: "zeus", placement: spot },
+      { id: "hades", placement: rowPlacement(16) },
+    ]);
+    const lobby = testState([]);
+    const level = (levelId: string, name: string, order: number, compound: CompoundState) =>
+      ({ levelId, kind: "org", login: name, name, order, compound }) as LevelState;
+    const state = {
+      compound: lobby.compound,
+      levels: {
+        acme: level("acme", "Acme", 2, acme.compound),
+        octo: level("octo", "Octo", 1, octo.compound),
+        lobby: level("lobby", "Lobby", 0, lobby.compound),
+      },
+      operations: {
+        ...lobby.operations,
+        apollo: { ...octo.operations.apollo, levelId: "octo" },
+        zeus: { ...acme.operations.zeus, levelId: "acme" },
+        hades: { ...acme.operations.hades, levelId: "acme" },
+      },
+    } as unknown as Parameters<typeof levelRooms>[1];
+    const here = compoundWorld(levelView(state, "octo"), new Set(["apollo"]));
+    const listed = levelRooms(here?.rooms ?? [], state, "octo", new Set(["apollo", "zeus"]));
+    // Hades is on Acme's level but this viewer may not enter it: not listed.
+    expect(listed.map((r) => [r.room.id, r.level?.name ?? null])).toEqual([
+      ["lobby", null],
+      ["conference", null],
+      ["break_room", null],
+      ["apollo", null],
+      ["zeus", "Acme"],
+    ]);
+    // From the lobby level every project room is on another level.
+    const lobbyWorld = compoundWorld(levelView(state, "lobby"), null);
+    expect(
+      levelRooms(lobbyWorld?.rooms ?? [], state, "lobby", new Set(["apollo", "zeus"]))
+        .filter((r) => r.level)
+        .map((r) => [r.room.id, r.level?.name]),
+    ).toEqual([
+      ["apollo", "Octo"],
+      ["zeus", "Acme"],
+    ]);
+  });
+
+  test("the level list says what each level is (#268)", () => {
+    expect(
+      (["lobby", "org", "account", "holding"] as const).map((kind) => levelKindLabel(kind)),
+    ).toEqual(["shared level", "organisation", "account", "rooms without a repo owner"]);
+  });
+
   test("clone badges: error wins over cloning; ready shows none", () => {
     const repo = (cloneStatus: "cloning" | "ready" | "error") => ({
       repoId: cloneStatus,
@@ -36,6 +90,7 @@ describe("quick travel rooms (#186)", () => {
     });
     const operation = (...statuses: ("cloning" | "ready" | "error")[]): OperationInfo => ({
       operationId: "f",
+      levelId: "lobby",
       name: "F",
       slug: "f",
       index: 1,

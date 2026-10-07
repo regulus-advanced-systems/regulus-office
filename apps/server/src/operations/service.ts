@@ -1,5 +1,8 @@
 /**
- * Operations (= projects) and their repos and members (SPEC §5, §9.1; D7, D14).
+ * Operations (= projects), each with its one repo, and their members (SPEC §5,
+ * §9.1; D7, D14, D26). An operation is one repo in one room, on the level of
+ * the GitHub organisation or account that owns the repo; that level is
+ * created with its first operation. A second repo is a second room.
  * Owners and admins create and archive operations; anyone with `manage` access
  * manages the operation's members and retries failed clones. Every change is
  * audited (without credential material) and reported through `onChange` so
@@ -19,6 +22,8 @@ import {
   CreateOperationRequest,
   DEFAULT_DESK_COUNT,
   hasOperationAccess,
+  MAX_REPOS_PER_OPERATION,
+  ONE_REPO_PER_ROOM_MESSAGE,
   SEATS_PER_DESK,
 } from "@regulus/protocol";
 import {
@@ -43,7 +48,8 @@ import {
   userProfiles,
 } from "../db/schema/index.ts";
 import type { RepoCredentialVault } from "../github/credentials.ts";
-import { parseRepoRef, type RepoRef, repoKey, repoWebUrl } from "../github/repo-ref.ts";
+import { parseRepoRef, repoWebUrl } from "../github/repo-ref.ts";
+import { ensureLevelFor } from "../levels/store.ts";
 import {
   effectiveAccess,
   isOfficeManager,
@@ -51,8 +57,9 @@ import {
   operationAccessFor,
 } from "./access.ts";
 import type { RepoCloner } from "./cloner.ts";
+import { takenDirNames } from "./dirs.ts";
 import { operationInfo, repoInfo } from "./info.ts";
-import { repoDirNames, slugify, uniqueSlug } from "./naming.ts";
+import { slugify, uniqueSlug } from "./naming.ts";
 import { listOfficeUsers } from "./people.ts";
 
 export type CreateOperationInput = z.output<typeof CreateOperationRequest>;
@@ -65,6 +72,8 @@ export interface OperationServiceDeps {
   projectsDir: string;
   /** Operation list or an operation's repos changed (create, archive, clone settled). */
   onChange?(operationId: string): void;
+  /** A level was created for a repo owner (its first operation): time to ask GitHub what it is. */
+  onLevelCreated?(levelId: string): void;
   /** A human's access to an operation was set or removed: their open connections are checked again (#244). */
   onAccessChange?(operationId: string, userId: string): void;
   /** Places new operations in the compound (#181); without it operations are created unplaced. */
@@ -111,14 +120,14 @@ export class OperationService {
     placement?: RoomPlacement,
   ): { operation: OperationInfo; cloned: Promise<void> } {
     if (!isOfficeManager(actor.role)) throw forbidden("owner_or_admin_required");
-    const refs: RepoRef[] = input.repos.map((r, i) => {
-      const parsed = parseRepoRef(r.repo);
-      if (!parsed.ok) throw new AuthHttpError(400, parsed.error, { repo: i });
-      return parsed.ref;
-    });
-    const keys = refs.map(repoKey);
-    if (new Set(keys).size !== keys.length) throw new AuthHttpError(400, "duplicate_repo");
-    if (input.repos.some((r) => r.token) && !this.#deps.vault.available) {
+    const [repoInput] = input.repos;
+    if (!repoInput || input.repos.length > MAX_REPOS_PER_OPERATION) {
+      throw new AuthHttpError(400, "one_repo_per_room", { message: ONE_REPO_PER_ROOM_MESSAGE });
+    }
+    const parsed = parseRepoRef(repoInput.repo);
+    if (!parsed.ok) throw new AuthHttpError(400, parsed.error, { repo: 0 });
+    const ref = parsed.ref;
+    if (repoInput.token && !this.#deps.vault.available) {
       throw new AuthHttpError(400, "master_key_required");
     }
     if (input.paletteId && !paletteById(input.paletteId)) {
@@ -130,7 +139,6 @@ export class OperationService {
     const template = templateForTier(input.tier);
     const deskCount = placement ? DEFAULT_DESK_COUNT : (legacyDeskCount(template.id) ?? 1);
     const deskSeats = roomDeskSeatIds(deskCount);
-    const dirNames = repoDirNames(refs);
 
     const created = this.#db.transaction(
       (tx) => {
@@ -139,22 +147,19 @@ export class OperationService {
           .from(operations)
           .all();
         const index = (top?.n ?? 0) + 1;
-        const taken = new Set(
-          tx
-            .select({ slug: operations.slug })
-            .from(operations)
-            .all()
-            .map((r) => r.slug),
-        );
-        const slug = uniqueSlug(slugify(input.name), taken);
+        // The slug names the operation's directories; split rooms keep an older one (dirs.ts).
+        const slug = uniqueSlug(slugify(input.name), takenDirNames(tx));
         const operationId = randomUUID();
         if (placement && !this.#deps.placer) throw new AuthHttpError(503, "compound_unavailable");
+        // The room goes on its repo owner's level (D7, D26), created on first use.
+        const level = ensureLevelFor(tx, ref.owner);
         const room = this.#deps.placer?.claim(
           tx,
           actor,
           operationId,
           placement,
           deskCount * SEATS_PER_DESK,
+          level.levelId,
         );
         tx.insert(operations)
           .values({
@@ -166,26 +171,25 @@ export class OperationService {
             layoutTemplateId: ROOM_LAYOUT_ID,
             ...room,
             deskCount,
+            levelId: level.levelId,
           })
           .run();
-        const repoIds = refs.map((ref, i) => {
-          const repoId = randomUUID();
-          const token = input.repos[i]?.token;
-          tx.insert(operationRepos)
-            .values({
-              id: repoId,
-              operationId,
-              owner: ref.owner,
-              name: ref.name,
-              url: repoWebUrl(ref),
-              workdir: join(this.#deps.projectsDir, slug, dirNames[i] ?? ref.name),
-              isPrimary: i === 0,
-              cloneStatus: "cloning",
-              encryptedCredential: token ? this.#deps.vault.seal(repoId, token) : null,
-            })
-            .run();
-          return repoId;
-        });
+        const repoId = randomUUID();
+        tx.insert(operationRepos)
+          .values({
+            id: repoId,
+            operationId,
+            owner: ref.owner,
+            name: ref.name,
+            url: repoWebUrl(ref),
+            workdir: join(this.#deps.projectsDir, slug, ref.name),
+            isPrimary: true,
+            cloneStatus: "cloning",
+            encryptedCredential: repoInput.token
+              ? this.#deps.vault.seal(repoId, repoInput.token)
+              : null,
+          })
+          .run();
         if (deskSeats.length > 0) {
           tx.insert(desks)
             .values(deskSeats.map((seatId) => ({ operationId, seatId })))
@@ -202,19 +206,20 @@ export class OperationService {
             tier: input.tier,
             layoutTemplateId: ROOM_LAYOUT_ID,
             deskCount,
-            repos: refs.map((r) => `${r.owner}/${r.name}`),
-            reposWithCredential: input.repos.filter((r) => r.token).length,
+            levelId: level.levelId,
+            levelCreated: level.created,
+            repos: [`${ref.owner}/${ref.name}`],
+            reposWithCredential: repoInput.token ? 1 : 0,
           },
         });
-        return { operationId, repoIds };
+        return { operationId, repoId, level };
       },
       { behavior: "immediate" },
     );
 
     this.#deps.onChange?.(created.operationId);
-    const cloned = Promise.all(created.repoIds.map((id) => this.#deps.cloner.enqueue(id))).then(
-      () => undefined,
-    );
+    if (created.level.created) this.#deps.onLevelCreated?.(created.level.levelId);
+    const cloned = this.#deps.cloner.enqueue(created.repoId).then(() => undefined);
     const row = this.#db
       .select()
       .from(operations)

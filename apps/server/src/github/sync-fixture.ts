@@ -94,8 +94,10 @@ export function syncFixture(
     });
     return { operationId, repoIds: ids };
   };
-  const alpha = seedOperation("alpha", 1, ["octo/hello", "octo/other"]);
+  // One repo per operation (#268): alpha and beta follow the same repo, gamma another.
+  const alpha = seedOperation("alpha", 1, ["octo/hello"]);
   const beta = seedOperation("beta", 2, ["Octo/Hello"]);
+  const gamma = seedOperation("gamma", 3, ["octo/other"]);
 
   const published = new Map<string, OperationBoard>();
   const credentialCalls: string[] = [];
@@ -132,6 +134,7 @@ export function syncFixture(
     credentialCalls,
     alpha,
     beta,
+    gamma,
     stop: () => {
       sync.stop();
       gh.stop();

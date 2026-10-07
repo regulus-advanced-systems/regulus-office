@@ -1,0 +1,269 @@
+/**
+ * Fixture for the office agent tests (#271): a real office server with
+ * sessions, four people, two operations, office agents on the fake engine,
+ * and the tools bound to the real task queue and credential rules (a fake
+ * spawner stands in for the AgentManager, enforcing its ownership rule).
+ */
+import type { OfficeToolResult, QueueSettings, QueueTask } from "@regulus/protocol";
+import { eq } from "drizzle-orm";
+import { CredentialResolver, credentialProfileContext } from "../agents/manager/credentials.ts";
+import { AgentManagerError } from "../agents/manager/errors.ts";
+import type { SpawnInput } from "../agents/manager/spawn.ts";
+import { AgentStore } from "../agents/manager/store.ts";
+import { startOffice } from "../auth/test-helpers.ts";
+import {
+  agents,
+  auditLog,
+  credentialProfiles,
+  desks,
+  operationMembers,
+  operationRepos,
+  operations,
+} from "../db/schema/index.ts";
+import { captureLogger, testKeyring } from "../notifications/testing.ts";
+import type { OperationActor } from "../operations/access.ts";
+import { TaskQueue } from "../queue/index.ts";
+import type { Runner } from "../runners/types.ts";
+import { encryptSecret } from "../secrets/index.ts";
+import { UsageTracker } from "../usage/index.ts";
+import { FakeEngine, type FakeEngineOptions } from "./engines/fake.ts";
+import { createOfficeAgents } from "./setup.ts";
+
+export const OFFICE_KEY = "sk-ant-api03-FAKE-office-agent-key-0123456789";
+export const APOLLO = "op-apollo";
+export const BOREALIS = "op-borealis";
+export const APOLLO_REPO = "repo-apollo";
+export const BOREALIS_REPO = "repo-borealis";
+
+export interface AgentsOfficeOptions {
+  fake?: FakeEngineOptions;
+  /** With a runner the real CLI session engine is registered instead of the fake one. */
+  runner?: Pick<Runner, "provision" | "spawnPiped" | "backend">;
+  cliCommand?: string;
+}
+
+export async function agentsOffice(options: AgentsOfficeOptions = {}) {
+  const office = startOffice();
+  const { db } = office;
+  const log = captureLogger();
+  const keyring = testKeyring();
+  const fake = new FakeEngine(options.fake);
+
+  // People: Olga owns the office, Ada is an admin, Mia and Sam are members.
+  const olga = await office.signUp("Olga", "10.0.0.1");
+  const ada = await office.signUp("Ada", "10.0.0.2");
+  const mia = await office.signUp("Mia", "10.0.0.3");
+  const sam = await office.signUp("Sam", "10.0.0.4");
+  db.$client.run(`update user_profiles set role = 'admin' where user_id = '${ada.id}'`);
+
+  // Apollo: Mia may spawn. Borealis: Sam manages; Mia has nothing there.
+  for (const [id, name] of [
+    [APOLLO, "Apollo"],
+    [BOREALIS, "Borealis"],
+  ] as const) {
+    db.insert(operations)
+      .values({ id, name, slug: id, index: 1, paletteId: "oak-sky", layoutTemplateId: "t" })
+      .run();
+    for (let i = 1; i <= 4; i++)
+      db.insert(desks)
+        .values({ operationId: id, seatId: `s${i}` })
+        .run();
+  }
+  for (const [id, operationId, name] of [
+    [APOLLO_REPO, APOLLO, "hello"],
+    [BOREALIS_REPO, BOREALIS, "other"],
+  ] as const) {
+    db.insert(operationRepos)
+      .values({
+        id,
+        operationId,
+        owner: "octo",
+        name,
+        url: "file:///dev/null",
+        defaultBranch: "trunk",
+        workdir: "/tmp/none",
+        isPrimary: true,
+        cloneStatus: "ready",
+      })
+      .run();
+  }
+  const setAccess = (operationId: string, userId: string, access: "view" | "spawn" | "manage") => {
+    db.delete(operationMembers).where(eq(operationMembers.userId, userId)).run();
+    db.insert(operationMembers).values({ operationId, userId, access }).run();
+  };
+  db.insert(operationMembers)
+    .values({ operationId: APOLLO, userId: mia.id, access: "spawn" })
+    .run();
+  db.insert(operationMembers)
+    .values({ operationId: BOREALIS, userId: sam.id, access: "manage" })
+    .run();
+
+  /** An office-wide API key for the provider (SPEC §8 rule 3); returns the profile id. */
+  const addOfficeKey = (
+    provider: "claude-code" | "codex" = "claude-code",
+    label = "Office key",
+  ) => {
+    const id = crypto.randomUUID();
+    db.insert(credentialProfiles)
+      .values({
+        id,
+        userId: null,
+        provider,
+        label,
+        authKind: "api_key",
+        encryptedSecret: encryptSecret(
+          OFFICE_KEY,
+          credentialProfileContext({ id, userId: null }),
+          keyring.keys,
+          keyring.current,
+        ),
+      })
+      .run();
+    return id;
+  };
+
+  // The AgentManager's stand-in: the real credential rule, a henchman row, owner-only stop.
+  const resolver = new CredentialResolver(db, keyring);
+  const spawned: Array<{ actor: OperationActor; input: SpawnInput; agentId: string }> = [];
+  let n = 0;
+  const spawn = async (actor: OperationActor, input: SpawnInput) => {
+    resolver.check(actor.id, input.provider, input.profileId);
+    n += 1;
+    const agentId = `henchman-${n}`;
+    new AgentStore(db).insertWithDesk(
+      {
+        id: agentId,
+        operationId: input.operationId,
+        repoId: input.repoId,
+        deskSeatId: "",
+        ownerUserId: actor.id,
+        provider: input.provider,
+        model: input.model,
+        profileId: input.profileId ?? `login:${input.provider}`,
+        status: "working",
+        tmuxSession: `agent-${agentId}`,
+        workdir: "/tmp/none",
+        taskTitle: input.taskTitle ?? input.prompt.slice(0, 40),
+      },
+      undefined,
+    );
+    spawned.push({ actor, input, agentId });
+    return { agentId };
+  };
+  const stopped: string[] = [];
+  const stop = async (actor: OperationActor, henchmanId: string) => {
+    const row = db.select().from(agents).where(eq(agents.id, henchmanId)).get();
+    if (!row) throw new AgentManagerError("not_found", "no such agent");
+    if (row.ownerUserId !== actor.id) {
+      throw new AgentManagerError("forbidden", "only the henchman's owner may control it");
+    }
+    db.update(agents).set({ exitedAt: new Date() }).where(eq(agents.id, henchmanId)).run();
+    stopped.push(henchmanId);
+  };
+  const published = new Map<string, { tasks: readonly QueueTask[]; settings: QueueSettings }>();
+  const queue = new TaskQueue({
+    db,
+    logger: log.logger,
+    publisher: {
+      publishQueue: (id, tasks, settings) => void published.set(id, { tasks, settings }),
+    },
+    spawner: {
+      check: (owner, input) => void resolver.check(owner.id, input.provider, input.profileId),
+      spawn: (owner, input, hooks) =>
+        spawn(owner, input).then((r) => {
+          hooks.onAdmitted(r.agentId);
+          return r;
+        }),
+    },
+  });
+
+  const chat: Array<{ userId: string; displayName: string; operationId: string; text: string }> =
+    [];
+  const comments: Array<{ repo: string; number: number; body: string; token: string }> = [];
+  const officeAgents = createOfficeAgents({
+    db,
+    logger: log.logger,
+    keyring,
+    officeUrl: office.origin,
+    version: "test",
+    engines: options.runner ? [] : [fake],
+    runner: options.runner,
+    cliCommand: options.cliCommand,
+    usage: new UsageTracker(db),
+  });
+  officeAgents.bind({
+    queue: (operationId) => queue.snapshot(operationId),
+    enqueue: (actor, input) => queue.enqueueTask(actor, input),
+    myUsage: (userId) => ({ owner: userId }) as never,
+    officeUsage: () => ({ office: true }) as never,
+    postChat: (line) => void chat.push(line),
+    spawn,
+    stop,
+    officeToken: async () => "ghs_FAKE_office_installation_token",
+    github: {
+      comment: async (token, repo, number, body) => {
+        comments.push({ repo: `${repo.owner}/${repo.name}`, number, body, token });
+        return {
+          id: comments.length,
+          author: "office[bot]",
+          bodyMd: body,
+          createdAt: 1,
+          url: `https://github.test/${repo.owner}/${repo.name}/issues/${number}#c${comments.length}`,
+        };
+      },
+    },
+  });
+  officeAgents.mount(office.server.router, office.auth);
+  officeAgents.boot();
+
+  const send = (path: string, method: string, cookie: string, body?: unknown, origin?: string) =>
+    office.request(path, {
+      method,
+      cookie,
+      body: body === undefined ? undefined : JSON.stringify(body),
+      headers: origin ? { origin } : undefined,
+    });
+  /** Call an office tool over REST with an agent token. */
+  const tool = async (token: string, name: string, input: unknown = {}) => {
+    const res = await fetch(new URL(`/api/agent-tools/${name}`, office.server.url), {
+      method: "POST",
+      headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+      body: JSON.stringify(input),
+    });
+    return { status: res.status, body: (await res.json()) as OfficeToolResult };
+  };
+  const audits = (action?: string) =>
+    db
+      .select()
+      .from(auditLog)
+      .all()
+      .filter((r) => r.targetKind === "office_agent" && (!action || r.action === action))
+      .map((r) => ({ ...r, meta: JSON.parse(r.metaJson) as Record<string, unknown> }));
+
+  return {
+    office,
+    db,
+    log,
+    fake,
+    keyring,
+    officeAgents,
+    queue,
+    people: { olga, ada, mia, sam },
+    setAccess,
+    addOfficeKey,
+    spawned,
+    stopped,
+    chat,
+    comments,
+    send,
+    tool,
+    audits,
+    async stop() {
+      await queue.close();
+      await officeAgents.close();
+      await office.stop();
+    },
+  };
+}
+
+export type AgentsOffice = Awaited<ReturnType<typeof agentsOffice>>;

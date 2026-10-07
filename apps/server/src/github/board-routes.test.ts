@@ -15,6 +15,7 @@ import {
   ORG_PAT,
   REPO_PAT,
   SECRET,
+  SECRET_OPERATION,
 } from "./board-routes.fixture.ts";
 
 let f: BoardRoutesFixture;
@@ -84,7 +85,7 @@ describe("reading a card", () => {
     const before = f.gh.calls.length;
     const res = await f.call(
       "GET",
-      boardCardPath(OPERATION, "issue", SECRET, 3),
+      boardCardPath(SECRET_OPERATION, "issue", SECRET, 3),
       f.people.viewer.cookie,
     );
     const detail = (await res.json()) as BoardCardDetail;
@@ -135,7 +136,7 @@ describe("write access", () => {
   });
 
   test("a repo without an office credential cannot be written, even with its own PAT", async () => {
-    const path = boardCardPath(OPERATION, "issue", SECRET, 3, "comment");
+    const path = boardCardPath(SECRET_OPERATION, "issue", SECRET, 3, "comment");
     const res = await f.call("POST", path, f.people.manager.cookie, { body: "hello" });
     expect(res.status).toBe(409);
     expect(((await res.json()) as { error: string }).error).toBe("office_credential_missing");

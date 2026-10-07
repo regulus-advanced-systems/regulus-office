@@ -9,7 +9,9 @@ import type { Vec2 } from "@regulus/room-layout";
 import { type CompoundWorld, isOpenRoom, roomAt, travelPose } from "../scene/compound/world.ts";
 import { useBuildingStore } from "./building.ts";
 import { useCompoundStore } from "./compound.ts";
+import { onViewedLevel } from "./level.ts";
 import { usePlayerStore } from "./player.ts";
+import { travelToLevel } from "./travel.ts";
 
 /** Stop this far from the teammate (metres), on the side we come from. */
 export const BESIDE_METRES = 0.9;
@@ -41,8 +43,11 @@ export type WalkResult = "walking" | "door" | "here" | "unreachable" | "unknown"
 
 /** Set off toward the human with this BuildingRoom session id. */
 export function walkToTeammate(sessionId: string): WalkResult {
+  const human = useBuildingStore.getState().state?.humans[sessionId];
+  // Someone on another level (#268): go to their level first, then walk from its lobby door.
+  if (human && !onViewedLevel(human) && !travelToLevel(human.levelId)) return "unknown";
   const world = useCompoundStore.getState().world;
-  const them = useBuildingStore.getState().state?.humans[sessionId]?.position;
+  const them = human?.position;
   const player = usePlayerStore.getState();
   if (!world || !them || !player.spawned) return "unknown";
   const goal = teammateGoal(world, player, them);

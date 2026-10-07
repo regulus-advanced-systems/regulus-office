@@ -39,6 +39,8 @@ interface Nav {
   walkToSeat(operationId: string, seatId: string): boolean;
   terminalDesk(): string | null;
   camera(): CameraState;
+  level(): string;
+  levelOf(roomName: string): { levelId: string; name: string } | null;
 }
 
 export interface CameraState {
@@ -96,13 +98,56 @@ export const walkToSeat = (page: Page, operationId: string, seatId: string): Pro
     `(${probe.toString()})().walkToSeat(${JSON.stringify(operationId)}, ${JSON.stringify(seatId)})`,
   ) as Promise<boolean>;
 
-/** The room called `name`, once it is finished and this page may enter it. */
+/** The level the page is looking at (#268). */
+export const navLevel = (page: Page): Promise<string> =>
+  page.evaluate(`(${probe.toString()})().level()`) as Promise<string>;
+
+/**
+ * Look at the level the room called `name` is on (#268): a room is on the level of its
+ * repo's owner, and the world shows one level at a time. Through quick travel's level list,
+ * as a person would; the player arrives at that level's lobby door. False when the room (or
+ * its level) is not published yet; true once the page is on that level.
+ */
+export async function goToLevelOf(page: Page, name: string): Promise<boolean> {
+  const target = (await page.evaluate(
+    `(${probe.toString()})().levelOf(${JSON.stringify(name)})`,
+  )) as { levelId: string; name: string } | null;
+  if (!target) return false;
+  await goToLevel(page, target);
+  return true;
+}
+
+/** Look at the shared lobby level (where everyone arrives; it has no project rooms). */
+export const goToLobbyLevel = (page: Page): Promise<void> =>
+  goToLevel(page, { levelId: "lobby", name: "Lobby" });
+
+async function goToLevel(page: Page, target: { levelId: string; name: string }): Promise<void> {
+  if ((await navLevel(page)) === target.levelId) return;
+  await page.bringToFront();
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  const dialog = page.getByRole("dialog", { name: "Quick travel" });
+  if ((await dialog.count()) === 0) await page.keyboard.press("f");
+  await dialog
+    .getByRole("list", { name: "Levels" })
+    .getByRole("button", { name: new RegExp(`^${target.name}`) })
+    .click();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await expect.poll(() => navLevel(page)).toBe(target.levelId);
+}
+
+/**
+ * The room called `name`, once it is finished and this page may enter it. The page is taken
+ * to the room's level first, if it is looking at another one.
+ */
 export async function roomNamed(page: Page, name: string): Promise<NavRoom> {
   let found: NavRoom | undefined;
   await expect
     .poll(
       async () => {
         found = (await navRooms(page)).find((r) => r.name === name);
+        if (!found && (await goToLevelOf(page, name)))
+          found = (await navRooms(page)).find((r) => r.name === name);
         return found ? `${found.buildState}/${found.enterable}` : "missing";
       },
       { timeout: 45_000 },

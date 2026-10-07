@@ -16,6 +16,7 @@
  */
 import { z } from "zod";
 import { Count, Id, TimestampMs } from "./common.ts";
+import { LevelInfo } from "./levels.ts";
 import { CreateOperationRequest, OperationHenchmanInfo, OperationInfo } from "./operations-api.ts";
 
 export const COMPOUND_TILE_METRES = 2;
@@ -115,6 +116,14 @@ export const CompoundState = z.object({
 });
 export type CompoundState = z.infer<typeof CompoundState>;
 
+/**
+ * One level in the BuildingRoom (D26, #268): who it belongs to and its own
+ * layout (corridors and fixed rooms). Its project rooms are the
+ * `BuildingState.operations` entries with this `levelId`.
+ */
+export const LevelState = LevelInfo.extend({ compound: CompoundState });
+export type LevelState = z.infer<typeof LevelState>;
+
 /** The layout before the server publishes one (the schema defaults). */
 export const EMPTY_COMPOUND: CompoundState = {
   width: 0,
@@ -148,6 +157,8 @@ export const COMPOUND_ROOMS_API_PATH = `${COMPOUND_API_PATH}/rooms`;
 /** A project room as listed by `GET /api/compound` (same fields as the building room's summary). */
 export const CompoundRoomInfo = RoomPlacement.extend({
   operationId: Id,
+  /** The level whose grid the room is placed on (#268). */
+  levelId: Id,
   name: z.string().max(80),
   doorX: Tile,
   doorY: Tile,
@@ -158,15 +169,25 @@ export const CompoundRoomInfo = RoomPlacement.extend({
 export type CompoundRoomInfo = z.infer<typeof CompoundRoomInfo>;
 
 export const CompoundLayoutResponse = z.object({
+  /** The lobby level's layout. */
   compound: CompoundState,
+  /** Every level with its own layout, lobby first (#268). */
+  levels: z.array(LevelState),
+  /** The project rooms of every level; `levelId` says which grid each is on. */
   rooms: z.array(CompoundRoomInfo),
 });
 export type CompoundLayoutResponse = z.infer<typeof CompoundLayoutResponse>;
 
-/** Body of `POST /api/compound/check`; `operationId` ignores that room (checking a move). */
+/**
+ * Body of `POST /api/compound/check`. Each level has its own grid (#268), so
+ * the check needs the level: `operationId` (checking a move) means that
+ * room's level and ignores the room itself; otherwise `levelId` (a new room
+ * on that level). With neither, the lobby level's grid is checked.
+ */
 export const CheckPlacementRequest = z.object({
   placement: RoomPlacement,
   operationId: Id.optional(),
+  levelId: Id.optional(),
 });
 export type CheckPlacementRequest = z.infer<typeof CheckPlacementRequest>;
 

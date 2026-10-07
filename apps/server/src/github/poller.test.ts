@@ -50,7 +50,8 @@ describe("first pass and conditional requests", () => {
     seeded();
     await f.sync.pollNow();
     const alpha = board(f.alpha.operationId);
-    expect(alpha.issues.map((i) => i.number).sort()).toEqual([1, 2, 4]);
+    expect(alpha.issues.map((i) => i.number).sort()).toEqual([1, 2]);
+    expect(board(f.gamma.operationId).issues.map((i) => i.number)).toEqual([4]);
     expect(alpha.pulls).toEqual([
       expect.objectContaining({ number: 10, checksState: "success", reviewState: "approved" }),
     ]);

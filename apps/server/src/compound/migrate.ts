@@ -12,6 +12,12 @@
  *   (an operation written without one, or restored onto a built-over spot).
  *
  * Archived operations are placed when they are restored.
+ *
+ * Each level has its own grid (#268): rooms are reconciled level by level and
+ * never compared across levels. The grid's size is shared, so when one level
+ * needs a bigger compound on first creation, every level is planned again
+ * with it. Rooms split off a multi-repo operation arrive here unplaced and
+ * get a spot on their level.
  */
 import {
   type CompoundSpec,
@@ -19,6 +25,7 @@ import {
   defaultCompoundSpec,
   planMigration,
   type ReconcileInput,
+  type ReconcileResult,
   reconcilePlacements,
 } from "@regulus/room-layout";
 import { asc, isNull } from "drizzle-orm";
@@ -26,7 +33,14 @@ import { AUDIT_ACTIONS, type DbOrTx, writeAudit } from "../auth/audit.ts";
 import type { Db } from "../db/index.ts";
 import { operations } from "../db/schema/index.ts";
 import type { Logger } from "../logging.ts";
-import { liveRooms, readSpec, sizeForUnplaced, writePlacement, writeSpec } from "./store.ts";
+import {
+  liveRooms,
+  readSpec,
+  roomsByLevel,
+  sizeForUnplaced,
+  writePlacement,
+  writeSpec,
+} from "./store.ts";
 
 export interface EnsureCompoundResult {
   spec: CompoundSpec;
@@ -49,6 +63,30 @@ function elevatorOrder(db: DbOrTx): Map<string, number> {
   return new Map(rows.map((r, i) => [r.id, i]));
 }
 
+const sameSize = (a: CompoundSpec, b: CompoundSpec) => a.width === b.width && a.depth === b.depth;
+
+/** Plan every level on one spec, growing it (for all levels) until each level fits or it is at its largest. */
+function planLevels(
+  start: CompoundSpec,
+  levels: readonly ReconcileInput[][],
+): { spec: CompoundSpec; results: ReconcileResult[] } {
+  let spec = start;
+  for (;;) {
+    const results: ReconcileResult[] = [];
+    let grown: CompoundSpec | null = null;
+    for (const inputs of levels) {
+      const plan = planMigration(spec, inputs);
+      if (!sameSize(plan.spec, spec)) {
+        grown = plan.spec;
+        break;
+      }
+      results.push(plan.result);
+    }
+    if (!grown) return { spec, results };
+    spec = grown;
+  }
+}
+
 /** Place what needs placing; see the module comment. Safe to call on every boot and change. */
 export function ensureCompound(
   db: Db,
@@ -58,28 +96,37 @@ export function ensureCompound(
     (tx) => {
       const stored = readSpec(tx);
       const rooms = liveRooms(tx);
-      const inputs: ReconcileInput[] = rooms.map((room) => ({
-        id: room.id,
-        placement: room.placement,
-        size: sizeForUnplaced(tx, room),
-      }));
+      const levels: ReconcileInput[][] = [...roomsByLevel(rooms).values()].map((onLevel) =>
+        onLevel.map((room) => ({
+          id: room.id,
+          placement: room.placement,
+          size: sizeForUnplaced(tx, room),
+        })),
+      );
       let spec: CompoundSpec;
-      let plan: ReturnType<typeof reconcilePlacements>;
+      let results: ReconcileResult[];
       if (stored) {
         spec = stored;
-        plan = reconcilePlacements(spec, inputs);
+        results = levels.map((inputs) => reconcilePlacements(stored, inputs));
       } else {
         const order = elevatorOrder(tx);
-        inputs.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
+        for (const inputs of levels)
+          inputs.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
         const start = defaultCompoundSpec(options.sizeTiles);
         const problems = compoundSpecProblems(start);
         if (problems.length > 0) throw new Error(`invalid compound size: ${problems.join(", ")}`);
-        ({ spec, result: plan } = planMigration(start, inputs));
+        ({ spec, results } = planLevels(start, levels));
         writeSpec(tx, spec);
       }
-      for (const id of plan.changed) {
-        const placement = plan.placements.get(id);
-        if (placement) writePlacement(tx, id, placement);
+      const plan = {
+        changed: results.flatMap((r) => [...r.changed]),
+        unplaced: results.flatMap((r) => [...r.unplaced]),
+      };
+      for (const result of results) {
+        for (const id of result.changed) {
+          const placement = result.placements.get(id);
+          if (placement) writePlacement(tx, id, placement);
+        }
       }
       if (!stored || plan.changed.length > 0) {
         writeAudit(tx, {
