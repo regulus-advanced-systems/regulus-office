@@ -230,7 +230,8 @@ export const BuildingStateSchema = schema(
     humans: t.map(HumanPresenceSchema).view(),
     operations: t.map(OperationSummarySchema).view(),
     closedRooms: t.map(ClosedRoomSchema).view(),
-    chat: t.array(ChatMessageSchema),
+    // Per viewer too: a line written inside a room is for the people who may enter it.
+    chat: t.array(ChatMessageSchema).view(),
     jukebox: JukeboxStateSchema,
     usage: UsageSummarySchema,
     pm: PmStateSchema,

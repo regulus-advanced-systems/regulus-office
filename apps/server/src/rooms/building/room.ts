@@ -290,9 +290,10 @@ export function createBuildingRoom(deps: BuildingRoomDeps): BuildingRoom {
           text: command.text,
           ts: now(),
         };
-        // Everyone reads the lobby chat: which room the sender stood in is not published.
-        room.state.chat.push(chatLine({ ...line, operationId: "" }));
+        room.state.chat.push(chatLine(line));
         while (room.state.chat.length > CHAT_REPLAY) room.state.chat.shift();
+        // A line written inside a room is shown to the people who may enter it (viewers.ts).
+        viewers.sync(room);
         chat.append(line).catch((err) => logger.error({ err }, "chat persistence failed"));
         return;
       }
@@ -363,8 +364,7 @@ export function createBuildingRoom(deps: BuildingRoomDeps): BuildingRoom {
     async onCreate(room) {
       handle = room;
       await refreshOperations();
-      for (const line of await chat.recent(CHAT_REPLAY))
-        room.state.chat.push(chatLine({ ...line, operationId: "" }));
+      for (const line of await chat.recent(CHAT_REPLAY)) room.state.chat.push(chatLine(line));
       publishUsage();
       if (compound) {
         applyCompoundState(room.state.compound, compound.state);
@@ -456,8 +456,9 @@ export function createBuildingRoom(deps: BuildingRoomDeps): BuildingRoom {
     postChat(line) {
       const message: ChatMessage = { id: crypto.randomUUID(), ...line, ts: now() };
       if (handle) {
-        handle.state.chat.push(chatLine({ ...message, operationId: "" }));
+        handle.state.chat.push(chatLine(message));
         while (handle.state.chat.length > CHAT_REPLAY) handle.state.chat.shift();
+        viewers.sync(handle);
       }
       chat.append(message).catch((err) => logger.error({ err }, "chat persistence failed"));
     },

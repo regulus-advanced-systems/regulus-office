@@ -108,6 +108,7 @@ describe("Colyseus schema lockstep", () => {
       map.forEach((item: Schema) => view.add(item));
     }
     typed.usage.topHenchmen.forEach((row: Schema) => view.add(row));
+    typed.chat.forEach((line: Schema) => view.add(line));
     const it = { offset: 0 };
     encoder.encodeAll(it);
     const bytes = encoder.encodeAllView(view, it.offset, it);
@@ -129,7 +130,8 @@ describe("Colyseus schema lockstep", () => {
     expect(json.levels).toEqual({});
     expect(json.usage.topHenchmen ?? []).toEqual([]);
     // What is the same for everyone still arrives.
-    expect(json.chat).toEqual(plain(buildingFixture.chat));
+    expect(json.chat ?? []).toEqual([]);
+    expect(json.jukebox).toEqual(plain(buildingFixture.jukebox));
     expect(json.compound).toEqual(plain(buildingFixture.compound));
   });
 

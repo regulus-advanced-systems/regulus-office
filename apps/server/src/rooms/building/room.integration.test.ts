@@ -240,7 +240,7 @@ describe("BuildingRoom over the wire", () => {
     expect(bob.state.chat.at(-1)).toMatchObject({
       userId: "u-ada3",
       displayName: "Ada",
-      operationId: "",
+      operationId: LOBBY_OPERATION_ID,
     });
     expect(bob.state.chat.length).toBe(CHAT_REPLAY);
 

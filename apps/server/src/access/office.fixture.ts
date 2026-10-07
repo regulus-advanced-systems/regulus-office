@@ -115,6 +115,11 @@ export async function startTestOffice(opts: {
       while (newline >= 0) {
         const line = log.slice(0, newline);
         log = log.slice(newline + 1);
+        // Server errors are a test failure waiting to be explained: show them.
+        // (Not the docker socket: this office has none, on purpose.)
+        if (line.includes('"level":50') && !line.includes("FailedToOpenSocket")) {
+          console.error(line.slice(0, 1500));
+        }
         if (line.includes('"routes mounted"')) {
           routes = (JSON.parse(line) as { routes: RouteEntry[] }).routes;
         }

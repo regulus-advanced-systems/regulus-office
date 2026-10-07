@@ -74,8 +74,10 @@ export class MeetingService {
 
   #row(actor: OperationActor, meetingId: string): MeetingRow {
     const row = this.deps.store.get(meetingId);
-    if (!row) throw new MeetingError(404, "not_found", "no such meeting");
-    this.#visible(actor, row.operationId);
+    // A meeting in a room closed to the actor answers exactly like one that does not exist (#270).
+    if (!row || operationAccessFor(this.deps.db, actor, row.operationId) === null) {
+      throw new MeetingError(404, "not_found", "no such meeting");
+    }
     return row;
   }
 

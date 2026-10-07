@@ -278,7 +278,9 @@ describe("the route table", () => {
               `${label}: ${route} -> ${a.status} ${ta.slice(0, 120)} (no such: ${b.status})`,
             );
           }
-          if (a.status >= 200 && a.status < 300 && route.split(" ")[0] !== "GET") {
+          // (The placement check is a question, not a change: it may answer, identically.)
+          const asks = route.startsWith("GET ") || route === "POST /api/compound/check";
+          if (a.status >= 200 && a.status < 300 && !asks) {
             failures.push(`${label}: ${route} was carried out (${a.status})`);
           }
           for (const marker of MARKERS) {

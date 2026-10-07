@@ -272,7 +272,7 @@ export type PmState = z.infer<typeof PmState>;
 
 /**
  * The state is **per viewer** (D26, D27; #270): `humans`, `operations`,
- * `closedRooms`, `levels` and `usage.topHenchmen` hold only what the viewer's
+ * `closedRooms`, `levels`, `chat` and `usage.topHenchmen` hold only what the viewer's
  * own GitHub access covers. Two people in the same office get different maps.
  */
 export const BuildingState = z.object({
@@ -285,7 +285,11 @@ export const BuildingState = z.object({
   operations: z.record(Id, OperationSummary),
   /** Keyed by operation id: rooms closed to the viewer on levels they reach. */
   closedRooms: z.record(Id, ClosedRoom),
-  /** Recent messages, oldest first; the server trims to a fixed window. */
+  /**
+   * Recent messages, oldest first; the server trims to a fixed window. Lines
+   * written in the lobby or a corridor are everyone's; a line written inside
+   * a room reaches only people who may enter that room (#270).
+   */
   chat: z.array(ChatMessage),
   jukebox: JukeboxState,
   usage: UsageSummary,

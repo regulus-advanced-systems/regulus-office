@@ -87,6 +87,8 @@ function fill(
       repoId,
       position: 1,
       kind: "freeform",
+      // Not `queued`: the queue would try to start it, and this office has no runner.
+      state: "cancelled",
       title: `ZEBRA270 queued ${tag}`,
       prompt: `ZEBRA270 prompt ${tag}`,
       provider: "claude-code",
@@ -123,7 +125,7 @@ function fill(
       deliveryId: id("delivery"),
       trigger: "manual",
       contextJson: "{}",
-      status: "done",
+      status: "succeeded",
       provider: "claude-code",
       day: "2026-10-07",
       queuedAt: new Date(),

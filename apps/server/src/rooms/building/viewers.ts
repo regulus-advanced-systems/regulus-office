@@ -3,7 +3,7 @@
  * same BuildingRoom, but nobody receives anything about a room their own
  * GitHub access does not cover.
  *
- * How: the state's `humans`, `operations`, `closedRooms`, `levels` and
+ * How: the state's `humans`, `operations`, `closedRooms`, `levels`, `chat` and
  * `usage.topHenchmen` are per-viewer collections (Colyseus `.view()` with one
  * `StateView` per client). An entry is encoded for a client only while that
  * client was shown it, and a client that was shown nothing gets none of them,
@@ -17,6 +17,8 @@
  * - `humans`: themselves, and people on a level they reach who are not
  *   inside a room that is closed to them.
  * - `usage.topHenchmen`: henchmen of rooms they may enter.
+ * - `chat`: lines written in the lobby or a corridor, and lines written
+ *   inside a room they may enter (the same rule search applies to chat).
  *
  * The answer to "what may this person see" is `lairViewFor` in
  * operations/access.ts (the one gate); it is cached per person here and
@@ -87,6 +89,11 @@ export function createViewers(deps: ViewersDeps) {
     state.humans.forEach((human, sessionId) => {
       present.add(human);
       if (sessionId === client.sessionId || seesHuman(view, human)) wanted.add(human);
+    });
+    state.chat.forEach((line) => {
+      present.add(line);
+      const room = line.operationId;
+      if (room === "" || room === LOBBY_OPERATION_ID || view.rooms.has(room)) wanted.add(line);
     });
     state.usage.topHenchmen.forEach((row) => {
       present.add(row);

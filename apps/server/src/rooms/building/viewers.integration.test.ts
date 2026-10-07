@@ -392,15 +392,31 @@ describe("per-viewer building state", () => {
     for (const room of [mia, gus, olga]) expect(wire(room)).not.toContain("henchmanRooms");
   });
 
-  test("chat does not say which room the sender stood in", async () => {
+  test("a chat line written inside a room stays with the people who may enter it", async () => {
+    const chat = (room: BuildingRoom) => (seen(room).chat as { text: string }[]).map((m) => m.text);
+    mia.send("chat", { text: "hello everyone" });
+    await waitFor(() => chat(olga).includes("hello everyone"), "the lobby line");
+    expect(chat(gus)).toContain("hello everyone");
+
     mia.send("operation.go", { operationId: B });
     await waitFor(() => !names(gus).includes("Mia"), "Mia in Bravo");
-    mia.send("chat", { text: "hello from somewhere" });
-    const chat = (room: BuildingRoom) => seen(room).chat as { text: string; operationId: string }[];
-    await waitFor(() => chat(gus).some((m) => m.text === "hello from somewhere"), "the chat line");
-    expect(chat(gus).find((m) => m.text === "hello from somewhere")?.operationId).toBe("");
-    expect(wire(gus)).not.toContain(`"operationId":"${B}","text"`);
+    mia.send("chat", { text: "said inside Bravo" });
+    await waitFor(() => chat(mia).includes("said inside Bravo"), "Mia's own line");
+    mia.send("operation.go", { operationId: A });
+    await waitFor(() => names(gus).includes("Mia"), "Mia in Alpha");
+    mia.send("chat", { text: "said inside Alpha" });
+    await waitFor(() => chat(gus).includes("said inside Alpha"), "the Alpha line for Gus");
+    await settle();
+    expect(chat(gus)).not.toContain("said inside Bravo");
+    expect(chat(olga)).not.toContain("said inside Bravo");
+    expect(chat(olga)).not.toContain("said inside Alpha");
+    expect(wire(olga)).not.toContain("said inside");
+    // A late joiner's replay follows the same rule.
+    const late = await joinAs(GUS);
+    await waitFor(() => chat(late).includes("said inside Alpha"), "the replay");
+    expect(chat(late)).not.toContain("said inside Bravo");
     mia.send("operation.go", { operationId: LOBBY_OPERATION_ID, levelId: LOBBY_LEVEL_ID });
+    await waitFor(() => names(olga).includes("Mia"), "Mia back in the lobby");
   });
 
   test("gained access opens the room and the level at once; lost access closes them", async () => {

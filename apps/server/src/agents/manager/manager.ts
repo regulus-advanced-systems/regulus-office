@@ -251,9 +251,12 @@ export class AgentManager extends AgentRuntime {
   /**
    * Emergency stop as an office action (D27; #270): an owner or admin stops
    * every running henchman of one person without seeing any room. Returns
-   * how many were stopped and nothing about them.
+   * how many were stopped (and how many could not be) and nothing about them.
    */
-  async emergencyStopAllOf(actor: OperationActor, ownerUserId: string): Promise<number> {
+  async emergencyStopAllOf(
+    actor: OperationActor,
+    ownerUserId: string,
+  ): Promise<{ stopped: number; failed: number }> {
     if (!mayEmergencyStop(actor)) {
       throw new AgentManagerError(
         "forbidden",
@@ -261,12 +264,22 @@ export class AgentManager extends AgentRuntime {
       );
     }
     let stopped = 0;
+    let failed = 0;
     for (const live of [...this.agents.values()]) {
       if (live.view.ownerUserId !== ownerUserId || !isLive(live.view.status)) continue;
-      await this.emergencyStop(actor, live.view.agentId, "office emergency stop of a person");
-      stopped += 1;
+      try {
+        await this.emergencyStop(actor, live.view.agentId, "office emergency stop of a person");
+        stopped += 1;
+      } catch (err) {
+        // One henchman that cannot be stopped must not keep the others running.
+        failed += 1;
+        this.logger.error(
+          { agentId: live.view.agentId, err: errorSummary(err) },
+          "emergency stop failed",
+        );
+      }
     }
-    return stopped;
+    return { stopped, failed };
   }
 
   async #halt(live: LiveAgent, reason: string): Promise<void> {

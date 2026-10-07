@@ -120,8 +120,8 @@ export const EMERGENCY_STOP_USER_API_PATH = `${OFFICE_USERS_API_PATH}/:userId/em
 export const emergencyStopUserPath = (userId: string) =>
   `${OFFICE_USERS_API_PATH}/${encodeURIComponent(userId)}/emergency-stop`;
 
-/** How many henchmen were stopped; nothing about them. */
-export const EmergencyStopUserResponse = z.object({ stopped: Count });
+/** How many henchmen were stopped, and how many could not be; nothing about them. */
+export const EmergencyStopUserResponse = z.object({ stopped: Count, failed: Count });
 export type EmergencyStopUserResponse = z.infer<typeof EmergencyStopUserResponse>;
 
 export const OfficeUserInfo = z.object({

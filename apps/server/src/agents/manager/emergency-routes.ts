@@ -7,8 +7,8 @@
  * does not cover, so they cannot reach a henchman there to stop it. This is
  * the lever they keep: stop every running henchman of one person. Sessions
  * are killed, branches, worktrees and desks stay, each stop is audited (who
- * stopped whose henchman). The answer is a count and nothing else: no room,
- * no henchman, no task.
+ * stopped whose henchman). The answer is two counts and nothing else: no
+ * room, no henchman, no task.
  */
 import { EMERGENCY_STOP_USER_API_PATH, type EmergencyStopUserResponse } from "@regulus/protocol";
 import type { OfficeAuth } from "../../auth/auth.ts";
@@ -39,8 +39,10 @@ export function mountEmergencyStopRoutes(
       if (!isOfficeManager(user.role)) throw forbidden("owner_or_admin_required");
       const userId = params.userId ?? "";
       if (!getProfileByUserId(db, userId)) throw new AuthHttpError(404, "user_not_found");
-      const stopped = await agents.emergencyStopAllOf({ id: user.id, role: user.role }, userId);
-      const body: EmergencyStopUserResponse = { stopped };
+      const body: EmergencyStopUserResponse = await agents.emergencyStopAllOf(
+        { id: user.id, role: user.role },
+        userId,
+      );
       return json(body);
     } catch (err) {
       if (err instanceof AuthHttpError) return err.toResponse();

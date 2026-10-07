@@ -88,8 +88,14 @@ describe.skipIf(!hasTmux())("a henchman whose owner loses the room", () => {
     expect((await refusal(() => manager.emergencyStopAllOf(member, member.id))).code).toBe(
       "forbidden",
     );
-    expect(await manager.emergencyStopAllOf(office.admin, office.stranger.id)).toBe(0);
-    expect(await manager.emergencyStopAllOf(office.admin, member.id)).toBe(1);
+    expect(await manager.emergencyStopAllOf(office.admin, office.stranger.id)).toEqual({
+      stopped: 0,
+      failed: 0,
+    });
+    expect(await manager.emergencyStopAllOf(office.admin, member.id)).toEqual({
+      stopped: 1,
+      failed: 0,
+    });
     await henchmen.waitFor(agentId, (h) => h.status === "exited");
   });
 
