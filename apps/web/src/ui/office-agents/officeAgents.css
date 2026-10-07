@@ -166,3 +166,31 @@
 .rg-office-agent-caps__help {
   flex-basis: 100%;
 }
+
+/* Connecting a person's own Hermes (#58). */
+.rg-office-agent-hermes {
+  display: grid;
+  gap: 6px;
+}
+.rg-office-agent-hermes__result.is-ok {
+  color: var(--rg-color-gold);
+}
+.rg-office-agent-hermes__result.is-bad {
+  color: var(--rg-color-danger, #e06c5a);
+}
+.rg-office-agent-hermes__help ol {
+  display: grid;
+  gap: 6px;
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+.rg-office-agent-hermes__code {
+  margin: 4px 0;
+  padding: 6px 8px;
+  overflow-x: auto;
+  font-size: 12px;
+  background: var(--rg-color-panel-surface);
+  border: 1px solid var(--rg-color-panel-border);
+  border-radius: var(--rg-radius-panel);
+  user-select: all;
+}

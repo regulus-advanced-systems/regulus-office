@@ -11,6 +11,8 @@ import {
   DEFAULT_OFFICE_AGENT_APPEARANCE,
   DEFAULT_OFFICE_AGENT_PRESET,
   defaultAgentModel,
+  engineBringsOwnModel,
+  engineIsPersonalOnly,
   OFFICE_AGENT_LIMITS,
   OFFICE_AGENT_PRESETS,
   OFFICE_AGENT_ROLES,
@@ -18,12 +20,14 @@ import {
   type OfficeAgentPreset,
   type OfficeAgentRole,
   type OfficeAgentView,
+  OWN_MODEL_PLACEHOLDER,
   type UpdateOfficeAgent,
 } from "@regulus/protocol";
 import { useId, useRef, useState } from "react";
 import { Button } from "../components/Button.tsx";
 import { AppearancePicker } from "./AppearancePicker.tsx";
 import type { OfficeAgentsApi } from "./api.ts";
+import { HermesFields, readHermesFields, useHermesFieldRefs } from "./HermesConnection.tsx";
 import { ENGINE_HELP, ENGINE_WORDS, PRESET_WORDS, ROLE_WORDS } from "./labels.ts";
 import { keyOf, OTHER_MODEL, RunsOnPicker, usableChoices, useRunsOn } from "./RunsOnPicker.tsx";
 
@@ -60,11 +64,18 @@ export function AgentForm(props: AgentFormProps) {
   const nameRef = useRef<HTMLInputElement>(null);
   const customRef = useRef<HTMLInputElement>(null);
   const instructionsRef = useRef<HTMLTextAreaElement>(null);
-  const engines = agent ? [agent.engine] : props.engines;
+  const hermesRefs = useHermesFieldRefs();
+  const [hermesProblem, setHermesProblem] = useState<{ text: string } | null>(null);
   const [owner, setOwner] = useState<"me" | "office">(
     agent?.owner.kind === "office" ? "office" : "me",
   );
-  const [engine, setEngine] = useState<OfficeAgentEngineKind>(engines[0] ?? "cli-session");
+  // A person's own Hermes can only be that person's agent: not offered for a shared one.
+  const engines = (agent ? [agent.engine] : props.engines).filter(
+    (kind) => agent !== undefined || owner === "me" || !engineIsPersonalOnly(kind),
+  );
+  const [pickedEngine, setEngine] = useState<OfficeAgentEngineKind | undefined>(undefined);
+  const engine =
+    pickedEngine && engines.includes(pickedEngine) ? pickedEngine : (engines[0] ?? "cli-session");
   const [role, setRole] = useState<OfficeAgentRole>(agent?.role ?? "assistant");
   const [preset, setPreset] = useState<OfficeAgentPreset>(
     agent?.preset ?? DEFAULT_OFFICE_AGENT_PRESET,
@@ -91,7 +102,8 @@ export function AgentForm(props: AgentFormProps) {
       : known.some((m) => m.id === pickedModel)
         ? pickedModel
         : OTHER_MODEL;
-  const picksModel = engine === "cli-session";
+  const picksModel = !engineBringsOwnModel(engine);
+  const connects = !agent && engine === "hermes-external";
   const blocked = picksModel && !chosen;
 
   const submit = () => {
@@ -118,17 +130,28 @@ export function AgentForm(props: AgentFormProps) {
       else props.onSave(patch);
       return;
     }
+    const base = { name, owner, engine, role, preset, appearance, instructions };
+    if (connects) {
+      const hermes = readHermesFields(hermesRefs);
+      if (!hermes.ok) {
+        setHermesProblem({ text: hermes.problem });
+        return hermes.focus();
+      }
+      setHermesProblem(null);
+      // Hermes brings its own provider and model; the office stores a placeholder.
+      props.onCreate({
+        ...base,
+        provider: "custom",
+        model: OWN_MODEL_PLACEHOLDER,
+        hermes: hermes.value,
+      });
+      return;
+    }
     props.onCreate({
-      name,
-      owner,
-      engine,
-      role,
-      preset,
+      ...base,
       provider: chosen?.provider ?? "claude-code",
-      model: modelId || "default",
-      appearance,
-      instructions,
-      ...(profileId ? { profileId } : {}),
+      model: modelId || (picksModel ? "default" : OWN_MODEL_PLACEHOLDER),
+      ...(profileId && picksModel ? { profileId } : {}),
     });
   };
 
@@ -225,8 +248,15 @@ export function AgentForm(props: AgentFormProps) {
           }
           onConnect={props.onConnect}
         />
+      ) : connects ? (
+        <HermesFields api={api} refs={hermesRefs} problem={hermesProblem} />
       ) : (
-        <div className="rg-field__hint">This program brings its own provider and model.</div>
+        <div className="rg-field__hint">
+          This program brings its own provider and model.
+          {agent?.engine === "hermes-external"
+            ? " Its connection is changed on the agent's card, under Connection to your Hermes."
+            : ""}
+        </div>
       )}
       <label className="rg-field__label" htmlFor={ids.role}>
         Job
