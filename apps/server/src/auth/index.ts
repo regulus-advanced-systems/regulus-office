@@ -5,6 +5,8 @@
  * Boot wiring:
  *   const auth = createAuth({ db, logger, config });
  *   mountAuthRoutes(server.router, auth);
+ * Live access (#244): open connections register with `LiveAccess` and are closed when
+ * access is lost; whoever changes access calls `liveAccess.accessChanged(scope)`.
  * WebSocket upgrade (rooms/):
  *   checkOrigin(request, config.publicUrl) and auth.getSessionFromRequest(request).
  */
@@ -31,6 +33,20 @@ export {
   joinPathFor,
   peekInvite,
 } from "./invites.ts";
+export {
+  type AccessOutcome,
+  type AccessScope,
+  type AccessSubjects,
+  type AccessUser,
+  type AccessVerdict,
+  dbAccessSubjects,
+  LIVE_ACCESS_SWEEP_MS,
+  LiveAccess,
+  type LiveAccessOptions,
+  type LiveConnection,
+  type SessionRef,
+  sessionRefOf,
+} from "./live-access.ts";
 export {
   checkOrigin,
   type OriginCheck,

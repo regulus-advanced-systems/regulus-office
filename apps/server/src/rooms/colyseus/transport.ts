@@ -4,6 +4,7 @@
  * module-global.
  */
 import { Server } from "@colyseus/core";
+import type { LiveAccess } from "../../auth/live-access.ts";
 import type { OriginPolicy } from "../../auth/origin.ts";
 import type { Logger } from "../../logging.ts";
 import type { RoomAuth } from "../auth.ts";
@@ -15,6 +16,8 @@ export interface ColyseusTransportOptions {
   auth: RoomAuth;
   logger: Logger;
   originPolicy: OriginPolicy;
+  /** Ends seats on lost access (#244). */
+  liveAccess?: LiveAccess;
   maxPayloadLength?: number;
 }
 
@@ -23,12 +26,14 @@ export class ColyseusRoomTransport implements RoomTransport {
   readonly #transport: EmbeddedBunWebSockets;
   readonly #auth: RoomAuth;
   readonly #logger: Logger;
+  readonly #liveAccess: LiveAccess | undefined;
   readonly #rooms = new Set<string>();
   readonly #live = new Set<RoomHandle<object>>();
   #listening: Promise<void> | undefined;
 
   constructor(options: ColyseusTransportOptions) {
     this.#auth = options.auth;
+    this.#liveAccess = options.liveAccess;
     this.#logger = options.logger.child({ module: "rooms" });
     this.#transport = new EmbeddedBunWebSockets({
       logger: this.#logger,
@@ -56,6 +61,7 @@ export class ColyseusRoomTransport implements RoomTransport {
       createColyseusRoomClass(name, definition, {
         auth: this.#auth,
         logger: this.#logger,
+        liveAccess: this.#liveAccess,
         onRoomCreated: (handle) => this.#live.add(handle),
         onRoomDisposed: (handle) => this.#live.delete(handle),
       }),

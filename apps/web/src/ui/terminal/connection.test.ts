@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, test } from "bun:test";
-import { TERMINAL_CLOSE_CODES, TERMINAL_MAX_INPUT_BYTES } from "@regulus/protocol";
+import {
+  ACCESS_CLOSE_CODES,
+  TERMINAL_CLOSE_CODES,
+  TERMINAL_MAX_INPUT_BYTES,
+} from "@regulus/protocol";
 import { closeAction, TERMINAL_MAX_ATTEMPTS, TerminalConnection } from "./connection.ts";
 import { FakeSocket } from "./fakeSocket.ts";
 import type { TerminalEvent } from "./terminalState.ts";
@@ -45,6 +49,51 @@ describe("closeAction", () => {
     expect(closeAction(TERMINAL_CLOSE_CODES.slowConsumer, true, "watch", 1)).toBe("retry_now");
     expect(closeAction(TERMINAL_CLOSE_CODES.attachFailed, true, "watch", 1)).toBe("retry");
     expect(closeAction(1006, false, "watch", TERMINAL_MAX_ATTEMPTS)).toBe("give_up");
+  });
+
+  test("access closes never retry into a refusal (#244)", () => {
+    expect(closeAction(ACCESS_CLOSE_CODES.revoked, true, "watch", 0)).toBe("revoked");
+    expect(closeAction(ACCESS_CLOSE_CODES.revoked, true, "control", 0)).toBe("revoked");
+    expect(closeAction(ACCESS_CLOSE_CODES.signedOut, true, "watch", 0)).toBe("signed_out");
+    // Still allowed, differently: a controller watches, a watcher reattaches.
+    expect(closeAction(ACCESS_CLOSE_CODES.changed, true, "control", 0)).toBe("downgrade");
+    expect(closeAction(ACCESS_CLOSE_CODES.changed, true, "watch", 0)).toBe("retry_now");
+  });
+});
+
+describe("TerminalConnection: access withdrawn (#244)", () => {
+  test("revoked stops for good: one event, no timer, no new socket", () => {
+    const { events, timers } = setup("watch");
+    const ws = FakeSocket.last();
+    ws.open();
+    ws.text(hello("watch"));
+    ws.drop(ACCESS_CLOSE_CODES.revoked);
+    expect(events.at(-1)).toEqual({ kind: "access_lost", signedOut: false });
+    expect(timers).toHaveLength(0);
+    expect(FakeSocket.all).toHaveLength(1);
+  });
+
+  test("signed out stops for good", () => {
+    const { events, timers } = setup("control");
+    const ws = FakeSocket.last();
+    ws.open();
+    ws.text(hello("control"));
+    ws.drop(ACCESS_CLOSE_CODES.signedOut);
+    expect(events.at(-1)).toEqual({ kind: "access_lost", signedOut: true });
+    expect(timers).toHaveLength(0);
+    expect(FakeSocket.all).toHaveLength(1);
+  });
+
+  test("control taken away: comes back once, watching", () => {
+    const { conn, events } = setup("control");
+    const ws = FakeSocket.last();
+    ws.open();
+    ws.text(hello("control"));
+    ws.drop(ACCESS_CLOSE_CODES.changed);
+    expect(events.some((e) => e.kind === "downgraded")).toBe(true);
+    expect(FakeSocket.all).toHaveLength(2);
+    expect(FakeSocket.last().url).toBe("ws://office/ws/term/a1?mode=watch");
+    expect(conn.mode).toBe("watch");
   });
 });
 

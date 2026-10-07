@@ -117,6 +117,8 @@ describe("session room auth", () => {
       displayName: "Ada",
       role: "owner",
       avatar: TEAL_SCIENTIST,
+      // The seat ends with this session (live access, #244).
+      sessionId: "s-1",
     });
     expect(await auth.authenticate(request())).toBeNull();
     expect(seen).toHaveLength(2);

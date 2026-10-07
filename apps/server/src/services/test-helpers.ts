@@ -6,6 +6,7 @@
 import type { UserRole } from "@regulus/protocol";
 import { eq } from "drizzle-orm";
 import { createAuth } from "../auth/auth.ts";
+import { dbAccessSubjects, LiveAccess } from "../auth/live-access.ts";
 import { cookieHeaderFrom, mountAuthRoutes } from "../auth/routes.ts";
 import { PASSWORD, TEST_SECRET } from "../auth/test-helpers.ts";
 import { MEMORY_DB_PATH, openDatabase, runMigrations } from "../db/index.ts";
@@ -87,7 +88,11 @@ export async function startServicesOffice(options: ServicesOfficeOptions) {
       openSignup: true,
     },
   });
-  mountAuthRoutes(server.router, auth);
+  // Live access (#244), wired as in index.ts: role and session changes ask again.
+  const liveAccess = new LiveAccess({ subjects: dbAccessSubjects(db), logger });
+  mountAuthRoutes(server.router, auth, {
+    onUserChanged: (userId) => liveAccess.accessChanged({ userId }),
+  });
   const published = new Map<string, unknown[]>();
   const services = createServices({
     db,
@@ -98,6 +103,7 @@ export async function startServicesOffice(options: ServicesOfficeOptions) {
     officePort: server.port,
     appDomain: options.appDomain,
     logger,
+    liveAccess,
     intervalMs: 60_000,
   });
   router.use(services.route);
@@ -164,6 +170,7 @@ export async function startServicesOffice(options: ServicesOfficeOptions) {
     origin,
     services,
     scanner,
+    liveAccess,
     published,
     signUp,
     addOperation,

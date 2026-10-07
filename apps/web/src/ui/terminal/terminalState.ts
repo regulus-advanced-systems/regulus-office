@@ -2,7 +2,7 @@
  * What the terminal modal shows, as a pure reducer over connection events:
  * status line, granted mode, viewer count and faces, and "X is typing".
  */
-import type { TerminalMode, TerminalPeer } from "@regulus/protocol";
+import { accessCloseMessage, type TerminalMode, type TerminalPeer } from "@regulus/protocol";
 
 export type TerminalStatus = "connecting" | "open" | "reconnecting" | "ended" | "unavailable";
 
@@ -36,6 +36,8 @@ export type TerminalEvent =
   | { kind: "downgraded" }
   | { kind: "ended" }
   | { kind: "unavailable" }
+  /** The server closed the terminal: signed out, or no access to it any more (#244). */
+  | { kind: "access_lost"; signedOut: boolean }
   | { kind: "tick"; now: number };
 
 export const INITIAL_TERMINAL_STATE: TerminalUiState = {
@@ -90,6 +92,14 @@ export function terminalReducer(state: TerminalUiState, event: TerminalEvent): T
         mode: null,
         typing: null,
         notice: "This terminal is not available right now.",
+      };
+    case "access_lost":
+      return {
+        ...state,
+        status: "unavailable",
+        mode: null,
+        typing: null,
+        notice: accessCloseMessage(event.signedOut ? "signedOut" : "revoked", "terminal"),
       };
     case "tick":
       return state.typing && state.typing.until <= event.now ? { ...state, typing: null } : state;

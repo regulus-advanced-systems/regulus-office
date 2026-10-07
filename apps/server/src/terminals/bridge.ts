@@ -6,6 +6,10 @@
  * operation and owner. Each accepted viewer gets its own tmux client; tmux fans
  * the agent's output out to all of them. Plugs into the office `Bun.serve`
  * as a `WsRoute` (http/ws-router.ts) next to the Colyseus transport.
+ *
+ * Open sockets are registered with the office's live access (#244): a viewer
+ * who can no longer see the operation is closed with `ACCESS_CLOSE_CODES.revoked`,
+ * one who may now only watch with `changed` (the client comes back in watch mode).
  */
 import {
   TERMINAL_DEFAULT_SIZE,
@@ -18,6 +22,7 @@ import {
   type TerminalPeer,
 } from "@regulus/protocol";
 import type { Server, ServerWebSocket, WebSocketHandler } from "bun";
+import { type AccessVerdict, type LiveAccess, sessionRefOf } from "../auth/live-access.ts";
 import { checkOrigin, type OriginPolicy } from "../auth/origin.ts";
 import type { WsRoute } from "../http/ws-router.ts";
 import type { Logger } from "../logging.ts";
@@ -45,6 +50,8 @@ export interface TerminalBridgeOptions {
   canViewOperation: OperationVisibility;
   originPolicy: OriginPolicy;
   logger: Logger;
+  /** Ends open terminals whose viewer lost the operation or control (#244). */
+  liveAccess?: LiveAccess;
   /** Periodic on-disk snapshots of watched agents (optional). */
   scrollback?: ScrollbackRecorder;
   size?: TtySize;
@@ -58,7 +65,11 @@ interface TermSocketData {
   target: TerminalTarget;
   mode: TerminalMode;
   userId: string;
+  /** The viewer as they were at the upgrade. */
+  user: TerminalUser;
   name: string;
+  /** Stop live access tracking. */
+  release?: () => void;
   lastTypingAt?: number;
   viewer?: TerminalViewer;
   releaseScrollback?: () => void;
@@ -148,7 +159,7 @@ export class TerminalBridge implements WsRoute {
     if (!exists) return reject(404, "session_not_found");
 
     const name = (user.displayName ?? user.id).slice(0, 64);
-    const data: TermSocketData = { target, mode, userId: user.id, name };
+    const data: TermSocketData = { target, mode, userId: user.id, user, name };
     if (!server.upgrade(request, { data })) return reject(400, "upgrade_failed");
     log.info({ agentId: login ? "login" : agentId, userId: user.id, mode }, "terminal attached");
     return UPGRADED;
@@ -192,11 +203,34 @@ export class TerminalBridge implements WsRoute {
       peers: this.#peers(sockets),
     });
     this.#announce(target.agentId, ws);
+    ws.data.release = this.#opts.liveAccess?.register({
+      kind: "terminal",
+      user: { id: userId, role: ws.data.user.role },
+      session: sessionRefOf(ws.data.user),
+      operationId: target.kind === "login" ? null : target.operationId,
+      check: (now) => this.#stillAllowed(now, target, mode),
+      close: (code, reason) => {
+        // Detach first: no more output goes out and no more input is taken.
+        viewer.dispose();
+        ws.close(code, reason);
+      },
+    });
     void viewer.start();
+  }
+
+  /** The upgrade's decision again, for the viewer as they are now. */
+  #stillAllowed(user: TerminalUser, target: TerminalTarget, mode: TerminalMode): AccessVerdict {
+    if (target.kind === "login") {
+      return mayUseLoginTerminal(user, target.ownerUserId) ? "keep" : "revoked";
+    }
+    const decision = decideTerminalAccess(user, target, mode, this.#opts.canViewOperation);
+    if (decision.ok) return "keep";
+    return decision.reason === "forbidden" ? "changed" : "revoked";
   }
 
   #close(ws: ServerWebSocket<TermSocketData>): void {
     const { target, viewer, releaseScrollback } = ws.data;
+    ws.data.release?.();
     viewer?.dispose();
     releaseScrollback?.();
     const sockets = this.#viewers.get(target.agentId);

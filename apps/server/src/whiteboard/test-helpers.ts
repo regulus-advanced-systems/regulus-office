@@ -12,6 +12,7 @@ import { eq } from "drizzle-orm";
 import { WebsocketProvider } from "y-websocket";
 import * as Y from "yjs";
 import { createAuth } from "../auth/auth.ts";
+import { dbAccessSubjects, LiveAccess } from "../auth/live-access.ts";
 import { cookieHeaderFrom, mountAuthRoutes } from "../auth/routes.ts";
 import { PASSWORD, TEST_SECRET } from "../auth/test-helpers.ts";
 import { MEMORY_DB_PATH, openDatabase, runMigrations } from "../db/index.ts";
@@ -49,7 +50,11 @@ export async function startWhiteboardOffice(options: { saveDelayMs?: number } = 
       openSignup: true,
     },
   });
-  mountAuthRoutes(server.router, auth);
+  // Live access (#244), wired as in index.ts: role and session changes ask again.
+  const liveAccess = new LiveAccess({ subjects: dbAccessSubjects(db), logger });
+  mountAuthRoutes(server.router, auth, {
+    onUserChanged: (userId) => liveAccess.accessChanged({ userId }),
+  });
   const snapshots: Array<{ boardId: string; version: number }> = [];
   const whiteboards = createWhiteboards({
     db,
@@ -58,6 +63,7 @@ export async function startWhiteboardOffice(options: { saveDelayMs?: number } = 
     dataDir,
     // Production policy: only the office's own origin.
     originPolicy: { publicUrl: String(server.url) },
+    liveAccess,
     onSnapshot: (boardId, version) => snapshots.push({ boardId, version }),
     saveDelayMs: options.saveDelayMs ?? 20,
     maxSaveDelayMs: 100,
@@ -94,7 +100,12 @@ export async function startWhiteboardOffice(options: { saveDelayMs?: number } = 
   const wsBase = whiteboardWsBase(String(server.url).replace(/^http/, "ws"));
 
   /** A y-websocket client on `boardId` as the holder of `cookie`. */
-  const client = (boardId: string, cookie: string, headers: Record<string, string> = {}) => {
+  const client = (
+    boardId: string,
+    cookie: string,
+    headers: Record<string, string> = {},
+    providerOptions: { shouldReconnect?: (event: { code: number }) => boolean } = {},
+  ) => {
     const doc = new Y.Doc();
     const sent = { cookie, origin, ...headers };
     class CookieSocket extends WebSocket {
@@ -106,6 +117,7 @@ export async function startWhiteboardOffice(options: { saveDelayMs?: number } = 
       WebSocketPolyfill: CookieSocket as unknown as typeof WebSocket,
       disableBc: true,
       maxBackoffTime: 100,
+      ...providerOptions,
     });
     return { doc, provider, elements: doc.getArray<Y.Map<unknown>>(WHITEBOARD_Y_ELEMENTS) };
   };
@@ -116,6 +128,7 @@ export async function startWhiteboardOffice(options: { saveDelayMs?: number } = 
     origin,
     dataDir,
     whiteboards,
+    liveAccess,
     snapshots,
     signUp,
     addOperation,

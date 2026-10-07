@@ -2,9 +2,14 @@
  * Turns a transport-agnostic `RoomDefinition` into a Colyseus `Room` class.
  * Authentication runs in the static `onAuth` during the matchmaking HTTP
  * request, where cookies and headers are available; the resulting user is
- * attached to the client for the lifetime of the session.
+ * attached to the client for the lifetime of the session. Each seat is
+ * registered with the office's live access (#244): `authorize` is asked again
+ * when access changes, and the seat is closed when it says no or when the
+ * human's office role is no longer the one the seat was given.
  */
 import { type AuthContext, type Client, Room, ServerError } from "@colyseus/core";
+import { ACCESS_CLOSE_CODES } from "@regulus/protocol";
+import { type LiveAccess, type LiveConnection, sessionRefOf } from "../../auth/live-access.ts";
 import type { Logger } from "../../logging.ts";
 import type { RoomAuth, RoomAuthUser } from "../auth.ts";
 import type { RoomClient, RoomDefinition, RoomHandle } from "../transport.ts";
@@ -14,6 +19,8 @@ type AuthedClient = Client<{ auth: RoomAuthUser; userData: RoomClient }>;
 export interface RoomAdapterDeps {
   auth: RoomAuth;
   logger: Logger;
+  /** Ends seats whose human lost the room, signed out or changed role (#244). */
+  liveAccess?: LiveAccess;
   /** Live-instance registry hooks used by `RoomTransport.broadcast`. */
   onRoomCreated?(handle: RoomHandle<object>): void;
   onRoomDisposed?(handle: RoomHandle<object>): void;
@@ -59,6 +66,7 @@ export function createColyseusRoomClass<S extends object, J>(
 
     readonly #handle: RoomHandle<S>;
     readonly #wrapped = new Map<string, RoomClient>();
+    readonly #released = new Map<string, () => void>();
 
     constructor() {
       super();
@@ -113,12 +121,16 @@ export function createColyseusRoomClass<S extends object, J>(
         leave: (code) => client.leave(code),
       };
       this.#wrapped.set(client.sessionId, wrapped);
+      const release = deps.liveAccess?.register(seat(name, definition, wrapped, joinOptions));
+      if (release) this.#released.set(client.sessionId, release);
       await definition.onJoin?.(this.#handle, wrapped, joinOptions);
     }
 
     override async onLeave(client: AuthedClient, code?: number): Promise<void> {
       const wrapped = this.#wrapped.get(client.sessionId);
       this.#wrapped.delete(client.sessionId);
+      this.#released.get(client.sessionId)?.();
+      this.#released.delete(client.sessionId);
       if (wrapped) await definition.onLeave?.(this.#handle, wrapped, code ?? 1000);
     }
 
@@ -130,4 +142,32 @@ export function createColyseusRoomClass<S extends object, J>(
 
   Object.defineProperty(AdaptedRoom, "name", { value: `${name}Room` });
   return AdaptedRoom as unknown as typeof Room;
+}
+
+/** The live access entry of one seat: the join's own `authorize`, asked again. */
+function seat<S extends object, J>(
+  name: string,
+  definition: RoomDefinition<S, J>,
+  client: RoomClient,
+  options: J,
+): LiveConnection {
+  const { user } = client;
+  return {
+    kind: `room:${name}`,
+    user: { id: user.userId, role: user.role },
+    session: sessionRefOf(user),
+    operationId: definition.operationOf?.(options) ?? null,
+    ref: client.sessionId,
+    check: (now) => {
+      const allowed = definition.authorize?.({ ...user, role: now.role }, options) ?? true;
+      if (allowed === false) return "revoked";
+      // An asynchronous rule answers later; the seat goes then.
+      if (allowed !== true) {
+        void allowed.then((ok) => !ok && client.leave(ACCESS_CLOSE_CODES.revoked));
+      }
+      // The seat carries the role it was given: commands are authorised with it.
+      return now.role === user.role ? "keep" : "changed";
+    },
+    close: (code) => client.leave(code),
+  };
 }
