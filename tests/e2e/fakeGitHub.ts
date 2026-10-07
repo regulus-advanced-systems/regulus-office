@@ -108,7 +108,6 @@ export async function startFakeGitHub(
       } catch {
         body = text;
       }
-      requests.push({ method: req.method ?? "", path: url.pathname, headers: req.headers, body });
       const send = (status: number, payload: unknown) => {
         res.writeHead(status, { "content-type": "application/json" });
         res.end(JSON.stringify(payload));
@@ -159,6 +158,8 @@ export async function startFakeGitHub(
         void asPerson.text().then((payload) => res.end(payload));
         return;
       }
+      // Recorded: what the office does on GitHub as itself (not test controls, not people linking).
+      requests.push({ method: req.method ?? "", path: url.pathname, headers: req.headers, body });
       const authorized = org && req.headers.authorization === `Bearer ${org.orgToken}`;
       if (url.pathname === "/user" || url.pathname === "/user/repos") {
         if (!authorized) return send(401, { message: "Bad credentials" });
