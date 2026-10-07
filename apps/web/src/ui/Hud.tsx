@@ -24,6 +24,8 @@ import { StatusBox } from "./hud/StatusBox.tsx";
 import { TopBar } from "./hud/TopBar.tsx";
 import { WorkCounters } from "./hud/WorkCounters.tsx";
 import { JukeboxHost, JukeboxStrip } from "./jukebox/JukeboxHost.tsx";
+import { LiftPanel } from "./lift/LiftPanel.tsx";
+import { LiftRide } from "./lift/LiftRide.tsx";
 import { MediaHost } from "./media/MediaHost.tsx";
 import { MediaStrip } from "./media/MediaStrip.tsx";
 import { MeetingHost } from "./meetings/MeetingHost.tsx";
@@ -81,6 +83,7 @@ export function HudDialogs() {
       <TerminalModalHost />
       <SearchHost />
       <QuickTravelDialog />
+      <LiftPanel />
     </>
   );
 }
@@ -136,6 +139,7 @@ export function Hud() {
       <WhiteboardHost />
       <NotificationsHost />
       <EmoteWheel />
+      <LiftRide />
       <Toaster />
     </div>
   );

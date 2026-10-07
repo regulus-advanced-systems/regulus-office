@@ -90,7 +90,10 @@ export function CompoundStructure({
   const locked = useMemo(
     () =>
       rooms
-        .filter((r) => r.art.look === "locked" && visibleRooms.has(r.room.id))
+        .filter(
+          (r) =>
+            (r.art.look === "locked" || r.art.look === "closed") && visibleRooms.has(r.room.id),
+        )
         .map((r) => r.room),
     [rooms, visibleRooms],
   );

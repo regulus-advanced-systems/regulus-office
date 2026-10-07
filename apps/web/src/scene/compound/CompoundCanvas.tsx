@@ -42,10 +42,12 @@ import { LobbyWhiteboard } from "../whiteboard/WhiteboardLayer.tsx";
 import { BuildLayer } from "./build/BuildLayer.tsx";
 import { useRoomDraftStore, withDraft } from "./build/preview.ts";
 import { useRoomTransitions } from "./build/RoomTransitions.tsx";
+import { ClosedRooms } from "./ClosedRooms.tsx";
 import { CompoundStructure } from "./CompoundStructure.tsx";
 import { corridorChunks } from "./corridors.ts";
 import { CompoundDoors } from "./Doors.tsx";
 import { Culling, type PresenceTarget, RoomPresence } from "./Drivers.tsx";
+import { LiftDriver } from "./lift/LiftDriver.tsx";
 import { compoundNavGrid, lobbySpawn, navKey, outsideRows } from "./navigation.ts";
 import { createNavProbe } from "./navProbe.ts";
 import { useDoorPassable } from "./outside/doorState.ts";
@@ -172,7 +174,11 @@ function Scene({ world, avatars, presence, send, children }: CompoundCanvasProps
 
   return (
     <>
-      <color attach="background" args={[preset.mountain ? SEA_BACKGROUND : BACKGROUND]} />
+      {/* Only the lobby level has a way out to the sea; deeper levels are in the dark of the rock. */}
+      <color
+        attach="background"
+        args={[preset.mountain && outside ? SEA_BACKGROUND : BACKGROUND]}
+      />
       <CompoundCamera
         centre={frame?.centre ?? built.centre}
         extent={frame?.extent ?? built.extent}
@@ -196,7 +202,7 @@ function Scene({ world, avatars, presence, send, children }: CompoundCanvasProps
         color="#FFE6C4"
       />
       <LairKit>
-        {preset.mountain && <Mountain world={world} layout={outside} />}
+        {preset.mountain && outside && <Mountain world={world} layout={outside} />}
         {outside && <Outside layout={outside} />}
         <CutawayDriver focus={focus} enabled={!firstPerson} />
         {preset.lampLights > 0 && (
@@ -231,6 +237,8 @@ function Scene({ world, avatars, presence, send, children }: CompoundCanvasProps
       />
       <RoomPresence world={world} target={presence} />
       <JukeboxDriver world={world} grid={grid} />
+      <LiftDriver world={world} />
+      <ClosedRooms world={world} visible={visibleRooms} />
       <Suspense fallback={null}>
         <RoomLayers rooms={rooms} />
         {lobbyUsage && lobby && visibleRooms.has(lobby.id) && (

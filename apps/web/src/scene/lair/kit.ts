@@ -124,8 +124,8 @@ export const PIECES = {
   door_frame_wide: def("Wide door frame", "structure", 520, () => doorFrame(2), true),
   door_leaf: def("Door leaf", "structure", 180, doorLeaf),
   // The lift through the levels and the bars over a door this viewer may not open (#269).
-  lift_shaft: def("Lift shaft", "structure", 520, liftShaft),
-  door_bars: def("Door bars", "structure", 260, doorBars, true),
+  lift_shaft: def("Lift shaft", "structure", 900, liftShaft),
+  door_bars: def("Door bars", "structure", 360, doorBars, true),
   rock_pile: def("Rubble", "clutter", 120, () => rockPile()),
   // Fixtures: lights, beacon, pipes, cables, vents.
   wall_lamp: def("Wall lamp", "fixture", 300, wallLamp, true),

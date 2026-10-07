@@ -18,6 +18,7 @@ import {
   type DecorStyle,
   DOOR_SIDES,
   type DoorSide,
+  LOBBY_LEVEL_ID,
   LOBBY_OPERATION_ID,
   type OperationSummary,
   type RoomBuildState,
@@ -61,6 +62,8 @@ export interface WorldRoom {
 }
 
 export interface CompoundWorld {
+  /** The level this is the world of (#268): one level is drawn at a time. */
+  readonly levelId: string;
   /** Layout version (changes with any placement); the nav grid is rebuilt on change. */
   readonly version: number;
   /** Tiles. */
@@ -112,6 +115,7 @@ export function isClosedEntry(entry: object): boolean {
 export function compoundWorld(
   state: Pick<BuildingState, "compound" | "operations"> | null,
   enterable: ReadonlySet<string> | null,
+  levelId: string = LOBBY_LEVEL_ID,
 ): CompoundWorld | null {
   const c = state?.compound;
   if (!state || !c || c.width === 0) return null;
@@ -153,6 +157,7 @@ export function compoundWorld(
         : projectRoom(f, m, enterable?.has(f.operationId) ?? false),
     );
   return {
+    levelId,
     version: c.version,
     width: c.width,
     depth: c.depth,

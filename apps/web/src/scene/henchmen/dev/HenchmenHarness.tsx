@@ -8,33 +8,78 @@
  * near=1 (seat them at the desks nearest the player), reduced=1, activity=0 (hide activity bubbles), seats=all, skins=mixed, providers=all, zoom=<0..1 camera zoom>,
  * yaw=<degrees>, nearby=<0..3 nearby rooms with henchmen too>, locked=<room ids the viewer may
  * not enter>, building=<room ids still being built>, rooms=<project rooms, 4..12>,
- * humans=<humans on screen, the local player included>. Not part of the production build.
+ * humans=<humans on screen, the local player included>.
+ * Levels (#269): level=lobby|regulus|ante|holding (default regulus, where the Dev room is; the
+ * lobby level with `at=` or `door=`), at=lift (stand at the level's lift), at=door:<room id>, closed=<room ids sent
+ * as closed, or "none"; default vault,crypt on the "ante" level>, holding=1 (publish the holding
+ * level), lift=open (the lift's panel open), travel=open (quick travel open). `E` at the lift
+ * opens its panel; the levels can be ridden. Not part of the production build.
  */
-import type { HenchmanState, OperationState } from "@regulus/protocol";
-import { Suspense, useEffect, useMemo, useState } from "react";
+import {
+  type BuildingState,
+  type HenchmanState,
+  HOLDING_LEVEL_ID,
+  LOBBY_LEVEL_ID,
+  type OperationInfo,
+  type OperationState,
+} from "@regulus/protocol";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useBuildingStore } from "../../../state/building.ts";
 import { useCameraStore } from "../../../state/camera.ts";
+import { useCompoundStore, useCompoundWorldSync } from "../../../state/compound.ts";
+import { useLevelStore } from "../../../state/level.ts";
+import { LIFT_OVERLAY } from "../../../state/lift.ts";
 import { useOperationStore } from "../../../state/operation.ts";
+import { useOperationsStore } from "../../../state/operations.ts";
 import { usePlayerStore } from "../../../state/player.ts";
 import { useRoomsStore } from "../../../state/rooms.ts";
 import { useUiStore } from "../../../state/ui.ts";
+import { useGlobalHotkeys } from "../../../ui/hotkeys/useHotkeys.ts";
+import {
+  QUICK_TRAVEL_OVERLAY,
+  QuickTravelDialog,
+  useQuickTravelHotkey,
+} from "../../../ui/hud/QuickTravel.tsx";
 import { WorkCounters } from "../../../ui/hud/WorkCounters.tsx";
+import { LiftPanel } from "../../../ui/lift/LiftPanel.tsx";
+import { LiftRide } from "../../../ui/lift/LiftRide.tsx";
+import { themeCssText } from "../../../ui/theme.ts";
+import { Toaster } from "../../../ui/toast/Toaster.tsx";
 import { FpsProbe } from "../../avatar/showcase/FpsProbe.tsx";
 import { AvatarLayer } from "../../avatars/AvatarLayer.tsx";
 import { CompoundCanvas } from "../../compound/CompoundCanvas.tsx";
 import { roomLayout } from "../../compound/interiors.ts";
+import { liftOf } from "../../compound/lift/spot.ts";
 import { useDoorOverride } from "../../compound/outside/doorState.ts";
 import { dockPoint, type OutsideLayout, outsideLayout } from "../../compound/outside/layout.ts";
-import { roomById } from "../../compound/world.ts";
+import { type CompoundWorld, roomById, travelPose } from "../../compound/world.ts";
 import { useGongStore } from "../../gong/gongStore.ts";
 import { playGong } from "../../gong/gongSynth.ts";
 import { fakeHenchmen, harnessMode } from "./fakeHenchmen.ts";
-import { DEV_ROOM as DEV, fakeHumans, harnessBuilding, harnessWorld } from "./harnessWorld.ts";
+import {
+  ANTE_LEVEL,
+  DEFAULT_CLOSED,
+  DEV_ROOM as DEV,
+  fakeHumans,
+  harnessLair,
+  REGULUS_LEVEL,
+} from "./harnessWorld.ts";
 import "../../../ui/globals.css";
 import "../../../ui/hud.css";
 
 const noSend = () => {};
+/** The design tokens the dialogs (the lift's panel, quick travel) are drawn with, as in App.tsx. */
+const THEME_CSS = themeCssText();
 const noPresence = { setRooms: async () => {} };
+
+const LEVEL_PARAM: Readonly<Record<string, string>> = {
+  lobby: LOBBY_LEVEL_ID,
+  regulus: REGULUS_LEVEL,
+  ante: ANTE_LEVEL,
+  holding: HOLDING_LEVEL_ID,
+};
+
+const ids = (list: string) => list.split(",").filter(Boolean);
 
 function operationState(
   operationId: string,
@@ -96,10 +141,78 @@ export function HenchmenHarness({ search }: { search: string }) {
   const building = params.get("building") ?? "";
   const roomCount = Math.min(12, Number(params.get("rooms") ?? 4));
   const humanCount = Math.max(1, Number(params.get("humans") ?? 1));
-  const world = useMemo(
-    () => harnessWorld(locked.split(","), building.split(","), roomCount),
-    [locked, building, roomCount],
+  const closedParam = params.get("closed");
+  const closed = closedParam === null ? DEFAULT_CLOSED.join(",") : closedParam;
+  const holding = params.get("holding") === "1";
+  const lair = useMemo(
+    () =>
+      harnessLair({
+        rooms: roomCount,
+        locked: ids(locked),
+        building: ids(building),
+        closed: closed === "none" ? [] : ids(closed),
+        holding,
+      }),
+    [locked, building, roomCount, closed, holding],
   );
+  // The same path as the office page: the stores hold the lair, the world is the viewed level.
+  useMemo(() => {
+    const q = new URLSearchParams(search);
+    const asked = LEVEL_PARAM[q.get("level") ?? ""];
+    const outside = q.get("at") === "beach" || q.get("at") === "dock" || q.get("at") === "lobby";
+    useLevelStore
+      .getState()
+      .set(asked ?? (outside || q.get("door") ? LOBBY_LEVEL_ID : REGULUS_LEVEL));
+  }, [search]);
+  useMemo(() => {
+    useBuildingStore.setState({
+      state: { ...lair.state, humans: {} },
+      sessionId: "me",
+    });
+    useOperationsStore.setState({
+      operations: lair.enterable.map((operationId) => ({
+        operationId,
+        repos: [],
+      })) as unknown as OperationInfo[],
+    });
+  }, [lair]);
+  useCompoundWorldSync();
+  const world = useCompoundStore((s) => s.world);
+  if (!world) return null;
+  return (
+    <HarnessScene
+      world={world}
+      lair={lair}
+      params={{ n, mode, rate, allSeats, near, skins, providers, nearby, humanCount, search }}
+    />
+  );
+}
+
+interface SceneParams {
+  n: number;
+  mode: ReturnType<typeof harnessMode>;
+  rate: number;
+  allSeats: boolean;
+  near: boolean;
+  skins: "mixed" | "standard";
+  providers: "all" | "two";
+  nearby: number;
+  humanCount: number;
+  search: string;
+}
+
+function HarnessScene({
+  world,
+  lair,
+  params,
+}: {
+  world: CompoundWorld;
+  lair: ReturnType<typeof harnessLair>;
+  params: SceneParams;
+}) {
+  const { n, mode, rate, allSeats, near, skins, providers, nearby, humanCount, search } = params;
+  useGlobalHotkeys();
+  useQuickTravelHotkey();
   const [tick, setTick] = useState(0);
 
   useEffect(() => {
@@ -111,18 +224,6 @@ export function HenchmenHarness({ search }: { search: string }) {
     if (zoom !== null) useCameraStore.getState().setZoom(Number(zoom));
     const yaw = q.get("yaw");
     if (yaw !== null) useCameraStore.setState({ yaw: (Number(yaw) * Math.PI) / 180 });
-    // Stand in the Dev room, by its door, before the scene spawns us in the lobby.
-    const dev = roomById(world, DEV);
-    const layout = dev ? roomLayout(dev) : null;
-    if (dev && layout)
-      usePlayerStore.getState().spawnAt(
-        {
-          x: dev.origin.x + layout.spawn.x,
-          z: dev.origin.z + layout.spawn.z - 1.5,
-          heading: 0,
-        },
-        "compound",
-      );
     // The blast door and the outside (#188): `door=open|closing|closed|alarm`, `at=lobby|beach|dock`.
     // `doorAfter=<ms>` applies it later, to catch the leaves moving.
     const door = q.get("door");
@@ -132,15 +233,34 @@ export function HenchmenHarness({ search }: { search: string }) {
       if (door === "alarm") useDoorOverride.getState().set({ phase: "closed", alarm: true });
     };
     const doorTimer = setTimeout(applyDoor, Number(q.get("doorAfter") ?? 0));
-    const outside = outsideLayout(world);
-    const spot = outside ? harnessSpot(outside, q.get("at")) : null;
-    if (spot) usePlayerStore.getState().spawnAt(spot, "compound");
+    if (q.get("lift") === "open") useUiStore.getState().openOverlay(LIFT_OVERLAY);
+    if (q.get("travel") === "open") useUiStore.getState().openOverlay(QUICK_TRAVEL_OVERLAY);
     const timer = setInterval(() => setTick((t) => t + 1), 1000 / Math.max(0.1, rate));
     return () => {
       clearInterval(timer);
       clearTimeout(doorTimer);
     };
-  }, [rate, search, world]);
+  }, [rate, search]);
+
+  // Where the player starts, once: `at=`, else by the Dev room's door, else at the level's lift.
+  // Later level changes (the lift, quick travel) place the player themselves.
+  const placed = useRef(false);
+  useEffect(() => {
+    if (placed.current) return;
+    placed.current = true;
+    const at = new URLSearchParams(search).get("at");
+    const outside = outsideLayout(world);
+    const dev = roomById(world, DEV);
+    const layout = dev ? roomLayout(dev) : null;
+    const doorOf = at?.startsWith("door:") ? roomById(world, at.slice(5)) : undefined;
+    const spot =
+      (doorOf ? travelPose(doorOf) : null) ??
+      (outside ? harnessSpot(outside, at) : null) ??
+      (at !== "lift" && dev && layout
+        ? { x: dev.origin.x + layout.spawn.x, z: dev.origin.z + layout.spawn.z - 1.5, heading: 0 }
+        : (liftOf(world)?.stand ?? null));
+    if (spot) usePlayerStore.getState().spawnAt(spot, "compound");
+  }, [world, search]);
 
   useEffect(() => {
     const rooms = useRoomsStore.getState();
@@ -169,12 +289,16 @@ export function HenchmenHarness({ search }: { search: string }) {
     if (humanCount > 1 && dev) {
       const centre = { x: dev.origin.x + dev.size.w / 2, z: dev.origin.z + dev.size.d / 2 };
       const humans = fakeHumans(humanCount, centre, tick / Math.max(0.1, rate));
-      useBuildingStore.setState({ state: harnessBuilding(roomCount, humans), sessionId: "me" });
+      useBuildingStore.setState({
+        state: { ...lair.state, humans },
+        sessionId: "me",
+      });
     }
-  }, [tick, n, mode, allSeats, skins, providers, nearby, world, humanCount, roomCount, rate, near]);
+  }, [tick, n, mode, allSeats, skins, providers, nearby, world, humanCount, lair, rate, near]);
 
   return (
     <div style={{ position: "fixed", inset: 0 }}>
+      <style id="rg-theme">{THEME_CSS}</style>
       <CompoundCanvas world={world} avatars={<AvatarLayer />} presence={noPresence} send={noSend}>
         <Suspense fallback={null}>
           <FpsProbe probe={false} />
@@ -190,6 +314,10 @@ export function HenchmenHarness({ search }: { search: string }) {
             Queue done (x3)
           </button>
         </div>
+        <QuickTravelDialog />
+        <LiftPanel />
+        <LiftRide />
+        <Toaster />
       </div>
     </div>
   );

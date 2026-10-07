@@ -29,6 +29,7 @@ export const useCompoundStore = create<CompoundStore>()((set) => ({
 export function worldKey(world: CompoundWorld | null): string {
   if (!world) return "";
   return [
+    world.levelId,
     world.version,
     world.width,
     world.depth,
@@ -37,6 +38,9 @@ export function worldKey(world: CompoundWorld | null): string {
         r.id,
         r.name,
         r.enterable ? 1 : 0,
+        r.closed ? (r.sealed ? 3 : 2) : 0,
+        r.door.x,
+        r.door.y,
         r.buildState,
         r.buildEndsAt,
         r.deskCount,
@@ -62,7 +66,8 @@ export function syncCompoundWorld(): void {
   // A level that is gone (its last room archived or deleted) leaves its viewers in the lobby.
   const level = useLevelStore.getState();
   if (building && !isKnownLevel(building, level.levelId)) level.set(LOBBY_LEVEL_ID);
-  const next = compoundWorld(levelView(building, useLevelStore.getState().levelId), enterable);
+  const levelId = useLevelStore.getState().levelId;
+  const next = compoundWorld(levelView(building, levelId), enterable, levelId);
   const store = useCompoundStore.getState();
   if (worldKey(next) !== worldKey(store.world)) store.set(next);
 }

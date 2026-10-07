@@ -1,0 +1,249 @@
+/* The lift's panel and ride (#269): a column of call buttons, one per level. */
+.rg-lift {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.rg-lift__row {
+  display: grid;
+  grid-template-columns: 44px 44px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  text-align: left;
+  border: 1px solid var(--rg-color-panel-border);
+  border-radius: 6px;
+  background: var(--rg-color-raised);
+  color: var(--rg-color-ink);
+  cursor: pointer;
+}
+.rg-lift__row:hover {
+  background: var(--rg-color-hover);
+}
+.rg-lift__row[aria-current="true"] {
+  border-color: var(--rg-color-gold);
+  background: var(--rg-color-selected);
+  box-shadow: inset 3px 0 0 var(--rg-color-hench-yellow);
+  cursor: default;
+}
+/* The call button: a round lamp with the level's mark, lit on the level you are on. */
+.rg-lift__mark {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 2px solid var(--rg-color-frame-shadow);
+  background: var(--rg-color-plate);
+  color: var(--rg-color-plate-text);
+  font-family: var(--rg-font-stencil);
+  font-size: 15px;
+  letter-spacing: 0.04em;
+  box-shadow: inset 0 2px 3px rgba(0, 0, 0, 0.55);
+}
+.rg-lift__row[aria-current="true"] .rg-lift__mark {
+  background: var(--rg-color-hench-yellow);
+  color: #1c1d1f;
+  box-shadow:
+    inset 0 -2px 3px rgba(0, 0, 0, 0.25),
+    0 0 10px rgba(242, 194, 0, 0.55);
+}
+.rg-lift__avatar {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  overflow: hidden;
+  border-radius: 6px;
+  border: 1px solid var(--rg-color-frame-shadow);
+  background: var(--rg-color-plate);
+  color: var(--rg-color-plate-text);
+  font-weight: 700;
+  font-size: 15px;
+}
+.rg-lift__avatar[data-kind="org"] {
+  border-radius: 6px;
+}
+.rg-lift__avatar[data-kind="account"] {
+  border-radius: 50%;
+}
+.rg-lift__avatar img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.rg-lift__avatar svg {
+  padding: 4px;
+}
+.rg-lift__text {
+  display: grid;
+  min-width: 0;
+}
+.rg-lift__name {
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rg-lift__caption {
+  font-size: 12px;
+  opacity: 0.75;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rg-lift__here {
+  font-weight: 700;
+}
+.rg-lift__note {
+  margin: 10px 0 0;
+  font-size: 12px;
+}
+
+/* Quick travel's level groups share the avatar and mark. */
+.rg-travel__level {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-family: inherit;
+  letter-spacing: 0;
+  text-transform: none;
+}
+section + section > .rg-travel__level {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--rg-color-panel-border);
+}
+.rg-travel__level .rg-lift__avatar,
+.rg-travel__level .rg-lift__mark {
+  width: 26px;
+  height: 26px;
+  font-size: 11px;
+}
+.rg-travel__level-name {
+  font-weight: 700;
+}
+.rg-travel__level-go {
+  margin-left: auto;
+}
+
+/* The ride: two steel leaves close over the view, the indicator between them. */
+.rg-lift-ride {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+  overflow: hidden;
+}
+.rg-lift-ride__leaf {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 50.5%;
+  background:
+    repeating-linear-gradient(-45deg, #f2c200 0 22px, #1c1d1f 22px 44px) bottom / 100% 34px
+    no-repeat,
+    linear-gradient(90deg, rgba(255, 255, 255, 0.07), rgba(0, 0, 0, 0.18)),
+    #4f6a6e;
+  box-shadow: inset 0 0 0 6px #3a4046;
+  animation: rg-lift-leaf var(--rg-lift-ride-ms) cubic-bezier(0.6, 0, 0.4, 1) both;
+}
+.rg-lift-ride__leaf[data-side="left"] {
+  left: 0;
+  --rg-lift-away: -101%;
+}
+.rg-lift-ride__leaf[data-side="right"] {
+  right: 0;
+  --rg-lift-away: 101%;
+}
+@keyframes rg-lift-leaf {
+  0% {
+    transform: translateX(var(--rg-lift-away));
+  }
+  30%,
+  70% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(var(--rg-lift-away));
+  }
+}
+.rg-lift-ride__indicator {
+  position: absolute;
+  left: 50%;
+  top: 38%;
+  transform: translate(-50%, -50%);
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 14px 26px;
+  border: 4px solid #b08d57;
+  border-radius: 8px;
+  background: #1e2124;
+  color: #f2e6c8;
+  font-family: var(--rg-font-stencil);
+  text-transform: uppercase;
+  animation: rg-lift-indicator var(--rg-lift-ride-ms) linear both;
+}
+.rg-lift-ride__mark {
+  font-size: 44px;
+  line-height: 1;
+  color: #2ec4b6;
+}
+.rg-lift-ride__name {
+  max-width: 60vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 18px;
+  letter-spacing: 0.06em;
+}
+@keyframes rg-lift-indicator {
+  0%,
+  18% {
+    opacity: 0;
+  }
+  30%,
+  70% {
+    opacity: 1;
+  }
+  82%,
+  100% {
+    opacity: 0;
+  }
+}
+/* Low graphics preset: no leaves, a dip to dark with the indicator. */
+.rg-lift-ride[data-style="fade"] {
+  background: #141312;
+  animation: rg-lift-fade var(--rg-lift-ride-ms) ease-in-out both;
+}
+.rg-lift-ride[data-style="fade"] .rg-lift-ride__leaf {
+  display: none;
+}
+@keyframes rg-lift-fade {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  35%,
+  65% {
+    opacity: 1;
+  }
+}
+/* Reduced motion never starts a ride (state/lift.ts); belt and braces if one shows. */
+[data-reduced-motion="true"] .rg-lift-ride__leaf,
+[data-reduced-motion="true"] .rg-lift-ride__indicator,
+[data-reduced-motion="true"] .rg-lift-ride {
+  animation: none;
+}
+[data-reduced-motion="true"] .rg-lift-ride__leaf {
+  display: none;
+}

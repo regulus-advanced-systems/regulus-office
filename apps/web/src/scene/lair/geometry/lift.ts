@@ -30,15 +30,24 @@ export function liftShaft(): PieceGeometry {
   const front = d / 2;
   const pylon = (w - TILE) / 2;
   // Cheeks and back: poured concrete, darker at the back.
-  for (const side of [-1, 1])
-    b.box([0.3, h, d - 0.5], [side * (w / 2 - 0.15), h / 2, -0.25], LAIR.concrete, {
+  const cheek = new PartBuilder(78)
+    .hazardZ(-(d - 0.5) / 2 + 0.1, 0.12, (d - 0.5) / 2 - 0.1, 0.5, 0, 6)
+    .build();
+  for (const side of [-1, 1]) {
+    b.box([0.3, h, d - 0.5], [side * (w / 2 - 0.15), h / 2, -0.25], LAIR.concreteDark, {
       jitter: 0.1,
     });
+    // Outside: a chevron band at the foot, a steel waist rail and a riveted corner post.
+    b.append(cheek, [side * (w / 2 + 0.002), 0, -0.25], [0, (side * Math.PI) / 2, 0]);
+    b.box([0.06, 0.12, d - 0.5], [side * (w / 2 + 0.03), 1.5, -0.25], LAIR.steel);
+    b.box([0.16, h, 0.16], [side * (w / 2 - 0.02), h / 2, -front + 0.08], LAIR.steelDark);
+  }
+  cheek.dispose();
   b.box([w, h, 0.3], [0, h / 2, -front + 0.15], LAIR.concreteDark, { jitter: 0.1 });
   // Pylons either side of the door frame: riveted steel with a chevron band.
   for (const side of [-1, 1]) {
     const x = side * (TILE / 2 + pylon / 2);
-    b.box([pylon, h, 0.5], [x, h / 2, front - 0.25], LAIR.steelDark, { jitter: 0.06 });
+    b.box([pylon, h, 0.5], [x, h / 2, front - 0.25], LAIR.steel, { jitter: 0.06 });
     const band = new PartBuilder(73).hazardZ(-pylon / 2 + 0.04, 0.12, pylon / 2 - 0.04, 0.62, 0, 4);
     const part = band.build();
     b.append(part, [x, 0, front + 0.002]);
@@ -69,7 +78,7 @@ export function liftShaft(): PieceGeometry {
     [ax, 1.1, z + 0.011],
     LAIR.tungsten,
   );
-  // The cabin: plate floor, painted panels, a handrail and a warm lamp.
+  // The cabin: plate floor, painted panels, a handrail and a warm lamp inside.
   b.box([TILE, 0.04, d - 0.6], [0, 0.02, -0.1], LAIR.steel, { jitter: 0.08 });
   b.box([TILE + 0.3, 2.5, 0.05], [0, 1.25, -front + 0.33], LAIR.steelPaint, { jitter: 0.06 });
   for (const side of [-1, 1])
@@ -77,19 +86,48 @@ export function liftShaft(): PieceGeometry {
       jitter: 0.06,
     });
   b.box([TILE, 0.05, 0.05], [0, 1.02, -front + 0.42], LAIR.chrome);
-  b.box([TILE + 0.3, 0.06, d - 0.6], [0, 2.53, -0.1], LAIR.steelDark);
   glow.box([0.7, 0.03, 0.4], [0, 2.49, -0.1], LAIR.tungstenGlow);
-  // Roof slab, winch housing and the cable wheel.
-  b.box([w + 0.1, 0.14, d + 0.1], [0, h + 0.07, 0], LAIR.steel, { jitter: 0.06 });
-  b.box([1.5, 0.46, 1.1], [0, h + 0.37, -0.2], LAIR.steelPaint, { jitter: 0.06 });
-  b.cylinder(0.36, 0.36, 0.12, 12, [0.95, h + 0.42, -0.2], LAIR.steelLight, {
-    rot: [0, 0, Math.PI / 2],
+  // Seen from above (the 3/4 camera) the shaft is open: the cabin's roof sits below
+  // the rim with its hatch and lamp strips, and the cables run up to the headgear.
+  const roofY = 2.56;
+  b.box([TILE + 0.3, 0.06, d - 0.6], [0, roofY, -0.1], LAIR.steelPaint, { jitter: 0.06 });
+  b.box([0.7, 0.05, 0.7], [-0.45, roofY + 0.05, -0.25], LAIR.brass);
+  b.box([0.5, 0.05, 0.08], [-0.45, roofY + 0.09, -0.25], LAIR.steelDark);
+  for (const side of [-1, 1])
+    glow.box(
+      [0.06, 0.03, d - 0.9],
+      [side * (TILE / 2 + 0.02), roofY + 0.05, -0.1],
+      LAIR.tungstenGlow,
+    );
+  for (const dx of [-0.07, 0.07])
+    b.box([0.035, h + 0.55 - roofY, 0.035], [0.55 + dx, (h + 0.55 + roofY) / 2, -0.1], LAIR.black);
+  // The rim: a hazard-striped steel curb round the top of the shaft.
+  const curb = new PartBuilder(76).hazardZ(-w / 2, -0.15, w / 2, 0.15, 0, 9).build();
+  for (const z of [front - 0.15, -front + 0.15])
+    b.append(curb, [0, h + 0.002, z], [-Math.PI / 2, 0, 0]);
+  curb.dispose();
+  const sideCurb = new PartBuilder(77)
+    .hazardZ(-(d - 0.6) / 2, -0.15, (d - 0.6) / 2, 0.15, 0, 6)
+    .build();
+  for (const side of [-1, 1])
+    b.append(sideCurb, [side * (w / 2 - 0.15), h + 0.002, 0], [-Math.PI / 2, 0, Math.PI / 2]);
+  sideCurb.dispose();
+  // Headgear: two beams across the shaft carrying the sheave wheel and the winch.
+  for (const z of [-0.42, 0.22]) {
+    b.box([w + 0.2, 0.2, 0.16], [0, h + 0.12, z], LAIR.steelDark, { jitter: 0.06 });
+    b.box([w + 0.2, 0.04, 0.24], [0, h + 0.23, z], LAIR.steel);
+  }
+  b.cylinder(0.44, 0.44, 0.1, 14, [0.55, h + 0.56, -0.1], LAIR.steelLight, {
+    rot: [Math.PI / 2, 0, 0],
   });
-  b.cylinder(0.1, 0.1, 0.2, 8, [0.95, h + 0.42, -0.2], LAIR.steelDark, {
-    rot: [0, 0, Math.PI / 2],
+  b.cylinder(0.3, 0.3, 0.12, 14, [0.55, h + 0.56, -0.1], LAIR.steelDark, {
+    rot: [Math.PI / 2, 0, 0],
   });
-  b.box([0.3, 0.1, 0.3], [-0.5, h + 0.65, -0.2], LAIR.steelDark);
-  glow.box([0.16, 0.1, 0.16], [-0.5, h + 0.75, -0.2], LAIR.red);
+  b.cylinder(0.08, 0.08, 0.9, 8, [0.55, h + 0.56, -0.1], LAIR.steel, { rot: [Math.PI / 2, 0, 0] });
+  b.box([0.9, 0.5, 0.8], [-0.85, h + 0.5, -0.1], LAIR.steelPaint, { jitter: 0.06 });
+  b.box([0.7, 0.06, 0.6], [-0.85, h + 0.78, -0.1], LAIR.steelDark);
+  b.cylinder(0.14, 0.14, 0.5, 8, [-0.2, h + 0.5, -0.1], LAIR.brass, { rot: [0, 0, Math.PI / 2] });
+  glow.box([0.16, 0.1, 0.16], [-1.05, h + 0.86, -0.1], LAIR.red);
   return { body: b.build(), glow: glow.build() };
 }
 
