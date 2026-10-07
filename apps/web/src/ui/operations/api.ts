@@ -145,7 +145,7 @@ export function describeOperationError(err: ApiFailure): string {
     case "owner_or_admin_required":
       return "Only office owners and admins can do that.";
     case "operation_has_henchmen":
-      return "Henchmen are still working in this operation. Send them home first, then delete it.";
+      return "Henchmen are still working in this operation. Send them to barracks first, then delete it.";
     case "operation_cloning":
       return "A repo of this operation is still cloning. Wait until it has finished, then try again.";
     case "operation_busy":
@@ -157,7 +157,7 @@ export function describeOperationError(err: ApiFailure): string {
     case "operation_files_not_removed":
       return "The operation's files could not all be removed, so it was archived instead. The server log has the details; try again from Settings → Operations.";
     case "henchmen_unavailable":
-      return "Henchmen cannot be sent home right now. Try again in a moment.";
+      return "Henchmen cannot be sent to barracks right now. Try again in a moment.";
     case "invalid_repo":
       return `${err.reason ?? "A repo"} is not a GitHub repo. Use owner/name or https://github.com/owner/name.`;
     case "unsupported_host":
