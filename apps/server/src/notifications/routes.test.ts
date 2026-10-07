@@ -281,6 +281,16 @@ describe("team channels", () => {
     expect(renamed.status).toBe(200);
     expect(await renamed.json()).toMatchObject({ label: "Renamed", operationIds: ["operation-x"] });
     expect(await idsFor(owner.cookie)).toEqual(["operation-x", "operation-y"]);
+    // Saving the rooms the admin was shown does not drop the one they were not shown.
+    const resaved = await send(notificationChannelPath(id), "PATCH", admin.cookie, {
+      operationIds: [],
+    });
+    expect(await resaved.json()).toMatchObject({ operationIds: [] });
+    expect(await idsFor(owner.cookie)).toEqual(["operation-y"]);
+    await send(notificationChannelPath(id), "PATCH", admin.cookie, {
+      operationIds: ["operation-x"],
+    });
+    expect((await idsFor(owner.cookie))?.sort()).toEqual(["operation-x", "operation-y"]);
     // An admin whose GitHub account loses the last room sees the channel with no room ids.
     seedRoomMember(office.db, admin.id, "operation-x", null);
     expect(await idsFor(admin.cookie)).toEqual([]);
