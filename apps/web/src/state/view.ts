@@ -29,11 +29,14 @@ export interface ViewStore {
   fade: ViewFade | null;
   /** True while the first-person rig holds the pointer lock. */
   pointerLocked: boolean;
+  /** True while a window is open in first person: the look is paused, the cursor free (#282). */
+  lookPaused: boolean;
   setMode: (mode: ViewMode) => void;
   toggle: () => void;
   /** Advance the crossfade to `now`; the overlay calls this every frame. */
   tick: (now: number) => void;
   setPointerLocked: (locked: boolean) => void;
+  setLookPaused: (paused: boolean) => void;
 }
 
 export interface ViewStoreDeps {
@@ -59,6 +62,7 @@ export function createViewStore(deps: ViewStoreDeps = {}) {
     cameraMode: "third_person",
     fade: null,
     pointerLocked: false,
+    lookPaused: false,
 
     setMode: (mode) => {
       const s = get();
@@ -90,6 +94,9 @@ export function createViewStore(deps: ViewStoreDeps = {}) {
 
     setPointerLocked: (locked) => {
       if (get().pointerLocked !== locked) set({ pointerLocked: locked });
+    },
+    setLookPaused: (paused) => {
+      if (get().lookPaused !== paused) set({ lookPaused: paused });
     },
   }));
 }

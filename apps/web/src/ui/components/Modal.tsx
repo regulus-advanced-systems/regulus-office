@@ -4,9 +4,14 @@
  * a round close dial overlapping the top-right corner (components.css).
  * The scene behind dims with a dark overlay and slight blur. Focus is
  * trapped, Escape closes, and focus returns to the opener.
+ *
+ * Every open modal counts as an open window (state/windows.ts), which is
+ * what pauses the first-person look and frees the cursor (#282): no modal
+ * has to do anything for that itself.
  */
 import { type CSSProperties, type ReactNode, type RefObject, useId, useRef } from "react";
 import { createPortal } from "react-dom";
+import { useModalWindow } from "../../state/windows.ts";
 import { useFocusTrap } from "../a11y/useFocusTrap.ts";
 import { CloseButton } from "./CloseButton.tsx";
 
@@ -43,6 +48,7 @@ export function Modal({
   const ref = useRef<HTMLDivElement>(null);
   const titleId = useId();
   useFocusTrap(ref, { active: open && !inline, onEscape: onClose, initialFocus });
+  useModalWindow(open && !inline);
   if (!open) return null;
 
   const dialog = (

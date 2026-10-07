@@ -1,6 +1,7 @@
 /**
  * "Add operation" dialog (SPEC §9.1, D7, D14): an owner or admin names the
- * operation, picks a palette (default: next in the cycle) and chooses its
+ * operation, picks its room's lair style (the same `decorStyle` room
+ * settings changes later; the old office palettes are gone, #282) and chooses its
  * one GitHub repo (one repo per room, #268; the repo's owner decides the
  * level the room is built on). With the office GitHub connection (#141)
  * it is picked from a searchable list of every repo it can see; "Other
@@ -17,13 +18,14 @@
  */
 
 import {
+  type DecorStyle,
   type GitHubRepoInfo,
+  isDecorStyle,
   LOBBY_LEVEL_ID,
   levelLoginOf,
   ONE_REPO_PER_ROOM_MESSAGE,
   type PlaceRoomRequest,
 } from "@regulus/protocol";
-import { PALETTES } from "@regulus/room-layout";
 import { useEffect, useId, useState } from "react";
 import { useBuildingStore } from "../../state/building.ts";
 import { syncCompoundWorld, useCompoundStore } from "../../state/compound.ts";
@@ -40,6 +42,7 @@ import {
 import { useBuildModeStore } from "../build-mode/store.ts";
 import { Button } from "../components/Button.tsx";
 import { Modal } from "../components/Modal.tsx";
+import { DecorStylePicker } from "../room-settings/DecorStylePicker.tsx";
 import { useGitHubLinkResultOverlay } from "../settings/GitHubLinkSection.tsx";
 import { useGitHubResultOverlay } from "../settings/GitHubSection.tsx";
 import { createGitHubApi, describeGitHubError, type GitHubApi } from "../settings/githubApi.ts";
@@ -55,7 +58,7 @@ const defaultGitHubApi = createGitHubApi();
 let rowSeq = 0;
 
 /**
- * Read the uncontrolled form: name, palette, then the repos: those
+ * Read the uncontrolled form: name, room style, then the repos: those
  * picked from the connection's list first (in the order picked, no token:
  * the connection covers them), then the non-empty typed rows.
  */
@@ -66,7 +69,8 @@ export function readAddOperationForm(
 ): AddOperationRequest {
   const data = new FormData(form);
   const field = (name: string) => String(data.get(name) ?? "").trim();
-  const paletteId = field("palette");
+  const style = field("decorStyle");
+  const decorStyle: DecorStyle | undefined = isDecorStyle(style) ? style : undefined;
   const typed = rowKeys
     .map((key) => ({ repo: field(`repo-${key}`), token: field(`token-${key}`) }))
     .filter((r) => r.repo)
@@ -74,7 +78,7 @@ export function readAddOperationForm(
   const repos = [...picked.map((repo) => ({ repo })), ...typed];
   return {
     name: field("name"),
-    ...(paletteId ? { paletteId } : {}),
+    ...(decorStyle ? { decorStyle } : {}),
     repos,
   };
 }
@@ -122,7 +126,7 @@ export function AddOperationForm({
   const [rows] = useState<number[]>(() => [++rowSeq]);
   const [picked, setPicked] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(draft?.error ?? null);
-  const ids = { name: useId(), palette: useId() };
+  const ids = { name: useId() };
   const connection = useConnectionRepos(github);
   const listed = connection.state === "ready";
 
@@ -190,26 +194,7 @@ export function AddOperationForm({
           defaultValue={draft?.name ?? ""}
         />
       </div>
-      <div className="rg-operation-form__pair">
-        <div className="rg-field">
-          <label className="rg-field__label" htmlFor={ids.palette}>
-            Palette
-          </label>
-          <select
-            id={ids.palette}
-            name="palette"
-            className="rg-select"
-            defaultValue={draft?.paletteId ?? ""}
-          >
-            <option value="">Next in the cycle</option>
-            {PALETTES.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
+      <DecorStylePicker name="decorStyle" defaultValue={draft?.decorStyle} />
       <fieldset className="rg-field rg-operation-form__repos">
         <legend className="rg-field__label">Repo</legend>
         {connection.state === "loading" && (

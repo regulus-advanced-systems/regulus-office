@@ -19,6 +19,17 @@ describe("operations REST shapes", () => {
     });
     expect(parsed).toEqual({ name: "Apollo", tier: "medium", repos: [{ repo: "octo/hello" }] });
     expect(CreateOperationRequest.safeParse({ name: "x", repos: [] }).success).toBe(false);
+    // The room's lair style rides along (#282); the old office palette is no longer read.
+    const styled = { name: "x", repos: [{ repo: "o/r" }], decorStyle: "armory", paletteId: "p" };
+    expect(CreateOperationRequest.parse(styled)).toEqual({
+      name: "x",
+      tier: "medium",
+      decorStyle: "armory",
+      repos: [{ repo: "o/r" }],
+    });
+    expect(CreateOperationRequest.safeParse({ ...styled, decorStyle: "disco" }).success).toBe(
+      false,
+    );
     const many = Array.from({ length: MAX_REPOS_PER_OPERATION + 1 }, (_, i) => ({
       repo: `o/r${i}`,
     }));

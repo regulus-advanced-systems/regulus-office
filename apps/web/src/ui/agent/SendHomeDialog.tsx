@@ -1,5 +1,5 @@
 /**
- * "Send home" (#33): confirm, choose whether to keep the henchman's branch, and
+ * "Send to barracks" (#33, worded for the lair in #282; the code still says send home): confirm, choose whether to keep the henchman's branch, and
  * see which uncommitted changes would be lost (the worktree is removed
  * either way). On confirm the server stops the agent, releases the worktree
  * and frees the desk; everyone then sees the henchman carry its box to the
@@ -46,7 +46,7 @@ export function SendHomeDialog() {
     <Modal
       open
       onClose={close}
-      title="Send henchman home"
+      title="Send henchman to barracks"
       width={520}
       footer={
         <>
@@ -58,7 +58,7 @@ export function SendHomeDialog() {
             disabled={busy}
             onClick={() => send("agent.sendHome", { agentId, keepBranch })}
           >
-            {busy ? "Sending home…" : "Send home"}
+            {busy ? "Sending to barracks…" : "Send to barracks"}
           </Button>
         </>
       }

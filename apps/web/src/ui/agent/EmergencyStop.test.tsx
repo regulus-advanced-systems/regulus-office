@@ -49,7 +49,7 @@ describe("emergency stop (D12, #138)", () => {
       ]);
       // Nothing else is offered: no prompt, approve, resume, send home or PR.
       expect(document.querySelector("textarea")).toBeNull();
-      for (const label of ["Stop", "Interrupt", "Resume", "Send home", "Open PR"]) {
+      for (const label of ["Stop", "Interrupt", "Resume", "Send to barracks", "Open PR"]) {
         expect(buttonByText(label)).toBeUndefined();
       }
     },

@@ -19,6 +19,7 @@ const reset = () =>
       cameraMode: "third_person",
       fade: null,
       pointerLocked: false,
+      lookPaused: false,
     }),
   );
 
@@ -36,6 +37,10 @@ describe("ViewToggle", () => {
     expect(document.querySelector(".rg-viewtoggle__hint")?.textContent).toBe(viewHint(false));
     await act(async () => useViewStore.getState().setPointerLocked(true));
     expect(document.querySelector(".rg-viewtoggle__hint")?.textContent).toBe(viewHint(true));
+    // A window open in first person (#282): the hint says why the mouse no longer looks.
+    await act(async () => useViewStore.getState().setLookPaused(true));
+    expect(document.querySelector(".rg-viewtoggle__hint")?.textContent).toContain("paused");
+    await act(async () => useViewStore.getState().setLookPaused(false));
     await click(button);
     expect(useViewStore.getState().mode).toBe("third_person");
     await m.unmount();
