@@ -179,6 +179,7 @@ export class OfficeAgentService {
       ...draft,
       id: "draft",
       nameKey: "",
+      dismissed: false,
       status: "stopped",
       statusReason: null,
       engineState: "{}",

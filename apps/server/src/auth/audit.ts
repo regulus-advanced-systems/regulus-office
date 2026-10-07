@@ -95,6 +95,9 @@ export const AUDIT_ACTIONS = {
   officeAgentEmergencyStop: "office_agent.emergency_stop",
   officeAgentSettings: "office_agent.settings",
   officeAgentRequestAnswer: "office_agent.request_answer",
+  /** A personal agent's owner sent it off to wander, or called it back (#252). */
+  officeAgentDismiss: "office_agent.dismiss",
+  officeAgentRecall: "office_agent.recall",
   /** What an agent did through the office tools: every call, allowed or refused. */
   officeAgentToolCall: "office_agent.tool_call",
   officeAgentToolDenied: "office_agent.tool_denied",

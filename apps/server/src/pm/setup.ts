@@ -32,6 +32,12 @@ import { OfficeAgentTokens } from "./tokens.ts";
 import { mountToolRoutes } from "./tool-routes.ts";
 import { OfficeTools } from "./tools/call.ts";
 import { type CommentTarget, type OfficePorts, ToolError } from "./tools/context.ts";
+import {
+  AgentAttention,
+  AgentWorld,
+  AgentWorldService,
+  mountAgentWorldRoutes,
+} from "./world/index.ts";
 
 export interface OfficeAgentsOptions {
   db: Db;
@@ -65,6 +71,10 @@ export interface OfficeAgents {
   tools: OfficeTools;
   conversations: Conversations;
   requests: HumanRequests;
+  /** The agents' bodies (#252): the BuildingRoom steps it (`building.attachWorld`). */
+  world: AgentWorld;
+  /** Tell one person's clients that what their agents want from them changed (#252). */
+  onAttention(notify: (userId: string) => void): void;
   mount(
     router: Router,
     auth: Pick<OfficeAuth, "getSessionFromRequest" | "publicUrl" | "allowedOrigins">,
@@ -164,6 +174,35 @@ export function createOfficeAgents(opts: OfficeAgentsOptions): OfficeAgents {
     now,
   });
 
+  // Bodies in the world (#252). A body is looks only: where it may stand is the access gate's answer.
+  const access = new AgentAccess(store);
+  const world = new AgentWorld({
+    agents: () =>
+      store.list().map((row) => ({
+        id: row.id,
+        name: row.name,
+        ownerUserId: row.ownerUserId,
+        ownerName: row.ownerUserId ? (store.person(row.ownerUserId)?.displayName ?? "") : "",
+        appearance: row.appearance,
+        status: row.status,
+        dismissed: row.ownerUserId !== null && row.dismissed,
+      })),
+    mayEnter: (agentId, operationId) => {
+      const row = store.get(agentId);
+      return row !== undefined && access.operation(row, operationId) !== null;
+    },
+  });
+  let notify: (userId: string) => void = () => {};
+  conversations.onAppend = (_agentId, userId) => notify(userId);
+  requests.onChange = (userId) => notify(userId);
+  const worldService = new AgentWorldService({
+    store,
+    attention: new AgentAttention(db, conversations, requests, now),
+    view: (actor, row) => service.view(actor, row),
+    changed: () => world.refresh(),
+    notify: (userId) => notify(userId),
+  });
+
   return {
     store,
     tokens,
@@ -172,7 +211,13 @@ export function createOfficeAgents(opts: OfficeAgentsOptions): OfficeAgents {
     tools,
     conversations,
     requests,
+    world,
+    onAttention(fn) {
+      notify = fn;
+    },
     mount(router, auth) {
+      // Before the agent routes: `/attention` is not an agent id.
+      mountAgentWorldRoutes(router, { auth, service: worldService });
       mountMcp(router, { store, tokens, tools, version: opts.version });
       mountToolRoutes(router, { store, tokens, tools });
       mountOfficeAgentRoutes(router, { auth, service });

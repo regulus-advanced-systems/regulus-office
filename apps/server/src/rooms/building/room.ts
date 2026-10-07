@@ -95,6 +95,8 @@ export interface BuildingRoom extends RoomDefinition<BuildingState, BuildingJoin
   setLobbyWhiteboard(version: number): void;
   /** Whose connected session this is (media tokens, #48); null when it is not connected. */
   presence(sessionId: string): { userId: string } | null;
+  /** Office agents' bodies (#252): stepped in the sweep, they write `state.officeAgents`. */
+  attachWorld(world: { tick(state: BuildingState, now: number): void }): void;
   /** A chat line from the office itself (an office agent's `post_chat` tool, #271). */
   postChat(line: { userId: string; displayName: string; operationId: string; text: string }): void;
 }
@@ -115,6 +117,7 @@ export function createBuildingRoom(deps: BuildingRoomDeps): BuildingRoom {
   let compound: CompoundSnapshot | undefined;
   let lobbyWhiteboard = 0;
   let handle: RoomHandle<BuildingState> | undefined;
+  let world: { tick(state: BuildingState, now: number): void } | undefined;
   const blastDoor = createBlastDoor(deps.blastDoor ?? {}, now);
   const lobbyDeps = {
     jukebox: deps.jukebox,
@@ -170,6 +173,7 @@ export function createBuildingRoom(deps: BuildingRoomDeps): BuildingRoom {
     blastDoor.tick(handle.state.blastDoor);
     deps.jukebox?.tick(handle.state.jukebox);
     const t = now();
+    world?.tick(handle.state, t);
     handle.state.humans.forEach((human, sessionId) => {
       const book = books.get(sessionId);
       if (!book) return;
@@ -406,6 +410,10 @@ export function createBuildingRoom(deps: BuildingRoomDeps): BuildingRoom {
         while (handle.state.chat.length > CHAT_REPLAY) handle.state.chat.shift();
       }
       chat.append(message).catch((err) => logger.error({ err }, "chat persistence failed"));
+    },
+
+    attachWorld(next) {
+      world = next;
     },
 
     setLobbyWhiteboard(version) {
