@@ -140,3 +140,9 @@ export const mindPrivacy = (shared: boolean) =>
   shared
     ? "Office owners and admins can read and change this. Anyone who talks to this agent may be told what is in it."
     : "Private: only you can read and change this. Office owners and admins cannot.";
+
+/** "$1.24", or "under $0.01" for a first few messages; null when it has cost nothing yet. */
+export function costWords(usd: number | undefined): string | null {
+  if (!usd || usd <= 0) return null;
+  return usd < 0.01 ? "under $0.01" : `$${usd.toFixed(2)}`;
+}

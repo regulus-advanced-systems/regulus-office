@@ -10,6 +10,7 @@ import {
   type MindEntriesResponse,
   OFFICE_AGENTS_API_PATH,
   type OfficeAgentConversation,
+  type OfficeAgentsResponse,
   type OfficeAgentView,
   officeAgentMindPaths,
 } from "@regulus/protocol";
@@ -125,5 +126,18 @@ describe("CLI session engine: soul and memories", () => {
     const report = await talk("REMEMBER the deploy key is sk-ant-api03-FAKEFAKEFAKEFAKE");
     expect(report.remembered).toMatchObject({ error: "secret_rejected" });
     expect(o.officeAgents.mind.list(agent.id, "memory").total).toBe(1);
+  });
+
+  test("an admin sees what it has cost on its card, and still nothing of what it is or knows", async () => {
+    const res = await o.send(A, "GET", o.people.ada.cookie);
+    const body = await res.text();
+    const card = (JSON.parse(body) as OfficeAgentsResponse).agents.find((a) => a.id === agent.id);
+    // Five turns of the fake CLI at $0.002 each.
+    expect(card?.cost?.totalUsd).toBeCloseTo(0.01, 5);
+    expect(card?.cost?.last30DaysUsd).toBeCloseTo(0.01, 5);
+    expect(card).toMatchObject({ canConfigure: false, canRemove: true });
+    for (const text of ["note taker", "Croatian", "standup", "Reading list"]) {
+      expect(body).not.toContain(text);
+    }
   });
 });

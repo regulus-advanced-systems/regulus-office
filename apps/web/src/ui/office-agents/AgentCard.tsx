@@ -26,6 +26,7 @@ import type { OfficeAgentsApi } from "./api.ts";
 import { useChatRequest } from "./chatRequest.ts";
 import {
   ago,
+  costWords,
   engineName,
   PRESET_WORDS,
   ROLE_WORDS,
@@ -81,6 +82,7 @@ export function AgentCard({
   });
   const running = agent.status !== "stopped" && agent.status !== "error";
   const kind = agent.runsOn.kind === "unknown" ? undefined : agent.runsOn.kind;
+  const cost = costWords(agent.cost?.last30DaysUsd);
 
   return (
     <article className="rg-office-agent" aria-label={agent.name}>
@@ -106,6 +108,11 @@ export function AgentCard({
             <span>Runs as: {engineName(agent.engine)}</span>
             <span>Runs on: {runsOnSummary(agent.runsOn)}</span>
             <span>Model: {agentModelLabel(kind, agent.model)}</span>
+            {cost && (
+              <span title="An estimate from the usage tracker, last 30 days">
+                Cost, last 30 days: {cost}
+              </span>
+            )}
           </div>
         </div>
       </header>

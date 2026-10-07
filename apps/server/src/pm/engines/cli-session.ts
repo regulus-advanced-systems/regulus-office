@@ -28,6 +28,7 @@
 import { CLI_SESSION_PROVIDERS } from "@regulus/protocol";
 import type { Logger } from "../../logging.ts";
 import type { Runner } from "../../runners/types.ts";
+import { agentUsageKey } from "../cost.ts";
 import { buildClaudeTurn, parseClaudeTurn } from "./cli-plan.ts";
 import type { AgentCredentials } from "./credentials.ts";
 import {
@@ -246,7 +247,7 @@ export class CliSessionEngine implements OfficeAgentEngine {
         agentId: agent.id,
         usage: u,
         attributedTo,
-        dedupeKey: `office_agent:${agent.id}:${message.id}`,
+        dedupeKey: agentUsageKey(agent.id, message.id),
       });
     }
     if (result.reply === null) throw new EngineRefusal("no_answer", result.error ?? "no answer");

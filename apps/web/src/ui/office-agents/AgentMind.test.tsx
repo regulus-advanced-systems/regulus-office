@@ -209,11 +209,17 @@ describe("who it is, what it remembers, notes", () => {
 
   test("an admin looking at someone's personal agent gets none of it, and can remove it", async () => {
     const f = await show("admin", {
-      "GET /api/office-agents": { body: response([{ ...SOMEONES, canRemove: true }]) },
+      "GET /api/office-agents": {
+        body: response([
+          { ...SOMEONES, canRemove: true, cost: { totalUsd: 3.5, last30DaysUsd: 1.239 } },
+        ]),
+      },
       "DELETE /api/office-agents/a3": { status: 204 },
     });
     const theirs = card("Mias helper");
     expect(theirs.querySelector(".rg-agent-mind")).toBeNull();
+    // What an admin does see: that it exists, how it is doing and what it costs.
+    expect(theirs.textContent).toContain("Cost, last 30 days: $1.24");
     expect(theirs.querySelectorAll("details")).toHaveLength(0);
     expect(theirs.textContent).toContain(
       "only the person it belongs to can talk to it or read who it is, what it remembers and its notes",

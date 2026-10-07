@@ -155,6 +155,10 @@ export const OfficeAgentView = z.object({
   statusReason: z.string().optional(),
   lastActivityAt: TimestampMs.optional(),
   createdAt: TimestampMs,
+  /** What its turns have cost so far, as the usage tracker estimates it (USD). */
+  cost: z
+    .object({ totalUsd: z.number().nonnegative(), last30DaysUsd: z.number().nonnegative() })
+    .optional(),
   /** The viewer may open a chat with it. */
   canTalk: z.boolean(),
   /** The viewer may configure, start, stop and delete it and mint tokens. */
