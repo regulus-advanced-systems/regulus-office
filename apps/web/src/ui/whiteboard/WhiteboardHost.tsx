@@ -12,7 +12,14 @@ import type { WhiteboardApi } from "./api.ts";
 import { useWhiteboardStore, WHITEBOARD_OVERLAY } from "./whiteboardStore.ts";
 import "./whiteboard.css";
 
-export type EditorStatus = "loading" | "live" | "read_only" | "offline" | "unavailable";
+export type EditorStatus =
+  | "loading"
+  | "live"
+  | "read_only"
+  | "offline"
+  | "unavailable"
+  /** The server closed the board on this human (#244): no reconnecting. */
+  | "revoked";
 
 export interface WhiteboardEditorProps {
   boardId: string;
@@ -39,6 +46,7 @@ const STATUS_TEXT: Record<EditorStatus, string> = {
   read_only: "Read only",
   offline: "Offline, reconnecting…",
   unavailable: "This board is not available",
+  revoked: "You no longer have access to this whiteboard",
 };
 
 export interface WhiteboardHostProps {

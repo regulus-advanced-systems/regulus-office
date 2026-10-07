@@ -203,6 +203,7 @@ export function createOperationRooms(deps: OperationRoomsDeps): OperationRooms {
     filterBy: ["operationId"],
     parseJoinOptions: (options) => OperationJoinOptions.parse(options ?? {}),
     authorize: (user, options) => source.canEnter(user, options.operationId),
+    operationOf: (options) => options.operationId,
 
     onCreate(room, options) {
       const snap = source.loadOperation(options.operationId);

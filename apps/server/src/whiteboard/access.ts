@@ -21,6 +21,8 @@ export interface BoardUser {
   id: string;
   role: UserRole;
   displayName?: string;
+  /** The Better Auth session behind the request (live access, #244). */
+  sessionId?: string;
 }
 
 export type BoardAccessCheck = (user: BoardUser, boardId: string) => WhiteboardAccess | null;

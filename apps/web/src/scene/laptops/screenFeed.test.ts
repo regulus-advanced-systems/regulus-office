@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, test } from "bun:test";
+import { ACCESS_CLOSE_CODES } from "@regulus/protocol";
 import { FakeSocket } from "../../ui/terminal/fakeSocket.ts";
 import { fakeScreensCount, fakeScreenText } from "./fakeScreens.ts";
 import { ScreenFeedClient } from "./screenFeed.ts";
@@ -43,6 +44,25 @@ describe("ScreenFeedClient", () => {
     expect(live.closedWith).toBe(1000);
     live.drop(1006);
     expect(timers).toHaveLength(2);
+  });
+
+  test("a feed closed because access was withdrawn is not reopened (#244)", () => {
+    const timers: { fn: () => void; ms: number }[] = [];
+    const feed = new ScreenFeedClient({
+      wsBase: "ws://office",
+      operationId: "f1",
+      onScreen: () => {},
+      onRemoved: () => {},
+      socket: FakeSocket.factory,
+      random: () => 0.5,
+      setTimer: (fn, ms) => timers.push({ fn, ms }),
+      clearTimer: () => {},
+    });
+    feed.start();
+    FakeSocket.last().open();
+    FakeSocket.last().drop(ACCESS_CLOSE_CODES.revoked);
+    expect(timers).toHaveLength(0);
+    expect(FakeSocket.all).toHaveLength(1);
   });
 });
 

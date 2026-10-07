@@ -32,6 +32,12 @@ export interface MountAuthRoutesOptions {
   limits?: Partial<AuthRouteLimits>;
   /** Client address for rate-limit keys; defaults to forwarded headers, else "direct". */
   ipOf?: (request: Request) => string;
+  /**
+   * A human's role or sessions changed (role change, sign-out, "sign out
+   * everywhere", password change): their open connections are checked again
+   * (live access, #244).
+   */
+  onUserChanged?: (userId: string) => void;
 }
 
 export interface MountedAuthRoutes {
@@ -102,7 +108,15 @@ export function mountAuthRoutes(
   // Better Auth reads the body itself; hand it a copy read through the cap.
   const passthrough: RouteHandler = async (ctx) => {
     const request = await withCappedBody(ctx.request, BETTER_AUTH_BODY_MAX_BYTES);
-    return request ? auth.handler(request) : bodyTooLarge().toResponse();
+    if (!request) return bodyTooLarge().toResponse();
+    // Whoever is signed in before the call may not be after it (sign-out, revoked sessions).
+    const before =
+      options.onUserChanged && request.method === "POST"
+        ? await auth.getSessionFromRequest(request).catch(() => null)
+        : null;
+    const response = await auth.handler(request);
+    if (before) options.onUserChanged?.(before.id);
+    return response;
   };
   const betterAuthRoute: RouteHandler = (ctx) => {
     const rest = ctx.params["*"] ?? "";
@@ -190,6 +204,7 @@ export function mountAuthRoutes(
       const actor = await requireUser(request);
       const body = await readBody(request, roleBody);
       const change = setUserRole(auth.db, actor, params.userId ?? "", body.role);
+      if (change.role !== change.previousRole) options.onUserChanged?.(change.userId);
       return json({ id: change.userId, role: change.role, previousRole: change.previousRole });
     }),
   );

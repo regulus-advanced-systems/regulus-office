@@ -4,7 +4,7 @@
  * attach agents and the rest to the same process.
  */
 import { mkdir } from "node:fs/promises";
-import { LOBBY_WHITEBOARD_ID } from "@regulus/protocol";
+import { LOBBY_WHITEBOARD_ID, ROOM_NAMES } from "@regulus/protocol";
 import { sql } from "drizzle-orm";
 import { createAgents } from "./agents/manager/boot.ts";
 import { createRunner } from "./agents/manager/runner-backend.ts";
@@ -15,6 +15,7 @@ import {
   type OfficeAuth,
   originPolicyFor,
 } from "./auth/index.ts";
+import { dbAccessSubjects, LIVE_ACCESS_SWEEP_MS, LiveAccess } from "./auth/live-access.ts";
 import { createCelebrations, watchQueueEmptied } from "./celebrations/index.ts";
 import { ChangesService, mountChangesRoutes } from "./changes/index.ts";
 import {
@@ -45,6 +46,7 @@ import {
   MediaConfigError,
   mountMediaRoutes,
 } from "./media/index.ts";
+import { removeParticipant } from "./media/kick.ts";
 import { createMeetings } from "./meetings/index.ts";
 import { createNotifications } from "./notifications/setup.ts";
 import { createOperations, mountOperationRoutes } from "./operations/index.ts";
@@ -158,6 +160,22 @@ async function main(): Promise<void> {
   }
 
   const production = process.env.NODE_ENV === "production";
+  // Live access (#244): open connections are asked again when access changes and
+  // closed when it is gone. Callers: operation members, roles, sign-out, archive and
+  // delete below, and the sweep (expired sessions, anything unreported).
+  const liveAccess = new LiveAccess({
+    subjects: dbAccessSubjects(db),
+    logger: logger.child({ module: "live-access" }),
+    onEnded: (connection) => {
+      // The building seat's session id is the human's LiveKit identity (#48).
+      if (!mediaConfig || !connection.ref) return;
+      if (connection.kind !== `room:${ROOM_NAMES.building}`) return;
+      void removeParticipant(mediaConfig, connection.ref).then((ok) => {
+        if (!ok) logger.warn({ userId: connection.user.id }, "media participant not removed");
+      });
+    },
+  });
+  shutdown.register("live-access", liveAccess.startSweep(LIVE_ACCESS_SWEEP_MS));
   // The lobby jukebox (#47): library (bundled tracks seeded), playhead and queue in the building room.
   const jukebox = createJukebox({
     db,
@@ -171,6 +189,7 @@ async function main(): Promise<void> {
     auth: selectRoomAuth(production, logger, auth),
     publicUrl: config.publicUrl,
     production,
+    liveAccess,
     blastDoorMs: compoundConfig.blastDoorMs,
     mediaEnabled: mediaConfig !== null,
   });
@@ -181,6 +200,7 @@ async function main(): Promise<void> {
     logger,
     dataDir: config.dataDir,
     originPolicy: originPolicyFor(config.publicUrl, production),
+    liveAccess,
   });
   // Whiteboards (#45): Yjs at /ws/wb/<boardId>; a new wall snapshot goes out in the room state.
   const whiteboards = createWhiteboards({
@@ -189,6 +209,7 @@ async function main(): Promise<void> {
     logger,
     dataDir: config.dataDir,
     originPolicy: originPolicyFor(config.publicUrl, production),
+    liveAccess,
     onSnapshot: (boardId, version) =>
       boardId === LOBBY_WHITEBOARD_ID
         ? rooms.building.setLobbyWhiteboard(version)
@@ -214,6 +235,7 @@ async function main(): Promise<void> {
       officePort: config.port,
       appDomain: process.env.OFFICE_SERVICES_DOMAIN,
       logger,
+      liveAccess,
     });
   } catch (err) {
     console.error(`Invalid services configuration: ${(err as Error).message}`);
@@ -230,7 +252,10 @@ async function main(): Promise<void> {
       .use(whiteboards.endpoint)
       .use(rooms.transport.attachment),
   });
-  mountAuthRoutes(server.router, auth);
+  mountAuthRoutes(server.router, auth, {
+    // Role changes, sign-out and "sign out everywhere": that human's connections are asked again.
+    onUserChanged: (userId) => liveAccess.accessChanged({ userId }),
+  });
   jukebox.mount(server.router, auth);
   whiteboards.mount(server.router, auth);
   // Voice and the lounge TV (#48): LiveKit tokens only; media never passes through this process.
@@ -338,7 +363,11 @@ async function main(): Promise<void> {
         .operationChanged(operationId)
         .catch((err) => logger.error({ err }, "operation refresh failed"));
       githubSync?.operationChanged(operationId);
+      // Archived or deleted: boards, terminals, screens and apps of the room close too.
+      liveAccess.accessChanged({ operationIds: [operationId] });
     },
+    onAccessChange: (operationId, userId) =>
+      liveAccess.accessChanged({ userId, operationIds: [operationId] }),
   });
   // Webhooks (signed, no session), polling fallback, board cache → OperationRoom summaries (#35).
   githubSync = createGitHubSync({
