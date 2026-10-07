@@ -10,10 +10,10 @@ import type { AgentBubbleKind } from "@regulus/protocol";
 
 /**
  * Metres from the viewer's character within which an agent's "doing" bubble
- * shows: about the desk block you stand at and its neighbours. The one number
+ * shows: the desk block you stand at and the near side of its neighbours. The one number
  * to tune how busy a walk through a full room reads.
  */
-export const ACTIVITY_RADIUS = 5;
+export const ACTIVITY_RADIUS = 4;
 /** The same for name tags: further, so you can tell who sits around you. */
 export const NAME_TAG_RADIUS = 8;
 /** Metres past a radius over which a label fades out as you walk away. */
