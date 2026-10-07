@@ -13,7 +13,12 @@
  * Prompts: "SLEEP" hangs (timeout test), "FAIL" reports an error, "QUEUE
  * <operation> <repo> <user>" calls `enqueue_task` on behalf of that user.
  */
+import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+
+const KEY_VARS = ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN"] as const;
+const fingerprint = (key: string | undefined) =>
+  key ? createHash("sha256").update(key).digest("hex").slice(0, 12) : null;
 
 const argv = process.argv.slice(2);
 const flag = (name: string): string | undefined => {
@@ -108,6 +113,15 @@ out({
     queued,
     // Booleans only: the fake never prints a secret.
     hasApiKey: Boolean(process.env.ANTHROPIC_API_KEY),
+    // Which key the turn ran on (#280): where it would be sent, in which variable, and a
+    // fingerprint (the first 12 hex digits of its SHA-256) a test compares with the key it stored.
+    baseUrl: process.env.ANTHROPIC_BASE_URL ?? null,
+    keyVar: KEY_VARS.find((name) => process.env[name]) ?? null,
+    keyFingerprint: fingerprint(KEY_VARS.map((name) => process.env[name]).find(Boolean)),
+    modelAliases: {
+      opus: process.env.ANTHROPIC_DEFAULT_OPUS_MODEL ?? null,
+      haiku: process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL ?? null,
+    },
     tokenOnArgv: argv.some((a) => a.includes("roa_")),
     home,
     cwd: process.cwd(),
