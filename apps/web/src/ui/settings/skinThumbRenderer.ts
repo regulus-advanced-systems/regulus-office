@@ -26,7 +26,7 @@ import { HEMI_GROUND, HEMI_SKY, KEY_INTENSITY } from "../../scene/lights/Lightin
 export const THUMB_WIDTH = 160;
 export const THUMB_HEIGHT = 192;
 /** World units across the thumbnail's height: a henchman from soles to hair, with a margin. */
-const VIEW_HEIGHT = 2.0;
+const VIEW_HEIGHT = 1.9;
 const RELEASE_AFTER_MS = 1500;
 
 let renderer: WebGLRenderer | null = null;
@@ -69,7 +69,7 @@ function camera(): OrthographicCamera {
   const halfW = (halfH * THUMB_WIDTH) / THUMB_HEIGHT;
   const cam = new OrthographicCamera(-halfW, halfW, halfH, -halfH, 0.1, 50);
   cam.position.set(0, 1.4, 6);
-  cam.lookAt(0, 0.9, 0);
+  cam.lookAt(0, 0.88, 0);
   return cam;
 }
 
