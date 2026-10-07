@@ -19,6 +19,7 @@ import type { OperationActor } from "../../operations/access.ts";
 import type { EnqueueInput } from "../../queue/index.ts";
 import { type AgentAccess, type AgentPerson, accessAtLeast } from "../access.ts";
 import type { Conversations } from "../conversations.ts";
+import type { AgentMind } from "../mind/mind.ts";
 import type { HumanRequests } from "../requests.ts";
 import type { OfficeAgentRow, OfficeAgentStore } from "../store.ts";
 
@@ -63,6 +64,8 @@ export interface ToolDeps {
   access: AgentAccess;
   conversations: Conversations;
   requests: HumanRequests;
+  /** The agent's soul, memories and notes (#136). */
+  mind: AgentMind;
   ports: OfficePorts;
   now: () => number;
 }
@@ -71,6 +74,8 @@ export interface ToolDeps {
 export interface ToolCall extends ToolDeps {
   agent: OfficeAgentRow;
   actedFor?: string;
+  /** Extra facts for the call's audit row: ids, kinds and sizes. Never text. */
+  auditMeta?: Record<string, string | number | boolean>;
 }
 
 /**

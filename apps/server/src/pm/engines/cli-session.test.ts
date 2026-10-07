@@ -26,7 +26,7 @@ import {
 import { buildClaudeTurn, parseClaudeTurn } from "./cli-plan.ts";
 import { CliSessionEngine, OFFICE_AGENT_RUNNER_USER } from "./cli-session.ts";
 import { AgentCredentials } from "./credentials.ts";
-import type { EngineAgent, EngineEvent } from "./types.ts";
+import { EMPTY_MIND, type EngineAgent, type EngineEvent } from "./types.ts";
 
 const FAKE_CLAUDE = join(import.meta.dir, "testing", "fake-claude.ts");
 const A = OFFICE_AGENTS_API_PATH;
@@ -241,7 +241,12 @@ describe("a turn that hangs", () => {
       instructions: "",
       state: {},
     };
-    const office = { mcpUrl: "http://127.0.0.1:9/mcp", toolsUrl: "", token: Secret.of("roa_x") };
+    const office = {
+      mcpUrl: "http://127.0.0.1:9/mcp",
+      toolsUrl: "",
+      token: Secret.of("roa_x"),
+      mind: EMPTY_MIND,
+    };
     const message = { id: "m1", userId: o.people.sam.id, fromName: "Sam", text: "SLEEP" };
     await engine.start(agent, office);
     await engine.send(agent.id, message);
@@ -313,9 +318,10 @@ describe("the turn plan", () => {
       ANTHROPIC_BASE_URL: "https://api.deepseek.com/anthropic",
       ANTHROPIC_AUTH_TOKEN: "sk-FAKE-deepseek",
     });
-    expect(plan.files).toHaveLength(1);
-    expect(plan.files[0]?.mode).toBe(0o600);
-    expect(plan.files[0]?.path).toBe(`${plan.cwd}/mcp.json`);
+    expect(plan.files.map((f) => [f.path, f.mode])).toEqual([
+      [`${plan.cwd}/mcp.json`, 0o600],
+      [`${plan.cwd}/prompt.md`, 0o600],
+    ]);
     expect(plan.argv).toEqual(
       expect.arrayContaining([
         "-p",

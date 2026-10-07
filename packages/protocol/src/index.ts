@@ -35,6 +35,7 @@
  * - search-api.ts     search across chat and terminal scrollback (#41)
  * - social.ts         seat keys, emote and chat limits, chat bubble timing (#49)
  * - office-agents.ts  office agents (shared and personal): model, REST shapes, who may do what (#271)
+ * - office-agent-mind.ts an office agent's soul, memories and notes, and who may read them (#136)
  * - office-agent-tools.ts the office tools they act through, over MCP and REST (#271)
  * - forms.ts          character forms: the skins plus office-agent-only forms such as the secretary (#281)
  * - skins.ts          henchman skins and the admin `skin_rules` that assign them (#184)
@@ -67,12 +68,14 @@ export * from "./github-access.ts";
 export * from "./github-api.ts";
 export * from "./jukebox.ts";
 export * from "./levels.ts";
+export * from "./line-diff.ts";
 export * from "./live-access.ts";
 export * from "./media.ts";
 export * from "./meeting-plan.ts";
 export * from "./meetings-api.ts";
 export * from "./model-presets.ts";
 export * from "./notifications.ts";
+export * from "./office-agent-mind.ts";
 export * from "./office-agent-runs-on.ts";
 export * from "./office-agent-tools.ts";
 export * from "./office-agents.ts";

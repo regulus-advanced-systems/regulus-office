@@ -12,8 +12,9 @@
  * Who may do what (the server enforces all of it):
  * - a personal agent has exactly its owner's rights at the moment of each
  *   call, never more; only its owner may talk to it, command it, configure it
- *   or read its instructions and conversation. Office admins see that it
- *   exists (name, engine, status) and may only emergency-stop it;
+ *   or read its conversation, soul, memories and notes (D20, #136;
+ *   office-agent-mind.ts). Office admins see that it exists (name, engine,
+ *   status) and may only emergency-stop it or remove it, unread;
  * - a shared agent is created and configured by office owners and admins,
  *   has the operations it was granted, and members and above may talk to it
  *   (not office viewers: every message spends the office's metered key),
@@ -154,10 +155,16 @@ export const OfficeAgentView = z.object({
   statusReason: z.string().optional(),
   lastActivityAt: TimestampMs.optional(),
   createdAt: TimestampMs,
+  /** What its turns have cost so far, as the usage tracker estimates it (USD). */
+  cost: z
+    .object({ totalUsd: z.number().nonnegative(), last30DaysUsd: z.number().nonnegative() })
+    .optional(),
   /** The viewer may open a chat with it. */
   canTalk: z.boolean(),
   /** The viewer may configure, start, stop and delete it and mint tokens. */
   canConfigure: z.boolean(),
+  /** The viewer may remove it with everything it holds (those who configure it, and office admins). */
+  canRemove: z.boolean().optional(),
   /** Only for viewers who may configure it. */
   config: z
     .object({
@@ -326,6 +333,15 @@ export function maySeeOfficeAgent(actor: OfficeAgentActor, agent: OfficeAgentOwn
 /** Stop someone else's personal agent in an emergency (audited); nothing else. */
 export function mayEmergencyStopOfficeAgent(actor: OfficeAgentActor, agent: OfficeAgentOwnership) {
   return agent.ownerUserId !== null && agent.ownerUserId !== actor.id && isOfficeAdmin(actor.role);
+}
+
+/**
+ * Remove it with its soul, memories, notes and conversations. Whoever
+ * configures it, and office owners and admins for anyone's personal agent
+ * (audited): they can remove what they cannot read (D20).
+ */
+export function mayRemoveOfficeAgent(actor: OfficeAgentActor, agent: OfficeAgentOwnership) {
+  return mayConfigureOfficeAgent(actor, agent) || isOfficeAdmin(actor.role);
 }
 
 /** Create a shared agent: office owners and admins. Viewers create nothing. */
