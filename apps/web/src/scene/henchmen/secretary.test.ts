@@ -1,6 +1,6 @@
 /**
  * The secretary form (#281): built on the crew's rig, dressed for the office
- * (jacket to the collar, skirt to above the knee), glasses on, hair up, and a
+ * (jacket to the collar, a mini skirt to mid-thigh over sheer tights), glasses on, hair up, and a
  * clipboard that sits in her left arm against the chest in every clip.
  */
 import { describe, expect, test } from "bun:test";
@@ -13,7 +13,8 @@ import { skinMatrix } from "./posed.ts";
 import { HOLD_CLIPBOARD, STAND } from "./poses.ts";
 import { BONE_INDEX, type BoneName, bindPosition } from "./rig.ts";
 import { secretaryParts } from "./secretary.ts";
-import { SKIN_LOOKS, skinGeometry } from "./skins.ts";
+import { paletteFor, SKIN_LOOKS, skinGeometry } from "./skins.ts";
+import { crewVariant, SKIN_TONES } from "./variety.ts";
 
 const g = skinGeometry("secretary");
 
@@ -75,13 +76,25 @@ describe("the secretary", () => {
       if (id !== "secretary") expect([id, look.holds]).toEqual([id, false]);
   });
 
-  test("dressed for the office: skin shows only at the head, neck and hands", () => {
+  test("dressed for the office: bare skin only at the head, neck and hands; the legs are in tights", () => {
     const bare = verts.filter((v) => v.slot === "skin" || v.slot === "skinShade");
     expect(bare.length).toBeGreaterThan(50);
     for (const v of bare) {
       const where = [...HEAD_BONES, ...HAND_BONES].reduce((s, b) => s + v.on(b), 0);
       expect(where).toBeCloseTo(1, 5);
     }
+    // The legs are their own slot (sheer tights), which takes her skin tone, shoes stay dark.
+    const legs = verts.filter((v) => v.on("LowerLegL") + v.on("UpperLegL") > 0.9);
+    expect(new Set(legs.map((v) => v.slot))).toEqual(new Set(["pants"]));
+    expect(SKIN_LOOKS.secretary.sheerLegs).toBe(true);
+    for (const seed of ["moneypenny", "tilly", "shim"]) {
+      const v = crewVariant(seed);
+      const p = paletteFor("secretary", undefined, v);
+      expect(p.pants).toBe(SKIN_TONES[v.tone]?.skin as string);
+      expect(p.boots).toBe(SKIN_LOOKS.secretary.palette.boots);
+    }
+    expect(paletteFor("secretary", undefined).pants).toBe(SKIN_LOOKS.secretary.palette.skin);
+    expect(paletteFor("standard", undefined, crewVariant("shim")).pants).toBe("#F2C200");
     // The jacket closes at the collar: suit or blouse right up to the neck's base.
     const torso = verts.filter(
       (v) => v.on("Body") > 0.5 && (v.slot === "suit" || v.slot === "shirt"),
@@ -89,15 +102,18 @@ describe("the secretary", () => {
     expect(Math.max(...torso.map((v) => v.p.y))).toBeGreaterThan(bindPosition("Neck").y);
   });
 
-  test("the skirt covers from the waist to a little above the knee, all the way round", () => {
+  test("a mini skirt: from the waist to mid-thigh, all the way round, well clear of the hip", () => {
     const skirt = verts.filter((v) => v.slot === "suitDark" && v.p.y < 0.97);
     const knee = bindPosition("LowerLegL").y;
     const hip = bindPosition("UpperLegL").y;
     const hem = Math.min(...skirt.map((v) => v.p.y));
-    expect(hem).toBeGreaterThan(knee + 0.1);
-    expect(hem).toBeLessThan(knee + 0.25);
-    // More than half of the thigh is covered.
-    expect((hip - hem) / (hip - knee)).toBeGreaterThan(0.5);
+    // Mid-thigh: between a third and a half of the thigh is covered.
+    expect((hip - hem) / (hip - knee)).toBeGreaterThan(0.33);
+    expect((hip - hem) / (hip - knee)).toBeLessThan(0.5);
+    // And it ends well below the hip joint and the bottom of the torso under it.
+    expect(hem).toBeLessThan(hip - 0.12);
+    const torsoBottom = Math.min(...verts.filter((v) => v.slot === "suit").map((v) => v.p.y));
+    expect(hem).toBeLessThan(torsoBottom - 0.08);
     expect(Math.max(...skirt.map((v) => v.p.y))).toBeGreaterThan(hip + 0.05);
     // A closed tube: at the hem there are vertices in front, behind and on both sides.
     const rim = skirt.filter((v) => v.p.y < hem + 0.01);

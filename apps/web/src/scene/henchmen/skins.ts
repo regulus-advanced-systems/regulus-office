@@ -38,6 +38,8 @@ export interface SkinLook {
   bareHands: boolean;
   /** Carries a clipboard in the left arm (the `Henchman|Hold` overlay). */
   holds: boolean;
+  /** Sheer tights: the legs (`pants`) take the wearer's skin tone. */
+  sheerLegs?: boolean;
 }
 
 const DARK_SHOES = "#1A1A1D";
@@ -137,7 +139,7 @@ export const SKIN_LOOKS: Readonly<Record<CharacterFormId, SkinLook>> = {
       ...STANDARD_PALETTE,
       suit: "#3C6E71",
       suitDark: "#2B5053",
-      pants: "#4B3F45",
+      pants: STANDARD_PALETTE.skin,
       shirt: "#F4EFE2",
       white: "#FBFAF4",
       boots: "#1E1B1E",
@@ -152,6 +154,7 @@ export const SKIN_LOOKS: Readonly<Record<CharacterFormId, SkinLook>> = {
     variedHair: true,
     bareHands: true,
     holds: true,
+    sheerLegs: true,
   },
 };
 
@@ -181,6 +184,7 @@ export function paletteFor(
     ...(trim ? { trim } : {}),
     ...(variant === DEFAULT_VARIANT ? {} : tone),
     ...(variant !== DEFAULT_VARIANT && look.bareHands ? { gloves: tone.skin } : {}),
+    ...(variant !== DEFAULT_VARIANT && look.sheerLegs ? { pants: tone.skin } : {}),
     ...(variant !== DEFAULT_VARIANT && look.variedHair
       ? { hair: HAIR_COLOURS[variant.hairColour % HAIR_COLOURS.length] ?? look.palette.hair }
       : {}),

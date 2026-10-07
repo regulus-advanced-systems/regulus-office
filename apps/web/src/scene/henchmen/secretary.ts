@@ -2,8 +2,9 @@
  * The secretary (#281), a form for office agents: an original low-poly design
  * of an adult woman in 1960s spy-film office dress, on the crew's own rig so
  * every clip plays on her. A fitted jacket with a flared hem over a cream
- * blouse, a neck bow in the provider colour, a straight skirt to above the
- * knee, dark tights and court shoes, glasses, hair up (headwear.ts `updo`),
+ * blouse, a neck bow in the provider colour, a 1960s mini skirt to mid-thigh,
+ * sheer tights in her own skin tone (skins.ts `sheerLegs`) and dark court
+ * shoes, glasses, hair up (headwear.ts `updo`),
  * and a clipboard of papers cradled in the left arm (`HOLD_CLIPBOARD`).
  *
  * The skirt is one tube shared by both legs: each side follows its own thigh
@@ -75,8 +76,8 @@ function torso(): Part[] {
   const skirt: Part = {
     geometry: lathe(
       [
-        [0.144, 0.66],
-        [0.15, 0.76],
+        [0.147, 0.72],
+        [0.152, 0.79],
         [0.154, 0.88],
         [0.146, 0.955],
       ],
