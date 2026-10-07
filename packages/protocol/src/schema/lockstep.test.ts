@@ -12,6 +12,7 @@ import * as building from "../building-state.ts";
 import { WorldPos } from "../common.ts";
 import * as compound from "../compound.ts";
 import { buildingFixture, operationFixture } from "../fixtures.ts";
+import { OfficeAgentBody } from "../office-agent-world.ts";
 import * as operation from "../operation-state.ts";
 import * as schemas from "./index.ts";
 import { type SchemaClass, schemaFieldNames, schemaMetadata } from "./introspect.ts";
@@ -33,6 +34,7 @@ const pairs: Array<[string, z.ZodObject, SchemaClass]> = [
   ["CompoundState", compound.CompoundState, schemas.CompoundStateSchema],
   ["LevelState", compound.LevelState, schemas.LevelStateSchema],
   ["BlastDoorState", blastDoor.BlastDoorState, schemas.BlastDoorStateSchema],
+  ["OfficeAgentBody", OfficeAgentBody, schemas.OfficeAgentBodySchema],
   ["BuildingState", building.BuildingState, schemas.BuildingStateSchema],
   ["BubbleEmits", operation.BubbleEmits, schemas.BubbleEmitsSchema],
   ["AgentBubble", AgentBubble, schemas.AgentBubbleSchema],

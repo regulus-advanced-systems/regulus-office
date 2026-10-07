@@ -150,6 +150,8 @@ export const OfficeAgentView = z.object({
   runsOn: OfficeAgentRunsOn,
   /** How it looks: an id from `OFFICE_AGENT_APPEARANCES` (a stored id the list lost is kept as is). */
   appearance: z.string(),
+  /** A personal agent its owner sent off to wander (#252); always false for a shared one. */
+  dismissed: z.boolean(),
   status: z.enum(OFFICE_AGENT_STATUSES),
   statusReason: z.string().optional(),
   lastActivityAt: TimestampMs.optional(),

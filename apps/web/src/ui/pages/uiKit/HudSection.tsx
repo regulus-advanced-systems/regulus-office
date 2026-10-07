@@ -83,6 +83,7 @@ function seedOperations() {
     levels: current?.levels ?? {},
     blastDoor: current?.blastDoor ?? BLAST_DOOR_CLOSED,
     lobbyWhiteboardVersion: current?.lobbyWhiteboardVersion ?? 0,
+    officeAgents: current?.officeAgents ?? {},
     operations: {
       "kit-0": operation(0, "Lobby", 0, 0),
       "kit-1": operation(1, "Regulus Web", 2, 3),

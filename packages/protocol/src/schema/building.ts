@@ -206,6 +206,25 @@ export const BlastDoorStateSchema = schema(
   "BlastDoorState",
 );
 
+export const OfficeAgentBodySchema = schema(
+  {
+    agentId: t.string().default(""),
+    name: t.string().default(""),
+    ownerUserId: t.string().default(""),
+    ownerName: t.string().default(""),
+    appearance: t.string().default("standard"),
+    status: t.string().default("stopped"),
+    levelId: t.string().default("lobby"),
+    operationId: t.string().default(""),
+    mode: t.string().default("wander"),
+    target: WorldPosSchema,
+    hop: t.uint32().default(0),
+    doing: t.string().default(""),
+    dismissed: t.boolean().default(false),
+  },
+  "OfficeAgentBody",
+);
+
 export const BuildingStateSchema = schema(
   {
     humans: t.map(HumanPresenceSchema),
@@ -218,6 +237,7 @@ export const BuildingStateSchema = schema(
     levels: t.map(LevelStateSchema),
     blastDoor: BlastDoorStateSchema,
     lobbyWhiteboardVersion: t.uint32().default(0),
+    officeAgents: t.map(OfficeAgentBodySchema),
   },
   "BuildingState",
 );

@@ -43,6 +43,8 @@ export const officeAgents = sqliteTable(
     profileId: text("profile_id"),
     /** How it looks (#280, D32): an id from the protocol's `OFFICE_AGENT_APPEARANCES`. Looks only. */
     appearance: text("appearance").notNull().default("standard"),
+    /** A personal agent its owner sent off to wander (#252); it stays so across restarts. */
+    dismissed: integer("dismissed", { mode: "boolean" }).notNull().default(false),
     /** The role prompt. The soul and memories of #136 come on top of it. */
     instructions: text("instructions").notNull().default(""),
     status: enumText("status", OFFICE_AGENT_STATUSES).notNull().default("stopped"),
@@ -124,6 +126,26 @@ export const officeAgentMessages = sqliteTable(
     ...timestamps(),
   },
   (t) => [index("office_agent_messages_conversation_idx").on(t.agentId, t.userId, t.ts)],
+);
+
+/**
+ * How far a person has read their conversation with an agent (#252): a reply
+ * newer than `seenAt` shows as "answer ready" over the agent in the world.
+ */
+export const officeAgentReads = sqliteTable(
+  "office_agent_reads",
+  {
+    id: id(),
+    agentId: text("agent_id")
+      .notNull()
+      .references(() => officeAgents.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    seenAt: timestampMs("seen_at").notNull(),
+    ...timestamps(),
+  },
+  (t) => [uniqueIndex("office_agent_reads_agent_user_unique").on(t.agentId, t.userId)],
 );
 
 /** "Ask a human": a question an agent put to one person (the bubble of #256 reads these). */
