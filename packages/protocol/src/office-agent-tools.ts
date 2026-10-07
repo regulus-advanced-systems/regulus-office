@@ -201,42 +201,6 @@ export const OFFICE_TOOLS: readonly OfficeToolSpec[] = [
     preset: "observer",
     readOnly: true,
   },
-  {
-    name: "enqueue_task",
-    title: "Queue a task",
-    description:
-      "Put an issue, PR or freeform task on an operation's queue. A henchman picks it up when a desk is free.",
-    preset: "coordinator",
-    readOnly: false,
-  },
-  {
-    name: "comment_on_card",
-    title: "Comment on an issue or PR",
-    description: "Post a comment on an issue or pull request of an operation repo, as the office.",
-    preset: "coordinator",
-    readOnly: false,
-  },
-  {
-    name: "post_chat",
-    title: "Post in the office chat",
-    description: "Say something in the office chat under your name.",
-    preset: "coordinator",
-    readOnly: false,
-  },
-  {
-    name: "spawn_henchman",
-    title: "Spawn a henchman",
-    description: "Start a coding henchman at a free desk now, within the daily cap.",
-    preset: "manager",
-    readOnly: false,
-  },
-  {
-    name: "stop_henchman",
-    title: "Stop a henchman",
-    description: "Stop a henchman of the person you act for. Its branch is kept.",
-    preset: "manager",
-    readOnly: false,
-  },
   // What the agent is and knows (#136). Its own only; kept by the office across conversations.
   {
     name: "soul_read",
@@ -302,6 +266,42 @@ export const OFFICE_TOOLS: readonly OfficeToolSpec[] = [
     title: "Delete a note",
     description: "Delete one note for good, by title.",
     preset: "observer",
+    readOnly: false,
+  },
+  {
+    name: "enqueue_task",
+    title: "Queue a task",
+    description:
+      "Put an issue, PR or freeform task on an operation's queue. A henchman picks it up when a desk is free.",
+    preset: "coordinator",
+    readOnly: false,
+  },
+  {
+    name: "comment_on_card",
+    title: "Comment on an issue or PR",
+    description: "Post a comment on an issue or pull request of an operation repo, as the office.",
+    preset: "coordinator",
+    readOnly: false,
+  },
+  {
+    name: "post_chat",
+    title: "Post in the office chat",
+    description: "Say something in the office chat under your name.",
+    preset: "coordinator",
+    readOnly: false,
+  },
+  {
+    name: "spawn_henchman",
+    title: "Spawn a henchman",
+    description: "Start a coding henchman at a free desk now, within the daily cap.",
+    preset: "manager",
+    readOnly: false,
+  },
+  {
+    name: "stop_henchman",
+    title: "Stop a henchman",
+    description: "Stop a henchman of the person you act for. Its branch is kept.",
+    preset: "manager",
     readOnly: false,
   },
 ];

@@ -12,8 +12,9 @@
  * Who may do what (the server enforces all of it):
  * - a personal agent has exactly its owner's rights at the moment of each
  *   call, never more; only its owner may talk to it, command it, configure it
- *   or read its instructions and conversation. Office admins see that it
- *   exists (name, engine, status) and may only emergency-stop it;
+ *   or read its conversation, soul, memories and notes (D20, #136;
+ *   office-agent-mind.ts). Office admins see that it exists (name, engine,
+ *   status) and may only emergency-stop it or remove it, unread;
  * - a shared agent is created and configured by office owners and admins,
  *   has the operations it was granted, and members and above may talk to it
  *   (not office viewers: every message spends the office's metered key),
