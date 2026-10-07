@@ -1,0 +1,12 @@
+import { chromium } from "@playwright/test";
+const [url, out, wait = "6000"] = process.argv.slice(2);
+const browser = await chromium.launch({ args: ["--use-gl=angle", "--use-angle=gl", "--ignore-gpu-blocklist"] });
+const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });
+const errors: string[] = [];
+page.on("pageerror", (e) => errors.push(String(e)));
+page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
+await page.goto(url as string);
+await page.waitForTimeout(Number(wait));
+await page.screenshot({ path: out as string });
+console.log(JSON.stringify(errors.slice(0, 8)));
+await browser.close();
