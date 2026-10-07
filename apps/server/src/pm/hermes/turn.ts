@@ -150,7 +150,7 @@ export async function runTurn(host: TurnHost, message: EngineMessage): Promise<v
       if (streaming || kind === "broken_stream") {
         if (await recover(host, outcome)) break;
         return fail(
-          `${sentence(text)} Its answer was lost. Hermes has your message and may have acted on it: ask it what it did before you send it again.`,
+          `${sentence(text)} Its answer was lost. Hermes may have your message and may have acted on it: ask it what it did before you send it again.`,
         );
       }
       // From here on Hermes has not taken the message.
@@ -162,7 +162,8 @@ export async function runTurn(host: TurnHost, message: EngineMessage): Promise<v
             "Not delivered: the Hermes session this agent was told to continue is not there any more. Name another one in its connection, or leave it empty.",
           );
         }
-        if (recreated) return fail("Not delivered: Hermes keeps losing this conversation's session.");
+        if (recreated)
+          return fail("Not delivered: Hermes keeps losing this conversation's session.");
         recreated = true;
         fail(
           "Hermes no longer had the session of this conversation, so a new one was started. It may not remember earlier messages from the office.",

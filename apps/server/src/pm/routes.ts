@@ -38,11 +38,14 @@ import { checkOrigin } from "../auth/origin.ts";
 import { readJsonBody } from "../http/body.ts";
 import { json, type RouteContext, type Router } from "../http/router.ts";
 import type { OperationActor } from "../operations/access.ts";
+import type { HermesAgentService } from "./hermes/service.ts";
 import type { OfficeAgentService } from "./service.ts";
 
 export interface OfficeAgentRoutesDeps {
   auth: Pick<OfficeAuth, "getSessionFromRequest" | "publicUrl" | "allowedOrigins">;
   service: OfficeAgentService;
+  /** Creates `hermes-external` agents, whose connection is stored with them (#58). */
+  hermes?: HermesAgentService;
 }
 
 const AGENT = `${OFFICE_AGENTS_API_PATH}/:id`;
@@ -113,7 +116,8 @@ export function mountOfficeAgentRoutes(router: Router, deps: OfficeAgentRoutesDe
     OFFICE_AGENTS_API_PATH,
     handle(async (ctx, actor) => {
       const input = await readJsonBody(ctx.request, CreateOfficeAgent);
-      return json(service.create(actor, input), { status: 201 });
+      const create = input.engine === "hermes-external" && deps.hermes ? deps.hermes : service;
+      return json(create.create(actor, input), { status: 201 });
     }, true),
   );
   router.add(

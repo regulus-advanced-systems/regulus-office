@@ -9,16 +9,21 @@ import {
   type OfficeAgentView,
 } from "@regulus/protocol";
 import type { OperationActor } from "../operations/access.ts";
+import type { HermesConnections } from "./hermes/connections.ts";
 import { runsOnOf } from "./runs-on.ts";
 import type { OfficeAgentRow, OfficeAgentStore } from "./store.ts";
 import type { OfficeAgentTokens } from "./tokens.ts";
 
 export function agentView(
-  deps: { store: OfficeAgentStore; tokens: OfficeAgentTokens },
+  deps: {
+    store: OfficeAgentStore;
+    tokens: OfficeAgentTokens;
+    hermes?: Pick<HermesConnections, "view">;
+  },
   actor: OperationActor,
   row: OfficeAgentRow,
 ): OfficeAgentView {
-  const { store, tokens } = deps;
+  const { store, tokens, hermes } = deps;
   const owner = row.ownerUserId ? store.person(row.ownerUserId) : undefined;
   const canConfigure = mayConfigureOfficeAgent(actor, row);
   return {
@@ -53,6 +58,8 @@ export function agentView(
               createdAt: t.createdAt.getTime(),
               ...(t.lastUsedAt ? { lastUsedAt: t.lastUsedAt.getTime() } : {}),
             })),
+            // That a connection is stored, for its owner; never what it holds (#58).
+            ...(hermes && row.engine === "hermes-external" ? { hermes: hermes.view(row.id) } : {}),
           },
         }
       : {}),

@@ -22,6 +22,11 @@ import { Conversations } from "./conversations.ts";
 import { CliSessionEngine } from "./engines/cli-session.ts";
 import { AgentCredentials } from "./engines/credentials.ts";
 import type { OfficeAgentEngine } from "./engines/types.ts";
+import type { HermesClientOptions } from "./hermes/client.ts";
+import { HermesConnections } from "./hermes/connections.ts";
+import { type HermesEngineOptions, HermesExternalEngine } from "./hermes/engine.ts";
+import { mountHermesRoutes } from "./hermes/routes.ts";
+import { HermesAgentService } from "./hermes/service.ts";
 import { mountMcp } from "./mcp.ts";
 import { HumanRequests } from "./requests.ts";
 import { mountOfficeAgentRoutes } from "./routes.ts";
@@ -45,6 +50,11 @@ export interface OfficeAgentsOptions {
   usage?: UsageRecorder;
   /** Extra engines (tests: the fake engine; later the Hermes engines of #57 and #58). */
   engines?: readonly OfficeAgentEngine[];
+  /** Timings of the `hermes-external` engine and its client (tests shorten them). */
+  hermes?: Pick<
+    HermesEngineOptions,
+    "healthIntervalMs" | "backoffBaseMs" | "backoffMaxMs" | "sendAttempts"
+  > & { client?: HermesClientOptions };
   /** CLI override for the session engine (tests: the fake `claude`). */
   cliCommand?: string;
   now?: () => number;
@@ -65,6 +75,7 @@ export interface OfficeAgents {
   tools: OfficeTools;
   conversations: Conversations;
   requests: HumanRequests;
+  hermes: HermesAgentService;
   mount(
     router: Router,
     auth: Pick<OfficeAuth, "getSessionFromRequest" | "publicUrl" | "allowedOrigins">,
@@ -108,6 +119,12 @@ export function createOfficeAgents(opts: OfficeAgentsOptions): OfficeAgents {
         command: opts.cliCommand,
       }),
     );
+  }
+
+  // A person's own Hermes, running elsewhere (#58). The managed one (#57) registers beside it.
+  const connections = new HermesConnections(db, opts.keyring);
+  if (!runtime.engine("hermes-external")) {
+    runtime.register(new HermesExternalEngine({ connections, logger, ...opts.hermes }));
   }
 
   let bound: Partial<BoundPorts> = {};
@@ -161,6 +178,15 @@ export function createOfficeAgents(opts: OfficeAgentsOptions): OfficeAgents {
     conversations,
     requests,
     credentials,
+    hermes: connections,
+    now,
+  });
+  const hermes = new HermesAgentService({
+    store,
+    service,
+    runtime,
+    connections,
+    client: opts.hermes?.client,
     now,
   });
 
@@ -172,10 +198,12 @@ export function createOfficeAgents(opts: OfficeAgentsOptions): OfficeAgents {
     tools,
     conversations,
     requests,
+    hermes,
     mount(router, auth) {
       mountMcp(router, { store, tokens, tools, version: opts.version });
       mountToolRoutes(router, { store, tokens, tools });
-      mountOfficeAgentRoutes(router, { auth, service });
+      mountHermesRoutes(router, { auth, hermes });
+      mountOfficeAgentRoutes(router, { auth, service, hermes });
     },
     bind(next) {
       bound = { ...bound, ...next };

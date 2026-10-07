@@ -133,9 +133,9 @@ export class HermesClient {
   /**
    * Run one turn in a session and hand over its events as they arrive.
    * Resolves when Hermes ended the stream (`done`); throws `broken_stream`
-   * when the connection ended or went silent first. A failure before the
-   * first byte (`unreachable`, `auth`, `not_found`, `busy`) means Hermes did
-   * not take the message.
+   * when the connection ended or went silent first, or broke at a point
+   * where Hermes may already have the message. `unreachable`, `auth`,
+   * `not_found` and `busy` mean Hermes did not take it.
    */
   async chat(
     sessionId: string,
@@ -161,7 +161,13 @@ export class HermesClient {
       const res = await this.#request(
         "POST",
         `/api/sessions/${encodeURIComponent(sessionId)}/chat/stream`,
-        { body, signal: abort.signal, accept: "text/event-stream", timeout: false },
+        {
+          body,
+          signal: abort.signal,
+          accept: "text/event-stream",
+          timeout: false,
+          delivers: true,
+        },
       );
       await this.#expectOk(res);
       if (!res.body) throw new HermesError("broken_stream", "Hermes sent no answer stream");
@@ -227,6 +233,8 @@ export class HermesClient {
       accept?: string;
       /** False: the caller bounds the request itself (a stream). */
       timeout?: boolean;
+      /** The request hands Hermes a message: only a connection that never opened is `unreachable`. */
+      delivers?: boolean;
     } = {},
   ): Promise<Response> {
     const signals = [
@@ -248,8 +256,13 @@ export class HermesClient {
         redirect: "error",
         signal: signals.length > 0 ? AbortSignal.any(signals) : undefined,
       });
-    } catch {
-      // Never the cause: it can hold the address.
+    } catch (err) {
+      // Never the cause itself: it can hold the address.
+      const code = (err as { code?: unknown } | null)?.code;
+      if (options.delivers && !(typeof code === "string" && NOT_SENT.has(code))) {
+        // The request may have arrived before the connection went: not safe to offer again.
+        throw new HermesError("broken_stream", "the connection to Hermes broke before it answered");
+      }
       throw new HermesError("unreachable", "the Hermes gateway cannot be reached");
     }
   }
@@ -275,6 +288,17 @@ export class HermesClient {
     throw new HermesError("http", `Hermes answered with an error (HTTP ${res.status})`, detail);
   }
 }
+
+/** `fetch` failures (Bun's codes) that prove no request left: nothing listened, or no such host. */
+const NOT_SENT = new Set([
+  "ConnectionRefused",
+  "ECONNREFUSED",
+  "ENOTFOUND",
+  "EAI_AGAIN",
+  "EHOSTUNREACH",
+  "ENETUNREACH",
+  "FailedToOpenSocket",
+]);
 
 const tooOld = () =>
   new HermesError(

@@ -17,6 +17,7 @@
  */
 import {
   type CreateOfficeAgent,
+  engineBringsOwnModel,
   type HumanRequest,
   mayConfigureOfficeAgent,
   mayCreateOfficeAgent,
@@ -40,6 +41,7 @@ import { isOfficeManager, type OperationActor } from "../operations/access.ts";
 import type { Conversations } from "./conversations.ts";
 import type { AgentCredentials } from "./engines/credentials.ts";
 import { EngineRefusal } from "./engines/types.ts";
+import type { HermesConnections } from "./hermes/connections.ts";
 import type { HumanRequests } from "./requests.ts";
 import { runsOnChoices } from "./runs-on.ts";
 import type { AgentRuntime } from "./runtime.ts";
@@ -57,6 +59,7 @@ export interface OfficeAgentServiceDeps {
   conversations: Conversations;
   requests: HumanRequests;
   credentials: AgentCredentials;
+  hermes?: Pick<HermesConnections, "view">;
   now?: () => number;
 }
 
@@ -134,8 +137,8 @@ export class OfficeAgentService {
     const engine = this.deps.runtime.engine(row.engine);
     if (!engine) throw new AuthHttpError(400, "engine_unavailable");
     try {
-      // Whatever the engine: a shared agent names an office key, a personal one what its owner may use.
-      this.deps.credentials.check(row);
+      // A shared agent names an office key, a personal one what its owner may use; some engines bring their own model.
+      if (!engineBringsOwnModel(row.engine)) this.deps.credentials.check(row);
       engine.check(this.deps.runtime.engineAgent(full));
     } catch (err) {
       if (err instanceof EngineRefusal) throw refused(err);
