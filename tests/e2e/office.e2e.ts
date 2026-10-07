@@ -549,31 +549,35 @@ test("the owner adds an operation in build mode: a refused spot, then placed, bu
   // The perf probe (#190): frame times in a room, report only (tests/e2e/perfProbe.ts).
   await reportFramePerf(ownerPage, "owner-in-apollo");
 
-  // The member has no access: no Apollo in quick travel, a shut door with its plaque, and
-  // nobody inside is drawn for them.
-  // Apollo is on the level of its repo's owner (#268); from the lobby level the member goes
-  // there with quick travel's level list.
+  // The member's GitHub account sees no repo on Apollo's level (#270, D26): to them there is
+  // no such level and no such room. Quick travel offers neither, the layout the server gives
+  // them has only the lobby level, and the owner inside Apollo is not drawn for them.
   expect((await navRooms(memberPage)).some((r) => r.name === "Apollo")).toBe(false);
-  expect(await goToLevelOf(memberPage, "Apollo")).toBe(true);
-  const member = (await navRooms(memberPage)).find((r) => r.name === "Apollo");
-  expect(member?.enterable).toBe(false);
+  expect(await goToLevelOf(memberPage, "Apollo")).toBe(false);
   await memberPage.bringToFront();
   await memberPage.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
   await memberPage.keyboard.press("f");
   const travel = memberPage.getByRole("dialog", { name: "Quick travel" });
-  await expect(
-    travel.getByRole("list", { name: "Levels" }).getByRole("button", { name: /^octo/ }),
-  ).toHaveAttribute("aria-current", "true");
+  await expect(travel.getByRole("list", { name: "Levels" })).toHaveCount(0);
   const listed = travel.getByRole("list", { name: "Rooms you can enter" });
   await expect(listed.getByRole("button", { name: /^Lobby/ })).toBeVisible();
   await expect(listed.getByRole("button", { name: /^Apollo/ })).toHaveCount(0);
   await memberPage.keyboard.press("Escape");
   await expect(travel).toHaveCount(0);
+  const layout = await (await memberPage.request.get("/api/compound")).text();
+  expect(layout).not.toContain("Apollo");
+  expect((JSON.parse(layout) as { levels: unknown[]; rooms: unknown[] }).levels).toHaveLength(1);
+  expect((JSON.parse(layout) as { rooms: unknown[] }).rooms).toEqual([]);
+  expect(await (await memberPage.request.get("/api/operations")).text()).not.toContain("Apollo");
   await expect.poll(() => remoteHumans(memberPage)).toHaveLength(0);
 
-  // Out again: the member sees the owner in the corridors and the lobby.
+  // Out of the room, the owner is still on a level the member cannot reach, so still not
+  // drawn; back on the shared lobby level the member sees them again.
   await ownerPage.bringToFront();
   await walkToLobby(ownerPage);
+  await memberPage.waitForTimeout(500);
+  expect(await remoteHumans(memberPage)).toHaveLength(0);
+  await goToLobbyLevel(ownerPage);
   await expect.poll(() => remoteHumans(memberPage)).toHaveLength(1);
 });
 
