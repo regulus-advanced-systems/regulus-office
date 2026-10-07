@@ -28,6 +28,7 @@ const STATUS: Readonly<Record<OfficeToolError, number>> = {
   on_behalf_required: 403,
   not_waiting: 403,
   cap_reached: 429,
+  secret_rejected: 422,
   unavailable: 503,
   failed: 500,
 };

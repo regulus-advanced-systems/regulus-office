@@ -11,7 +11,9 @@
  * test can check the whole path: argv, env, session, MCP and the office tools.
  *
  * Prompts: "SLEEP" hangs (timeout test), "FAIL" reports an error, "QUEUE
- * <operation> <repo> <user>" calls `enqueue_task` on behalf of that user.
+ * <operation> <repo> <user>" calls `enqueue_task` on behalf of that user,
+ * "REMEMBER <text>" calls `memory_save` and "RECALL <words>" `memory_search`
+ * (#136). The system prompt is read from `--append-system-prompt-file`.
  */
 import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -91,6 +93,20 @@ if (queue) {
   });
 }
 
+let remembered: unknown;
+const remember = /REMEMBER (.+)/.exec(prompt);
+if (remember) remembered = await callTool("memory_save", { text: remember[1], source: "fake CLI" });
+let recalled: unknown;
+const recall = /RECALL (.+)/.exec(prompt);
+if (recall) recalled = await callTool("memory_search", { query: recall[1] });
+const promptFile = flag("--append-system-prompt-file");
+let systemPrompt: string | null = null;
+try {
+  if (promptFile) systemPrompt = readFileSync(promptFile, "utf8");
+} catch {
+  // reported as null
+}
+
 turns.push(prompt);
 mkdirSync(sessionDir, { recursive: true });
 writeFileSync(sessionFile, JSON.stringify(turns));
@@ -107,7 +123,11 @@ out({
     model: flag("--model"),
     builtInTools: flag("--tools"),
     allowedTools: flag("--allowedTools"),
-    systemPrompt: flag("--append-system-prompt"),
+    systemPrompt,
+    // The soul and the memories are private: they must not be on argv (#136).
+    systemPromptOnArgv: argv.includes("--append-system-prompt"),
+    remembered,
+    recalled,
     tools: listed.tools?.map((t) => t.name) ?? [],
     operations,
     queued,

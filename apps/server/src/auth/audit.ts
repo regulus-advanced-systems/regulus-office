@@ -102,6 +102,17 @@ export const AUDIT_ACTIONS = {
   officeAgentToolDenied: "office_agent.tool_denied",
   /** A `manager` agent spawned a henchman (counted against its daily cap). */
   officeAgentHenchmanSpawn: "office_agent.henchman_spawn",
+  /**
+   * An agent's soul, memories and notes (#136). Entries hold who, which
+   * version or entry and how big the change was; never the text, a title or
+   * a search, for any agent.
+   */
+  officeAgentSoulSave: "office_agent.soul_save",
+  officeAgentSoulRevert: "office_agent.soul_revert",
+  officeAgentMemoryWrite: "office_agent.memory_write",
+  officeAgentMemoryDelete: "office_agent.memory_delete",
+  /** An office owner/admin removed someone else's personal agent with everything it held. */
+  officeAgentAdminRemove: "office_agent.admin_remove",
 } as const;
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];
 

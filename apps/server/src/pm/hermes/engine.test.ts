@@ -8,6 +8,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { Secret } from "@regulus/agent-adapters";
 import { captureLogger } from "../../notifications/testing.ts";
 import {
+  EMPTY_MIND,
   type EngineAgent,
   type EngineEvent,
   type EngineOffice,
@@ -20,6 +21,7 @@ const OFFICE: EngineOffice = {
   mcpUrl: "http://office.test/mcp",
   toolsUrl: "http://office.test/api/agent-tools",
   token: Secret.of("roa_session-token-the-engine-does-not-use"),
+  mind: EMPTY_MIND,
 };
 
 const agentOf = (state: Record<string, unknown> = {}): EngineAgent => ({
@@ -164,6 +166,25 @@ describe("a turn", () => {
     expect(session?.messages[0]?.system).toContain("Regulus Office");
     expect(session?.messages[0]?.system).toContain("Keep answers short.");
     expect(of("status").map((s) => s.status)).toEqual(["ready", "busy", "ready"]);
+  });
+
+  test("what its owner wrote about it in the office reaches Hermes, as it is at each turn", async () => {
+    const { engine, gateway } = setup();
+    let soul = "You are my PM. Be brief.";
+    await engine.start(agentOf(), { ...OFFICE, mind: { ...EMPTY_MIND, soul: () => soul } });
+    await engine.send("agent-1", message("one"));
+    await engine.idle();
+    soul = "You are my PM. Answer in Croatian.";
+    await engine.send("agent-1", message("two", "m2"));
+    await engine.idle();
+    const [session] = [...gateway.sessions.values()];
+    const told = session?.messages.filter((m) => m.role === "user").map((m) => m.system ?? "");
+    expect(told?.[0]).toContain("Who you are and how you work in the office");
+    expect(told?.[0]).toContain("Be brief.");
+    // Edited while it runs: the next turn carries the new text, and not the row's older copy.
+    expect(told?.[1]).toContain("Answer in Croatian.");
+    expect(told?.[1]).not.toContain("Be brief.");
+    expect(told?.[1]).not.toContain("Keep answers short.");
   });
 
   test("the next message continues the same session, also after a restart", async () => {

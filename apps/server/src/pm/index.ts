@@ -9,7 +9,8 @@
  * - engines/          `OfficeAgentEngine`, the CLI session engine, the fake engine
  * - hermes/           a person's own running Hermes as an agent: connection, client, engine (#58)
  * - runtime.ts        start / stop / deliver on an engine; what engines report
- * - tools/            the office tools: authorisation, audit, reads and writes
+ * - tools/            the office tools: authorisation, audit, reads and writes, memories
+ * - mind/             each agent's soul (with history), memories and notes, and who may read them (#136)
  * - mcp.ts            the office MCP server at `/mcp` (streamable HTTP)
  * - tool-routes.ts    the same tools as REST
  * - service.ts        what people do with agents, with its rules

@@ -29,6 +29,7 @@ import {
   EngineEvents,
   type EngineHealth,
   type EngineMessage,
+  type EngineMind,
   type EngineOffice,
   EngineRefusal,
   type OfficeAgentEngine,
@@ -53,6 +54,8 @@ export interface HermesEngineOptions {
 
 interface Run {
   agent: EngineAgent;
+  /** The office's copy of who the agent is (#136); read anew for every turn. */
+  mind: Pick<EngineMind, "soul">;
   client: HermesClient;
   connection: HermesConnection;
   state: SessionState;
@@ -117,7 +120,7 @@ export class HermesExternalEngine implements OfficeAgentEngine {
     }
   }
 
-  async start(agent: EngineAgent, _office: EngineOffice): Promise<void> {
+  async start(agent: EngineAgent, office: EngineOffice): Promise<void> {
     this.check(agent);
     await this.stop(agent.id);
     const connection = this.options.connections.resolve(agent);
@@ -133,6 +136,7 @@ export class HermesExternalEngine implements OfficeAgentEngine {
     }
     const run: Run = {
       agent,
+      mind: office.mind,
       client,
       connection,
       state: readSessionState(agent.state, connection.sessionId),
@@ -215,7 +219,7 @@ export class HermesExternalEngine implements OfficeAgentEngine {
       signal: run.abort.signal,
       attempts: this.#sendAttempts,
       pauseMs: (attempt) => this.#backoff(attempt),
-      systemMessage: (message) => officeSystemMessage(run.agent, message),
+      systemMessage: (message) => officeSystemMessage(run.agent, message, run.mind.soul()),
       sessionTitle: `Regulus Office: ${run.agent.name}`,
       emit: (event) => this.#emit(event),
       saveState: () => this.#emit({ type: "state", agentId, state: { ...run.state } }),

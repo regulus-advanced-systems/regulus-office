@@ -112,6 +112,8 @@ describe("connecting my existing Hermes", () => {
     await click(button("Test connection") as HTMLButtonElement);
     await settle();
     expect(text()).toContain("it refuses this access token");
+    // The Docker hint is for an address nothing answers at, not for a wrong token.
+    expect(text()).not.toContain("The most common reason");
   });
 
   test("it is not offered for a shared agent", async () => {
@@ -151,6 +153,9 @@ describe("connecting my existing Hermes", () => {
       agentId: "h1",
     });
     expect(c.textContent).toContain("Nothing answers at that address");
+    // With the most likely reason, in plain words.
+    expect(c.textContent).toContain("the office runs in Docker");
+    expect(c.textContent).toContain("mean the office's own container");
 
     await click(within(c, "Replace connection…") as HTMLButtonElement);
     await typeInto("Address of your Hermes", "http://new-home:8642/");

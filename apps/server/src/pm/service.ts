@@ -8,8 +8,8 @@
  *   viewers do not: it spends the office key), each within an hourly limit;
  * - a personal agent is created by the person it belongs to (up to the cap
  *   admins set); only that person configures it, talks to it and reads its
- *   conversation and instructions. An admin sees its card and may stop it in
- *   an emergency, nothing more;
+ *   conversation, soul, memories and notes (D20, #136). An admin sees its card
+ *   and may stop it in an emergency or remove it, and reads nothing of it;
  * - an owner has at most one PM, and so does the office;
  * - an agent somebody may not see answers 404, like one that does not exist.
  *
@@ -17,11 +17,11 @@
  */
 import {
   type CreateOfficeAgent,
-  engineBringsOwnModel,
   type HumanRequest,
   mayConfigureOfficeAgent,
   mayCreateOfficeAgent,
   mayEmergencyStopOfficeAgent,
+  mayRemoveOfficeAgent,
   maySeeOfficeAgent,
   mayTalkToOfficeAgent,
   type OfficeAgentConversation,
@@ -41,30 +41,29 @@ import { isOfficeManager, type OperationActor } from "../operations/access.ts";
 import type { Conversations } from "./conversations.ts";
 import type { AgentCredentials } from "./engines/credentials.ts";
 import { EngineRefusal } from "./engines/types.ts";
-import type { HermesConnections } from "./hermes/connections.ts";
+import { checkMessageRate } from "./message-rate.ts";
+import type { MindService } from "./mind/people.ts";
 import type { HumanRequests } from "./requests.ts";
 import { runsOnChoices } from "./runs-on.ts";
 import type { AgentRuntime } from "./runtime.ts";
 import type { OfficeAgentRow, OfficeAgentStore } from "./store.ts";
 import type { OfficeAgentTokens } from "./tokens.ts";
-import { agentView } from "./view.ts";
+import { agentView, type ViewExtras } from "./view.ts";
 
 export type CreateInput = z.output<typeof CreateOfficeAgent>;
 export type UpdateInput = z.output<typeof UpdateOfficeAgent>;
 
-export interface OfficeAgentServiceDeps {
+export interface OfficeAgentServiceDeps extends ViewExtras {
   store: OfficeAgentStore;
   tokens: OfficeAgentTokens;
   runtime: AgentRuntime;
   conversations: Conversations;
   requests: HumanRequests;
   credentials: AgentCredentials;
-  hermes?: Pick<HermesConnections, "view">;
+  /** The soul's own writer: the instructions are its text (#136). */
+  minds: Pick<MindService, "checkText" | "saveSoul">;
   now?: () => number;
 }
-
-/** The window of the per-person message limit on shared agents. */
-export const MESSAGE_WINDOW_MS = 60 * 60_000;
 
 const notFound = () => new AuthHttpError(404, "not_found");
 const conflict = (code: string) => new AuthHttpError(409, code);
@@ -137,8 +136,8 @@ export class OfficeAgentService {
     const engine = this.deps.runtime.engine(row.engine);
     if (!engine) throw new AuthHttpError(400, "engine_unavailable");
     try {
-      // A shared agent names an office key, a personal one what its owner may use; some engines bring their own model.
-      if (!engineBringsOwnModel(row.engine)) this.deps.credentials.check(row);
+      // Whatever the engine: a shared agent names an office key, a personal one what its owner may use.
+      this.deps.credentials.check(row);
       engine.check(this.deps.runtime.engineAgent(full));
     } catch (err) {
       if (err instanceof EngineRefusal) throw refused(err);
@@ -189,7 +188,12 @@ export class OfficeAgentService {
       createdAt: new Date(),
       updatedAt: new Date(),
     });
+    this.deps.minds.checkText(draft.instructions);
     const row = store.insert(store.db, draft);
+    // Version 1 of its soul (not awaited: a new agent is not running).
+    void this.deps.minds
+      .saveSoul(actor, row.id, { content: draft.instructions }, "created")
+      .catch(() => {});
     this.#audit(actor, AUDIT_ACTIONS.officeAgentCreate, row.id, {
       name: row.name,
       shared: ownerUserId === null,
@@ -224,10 +228,16 @@ export class OfficeAgentService {
       ...(patch.instructions !== undefined ? { instructions: patch.instructions } : {}),
     };
     this.#check(next, next);
+    // The soul is saved by its own writer: a version, its audit entry, and a stop if it runs.
+    if (patch.instructions !== undefined) {
+      await this.deps.minds.saveSoul(actor, row.id, { content: patch.instructions });
+    }
     // The engine holds the configuration it was started with: stop it, the next message starts it anew.
     // Its looks are not part of that: changing only the appearance leaves it running.
-    const looksOnly = Object.keys(patch).every((key) => key === "appearance");
-    if (!looksOnly && runtime.isRunning(row.id)) {
+    const restart = Object.keys(patch).some(
+      (key) => key !== "appearance" && key !== "instructions",
+    );
+    if (restart && runtime.isRunning(row.id)) {
       await runtime.stop(row.id, row.engine, "configuration changed");
     }
     const saved = store.update(row.id, {
@@ -237,7 +247,6 @@ export class OfficeAgentService {
       effort: next.effort,
       profileId: next.profileId,
       appearance: next.appearance,
-      instructions: next.instructions,
     });
     if (!saved) throw notFound();
     this.#audit(actor, AUDIT_ACTIONS.officeAgentUpdate, row.id, {
@@ -247,14 +256,20 @@ export class OfficeAgentService {
     return this.view(actor, saved);
   }
 
+  /** Whoever configures it removes it; an office admin may remove anyone's personal agent, unread (audited). */
   async remove(actor: OperationActor, id: string): Promise<void> {
-    const row = this.#configurable(actor, id);
+    const row = this.#visible(actor, id);
+    if (!mayRemoveOfficeAgent(actor, row)) throw forbidden("not_your_agent");
+    const byAdmin = !mayConfigureOfficeAgent(actor, row);
     await this.deps.runtime.stop(row.id, row.engine);
+    // Its soul, memories, notes, conversations and tokens go with it (cascade).
     this.deps.store.delete(row.id);
-    this.#audit(actor, AUDIT_ACTIONS.officeAgentDelete, row.id, {
-      name: row.name,
-      shared: row.ownerUserId === null,
-    });
+    this.#audit(
+      actor,
+      byAdmin ? AUDIT_ACTIONS.officeAgentAdminRemove : AUDIT_ACTIONS.officeAgentDelete,
+      row.id,
+      { name: row.name, shared: row.ownerUserId === null, ownerUserId: row.ownerUserId },
+    );
   }
 
   setGrants(actor: OperationActor, id: string, grants: readonly OfficeAgentGrant[]) {
@@ -348,30 +363,13 @@ export class OfficeAgentService {
     const row = this.#talkable(actor, id);
     const person = this.deps.store.person(actor.id);
     if (!person) throw forbidden();
-    this.#checkMessageRate(row, actor.id);
+    checkMessageRate(this.deps, row, actor.id);
     try {
       return await this.deps.runtime.deliver(row, person, text);
     } catch (err) {
       if (err instanceof EngineRefusal) throw refused(err, 409);
       throw err;
     }
-  }
-
-  /**
-   * A shared agent answers on the office's metered key, so each person may
-   * send it only so many messages an hour (an admin setting). Personal agents
-   * run on what their owner chose and are not limited here.
-   */
-  #checkMessageRate(row: OfficeAgentRow, userId: string): void {
-    if (row.ownerUserId !== null) return;
-    const limit = this.deps.store.settings().sharedMessagesPerHour;
-    const now = (this.deps.now ?? Date.now)();
-    const sent = this.deps.conversations.sentSince(row.id, userId, now - MESSAGE_WINDOW_MS);
-    if (sent.length < limit) return;
-    // Free again when the oldest message that still counts leaves the window.
-    const oldest = sent[sent.length - limit] ?? now;
-    const retryAfterSeconds = Math.max(1, Math.ceil((oldest + MESSAGE_WINDOW_MS - now) / 1000));
-    throw new AuthHttpError(429, "message_rate_limited", { limit, retryAfterSeconds });
   }
 
   // ---- "Ask a human" --------------------------------------------------------------

@@ -28,6 +28,10 @@ import { type HermesEngineOptions, HermesExternalEngine } from "./hermes/engine.
 import { mountHermesRoutes } from "./hermes/routes.ts";
 import { HermesAgentService } from "./hermes/service.ts";
 import { mountMcp } from "./mcp.ts";
+import { AgentMind } from "./mind/mind.ts";
+import { MindService } from "./mind/people.ts";
+import { engineMind } from "./mind/port.ts";
+import { MindStore } from "./mind/store.ts";
 import { HumanRequests } from "./requests.ts";
 import { mountOfficeAgentRoutes } from "./routes.ts";
 import { AgentRuntime } from "./runtime.ts";
@@ -76,6 +80,8 @@ export interface OfficeAgents {
   conversations: Conversations;
   requests: HumanRequests;
   hermes: HermesAgentService;
+  /** Souls, memories and notes (#136). */
+  mind: AgentMind;
   mount(
     router: Router,
     auth: Pick<OfficeAuth, "getSessionFromRequest" | "publicUrl" | "allowedOrigins">,
@@ -100,10 +106,12 @@ export function createOfficeAgents(opts: OfficeAgentsOptions): OfficeAgents {
   const conversations = new Conversations(db, now);
   const requests = new HumanRequests(db, now);
   const credentials = new AgentCredentials(db, opts.keyring);
+  const mind = new AgentMind(new MindStore(db, now));
   const runtime = new AgentRuntime({
     store,
     tokens,
     conversations,
+    mind: (agentId) => engineMind(db, mind, agentId),
     officeUrl: opts.officeUrl.replace(/\/+$/, ""),
     usage: opts.usage,
     logger,
@@ -168,9 +176,10 @@ export function createOfficeAgents(opts: OfficeAgentsOptions): OfficeAgents {
       (bound.stop ?? unavailable("stopping henchmen"))(actor, henchmanId),
   };
   const tools = new OfficeTools(
-    { store, access: new AgentAccess(store), conversations, requests, ports, now },
+    { store, access: new AgentAccess(store), conversations, requests, mind, ports, now },
     logger,
   );
+  const mindService = new MindService({ store, mind, runtime });
   const service = new OfficeAgentService({
     store,
     tokens,
@@ -179,6 +188,7 @@ export function createOfficeAgents(opts: OfficeAgentsOptions): OfficeAgents {
     requests,
     credentials,
     hermes: connections,
+    minds: mindService,
     now,
   });
   const hermes = new HermesAgentService({
@@ -199,11 +209,12 @@ export function createOfficeAgents(opts: OfficeAgentsOptions): OfficeAgents {
     conversations,
     requests,
     hermes,
+    mind,
     mount(router, auth) {
       mountMcp(router, { store, tokens, tools, version: opts.version });
       mountToolRoutes(router, { store, tokens, tools });
       mountHermesRoutes(router, { auth, hermes });
-      mountOfficeAgentRoutes(router, { auth, service, hermes });
+      mountOfficeAgentRoutes(router, { auth, service, hermes, mind: mindService });
     },
     bind(next) {
       bound = { ...bound, ...next };

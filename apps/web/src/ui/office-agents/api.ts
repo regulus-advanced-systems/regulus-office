@@ -4,12 +4,16 @@
  * agents ask. Errors come back as short codes.
  */
 import {
+  type CreateMindEntry,
   type CreateOfficeAgent,
   type HermesConnectionInput,
   type HermesConnectionTest,
   HermesConnectionTestResult,
   HumanRequest,
   HumanRequestsResponse,
+  MindEntriesResponse,
+  MindEntry,
+  type MindEntryKind,
   OFFICE_AGENT_HERMES_TEST_API_PATH,
   OFFICE_AGENT_REQUESTS_API_PATH,
   OFFICE_AGENT_RUNS_ON_API_PATH,
@@ -20,12 +24,17 @@ import {
   OfficeAgentMessage,
   OfficeAgentRunsOnResponse,
   OfficeAgentSettings,
+  OfficeAgentSoul,
   OfficeAgentsResponse,
   OfficeAgentTokenCreated,
   OfficeAgentView,
   officeAgentHermesPath,
+  officeAgentMindPaths,
   PROVIDER_LOGINS_API_PATH,
   ProviderLoginStatusResponse,
+  SoulVersion,
+  SoulVersionsResponse,
+  type UpdateMindEntry,
   type UpdateOfficeAgent,
 } from "@regulus/protocol";
 import type { ApiFailure, ApiResult } from "../auth/api.ts";
@@ -102,6 +111,28 @@ export function createOfficeAgentsApi(options: { fetch?: typeof fetch } = {}) {
     /** Replace an agent's connection. The office never sends a stored one back. */
     setHermes: (id: string, input: HermesConnectionInput) =>
       call("PUT", officeAgentHermesPath(id), OfficeAgentView, input),
+    // Its soul, memories and notes (#136): only for those who may read them.
+    soul: (id: string) => call("GET", officeAgentMindPaths(id).soul, OfficeAgentSoul),
+    saveSoul: (id: string, content: string, baseVersion: number) =>
+      call("PUT", officeAgentMindPaths(id).soul, OfficeAgentSoul, { content, baseVersion }),
+    soulVersions: (id: string) =>
+      call("GET", officeAgentMindPaths(id).soulVersions, SoulVersionsResponse),
+    soulVersion: (id: string, version: number) =>
+      call("GET", officeAgentMindPaths(id).soulVersion(version), SoulVersion),
+    revertSoul: (id: string, version: number) =>
+      call("POST", officeAgentMindPaths(id).soulRevert, OfficeAgentSoul, { version }),
+    entries: (id: string, kind: MindEntryKind, query = "") =>
+      call(
+        "GET",
+        `${officeAgentMindPaths(id).entries}?kind=${kind}${query ? `&q=${encodeURIComponent(query)}` : ""}`,
+        MindEntriesResponse,
+      ),
+    addEntry: (id: string, entry: CreateMindEntry) =>
+      call("POST", officeAgentMindPaths(id).entries, MindEntry, entry),
+    updateEntry: (id: string, entryId: string, patch: UpdateMindEntry) =>
+      call("PATCH", officeAgentMindPaths(id).entry(entryId), MindEntry, patch),
+    removeEntry: (id: string, entryId: string) =>
+      call("DELETE", officeAgentMindPaths(id).entry(entryId), NO_CONTENT),
     /** What the caller can run an agent on: names and kinds of logins and keys, never a key. */
     runsOn: () => call("GET", OFFICE_AGENT_RUNS_ON_API_PATH, OfficeAgentRunsOnResponse),
     /** Whether the caller's own Claude login is connected: true, false, or null when unknown. */
@@ -144,6 +175,11 @@ const ERRORS: Record<string, string> = {
   master_key_missing:
     "This office cannot keep a connection safely yet: its OFFICE_MASTER_KEY is not set. Ask whoever runs the office.",
   too_many_tests: "That was a lot of tries. Wait a minute and test again.",
+  soul_changed:
+    "Someone saved a newer version while you were writing. Copy your text, reload, and add it again.",
+  title_taken: "Another note already has that title.",
+  cap_reached: "It holds as many of these as it can. Delete some first.",
+  too_large: "That text is too long.",
   invalid_body: "Check the form: a name (letters, digits, spaces), a model and a job.",
 };
 
@@ -152,5 +188,7 @@ export function describeOfficeAgentsError(failure: ApiFailure): string {
     const minutes = Math.max(1, Math.ceil((failure.retryAfterSeconds ?? 60) / 60));
     return `You have reached the hourly limit of messages to this shared agent. Try again in about ${minutes} min.`;
   }
+  // The office says which line looks like a key; it never repeats the text.
+  if (failure.code === "secret_rejected" && failure.reason) return failure.reason;
   return ERRORS[failure.code] ?? failure.reason ?? `Something went wrong (${failure.code}).`;
 }

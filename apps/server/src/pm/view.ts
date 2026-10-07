@@ -5,21 +5,25 @@
  */
 import {
   mayConfigureOfficeAgent,
+  mayRemoveOfficeAgent,
   mayTalkToOfficeAgent,
   type OfficeAgentView,
 } from "@regulus/protocol";
 import type { OperationActor } from "../operations/access.ts";
+import { agentCost } from "./cost.ts";
 import type { HermesConnections } from "./hermes/connections.ts";
 import { runsOnOf } from "./runs-on.ts";
 import type { OfficeAgentRow, OfficeAgentStore } from "./store.ts";
 import type { OfficeAgentTokens } from "./tokens.ts";
 
+/** What the view shows beyond the agent's own row, when the office has it. */
+export interface ViewExtras {
+  /** `hermes-external` agents: that a connection is stored (#58). */
+  hermes?: Pick<HermesConnections, "view">;
+}
+
 export function agentView(
-  deps: {
-    store: OfficeAgentStore;
-    tokens: OfficeAgentTokens;
-    hermes?: Pick<HermesConnections, "view">;
-  },
+  deps: ViewExtras & { store: OfficeAgentStore; tokens: OfficeAgentTokens; now?: () => number },
   actor: OperationActor,
   row: OfficeAgentRow,
 ): OfficeAgentView {
@@ -46,6 +50,9 @@ export function agentView(
     createdAt: row.createdAt.getTime(),
     canTalk: mayTalkToOfficeAgent(actor, row),
     canConfigure,
+    canRemove: mayRemoveOfficeAgent(actor, row),
+    // What it has cost: for everyone who sees the card, so also for an admin who reads nothing else (#136).
+    cost: agentCost(store.db, row, (deps.now ?? Date.now)()),
     ...(canConfigure
       ? {
           config: {

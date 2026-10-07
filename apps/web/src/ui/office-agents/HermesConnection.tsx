@@ -78,6 +78,15 @@ function TestResult({ result }: { result: HermesConnectionTestResult | string | 
       role="status"
     >
       {typeof result === "string" ? result : result.detail}
+      {typeof result !== "string" && result.code === "unreachable" && (
+        <div className="rg-office-agent-hermes__why">
+          The most common reason: the office runs in Docker, and there <code>127.0.0.1</code> and{" "}
+          <code>localhost</code> mean the office's own container, not the machine your Hermes runs
+          on. Hermes has to listen on an address that container can reach (its{" "}
+          <code>API_SERVER_HOST</code>), and you enter that address here. "What to set up in Hermes"
+          below says how.
+        </div>
+      )}
     </div>
   );
 }
@@ -187,17 +196,19 @@ export function HermesSetupHelp() {
       <summary className="rg-field__label">What to set up in Hermes</summary>
       <ol className="rg-field__hint">
         <li>
+          First, the address. It is the office's server that calls your Hermes, not your browser. If
+          the office runs in Docker (the usual install), <code>127.0.0.1</code> and{" "}
+          <code>localhost</code> mean the office's own container, so a Hermes that answers only on
+          its own machine (<code>127.0.0.1:8642</code>, its default) cannot be reached, even on the
+          same computer. Set <code>API_SERVER_HOST</code> in Hermes to an address the office's
+          container can reach, and allow that port for the office only. The key lets its holder run
+          commands through your Hermes: never open the port to the internet unprotected.
+        </li>
+        <li>
           Turn on its API server. In <code>~/.hermes/.env</code> set{" "}
           <code>API_SERVER_ENABLED=true</code> and <code>API_SERVER_KEY</code> to a long random
           secret (for example from <code>openssl rand -hex 32</code>), then restart{" "}
           <code>hermes gateway</code>. Telegram and your other channels keep working.
-        </li>
-        <li>
-          Make it reachable from the office's server. By default Hermes answers only on its own
-          machine (<code>127.0.0.1:8642</code>). If the office runs elsewhere, or in a container,
-          set <code>API_SERVER_HOST</code> and protect the port, or put it on a private network or
-          behind HTTPS. The key lets its holder run commands through your Hermes: do not expose it
-          to the internet unprotected.
         </li>
         <li>Enter that address and key above, and press Test connection.</li>
         <li>

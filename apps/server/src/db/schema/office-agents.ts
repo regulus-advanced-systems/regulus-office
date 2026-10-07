@@ -7,6 +7,8 @@
  */
 import {
   HUMAN_REQUEST_STATUSES,
+  MIND_AUTHORS,
+  MIND_ENTRY_KINDS,
   OFFICE_AGENT_ENGINES,
   OFFICE_AGENT_MESSAGE_AUTHORS,
   OFFICE_AGENT_PRESETS,
@@ -14,6 +16,7 @@ import {
   OFFICE_AGENT_STATUSES,
   OPERATION_ACCESSES,
   PROVIDER_IDS,
+  SOUL_VERSION_KINDS,
 } from "@regulus/protocol";
 import { check, index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 import { enumText, id, inEnum, jsonText, timestampMs, timestamps } from "./_columns.ts";
@@ -43,7 +46,10 @@ export const officeAgents = sqliteTable(
     profileId: text("profile_id"),
     /** How it looks (#280, D32): an id from the protocol's `OFFICE_AGENT_APPEARANCES`. Looks only. */
     appearance: text("appearance").notNull().default("standard"),
-    /** The role prompt. The soul and memories of #136 come on top of it. */
+    /**
+     * The agent's soul as it is now (#136): the copy engines are started with.
+     * Written only together with a row in `office_agent_soul_versions`.
+     */
     instructions: text("instructions").notNull().default(""),
     status: enumText("status", OFFICE_AGENT_STATUSES).notNull().default("stopped"),
     statusReason: text("status_reason"),
@@ -186,3 +192,62 @@ export const officeAgentSettings = sqliteTable("office_agent_settings", {
   sharedMessagesPerHour: integer("shared_messages_per_hour").notNull(),
   ...timestamps(),
 });
+
+/**
+ * Every saved version of an agent's soul (#136, D20), newest kept up to a
+ * cap. Private like the soul itself: a personal agent's rows are read only
+ * for the person it belongs to.
+ */
+export const officeAgentSoulVersions = sqliteTable(
+  "office_agent_soul_versions",
+  {
+    id: id(),
+    agentId: text("agent_id")
+      .notNull()
+      .references(() => officeAgents.id, { onDelete: "cascade" }),
+    /** 1, 2, 3, ... per agent; never reused. */
+    version: integer("version").notNull(),
+    content: text("content").notNull(),
+    kind: enumText("kind", SOUL_VERSION_KINDS).notNull(),
+    /** For a revert: the version whose text this one brought back. */
+    revertOf: integer("revert_of"),
+    editedBy: text("edited_by").references(() => users.id, { onDelete: "set null" }),
+    /** Lines added and removed against the version before it. */
+    linesAdded: integer("lines_added").notNull().default(0),
+    linesRemoved: integer("lines_removed").notNull().default(0),
+    ...timestamps(),
+  },
+  (t) => [
+    uniqueIndex("office_agent_soul_versions_agent_version_unique").on(t.agentId, t.version),
+    check("office_agent_soul_versions_kind_check", inEnum("kind", SOUL_VERSION_KINDS)),
+  ],
+);
+
+/**
+ * An agent's memories and notes (#136). `kind` = `memory`: a short entry;
+ * `note`: a titled document, one per `titleKey` and agent (kept unique by
+ * pm/mind/store.ts). Never a secret: pm/mind/guard.ts refuses key-like text.
+ */
+export const officeAgentMemories = sqliteTable(
+  "office_agent_memories",
+  {
+    id: id(),
+    agentId: text("agent_id")
+      .notNull()
+      .references(() => officeAgents.id, { onDelete: "cascade" }),
+    kind: enumText("kind", MIND_ENTRY_KINDS).notNull(),
+    title: text("title").notNull().default(""),
+    /** The title without case or repeated spaces; empty for memories. */
+    titleKey: text("title_key").notNull().default(""),
+    text: text("text").notNull(),
+    /** Where a memory came from, in the agent's words. */
+    source: text("source").notNull().default(""),
+    writtenBy: enumText("written_by", MIND_AUTHORS).notNull(),
+    ...timestamps(),
+  },
+  (t) => [
+    index("office_agent_memories_agent_kind_idx").on(t.agentId, t.kind, t.updatedAt),
+    check("office_agent_memories_kind_check", inEnum("kind", MIND_ENTRY_KINDS)),
+    check("office_agent_memories_written_by_check", inEnum("written_by", MIND_AUTHORS)),
+  ],
+);

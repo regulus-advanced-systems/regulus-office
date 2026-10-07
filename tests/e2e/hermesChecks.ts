@@ -42,6 +42,8 @@ export async function checkHermesConnection(page: Page, screenshotDir?: string) 
   await form.getByLabel("Access token").fill(TOKEN);
   await form.getByRole("button", { name: "Test connection" }).click();
   await expect(form).toContainText("Nothing answers at that address");
+  // The most likely reason is said right there: the office in Docker cannot reach the host's 127.0.0.1.
+  await expect(form).toContainText("The most common reason: the office runs in Docker");
   if (screenshotDir) await form.screenshot({ path: `${screenshotDir}/hermes-form.png` });
   await form.getByRole("button", { name: "Create agent" }).click();
 

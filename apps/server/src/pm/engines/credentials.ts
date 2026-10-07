@@ -14,7 +14,11 @@
  * Keys are decrypted only by `resolve`, right before a turn's plan is built.
  */
 import { Secret, type SpawnCredential } from "@regulus/agent-adapters";
-import type { ProviderId } from "@regulus/protocol";
+import {
+  engineBringsOwnModel,
+  type OfficeAgentEngineKind,
+  type ProviderId,
+} from "@regulus/protocol";
 import { eq } from "drizzle-orm";
 import {
   CredentialResolver,
@@ -28,6 +32,8 @@ import { decryptSecretToString, type MasterKeyring } from "../../secrets/index.t
 import { EngineRefusal } from "./types.ts";
 
 export interface CredentialSubject {
+  /** Given: an engine that brings its own provider and model needs no credential from the office (#58). */
+  engine?: OfficeAgentEngineKind;
   ownerUserId: string | null;
   provider: ProviderId;
   profileId: string | null;
@@ -51,6 +57,7 @@ export class AgentCredentials {
 
   /** Refuse a choice the agent may not use, without decrypting anything. */
   check(agent: CredentialSubject): void {
+    if (agent.engine && engineBringsOwnModel(agent.engine)) return;
     if (agent.ownerUserId === null) {
       this.#officeProfile(agent);
       return;

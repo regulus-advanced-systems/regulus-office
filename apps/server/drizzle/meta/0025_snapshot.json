@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "cfcf6422-cc48-4e35-ad58-1eb9ae5c6b05",
+  "id": "f245240c-8146-4d28-9b2a-8a59f9ab4d56",
   "prevId": "3e2a3007-4c6e-4a32-bffc-306b6a95f9ae",
   "tables": {
     "agent_events": {
@@ -2589,84 +2589,6 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "office_agent_connections": {
-      "name": "office_agent_connections",
-      "columns": {
-        "agent_id": {
-          "name": "agent_id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "owner_user_id": {
-          "name": "owner_user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "encrypted_secret": {
-          "name": "encrypted_secret",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "continues_session": {
-          "name": "continues_session",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "office_agent_connections_owner_idx": {
-          "name": "office_agent_connections_owner_idx",
-          "columns": ["owner_user_id"],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {
-        "office_agent_connections_agent_id_office_agents_id_fk": {
-          "name": "office_agent_connections_agent_id_office_agents_id_fk",
-          "tableFrom": "office_agent_connections",
-          "tableTo": "office_agents",
-          "columnsFrom": ["agent_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "office_agent_connections_owner_user_id_users_id_fk": {
-          "name": "office_agent_connections_owner_user_id_users_id_fk",
-          "tableFrom": "office_agent_connections",
-          "tableTo": "users",
-          "columnsFrom": ["owner_user_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
     "office_agent_grants": {
       "name": "office_agent_grants",
       "columns": {
@@ -2746,6 +2668,114 @@
         "office_agent_grants_access_check": {
           "name": "office_agent_grants_access_check",
           "value": "\"access\" IN ('manage', 'spawn', 'view')"
+        }
+      }
+    },
+    "office_agent_memories": {
+      "name": "office_agent_memories",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "agent_id": {
+          "name": "agent_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
+        },
+        "title_key": {
+          "name": "title_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
+        },
+        "text": {
+          "name": "text",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "source": {
+          "name": "source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
+        },
+        "written_by": {
+          "name": "written_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "office_agent_memories_agent_kind_idx": {
+          "name": "office_agent_memories_agent_kind_idx",
+          "columns": ["agent_id", "kind", "updated_at"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "office_agent_memories_agent_id_office_agents_id_fk": {
+          "name": "office_agent_memories_agent_id_office_agents_id_fk",
+          "tableFrom": "office_agent_memories",
+          "tableTo": "office_agents",
+          "columnsFrom": ["agent_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "office_agent_memories_kind_check": {
+          "name": "office_agent_memories_kind_check",
+          "value": "\"kind\" IN ('memory', 'note')"
+        },
+        "office_agent_memories_written_by_check": {
+          "name": "office_agent_memories_written_by_check",
+          "value": "\"written_by\" IN ('agent', 'person')"
         }
       }
     },
@@ -3024,6 +3054,125 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}
+    },
+    "office_agent_soul_versions": {
+      "name": "office_agent_soul_versions",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "agent_id": {
+          "name": "agent_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "content": {
+          "name": "content",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "revert_of": {
+          "name": "revert_of",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "edited_by": {
+          "name": "edited_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "lines_added": {
+          "name": "lines_added",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "lines_removed": {
+          "name": "lines_removed",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "office_agent_soul_versions_agent_version_unique": {
+          "name": "office_agent_soul_versions_agent_version_unique",
+          "columns": ["agent_id", "version"],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "office_agent_soul_versions_agent_id_office_agents_id_fk": {
+          "name": "office_agent_soul_versions_agent_id_office_agents_id_fk",
+          "tableFrom": "office_agent_soul_versions",
+          "tableTo": "office_agents",
+          "columnsFrom": ["agent_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "office_agent_soul_versions_edited_by_users_id_fk": {
+          "name": "office_agent_soul_versions_edited_by_users_id_fk",
+          "tableFrom": "office_agent_soul_versions",
+          "tableTo": "users",
+          "columnsFrom": ["edited_by"],
+          "columnsTo": ["id"],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "office_agent_soul_versions_kind_check": {
+          "name": "office_agent_soul_versions_kind_check",
+          "value": "\"kind\" IN ('created', 'edit', 'revert', 'imported')"
+        }
+      }
     },
     "office_agent_tokens": {
       "name": "office_agent_tokens",
