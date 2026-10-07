@@ -53,12 +53,17 @@ beforeAll(async () => {
   addOperation(db, "f1");
   addOperation(db, "f2");
   addOperation(db, "f3", true);
+  // Office roles open no room (#270): the owner's GitHub account sees both repos,
+  // the admin's only f1's.
+  addMember(db, "f1", users.owner.id, "manage");
+  addMember(db, "f2", users.owner.id, "manage");
+  addMember(db, "f1", users.admin.id, "manage");
   addMember(db, "f1", users.henchmanOwner.id, "spawn");
   addMember(db, "f1", users.member.id, "spawn");
   addMember(db, "f1", users.viewer.id, "view");
   addMember(db, "f3", users.member.id, "spawn");
   addHenchman(db, "a1", "f1", users.henchmanOwner.id); // live, f1
-  addHenchman(db, "a2", "f2", users.owner.id); // live, f2 (nobody is a member)
+  addHenchman(db, "a2", "f2", users.owner.id); // live, f2 (only the owner is on it)
   addHenchman(db, "a3", "f1", users.henchmanOwner.id); // exited
   addHenchman(db, "a4", "f3", users.member.id); // archived operation
   exitHenchman(db, "a3");
@@ -99,7 +104,7 @@ async function keys(u: User, q = "needle"): Promise<string[]> {
 describe("ACL matrix", () => {
   test.each([
     ["office owner", "owner", ["chat:f1", "chat:f2", "chat:lobby", "henchman:a1", "henchman:a2"]],
-    ["admin", "admin", ["chat:f1", "chat:f2", "chat:lobby", "henchman:a1", "henchman:a2"]],
+    ["admin on one operation only", "admin", ["chat:f1", "chat:lobby", "henchman:a1"]],
     ["henchman owner", "henchmanOwner", ["chat:f1", "chat:lobby", "henchman:a1"]],
     ["other member on the operation", "member", ["chat:f1", "chat:lobby", "henchman:a1"]],
     ["viewer on the operation", "viewer", ["chat:f1", "chat:lobby", "henchman:a1"]],
@@ -182,7 +187,7 @@ describe("context", () => {
   test("is 404 for someone who may not watch the henchman", async () => {
     const doc = await docOf(users.owner as User, "a2");
     expect(doc).toBeDefined();
-    for (const who of ["member", "outsider", "viewer"]) {
+    for (const who of ["member", "outsider", "viewer", "admin"]) {
       const res = await office.request(`${SEARCH_CONTEXT_API_PATH}?doc=${doc}`, {
         cookie: users[who]?.cookie,
       });

@@ -144,6 +144,12 @@ export function describeOperationError(err: ApiFailure): string {
       return "Could not reach the office server. Check your connection and try again.";
     case "owner_or_admin_required":
       return "Only office owners and admins can do that.";
+    case "github_link_required":
+      return "Link your GitHub account first (Settings, You): a room opens with your own GitHub access to its repo.";
+    case "repo_not_visible":
+      return "Your GitHub account cannot see this repo, so you cannot add a room for it.";
+    case "github_unavailable":
+      return "GitHub could not be asked whether you can see this repo. Try again in a moment.";
     case "operation_has_henchmen":
       return "Henchmen are still working in this operation. Send them home first, then delete it.";
     case "operation_cloning":

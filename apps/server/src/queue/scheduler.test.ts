@@ -6,7 +6,8 @@
 import { describe, expect, test } from "bun:test";
 import { eq } from "drizzle-orm";
 import { AgentManagerError } from "../agents/manager/errors.ts";
-import { agents, operationMembers, tasks } from "../db/schema/index.ts";
+import { agents, tasks } from "../db/schema/index.ts";
+import { seedRoomMember } from "../github/access/test-snapshot.ts";
 import { WAIT_REASONS } from "./plan.ts";
 import { FAIL_REASONS } from "./scheduler.ts";
 import {
@@ -111,11 +112,7 @@ describe("scheduler (#37)", () => {
     const held = queue.enqueueTask(f.member, freeform(f.operationId, f.repoId, "held"));
     await queue.scheduler.idle();
     const setAccess = (access: "view" | "spawn") =>
-      f.db
-        .update(operationMembers)
-        .set({ access })
-        .where(eq(operationMembers.userId, f.member.id))
-        .run();
+      seedRoomMember(f.db, f.member.id, f.operationId, access);
     setAccess("view");
     henchmanStatus(f.db, queue, queue.store.get(running.id)?.agentId ?? "", "done", "working");
     await queue.scheduler.idle();

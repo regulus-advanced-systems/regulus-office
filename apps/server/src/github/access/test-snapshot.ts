@@ -12,7 +12,7 @@
  * either: a seeded link has no token, so the first refresh marks it revoked
  * and deletes its permissions.
  */
-import type { GitHubRepoPermission } from "@regulus/protocol";
+import type { GitHubRepoPermission, OperationAccess } from "@regulus/protocol";
 import { and, eq } from "drizzle-orm";
 import type { Db } from "../../db/index.ts";
 import { githubRepoPermissions, githubUserLinks, operationRepos } from "../../db/schema/index.ts";
@@ -84,4 +84,25 @@ export function seedRoomAccess(
   const repoId = seedRoomRepo(db, operationId);
   seedRepoPermission(db, userId, repoId, permission);
   return repoId;
+}
+
+/** The lowest GitHub permission that gives each kind of room access. */
+export const PERMISSION_FOR_ACCESS: Readonly<Record<OperationAccess, GitHubRepoPermission>> = {
+  view: "read",
+  spawn: "write",
+  manage: "admin",
+};
+
+/**
+ * {@link seedRoomAccess} in the office's own words: the person may `view`,
+ * work in (`spawn`) or `manage` the room, because their GitHub account has
+ * the matching permission on its repo. `null` takes the room away again.
+ */
+export function seedRoomMember(
+  db: Db,
+  userId: string,
+  operationId: string,
+  access: OperationAccess | null,
+): string {
+  return seedRoomAccess(db, userId, operationId, access ? PERMISSION_FOR_ACCESS[access] : "none");
 }

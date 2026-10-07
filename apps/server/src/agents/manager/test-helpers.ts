@@ -8,7 +8,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { AdapterRegistry, type AgentAdapter } from "@regulus/agent-adapters";
 import type { HenchmanState, PendingPermission } from "@regulus/protocol";
-import { desks, operationMembers, operationRepos, operations } from "../../db/schema/index.ts";
+import { desks, operationRepos, operations } from "../../db/schema/index.ts";
+import { seedRoomMember } from "../../github/access/test-snapshot.ts";
 import { createLogger } from "../../logging.ts";
 import { testDb } from "../../operations/test-helpers.ts";
 import type { Runner } from "../../runners/types.ts";
@@ -99,9 +100,13 @@ export async function officeFixture() {
   for (const seatId of ["seat-1", "seat-2", "seat-3"]) {
     db.insert(desks).values({ operationId, seatId }).run();
   }
-  db.insert(operationMembers).values({ operationId, userId: member.id, access: "spawn" }).run();
-  db.insert(operationMembers).values({ operationId, userId: viewer.id, access: "view" }).run();
-  db.insert(operationMembers).values({ operationId, userId: roleViewer.id, access: "view" }).run();
+  // Rooms open with each person's own GitHub permission on the repo (#270); the
+  // stranger has none, and the office owner and admin get nothing from their role.
+  seedRoomMember(db, owner.id, operationId, "manage");
+  seedRoomMember(db, admin.id, operationId, "manage");
+  seedRoomMember(db, member.id, operationId, "spawn");
+  seedRoomMember(db, viewer.id, operationId, "view");
+  seedRoomMember(db, roleViewer.id, operationId, "view");
   return { db, owner, member, viewer, stranger, admin, roleViewer, operationId, repoId, workdir };
 }
 

@@ -26,7 +26,9 @@ import {
   seatKey,
 } from "@regulus/protocol";
 import { specialRoomSeats } from "@regulus/room-layout";
+import { eq } from "drizzle-orm";
 import { closeDatabase, type Db, openDatabase, runMigrations, schema } from "../../db/index.ts";
+import { seedRoomMember, seedRoomRepo } from "../../github/access/test-snapshot.ts";
 import { createOfficeServer, type OfficeServer } from "../../http/server.ts";
 import { createLogger } from "../../logging.ts";
 import { createDevHeaderAuth, DEV_USER_HEADER } from "../auth.ts";
@@ -65,6 +67,24 @@ const opened: BuildingRoom[] = [];
 
 const user = (userId: string, displayName: string, role = "member") =>
   JSON.stringify({ userId, displayName, role });
+
+/**
+ * A dev-header user who is also a row in `users`, so their GitHub access to the
+ * project room can be seeded (#270): `access` is what their account has on its repo.
+ */
+function person(
+  userId: string,
+  displayName: string,
+  role: string,
+  access: "view" | "spawn" | "manage" | null,
+): string {
+  db.insert(schema.users)
+    .values({ id: userId, name: displayName, email: `${userId}@example.com` })
+    .onConflictDoNothing()
+    .run();
+  seedRoomMember(db, userId, operationId, access);
+  return user(userId, displayName, role);
+}
 
 function client(devUser?: string): Client {
   return new Client(String(server.url).replace(/\/$/, ""), {
@@ -114,6 +134,8 @@ beforeAll(async () => {
     .returning();
   if (!operation) throw new Error("seed failed");
   operationId = operation.id;
+  // The project room has a repo, so it opens with GitHub access only (#270).
+  seedRoomRepo(db, operationId);
   // Seed more history than the replay window to prove the window is enforced.
   const store = new DrizzleChatStore(db);
   for (let n = 1; n <= CHAT_REPLAY + 10; n++) {
@@ -214,10 +236,11 @@ describe("BuildingRoom over the wire", () => {
     const bob = await joinAs(user("u-bob3", "Bob"));
     ada.send("chat", { text: "  hello office  " });
     await waitFor(() => bob.state.chat.at(-1)?.text === "hello office", "Bob receives chat");
+    // Lines in the state do not say which room they were written in (#270).
     expect(bob.state.chat.at(-1)).toMatchObject({
       userId: "u-ada3",
       displayName: "Ada",
-      operationId: LOBBY_OPERATION_ID,
+      operationId: "",
     });
     expect(bob.state.chat.length).toBe(CHAT_REPLAY);
 
@@ -236,8 +259,8 @@ describe("BuildingRoom over the wire", () => {
   });
 
   test("operations list the lobby and database operations; operation.go moves presence", async () => {
-    // Admins may enter every operation; members need operation_members access (#30).
-    const ada = await joinAs(user("u-ada4", "Ada", "admin"));
+    // A room opens with the person's own GitHub access to its repo (#270).
+    const ada = await joinAs(person("u-ada4", "Ada", "member", "spawn"));
     await waitFor(() => ada.state.operations.size === 2, "operations synced");
     expect(ada.state.operations.get(operationId)).toMatchObject({
       name: "Regulus",
@@ -260,6 +283,28 @@ describe("BuildingRoom over the wire", () => {
     const rejected = nextRejection(ada);
     ada.send("operation.go", { operationId: "nope" });
     expect((await rejected).reason).toBe("unknown operation nope");
+  });
+
+  test("an office admin without GitHub access gets the lobby only (#270)", async () => {
+    const inside = await joinAs(person("u-ada10", "Ada", "member", "view"));
+    const ops = await joinAs(person("u-ops10", "Ops", "admin", null));
+    await waitFor(() => inside.state.operations.size === 2, "the room for its member");
+    inside.send("operation.go", { operationId, mode: "teleport" });
+    await waitFor(
+      () => inside.state.humans.get(inside.sessionId)?.operationId === operationId,
+      "Ada in the room",
+    );
+    await waitFor(() => ops.state.humans.has(ops.sessionId), "own presence");
+    await Bun.sleep(100);
+    expect([...ops.state.operations.keys()]).toEqual([LOBBY_OPERATION_ID]);
+    expect(ops.state.closedRooms.size).toBe(0);
+    expect([...ops.state.levels.keys()].filter((id) => id !== LOBBY_LEVEL_ID)).toEqual([]);
+    // Nobody inside a room closed to them is shown, and the refusal names nothing.
+    expect(ops.state.humans.has(inside.sessionId)).toBe(false);
+    const rejected = nextRejection(ops);
+    ops.send("operation.go", { operationId, mode: "teleport" });
+    expect((await rejected).reason).toBe(`unknown operation ${operationId}`);
+    expect(ops.state.humans.get(ops.sessionId)?.operationId).toBe(LOBBY_OPERATION_ID);
   });
 
   test("emote and sit drive the animation state; a seat holds one human (#49)", async () => {
@@ -314,7 +359,6 @@ describe("BuildingRoom over the wire", () => {
   });
 
   test("doing is published; chat floods are refused (#49)", async () => {
-    // An admin: admins may enter every operation.
     const ada = await joinAs(user("u-ada9", "Ada", "admin"));
     const bob = await joinAs(user("u-bob9", "Bob"));
     await waitFor(() => bob.state.humans.has(ada.sessionId), "Ada visible");

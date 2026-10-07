@@ -1,103 +1,14 @@
 import { afterAll, beforeEach, describe, expect, test } from "bun:test";
-import {
-  DEFAULT_NOTIFICATION_PREFS,
-  NOTIFY_ATTENTION_MESSAGE,
-  NOTIFY_EVENT_MESSAGE,
-  type NotifyEvent,
-} from "@regulus/protocol";
-import { eq } from "drizzle-orm";
-import { agents } from "../db/schema/index.ts";
-import { NotificationCenter, type Schedule } from "./center.ts";
-import { ChannelStore } from "./channels.ts";
-import { WebhookDispatcher } from "./delivery.ts";
-import { NotificationDirectory } from "./directory.ts";
-import type { HenchmanSnapshot } from "./events.ts";
-import { captureLogger, seededDb, startFakeWebhooks, testKeyring } from "./testing.ts";
+import { DEFAULT_NOTIFICATION_PREFS, NOTIFY_ATTENTION_MESSAGE } from "@regulus/protocol";
+import { type CenterSetup, centerSetup } from "./center.fixture.ts";
+import { startFakeWebhooks } from "./testing.ts";
 
 const fake = startFakeWebhooks();
 afterAll(() => fake.stop());
 
-function setup() {
-  const seed = seededDb();
-  const { db, owner, admin, member, addAgent } = seed;
-  addAgent("a1", 1, member.id);
-  addAgent("a2", 2, member.id);
-  const log = captureLogger();
-  const channels = new ChannelStore(db, testKeyring());
-  const directory = new NotificationDirectory(db);
-  const dispatcher = new WebhookDispatcher({
-    policy: fake.policy(),
-    logger: log.logger,
-    sleep: async () => {},
-    minSpacingMs: 0,
-  });
-  const clock = { t: 10_000_000 };
-  const timers: { fn: () => void; ms: number; cancelled: boolean }[] = [];
-  const schedule: Schedule = (fn, ms) => {
-    const timer = { fn, ms, cancelled: false };
-    timers.push(timer);
-    return () => {
-      timer.cancelled = true;
-    };
-  };
-  const settle = () => {
-    for (const timer of timers.splice(0)) if (!timer.cancelled) timer.fn();
-  };
-  const sent: { userId: string; type: string; payload: unknown }[] = [];
-  const center = new NotificationCenter({
-    directory,
-    channels,
-    dispatcher,
-    logger: log.logger,
-    personal: { sendToUser: (userId, type, payload) => sent.push({ userId, type, payload }) },
-    now: () => clock.t,
-    schedule,
-  });
-  const henchman = (
-    agentId: string,
-    status: HenchmanSnapshot["status"],
-    operation = 1,
-  ): HenchmanSnapshot => {
-    db.update(agents).set({ status }).where(eq(agents.id, agentId)).run();
-    return {
-      agentId,
-      name: agentId === "a1" ? "Gasket" : "",
-      operationId: `operation-${operation}`,
-      repoId: `repo-${operation}`,
-      ownerUserId: member.id,
-      ownerName: "Mia",
-      provider: "codex",
-      status,
-      taskTitle: "Fix the login page",
-      prNumber: 0,
-    };
-  };
-  const events = () =>
-    sent.filter((s) => s.type === NOTIFY_EVENT_MESSAGE) as {
-      userId: string;
-      payload: NotifyEvent;
-    }[];
-  return {
-    ...seed,
-    owner,
-    admin,
-    member,
-    channels,
-    directory,
-    dispatcher,
-    center,
-    clock,
-    settle,
-    sent,
-    events,
-    henchman,
-    log,
-  };
-}
-
-let s: ReturnType<typeof setup>;
+let s: CenterSetup;
 beforeEach(() => {
-  s = setup();
+  s = centerSetup(fake);
   fake.requests.length = 0;
 });
 
@@ -166,8 +77,10 @@ describe("personal notifications", () => {
     expect(s.events()).toHaveLength(0);
   });
 
-  test("errors reach opted-in admins as foreign notices; nobody else", () => {
+  test("errors reach opted-in admins who can see the room as foreign notices; nobody else", () => {
     s.directory.setPrefs(s.admin.id, { ...DEFAULT_NOTIFICATION_PREFS, adminErrors: true });
+    // Ada's own GitHub account can read operation-1's repo; her role alone shows her nothing.
+    s.setAccess(s.admin.id, 1, "view");
     s.center.statusChanged(s.henchman("a1", "error"), "working");
     s.settle();
     const byUser = s.events().map((e) => [e.userId, e.payload.own]);
@@ -175,6 +88,7 @@ describe("personal notifications", () => {
       [s.member.id, true],
       [s.admin.id, false],
     ]);
+    // The office owner sees the room too, but did not opt in.
     expect(s.events().some((e) => e.userId === s.owner.id || e.userId === s.other.id)).toBe(false);
   });
 

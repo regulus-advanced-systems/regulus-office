@@ -4,8 +4,10 @@ import { randomBytes } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { OperationInfo } from "@regulus/protocol";
+import type { GitHubRepoPermission, OperationInfo } from "@regulus/protocol";
 import { type Office, startOffice } from "../auth/test-helpers.ts";
+import { githubRepoPermissions } from "../db/schema/index.ts";
+import { seedGitHubLink, seedRoomMember } from "../github/access/test-snapshot.ts";
 import { createLogger } from "../logging.ts";
 import { createOperations, mountOperationRoutes, type Operations } from "./index.ts";
 import { FAKE_PAT, makeBareRepo } from "./test-helpers.ts";
@@ -15,6 +17,9 @@ let office: Office;
 let operations: Operations;
 let owner: { id: string; cookie: string };
 let member: { id: string; cookie: string };
+/** What GitHub says the creator may do on the repo of a new room (the `newRoomAccess` dep, #270). */
+let creatorMay: GitHubRepoPermission | "not_linked" | "unavailable" = "admin";
+const roomsCreated: string[] = [];
 
 beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), "office-operation-routes-"));
@@ -25,10 +30,15 @@ beforeAll(async () => {
     logger: createLogger({ level: "silent" }),
     config: { projectsDir: join(root, "projects"), githubRemoteBase: remoteBase },
     keyring: { current: 1, keys: { 1: randomBytes(32) } },
+    newRoomAccess: {
+      permissionOf: async () => creatorMay,
+      roomCreated: (repoId) => roomsCreated.push(repoId),
+    },
   });
   mountOperationRoutes(office.server.router, { auth: office.auth, operations: operations.service });
   owner = await office.signUp("Olga"); // first account: owner
   member = await office.signUp("Mia"); // then: member
+  seedGitHubLink(office.db, owner.id);
 });
 
 afterAll(async () => {
@@ -98,6 +108,25 @@ describe("operation routes", () => {
     expect(res.status).toBe(403);
   });
 
+  test("no room for a repo the owner's own GitHub account cannot see (#270)", async () => {
+    const create = async (answer: typeof creatorMay) => {
+      creatorMay = answer;
+      const res = await send(
+        "POST",
+        "/api/operations",
+        { name: "Apollo", tier: "small", repos: [{ repo: "octo/hello" }] },
+        owner.cookie,
+      );
+      creatorMay = "admin";
+      return [res.status, ((await res.json()) as { error: string }).error];
+    };
+    expect(await create("not_linked")).toEqual([403, "github_link_required"]);
+    expect(await create("none")).toEqual([403, "repo_not_visible"]);
+    expect(await create("unavailable")).toEqual([503, "github_unavailable"]);
+    expect(await (await get("/api/operations", owner.cookie)).json()).toEqual({ operations: [] });
+    expect(roomsCreated).toEqual([]);
+  });
+
   test("the owner creates an operation; the token is never returned", async () => {
     const res = await send(
       "POST",
@@ -111,6 +140,13 @@ describe("operation routes", () => {
     expect(text).not.toContain("encrypted");
     operation = JSON.parse(text) as OperationInfo;
     expect(operation.repos[0]).toMatchObject({ owner: "octo", name: "hello", hasCredential: true });
+    // The room is its creator's at once: their GitHub permission was stored with it.
+    expect(operation.access).toBe("manage");
+    const repoId = operation.repos[0]?.repoId ?? "";
+    expect(office.db.select().from(githubRepoPermissions).all()).toMatchObject([
+      { userId: owner.id, repoId, permission: "admin" },
+    ]);
+    expect(roomsCreated).toEqual([repoId]);
     await operations.cloner.idle();
     const again = (await (
       await get(`/api/operations/${operation.operationId}`, owner.cookie)
@@ -118,7 +154,7 @@ describe("operation routes", () => {
     expect(again.repos[0]?.cloneStatus).toBe("ready");
   });
 
-  test("the list is filtered by membership; members are managed over REST", async () => {
+  test("the list is filtered by GitHub access; member rows only narrow, managed over REST", async () => {
     const before = (await (await get("/api/operations", member.cookie)).json()) as {
       operations: OperationInfo[];
     };
@@ -132,12 +168,18 @@ describe("operation routes", () => {
       owner.cookie,
     );
     expect(put.status).toBe(204);
-    const after = (await (await get("/api/operations", member.cookie)).json()) as {
-      operations: OperationInfo[];
+    const listed = async () => {
+      const body = (await (await get("/api/operations", member.cookie)).json()) as {
+        operations: OperationInfo[];
+      };
+      return body.operations.map((f) => [f.operationId, f.access]);
     };
-    expect(after.operations.map((f) => [f.operationId, f.access])).toEqual([
-      [operation.operationId, "view"],
-    ]);
+    // The member row alone opens nothing: Mia's GitHub account cannot see the repo.
+    expect(await listed()).toEqual([]);
+    expect((await get(`/api/operations/${operation.operationId}`, member.cookie)).status).toBe(404);
+    // With write on the repo she is in, held at `view` by the row.
+    seedRoomMember(office.db, member.id, operation.operationId, "spawn");
+    expect(await listed()).toEqual([[operation.operationId, "view"]]);
     const members = await (
       await get(`/api/operations/${operation.operationId}/members`, owner.cookie)
     ).json();
@@ -156,6 +198,8 @@ describe("operation routes", () => {
       },
     );
     expect(del.status).toBe(204);
+    // The limit is lifted: what GitHub gives is what she has.
+    expect(await listed()).toEqual([[operation.operationId, "spawn"]]);
   });
 
   test("retrying a ready repo conflicts; archive removes the operation", async () => {
@@ -178,6 +222,27 @@ describe("operation routes", () => {
       operations: OperationInfo[];
     };
     expect(list.operations).toEqual([]);
+  });
+
+  test("a creator with write on the repo gets a room to work in, not to manage", async () => {
+    creatorMay = "write";
+    const res = await send(
+      "POST",
+      "/api/operations",
+      { name: "Gemini", tier: "small", repos: [{ repo: "octo/hello" }] },
+      owner.cookie,
+    );
+    creatorMay = "admin";
+    expect(res.status).toBe(201);
+    const created = (await res.json()) as OperationInfo;
+    expect(created.access).toBe("spawn");
+    expect(roomsCreated.at(-1)).toBe(created.repos[0]?.repoId ?? "");
+    await operations.cloner.idle();
+    const path = `/api/operations/${created.operationId}`;
+    expect(((await (await get(path, owner.cookie)).json()) as OperationInfo).access).toBe("spawn");
+    // The office owner role adds nothing on top: members are for `manage`.
+    expect((await get(`${path}/members`, owner.cookie)).status).toBe(403);
+    expect((await get(path, member.cookie)).status).toBe(404);
   });
 });
 

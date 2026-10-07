@@ -5,13 +5,8 @@ import { join } from "node:path";
 import type { OperationAccess, UserRole } from "@regulus/protocol";
 import { eq } from "drizzle-orm";
 import type { Db } from "../db/index.ts";
-import {
-  agents,
-  chatMessages,
-  operationMembers,
-  operationRepos,
-  operations,
-} from "../db/schema/index.ts";
+import { agents, chatMessages, operationRepos, operations } from "../db/schema/index.ts";
+import { seedRoomMember } from "../github/access/test-snapshot.ts";
 import { createLogger } from "../logging.ts";
 import { SearchIndexer } from "./indexer.ts";
 
@@ -41,13 +36,14 @@ export function addOperation(db: Db, id: string, archived = false): void {
     .run();
 }
 
+/** The person's GitHub account gives them `access` to the operation's repo (#270). */
 export function addMember(
   db: Db,
   operationId: string,
   userId: string,
   access: OperationAccess,
 ): void {
-  db.insert(operationMembers).values({ operationId, userId, access }).run();
+  seedRoomMember(db, userId, operationId, access);
 }
 
 export function addHenchman(db: Db, id: string, operationId: string, ownerUserId: string): void {

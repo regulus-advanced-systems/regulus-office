@@ -16,6 +16,7 @@ import {
 import { eq } from "drizzle-orm";
 import { AuthHttpError } from "../auth/errors.ts";
 import { auditLog, desks, levels, operationRepos } from "../db/schema/index.ts";
+import { seedGitHubLink, seedRoomMember } from "../github/access/test-snapshot.ts";
 import { shownLevels } from "../levels/store.ts";
 import { createLogger } from "../logging.ts";
 import { createOperations, type Operations } from "./index.ts";
@@ -36,6 +37,13 @@ afterAll(async () => {
   await rm(root, { recursive: true, force: true });
 });
 
+/**
+ * `create` is called here as `createChecked` calls it once GitHub has answered
+ * (create-checked.test.ts): with the creator's own permission on the repo,
+ * which is what opens the new room to them (#270). The office owner and admin
+ * have linked GitHub accounts; the member and the viewer link in the tests
+ * that give them a room.
+ */
 function setup(options: { keyring?: boolean } = {}) {
   const { db, addUser } = testDb();
   const changed: string[] = [];
@@ -49,13 +57,17 @@ function setup(options: { keyring?: boolean } = {}) {
     keyring,
     onChange: (id) => changed.push(id),
   });
+  const owner = addUser("Olga", "owner");
+  const admin = addUser("Adam", "admin");
+  seedGitHubLink(db, owner.id);
+  seedGitHubLink(db, admin.id);
   return {
     db,
     operations,
     changed,
     projectsDir,
-    owner: addUser("Olga", "owner"),
-    admin: addUser("Adam", "admin"),
+    owner,
+    admin,
     member: addUser("Mia", "member"),
     viewer: addUser("Vic", "viewer"),
   };
@@ -78,11 +90,12 @@ describe("OperationService", () => {
 
   test("an admin creates an operation: its repo clones, desks come from the generated room", async () => {
     const t = setup();
-    const { operation, cloned } = t.operations.service.create(t.admin, {
-      name: "Apollo Moon",
-      tier: "small",
-      repos: [{ repo: "octo/hello", token: FAKE_PAT }],
-    });
+    const { operation, cloned } = t.operations.service.create(
+      t.admin,
+      { name: "Apollo Moon", tier: "small", repos: [{ repo: "octo/hello", token: FAKE_PAT }] },
+      undefined,
+      "admin",
+    );
     expect(operation).toMatchObject({
       name: "Apollo Moon",
       slug: "apollo-moon",
@@ -186,11 +199,12 @@ describe("OperationService", () => {
       onLevelCreated: (levelId) => made.push(levelId),
     });
     const create = (name: string, repo: string) => {
-      const { operation, cloned } = operations.service.create(t.owner, {
-        name,
-        tier: "small",
-        repos: [{ repo }],
-      });
+      const { operation, cloned } = operations.service.create(
+        t.owner,
+        { name, tier: "small", repos: [{ repo }] },
+        undefined,
+        "admin",
+      );
       return cloned.then(() => operation);
     };
     const hello = await create("Hello", "octo/hello");
@@ -260,11 +274,12 @@ describe("OperationService", () => {
 
   test("a failed clone records a redacted error; retry with a new token recovers", async () => {
     const t = setup();
-    const { operation, cloned } = t.operations.service.create(t.owner, {
-      name: "Broken",
-      tier: "small",
-      repos: [{ repo: "octo/missing", token: FAKE_PAT }],
-    });
+    const { operation, cloned } = t.operations.service.create(
+      t.owner,
+      { name: "Broken", tier: "small", repos: [{ repo: "octo/missing", token: FAKE_PAT }] },
+      undefined,
+      "admin",
+    );
     await cloned;
     const [repo] = t.operations.service.get(t.owner, operation.operationId).repos;
     expect(repo?.cloneStatus).toBe("error");
@@ -308,21 +323,33 @@ describe("OperationService", () => {
     ).toBe("409 repo_ready");
   });
 
-  test("membership filters the list; viewers are capped at view; archive hides the operation", async () => {
+  test("GitHub access filters the list; a member row only narrows; viewers are capped at view; archive hides the operation", async () => {
     const t = setup();
-    const { operation, cloned } = t.operations.service.create(t.owner, {
-      name: "Team",
-      tier: "small",
-      repos: [{ repo: "octo/hello" }],
-    });
+    const { operation, cloned } = t.operations.service.create(
+      t.owner,
+      { name: "Team", tier: "small", repos: [{ repo: "octo/hello" }] },
+      undefined,
+      "admin",
+    );
     await cloned;
     const svc = t.operations.service;
+    expect(svc.list(t.owner).map((f) => f.access)).toEqual(["manage"]);
     expect(svc.list(t.member)).toEqual([]);
-    expect(svc.list(t.admin).map((f) => f.access)).toEqual(["manage"]);
     expect(code(() => svc.get(t.member, operation.operationId))).toBe("404 operation_not_found");
+    // The office role opens no room (#270): the admin's GitHub account cannot see the repo.
+    expect(svc.list(t.admin)).toEqual([]);
+    expect(code(() => svc.get(t.admin, operation.operationId))).toBe("404 operation_not_found");
+    expect(code(() => svc.members(t.admin, operation.operationId))).toBe("404 operation_not_found");
+    expect(code(() => svc.archive(t.admin, operation.operationId))).toBe("404 operation_not_found");
 
+    // A member row grants nothing by itself...
     svc.setMember(t.owner, operation.operationId, t.member.id, "spawn");
     svc.setMember(t.owner, operation.operationId, t.viewer.id, "manage");
+    expect(svc.list(t.member)).toEqual([]);
+    expect(svc.list(t.viewer)).toEqual([]);
+    // ...and narrows what GitHub gives: admin on the repo, a `spawn` row, so `spawn`.
+    seedRoomMember(t.db, t.member.id, operation.operationId, "manage");
+    seedRoomMember(t.db, t.viewer.id, operation.operationId, "manage");
     expect(svc.list(t.member).map((f) => f.access)).toEqual(["spawn"]);
     expect(svc.list(t.viewer).map((f) => f.access)).toEqual(["view"]);
     expect(code(() => svc.members(t.member, operation.operationId))).toBe(
@@ -344,6 +371,8 @@ describe("OperationService", () => {
     expect(code(() => svc.archive(t.member, operation.operationId))).toBe(
       "403 owner_or_admin_required",
     );
+    // Read access to the repo is enough for an office admin to archive its room.
+    seedRoomMember(t.db, t.admin.id, operation.operationId, "view");
     svc.archive(t.admin, operation.operationId);
     expect(svc.list(t.owner)).toEqual([]);
     expect(svc.list(t.member)).toEqual([]);

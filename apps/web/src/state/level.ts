@@ -8,6 +8,7 @@
  */
 import {
   type BuildingState,
+  type ClosedRoom,
   type HumanPresence,
   type LevelState,
   LOBBY_LEVEL_ID,
@@ -57,6 +58,19 @@ export function levelView(
     if (id === LOBBY_OPERATION_ID || f.levelId === levelId) operations[id] = f;
   }
   return { compound: state.levels?.[levelId]?.compound ?? state.compound, operations };
+}
+
+/**
+ * The rooms on a level that are closed to this viewer (D26, #270): each is
+ * an id and a footprint, nothing else. The scene draws them as closed doors
+ * (#269); they are not in `operations`, so nothing that lists, enters or
+ * previews rooms ever sees them.
+ */
+export function closedRoomsOnLevel(
+  state: Partial<Pick<BuildingState, "closedRooms">> | null,
+  levelId: string,
+): ClosedRoom[] {
+  return Object.values(state?.closedRooms ?? {}).filter((room) => room.levelId === levelId);
 }
 
 /** The level a room is on, from the published state. */

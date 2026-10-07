@@ -38,7 +38,7 @@ describe("operation settings helpers", () => {
     expect(canManageOperation(operations, null)).toBe(false);
   });
 
-  test("candidates skip members and office managers and match by name", () => {
+  test("candidates skip people with a limit, include office managers, and match by name", () => {
     const people = [
       person("u1", "Olga Owner", "owner"),
       person("u2", "Ada Admin", "admin"),
@@ -47,7 +47,12 @@ describe("operation settings helpers", () => {
       person("u5", "Mia Member", "member"),
     ];
     const members = [{ userId: "u5", displayName: "Mia Member", access: "view" as const }];
-    expect(addCandidates(people, members, "").map((p) => p.userId)).toEqual(["u3", "u4"]);
+    expect(addCandidates(people, members, "").map((p) => p.userId)).toEqual([
+      "u1",
+      "u2",
+      "u3",
+      "u4",
+    ]);
     expect(addCandidates(people, members, "  be ").map((p) => p.userId)).toEqual(["u3", "u4"]);
     expect(addCandidates(people, members, "viewer").map((p) => p.userId)).toEqual(["u4"]);
     expect(addCandidates(people, members, "zed")).toEqual([]);
