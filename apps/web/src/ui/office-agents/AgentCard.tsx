@@ -2,8 +2,9 @@
  * One office agent in Settings → Agents (#271, #280): how it looks, what it
  * is, what it runs on and how it is doing, for everyone who may see it; chat
  * for those who may talk to it; start, stop, change, delete and its access
- * settings for those who may configure it. An admin looking at someone's
- * personal agent gets "Stop" only.
+ * settings for those who may configure it, and with them who it is, what it
+ * remembers and its notes (#136). An admin looking at someone's personal
+ * agent gets "Emergency stop" and "Remove" only, and reads nothing of it.
  */
 import {
   agentModelLabel,
@@ -19,6 +20,7 @@ import { Button } from "../components/Button.tsx";
 import { AgentAccess, type AgentAccessActions } from "./AgentAccess.tsx";
 import { AgentChat } from "./AgentChat.tsx";
 import { AgentForm } from "./AgentForm.tsx";
+import { AgentMind } from "./AgentMind.tsx";
 import { AppearanceThumb } from "./AppearancePicker.tsx";
 import type { OfficeAgentsApi } from "./api.ts";
 import { useChatRequest } from "./chatRequest.ts";
@@ -35,6 +37,8 @@ export interface AgentCardActions extends AgentAccessActions {
   start(): void;
   stop(): void;
   remove(): void;
+  /** Its soul was saved from the card (#136): load the list again. */
+  refresh(): void;
   /** Resolves true when the change was saved. */
   update(patch: UpdateOfficeAgent): Promise<boolean>;
   connect(): void;
@@ -127,11 +131,13 @@ export function AgentCard({
             Change…
           </Button>
         )}
-        {agent.canConfigure &&
+        {(agent.canConfigure || agent.canRemove) &&
           (confirming ? (
             <>
               <Button variant="destructive" size="sm" disabled={busy} onClick={actions.remove}>
-                Delete {agent.name} for good
+                {agent.canConfigure
+                  ? `Delete ${agent.name} for good`
+                  : `Remove ${agent.name} and everything it holds, for good`}
               </Button>
               <Button variant="ghost" size="sm" onClick={() => setConfirming(false)}>
                 Keep
@@ -139,7 +145,7 @@ export function AgentCard({
             </>
           ) : (
             <Button variant="ghost" size="sm" disabled={busy} onClick={() => setConfirming(true)}>
-              Delete…
+              {agent.canConfigure ? "Delete…" : "Remove…"}
             </Button>
           ))}
       </div>
@@ -147,7 +153,9 @@ export function AgentCard({
         <div className="rg-field__hint">
           {shared
             ? "Viewers cannot talk to shared agents: every message spends the office's key."
-            : "A personal agent: only the person it belongs to can talk to it or read what it knows."}
+            : agent.canRemove
+              ? "A personal agent: only the person it belongs to can talk to it or read who it is, what it remembers and its notes. As an owner or admin you can stop it or remove it, nothing more."
+              : "A personal agent: only the person it belongs to can talk to it or read what it knows."}
         </div>
       )}
       {editing && agent.canConfigure && (
@@ -162,6 +170,9 @@ export function AgentCard({
       )}
       {chatting && agent.canTalk && (
         <AgentChat api={api} agentId={agent.id} agentName={agent.name} />
+      )}
+      {agent.config && (
+        <AgentMind api={api} agent={agent} now={now} onSoulSaved={actions.refresh} />
       )}
       {agent.config && (
         <AgentAccess

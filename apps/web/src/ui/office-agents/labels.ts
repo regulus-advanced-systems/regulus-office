@@ -121,3 +121,22 @@ export function ago(ts: number | undefined, now: number): string {
   if (minutes < 60 * 24) return `${Math.floor(minutes / 60)} h ago`;
   return `${Math.floor(minutes / (60 * 24))} d ago`;
 }
+
+/** The agent's soul, memories and notes in the owner's words (#136). */
+export const SOUL_WORDS = {
+  label: "Who it is and how it works",
+  hint: "Written in your own words. The agent reads this every time it starts.",
+} as const;
+export const MEMORY_WORDS = {
+  label: "What it remembers",
+  hint: "Short things the agent saved to remember across conversations. You can add, correct and delete them.",
+} as const;
+export const NOTE_WORDS = {
+  label: "Notes",
+  hint: "Longer pages the agent keeps: a journal, a draft, a list of decisions.",
+} as const;
+/** Who can read them: said on the card, so nobody has to guess. */
+export const mindPrivacy = (shared: boolean) =>
+  shared
+    ? "Office owners and admins can read and change this. Anyone who talks to this agent may be told what is in it."
+    : "Private: only you can read and change this. Office owners and admins cannot.";

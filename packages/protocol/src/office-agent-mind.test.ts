@@ -70,7 +70,7 @@ describe("shapes and tools", () => {
   });
 
   test("every preset has the memory and note tools, and none of them names an agent", () => {
-    const names = toolsForPreset("observer").map((t) => t.name);
+    const names: string[] = toolsForPreset("observer").map((t) => t.name);
     for (const name of ["soul_read", "memory_save", "memory_search", "memory_list"] as const) {
       expect(names).toContain(name);
       const shape: Record<string, unknown> = OFFICE_TOOL_INPUTS[name].shape;

@@ -166,3 +166,87 @@
 .rg-office-agent-caps__help {
   flex-basis: 100%;
 }
+
+/* #136: who it is and how it works, what it remembers, notes. */
+.rg-agent-mind,
+.rg-agent-soul,
+.rg-agent-soul__history,
+.rg-agent-soul__version,
+.rg-agent-mind__entries,
+.rg-agent-mind__form {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.rg-agent-mind__tabs {
+  display: flex;
+  gap: 4px;
+}
+.rg-agent-mind__tab {
+  padding: 2px 10px;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  background: transparent;
+  border: 1px solid var(--rg-color-panel-border);
+  border-radius: 999px;
+}
+.rg-agent-mind__tab.is-on {
+  border-color: var(--rg-color-gold);
+}
+.rg-agent-soul__text {
+  font-family: var(--rg-font-mono, ui-monospace, monospace);
+  resize: vertical;
+}
+.rg-agent-soul__preview,
+.rg-agent-soul__diff {
+  max-height: 320px;
+  margin: 0;
+  padding: 8px 10px;
+  overflow: auto;
+  border: 1px solid var(--rg-color-panel-border);
+  border-radius: var(--rg-radius-panel);
+}
+.rg-agent-soul__diff {
+  font-size: 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.rg-agent-soul__line.is-add,
+.rg-agent-soul__added {
+  color: var(--rg-color-success, #2e9d5b);
+}
+.rg-agent-soul__line.is-del,
+.rg-agent-soul__removed {
+  color: var(--rg-color-alarm-red, #d9534f);
+}
+.rg-agent-soul__line.is-del {
+  text-decoration: line-through;
+}
+.rg-agent-mind__list {
+  display: grid;
+  gap: 6px;
+  max-height: 340px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+.rg-agent-mind__row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+.rg-agent-mind__entry {
+  min-width: 0;
+}
+.rg-agent-mind__text {
+  max-height: 120px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.rg-agent-mind__search {
+  flex: 1 1 160px;
+}
