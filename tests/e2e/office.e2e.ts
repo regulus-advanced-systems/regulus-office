@@ -44,6 +44,7 @@ import { join } from "node:path";
 import { expect, type Page, test } from "@playwright/test";
 import { checkAccessWithdrawn } from "./accessChecks.ts";
 import { checkAgentForm } from "./agentFormChecks.ts";
+import { checkAgentMind } from "./agentMindChecks.ts";
 import { checkBlastDoor } from "./blastDoorChecks.ts";
 import { checkBoardLayout } from "./boardLayoutChecks.ts";
 import {
@@ -671,6 +672,10 @@ test("Settings: tabs by keyboard, and a skin rule picked from the thumbnail gall
 
 test("Settings → Agents: an agent is created and changed in plain words, with a model and an appearance (#280)", async () => {
   await checkAgentForm(ownerPage, process.env.E2E_AGENT_FORM_SHOTS);
+});
+
+test("Settings → Agents: who an agent is, what it remembers and its notes; a personal agent's stay private (#136)", async () => {
+  await checkAgentMind(ownerPage, memberPage, process.env.E2E_AGENT_MIND_SHOTS);
 });
 
 test("clicking a free desk opens the spawn dialog and the server answers agent.spawn", async () => {

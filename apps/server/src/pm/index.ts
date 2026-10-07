@@ -8,7 +8,8 @@
  * - requests.ts       "ask a human" questions and their answers
  * - engines/          `OfficeAgentEngine`, the CLI session engine, the fake engine
  * - runtime.ts        start / stop / deliver on an engine; what engines report
- * - tools/            the office tools: authorisation, audit, reads and writes
+ * - tools/            the office tools: authorisation, audit, reads and writes, memories
+ * - mind/             each agent's soul (with history), memories and notes, and who may read them (#136)
  * - mcp.ts            the office MCP server at `/mcp` (streamable HTTP)
  * - tool-routes.ts    the same tools as REST
  * - service.ts        what people do with agents, with its rules

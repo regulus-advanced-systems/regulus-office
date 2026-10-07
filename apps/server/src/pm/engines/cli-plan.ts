@@ -16,11 +16,17 @@
  *   a human who is not there;
  * - `--setting-sources user` ignores project and local settings (the working
  *   directory is the agent's own folder);
- * - `--append-system-prompt` carries who the agent is and its role prompt.
+ * - `--append-system-prompt-file` carries who the agent is: its soul and what
+ *   it remembers (#136), from the office's copy, written anew for each turn.
  *
  * Secrets (SPEC §8): the model key goes into the plan's env only. The agent's
  * office token is in the MCP config file, mode 0600 in the runner identity's
  * HOME, like the henchmen's hook tokens; it is never on argv.
+ *
+ * Privacy (D20): the soul and the memories are private to the agent's person,
+ * so they are not on argv either, where every process on the host could read
+ * them: they are in `prompt.md` in the agent's own folder, mode 0600, in its
+ * owner's runner identity (a shared agent's in the office agents' identity).
  */
 import {
   CLAUDE_EFFORTS,
@@ -46,6 +52,8 @@ export interface CliTurnInput {
   sessionId: string;
   /** False on the conversation's first turn. */
   resume: boolean;
+  /** What the agent remembers, as text (`EngineMind.digest()`); empty when nothing. */
+  memory?: string;
   prompt: string;
   /** Program override (tests point this at the fake CLI). */
   command?: string;
@@ -60,8 +68,11 @@ export function agentDir(home: string, agentId: string): string {
   return `${home.replace(/\/+$/, "")}/.regulus-office/office-agents/${agentId}`;
 }
 
-/** Who the agent is, for the system prompt. Instructions come last so they can refine it. */
-export function rolePrompt(agent: EngineAgent): string {
+/**
+ * Who the agent is, for the system prompt: the office's frame, then its soul
+ * (so the soul can refine the frame), then what it remembers.
+ */
+export function rolePrompt(agent: EngineAgent, memory = ""): string {
   const whose =
     agent.ownerUserId === null
       ? "You are a shared agent of the office: you serve everyone in it. Each message tells you who is speaking and their user id. When an office tool takes `onBehalfOf` and you act for the person who asked, pass their user id; you can only act for a person while they wait for your answer."
@@ -71,7 +82,11 @@ export function rolePrompt(agent: EngineAgent): string {
     whose,
     `You act only through the "${OFFICE_MCP_SERVER_NAME}" MCP tools; your privilege preset is "${agent.preset}". A refused tool call is final: say what was refused and why, do not work around it.`,
     "Your final answer is shown to the person as your reply, so answer them directly and briefly.",
+    agent.ownerUserId === null
+      ? "You keep memories and notes in the office (memory_save, memory_search, note_write, note_read): they outlast every conversation and you use them with everyone, and the office's admins can read them. Save what helps the office; never what one person told you in confidence, and never a password, key or token."
+      : "You keep memories and notes in the office (memory_save, memory_search, note_write, note_read): they outlast every conversation, and only your owner can read them. Save what you should still know next time; never a password, key or token.",
     agent.instructions.trim(),
+    memory.trim(),
   ]
     .filter((s) => s.length > 0)
     .join("\n\n");
@@ -94,7 +109,11 @@ export function mcpConfig(mcpUrl: string, token: Secret): Secret {
   );
 }
 
-export function claudeTurnArgv(input: Omit<CliTurnInput, "token" | "credential">, mcpPath: string) {
+export function claudeTurnArgv(
+  input: Omit<CliTurnInput, "token" | "credential" | "memory">,
+  mcpPath: string,
+  promptPath: string,
+) {
   if (!SESSION_ID.test(input.sessionId)) throw new Error("invalid session id");
   const argv = [
     input.command ?? "claude",
@@ -119,7 +138,7 @@ export function claudeTurnArgv(input: Omit<CliTurnInput, "token" | "credential">
   }
   argv.push("--tools", "", "--allowedTools", `mcp__${OFFICE_MCP_SERVER_NAME}`);
   // Single-value options last, so no variadic option swallows the prompt.
-  argv.push("--append-system-prompt", rolePrompt(input.agent));
+  argv.push("--append-system-prompt-file", promptPath);
   argv.push(positional(input.prompt));
   return argv;
 }
@@ -128,8 +147,15 @@ export function claudeTurnArgv(input: Omit<CliTurnInput, "token" | "credential">
 export function buildClaudeTurn(input: CliTurnInput): SpawnPlan {
   const dir = agentDir(input.home, input.agent.id);
   const mcpPath = `${dir}/mcp.json`;
+  const promptPath = `${dir}/prompt.md`;
   const files: PlannedFile[] = [
     { path: mcpPath, contents: mcpConfig(input.mcpUrl, input.token), mode: 0o600 },
+    // A Secret so it is never logged with the plan: it is private, not a credential.
+    {
+      path: promptPath,
+      contents: Secret.of(`${rolePrompt(input.agent, input.memory)}\n`),
+      mode: 0o600,
+    },
   ];
   let env = SecretEnv.of({
     HOME: input.home,
@@ -141,7 +167,7 @@ export function buildClaudeTurn(input: CliTurnInput): SpawnPlan {
   return {
     agentId: input.agent.id,
     provider: "claude-code",
-    argv: claudeTurnArgv(input, mcpPath),
+    argv: claudeTurnArgv(input, mcpPath, promptPath),
     env: env.merge(credentialEnv(input.credential)),
     cwd: dir,
     tmuxSession: `agent-${input.agent.id}`,
