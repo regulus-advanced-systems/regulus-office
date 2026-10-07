@@ -53,6 +53,7 @@ interface HenchmanRow {
   owner_user_id: string;
   operation_id: string;
   desk_seat_id: string;
+  name: string;
   task_title: string;
   model: string;
   owner_name: string | null;
@@ -121,7 +122,7 @@ export class Searcher {
   #henchman(agentId: string): HenchmanRow | null {
     return this.#client
       .query<HenchmanRow, [string]>(
-        `SELECT a.owner_user_id, a.operation_id, a.desk_seat_id, a.task_title, a.model,
+        `SELECT a.owner_user_id, a.operation_id, a.desk_seat_id, a.name, a.task_title, a.model,
                 p.display_name AS owner_name
          FROM agents a LEFT JOIN user_profiles p ON p.user_id = a.owner_user_id
          WHERE a.id = ? AND a.exited_at IS NULL`,
@@ -184,7 +185,7 @@ export class Searcher {
             operationName: operations.get(henchman.operation_id) ?? henchman.operation_id,
             agentId: row.source_id,
             seatId: henchman.desk_seat_id,
-            henchmanName: henchman.task_title || henchman.model,
+            henchmanName: henchman.name || henchman.task_title || henchman.model,
             ownerName: henchman.owner_name ?? "",
             hits: [],
           };

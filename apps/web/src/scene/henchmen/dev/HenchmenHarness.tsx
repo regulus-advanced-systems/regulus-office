@@ -4,8 +4,8 @@
  * big "Dev" room with N fake henchmen at its desks, bubbles flying to the HUD
  * counters and an fps probe (`window.__avatarStats`). No server: the rooms'
  * OperationRoom states are faked in the stores.
- * Query: n=<henchmen> (default 12), mode=working|mixed|waiting|idle|flap, rate=<ticks/s>,
- * reduced=1, seats=all, skins=mixed, providers=all, zoom=<0..1 camera zoom>,
+ * Query: n=<henchmen> (default 12), mode=working|mixed|waiting|idle|flap|day, rate=<ticks/s>,
+ * reduced=1, activity=0 (hide activity bubbles), seats=all, skins=mixed, providers=all, zoom=<0..1 camera zoom>,
  * yaw=<degrees>, nearby=<0..3 nearby rooms with henchmen too>, locked=<room ids the viewer may
  * not enter>, building=<room ids still being built>, rooms=<project rooms, 4..12>,
  * humans=<humans on screen, the local player included>. Not part of the production build.
@@ -104,6 +104,8 @@ export function HenchmenHarness({ search }: { search: string }) {
   useEffect(() => {
     const q = new URLSearchParams(search);
     if (q.get("reduced") === "1") useUiStore.getState().updateSettings({ reducedMotion: true });
+    // activity=0: the "Activity bubbles" setting off; "needs you" and "answer ready" stay (#256).
+    useUiStore.getState().updateSettings({ activityBubbles: q.get("activity") !== "0" });
     const zoom = q.get("zoom");
     if (zoom !== null) useCameraStore.getState().setZoom(Number(zoom));
     const yaw = q.get("yaw");

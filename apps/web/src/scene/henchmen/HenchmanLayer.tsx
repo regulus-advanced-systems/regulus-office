@@ -1,7 +1,8 @@
 /**
  * Henchmen in the operation we are in (SPEC §9.3, §9.4): one <Henchman> per
  * `HenchmanState` from the OperationRoom at its desk seat, the GDT floor name
- * decals, work bubbles flying to the HUD counters, confetti when a henchman
+ * decals, its name and the bubble saying what it is doing or that it needs you
+ * (#256, scene/agentBubble), work bubbles flying to the HUD counters, confetti when a henchman
  * starts its celebration and a soft ding when a hand goes up. Also the free-desk
  * interaction: `E` near a free desk (or a click on it) opens the spawn
  * dialog. A click on a henchman or its occupied desk opens the henchman panel
@@ -12,7 +13,8 @@
  * override owner draws them (scene/henchmen/sendHome).
  * When the merge gong rings (#43) confetti bursts over every henchman while
  * they cheer in their chairs (Henchman, cheer.ts).
- * Bubbles and confetti are not mounted with reduced motion (SPEC §11).
+ * Work bubbles and confetti are not mounted with reduced motion (SPEC §11); the
+ * bubble over a henchman stays and holds still (also on the low graphics preset).
  */
 import type { ThreeEvent } from "@react-three/fiber";
 import { type HenchmanState, hasOperationAccess } from "@regulus/protocol";
@@ -22,12 +24,17 @@ import { createDingGate, playDing } from "../../audio/ding.ts";
 import { useHenchmanOverrides } from "../../state/henchmanOverrides.ts";
 import { useOperationStore } from "../../state/operation.ts";
 import { useOperationsStore } from "../../state/operations.ts";
+import { useSessionStore } from "../../state/session.ts";
 import { useSpawnStore } from "../../state/spawn.ts";
 import { selectReducedMotion, useUiStore } from "../../state/ui.ts";
 import { openAgentPanel } from "../../ui/agent/agentStore.ts";
+import { openBubbleTarget } from "../../ui/agent/bubbleTarget.ts";
 import { carriedPrefill, dropCard, useMyCarried } from "../../ui/boards/carry.ts";
 import type { HotkeyEventDetail } from "../../ui/hotkeys/registry.ts";
 import { useHotkeyEvents } from "../../ui/hotkeys/useHotkeys.ts";
+import { AgentOverhead } from "../agentBubble/AgentOverhead.tsx";
+import { visibleBubble } from "../agentBubble/bubbleStyle.ts";
+import { useQualityStore } from "../compound/quality.ts";
 import { useVisibleStore } from "../compound/visibility.ts";
 import { FALLBACK_ANCHOR, type SitAnchor, sitAnchors } from "../furniture/sitAnchor.ts";
 import { useGongStore } from "../gong/gongStore.ts";
@@ -38,8 +45,10 @@ import { Confetti, createConfettiBus } from "./Confetti.tsx";
 import { freeDeskAt } from "./deskInteraction.ts";
 import { Henchman } from "./Henchman.tsx";
 import { raisesHand } from "./henchmanAnimation.ts";
+import { bubbleForViewer, OVERHEAD_HEIGHT } from "./henchmanBubble.ts";
 import { NameDecal } from "./NameDecal.tsx";
-import { facing, laptopOrigin } from "./seatPlacement.ts";
+import { HENCHMAN_SEATED_BODY } from "./seatedFit.ts";
+import { facing, henchmanPlacement, laptopOrigin } from "./seatPlacement.ts";
 
 const EMPTY: Readonly<Record<string, HenchmanState>> = {};
 
@@ -141,11 +150,16 @@ export function HenchmanLayer({
   const overrides = useHenchmanOverrides((s) => s.overrides);
   const reducedMotion = useUiStore(selectReducedMotion);
   const volume = useUiStore((s) => s.settings.volume);
+  const activityBubbles = useUiStore((s) => s.settings.activityBubbles);
+  const lowQuality = useQualityStore((s) => s.quality === "low");
+  const viewerId = useSessionStore((s) => s.user?.id ?? null);
   const openSpawn = useOpenSpawn();
 
   const deskSeats = useMemo(() => template.seats.filter((s) => s.kind === "desk"), [template]);
   const seatsById = useMemo(() => new Map(template.seats.map((s) => [s.id, s])), [template]);
   const anchors = useMemo(() => anchorsFor(template), [anchorsFor, template]);
+  // Neighbours at a desk block get their bubbles at alternating heights (#256).
+  const staggerOf = useMemo(() => new Map(deskSeats.map((s, i) => [s.id, i % 2])), [deskSeats]);
   const occupiedKey = Object.values(henchmen)
     .map((r) => `${r.seatId}=${r.agentId}`)
     .sort()
@@ -241,6 +255,13 @@ export function HenchmanLayer({
     <group name={scopedName(scope, "henchmen")}>
       {visible.map((r) => {
         const seat = seatsById.get(r.seatId) as Seat;
+        // Over the henchman's head where it sits (the chair's anchor, not the seat point).
+        const [hx, hy, hz] = henchmanPlacement(
+          seat,
+          true,
+          anchors.get(seat.id) ?? FALLBACK_ANCHOR,
+          HENCHMAN_SEATED_BODY,
+        ).position;
         return (
           <group key={r.agentId}>
             <Henchman
@@ -252,6 +273,17 @@ export function HenchmanLayer({
               onCelebrate={burst}
             />
             {!far && <NameDecal seat={seat} ownerName={r.ownerName} model={r.model} />}
+            {!far && (
+              <AgentOverhead
+                id={r.agentId}
+                name={r.name}
+                bubble={visibleBubble(bubbleForViewer(r, viewerId), { activityBubbles })}
+                position={[hx, hy + OVERHEAD_HEIGHT, hz]}
+                still={reducedMotion || lowQuality}
+                lift={staggerOf.get(seat.id) ?? 0}
+                onOpen={scope.interactive ? openBubbleTarget : undefined}
+              />
+            )}
           </group>
         );
       })}

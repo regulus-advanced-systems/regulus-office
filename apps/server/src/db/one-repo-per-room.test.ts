@@ -223,7 +223,10 @@ describe("levels_one_repo_per_room migration", async () => {
       ["a-api-gone", api.id],
     ]);
     // Status, tmux session, worktree path and branch, seat, hook token: all as they were.
-    for (const [id, row] of now) expect(untouched(row)).toEqual(untouched(was.agents.get(id)));
+    // (The later henchman_names migration adds an empty name to these rows, #256.)
+    for (const [id, row] of now) {
+      expect(untouched(row)).toEqual({ ...untouched(was.agents.get(id)), name: "" });
+    }
     expect(now.get("a-api")).toMatchObject({
       status: "working",
       tmux_session: "agent-a-api",

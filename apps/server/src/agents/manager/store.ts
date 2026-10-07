@@ -11,6 +11,7 @@ import { and, asc, eq, isNotNull, isNull, lt, sql } from "drizzle-orm";
 import { type AuditAction, writeAudit } from "../../auth/audit.ts";
 import type { Db } from "../../db/index.ts";
 import { agentEvents, agents, desks, userProfiles } from "../../db/schema/index.ts";
+import { pickHenchmanName } from "../names/names.ts";
 import { AgentManagerError } from "./errors.ts";
 
 export type AgentRow = typeof agents.$inferSelect;
@@ -38,6 +39,8 @@ export class AgentStore {
     readonly db: Db,
     readonly retention: RetentionPolicy = DEFAULT_RETENTION,
     private readonly now: () => number = Date.now,
+    /** Chooses among the free henchman names (tests pin it). */
+    private readonly random: () => number = Math.random,
   ) {}
 
   get(agentId: string): AgentRow | undefined {
@@ -47,9 +50,13 @@ export class AgentStore {
   /**
    * Insert the agent and claim its desk atomically: the requested seat when
    * given (must exist on the operation and be free), else the first free seat.
-   * Returns the seat id.
+   * The henchman is named in the same transaction (D29, #256): a name no
+   * henchman at a desk anywhere in the office holds. Returns the seat and the name.
    */
-  insertWithDesk(row: NewAgentRow & { id: string }, seatId: string | undefined): string {
+  insertWithDesk(
+    row: NewAgentRow & { id: string },
+    seatId: string | undefined,
+  ): { seatId: string; name: string } {
     return this.db.transaction((tx) => {
       const free = tx
         .select({ seatId: desks.seatId, agentId: desks.agentId })
@@ -67,8 +74,9 @@ export class AgentStore {
         seat = free.find((d) => !d.agentId)?.seatId;
         if (!seat) throw new AgentManagerError("conflict", "no free desk in this operation");
       }
+      const name = pickHenchmanName(livingNames(tx), this.random);
       tx.insert(agents)
-        .values({ ...row, deskSeatId: seat })
+        .values({ ...row, name, deskSeatId: seat })
         .run();
       const claimed = tx
         .update(desks)
@@ -83,7 +91,22 @@ export class AgentStore {
         .returning({ id: desks.id })
         .all();
       if (claimed.length !== 1) throw new AgentManagerError("conflict", "desk is taken");
-      return seat;
+      return { seatId: seat, name };
+    });
+  }
+
+  /**
+   * The name of a row from before henchmen had names: given once, on first
+   * sight after the upgrade, and kept from then on. Rows that have one keep it.
+   */
+  ensureName(agentId: string): string {
+    return this.db.transaction((tx) => {
+      const row = tx.select({ name: agents.name }).from(agents).where(eq(agents.id, agentId)).get();
+      if (!row) return "";
+      if (row.name) return row.name;
+      const name = pickHenchmanName(livingNames(tx), this.random);
+      tx.update(agents).set({ name }).where(eq(agents.id, agentId)).run();
+      return name;
     });
   }
 
@@ -182,6 +205,17 @@ export class AgentStore {
   ): void {
     writeAudit(this.db, { userId, action, targetKind: "agent", targetId: agentId, meta });
   }
+}
+
+/** Names held by henchmen at a desk (the living ones), office-wide. */
+function livingNames(tx: Pick<Db, "select">): string[] {
+  return tx
+    .select({ name: agents.name })
+    .from(agents)
+    .innerJoin(desks, eq(desks.agentId, agents.id))
+    .all()
+    .map((r) => r.name)
+    .filter(Boolean);
 }
 
 function eventTs(event: AgentEvent): number {

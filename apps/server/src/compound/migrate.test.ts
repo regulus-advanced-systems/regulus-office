@@ -215,7 +215,11 @@ describe("compound migration", () => {
     expect(old.grid_x).toBeNull();
 
     // Repos, members, desks with their henchmen, and the henchmen themselves are untouched.
-    expect(keptRows(db)).toEqual(before);
+    // (Henchmen from before the henchman_names migration have no name yet; the AgentStore names them on first sight, #256.)
+    expect(keptRows(db)).toEqual({
+      ...before,
+      agents: before.agents.map((a) => ({ ...a, name: "" })),
+    });
     expect(before.agents.filter((a) => a.status === "working")).toHaveLength(4);
 
     const audit = db.select().from(auditLog).where(eq(auditLog.action, "compound.create")).all();

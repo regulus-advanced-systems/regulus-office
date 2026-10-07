@@ -1,8 +1,9 @@
 /**
  * Mounted once in the HUD (#42): keeps the tab badge ("(2) Regulus Office")
  * in sync with my waiting henchmen and raises desktop notifications for my
- * henchmen. Clicking one quick-travels me into the henchman's room (#186) and
- * opens its panel.
+ * henchmen. Clicking one (or the toast's "Take me there") quick-travels me into
+ * the henchman's room (#186) and opens what it asks for: the permission
+ * request, its terminal for a question, otherwise its panel (#256).
  */
 import type { NotifyEvent } from "@regulus/protocol";
 import { useEffect } from "react";
@@ -11,7 +12,7 @@ import { useConnectionStore } from "../../state/connection.ts";
 import { useOperationStore } from "../../state/operation.ts";
 import { travelTo } from "../../state/travel.ts";
 import { useUiStore } from "../../state/ui.ts";
-import { openAgentPanel } from "../agent/agentStore.ts";
+import { openHenchmanRequest } from "../agent/bubbleTarget.ts";
 import { createNotificationsApi } from "./api.ts";
 import { badgeTitle, showDesktop } from "./desktop.ts";
 import {
@@ -44,7 +45,7 @@ export function whenInRoom(operationId: string, ms = 15_000): Promise<boolean> {
 function goToHenchman(ev: NotifyEvent): void {
   if (getOfficeClient().currentOperationId !== ev.operationId)
     travelTo(ev.operationId, { walkIn: true });
-  void whenInRoom(ev.operationId).then((ok) => ok && openAgentPanel(ev.agentId));
+  void whenInRoom(ev.operationId).then((ok) => ok && openHenchmanRequest(ev.agentId, ev.event));
 }
 
 const liveDeps = (): NotificationSyncDeps => ({

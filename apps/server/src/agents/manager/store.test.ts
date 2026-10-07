@@ -2,9 +2,10 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { rm } from "node:fs/promises";
 import { eq } from "drizzle-orm";
-import { agentEvents, agents, credentialProfiles } from "../../db/schema/index.ts";
+import { agentEvents, agents, credentialProfiles, desks } from "../../db/schema/index.ts";
 import { encryptSecret } from "../../secrets/index.ts";
 import { freshKey } from "../../secrets/test-helpers.ts";
+import { HENCHMAN_NAMES } from "../names/names.ts";
 import { CredentialResolver, credentialProfileContext } from "./credentials.ts";
 import { AgentManagerError } from "./errors.ts";
 import { AgentStore } from "./store.ts";
@@ -69,6 +70,63 @@ describe("AgentStore retention", () => {
     now += 20_000;
     store.sweep();
     expect(count("a1")).toBe(0);
+  });
+});
+
+describe("henchman names (#256)", () => {
+  const row = (o: Office, id: string) => ({
+    id,
+    operationId: o.operationId,
+    repoId: o.repoId,
+    deskSeatId: "",
+    ownerUserId: o.member.id,
+    provider: "custom" as const,
+    model: "m",
+    profileId: "login:custom",
+    workdir: o.workdir,
+    taskTitle: "t",
+  });
+  const nameOf = (o: Office, id: string) =>
+    o.db.select({ name: agents.name }).from(agents).where(eq(agents.id, id)).get()?.name;
+
+  test("each henchman is named with its desk, uniquely among those at a desk, and keeps it", async () => {
+    office = await officeFixture();
+    // A random source that always points at the first free name.
+    const store = new AgentStore(office.db, undefined, undefined, () => 0);
+    const first = store.insertWithDesk(row(office, "a1"), undefined);
+    const second = store.insertWithDesk(row(office, "a2"), undefined);
+    const third = store.insertWithDesk(row(office, "a3"), undefined);
+    expect(first.name).toBe(HENCHMAN_NAMES[0] as string);
+    expect(new Set([first.name, second.name, third.name]).size).toBe(3);
+    expect(nameOf(office, "a1")).toBe(first.name);
+
+    // Status changes, a resume and a restart (a new store on the same database) keep the name.
+    store.setStatus("a1", "exited", 10);
+    store.setStatus("a1", "starting", 20);
+    const restarted = new AgentStore(office.db, undefined, undefined, () => 0);
+    expect(restarted.get("a1")?.name).toBe(first.name);
+    expect(restarted.ensureName("a1")).toBe(first.name);
+
+    // Sent home: the desk and the name are free again, the row keeps its name as history.
+    restarted.freeDesk("a1");
+    const next = restarted.insertWithDesk(row(office, "a4"), undefined);
+    expect(next.name).toBe(first.name);
+    expect(nameOf(office, "a1")).toBe(first.name);
+  });
+
+  test("a henchman from before names existed is named once, on first sight", async () => {
+    office = await officeFixture();
+    const store = new AgentStore(office.db, undefined, undefined, () => 0);
+    const named = store.insertWithDesk(row(office, "a1"), undefined);
+    insertAgent(office, "old");
+    office.db.update(desks).set({ agentId: "old" }).where(eq(desks.seatId, "seat-2")).run();
+    expect(nameOf(office, "old")).toBe("");
+    const given = store.ensureName("old");
+    expect(given).not.toBe("");
+    expect(given).not.toBe(named.name);
+    expect(store.ensureName("old")).toBe(given);
+    expect(nameOf(office, "old")).toBe(given);
+    expect(store.ensureName("nobody")).toBe("");
   });
 });
 

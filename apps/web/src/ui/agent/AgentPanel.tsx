@@ -187,7 +187,7 @@ export function AgentPanel() {
     <Panel as="section" className="rg-agent-panel" aria-labelledby={titleId}>
       <div className="rg-agent-panel__head">
         <h2 id={titleId} className="rg-panel__title">
-          {henchman.taskTitle || "Henchman"}
+          {henchman.name || henchman.taskTitle || "Henchman"}
         </h2>
         <CloseButton small label="Close henchman panel" onClick={close} />
       </div>

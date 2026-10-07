@@ -36,7 +36,7 @@ export {
   parseKeyVersion,
   parseMasterKey,
 } from "./master-key.ts";
-export { REDACTED, redact } from "./redact.ts";
+export { REDACTED, redact, redactText } from "./redact.ts";
 export { rotateEnvelope } from "./rotate.ts";
 export {
   decryptSecret,

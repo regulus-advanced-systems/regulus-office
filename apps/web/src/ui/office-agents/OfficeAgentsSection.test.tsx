@@ -13,6 +13,7 @@ import { click, type Mounted, mount, useDom } from "../a11y/dom.ts";
 import { fakeFetch } from "../auth/fakeFetch.ts";
 import { button, settle, submit, text, typeInto } from "../auth/testDom.tsx";
 import { createOfficeAgentsApi } from "./api.ts";
+import { useChatRequest } from "./chatRequest.ts";
 import { ago } from "./labels.ts";
 import { OfficeAgentsSection } from "./OfficeAgentsSection.tsx";
 
@@ -218,6 +219,26 @@ describe("office agents section", () => {
     await click(button("Yes") as HTMLButtonElement);
     await settle();
     expect(f.calls.find((c) => c.path.endsWith("/answer"))?.body).toEqual({ answer: "Yes" });
+  });
+
+  test("a chat asked for from the world (a click on the agent's bubble, #256) opens by itself", async () => {
+    useChatRequest.getState().request("a1");
+    await show("member", {
+      "GET /api/office-agents": { body: response([agent({})]) },
+      "GET /api/office-agents/a1/conversation": {
+        body: {
+          agentId: "a1",
+          status: "busy",
+          waiting: true,
+          messages: [{ id: "m1", author: "agent", text: "You called?", ts: NOW }],
+        } satisfies OfficeAgentConversation,
+      },
+    });
+    await settle();
+    expect(text()).toContain("You called?");
+    expect(within(card("Hermes"), "Close chat")).toBeDefined();
+    // The request is used up: the chat does not reopen by itself after it is closed.
+    expect(useChatRequest.getState().agentId).toBeNull();
   });
 
   test("the hourly limit on a shared agent is shown plainly in the chat; viewers get no chat", async () => {

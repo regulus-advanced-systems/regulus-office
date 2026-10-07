@@ -10,8 +10,8 @@
  * are inside a human's area), an env assignment, a token or credential-shaped
  * string. Known errors get a fixed message built from safe fields; anything
  * else is passed through {@link safeReason}, which reuses the git output
- * redaction (URL credentials, `Authorization:` headers) and then removes paths,
- * `NAME=value` pairs and long token-like runs.
+ * redaction (URL credentials, `Authorization:` headers) and then the text
+ * redaction of secrets/redact.ts (paths, `NAME=value` pairs, long token-like runs).
  */
 
 import { CliMissingError } from "../../credentials/cli-probe.ts";
@@ -21,6 +21,7 @@ import { HijackError } from "../../runners/docker/hijack.ts";
 import { RunnerImageMissingError } from "../../runners/docker/image.ts";
 import { MountRefusedError, RunnerBusyError } from "../../runners/docker/mounts.ts";
 import { HelperError } from "../../runners/linux-user/helper-client.ts";
+import { redactText } from "../../secrets/redact.ts";
 import { WorkspaceError, type WorkspaceErrorCode } from "../../worktrees/types.ts";
 import { AgentManagerError } from "./errors.ts";
 
@@ -49,27 +50,13 @@ export interface StartFailure {
   message: string;
 }
 
-const REDACTED = "[redacted]";
-
-const RULES: readonly [RegExp, string][] = [
-  // Provider keys and GitHub tokens, whatever surrounds them.
-  [/\b(?:sk-[A-Za-z0-9_-]{8,}|gh[pousr]_[A-Za-z0-9]{8,}|github_pat_[A-Za-z0-9_]{8,})/g, REDACTED],
-  // Env assignments: keep the name, drop the value.
-  [/\b([A-Z][A-Z0-9_]{1,63})=("[^"]*"|'[^']*'|\S*)/g, `$1=${REDACTED}`],
-  // Absolute and home-relative paths (workdirs, mounts, HOME, sockets, API paths).
-  [/(^|[\s'"`(=:,[])(?:~|\.{1,2})?\/[^\s'"`),;:\]]*/g, "$1<path>"],
-  // Long token-like runs: keys, container and exec ids, base64 blobs.
-  [/[A-Za-z0-9+/_=-]{32,}/g, REDACTED],
-];
-
 /**
  * Make free text safe to publish: one line, redacted, at most `max` chars.
  * Idempotent, so text that is already safe passes through unchanged.
  */
 export function safeReason(text: string | undefined, max = MAX_STATUS_REASON): string {
   if (!text) return "";
-  let out = redactGitOutput(text);
-  for (const [re, to] of RULES) out = out.replace(re, to);
+  let out = redactText(redactGitOutput(text));
   // Control characters (escape sequences, NULs) are dropped along with line breaks.
   out = out.replace(/[\p{Cc}\s]+/gu, " ").trim();
   return out.length > max ? `${out.slice(0, max - 1)}…` : out;

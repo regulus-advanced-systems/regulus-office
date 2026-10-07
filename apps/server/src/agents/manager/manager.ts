@@ -28,7 +28,7 @@ import {
 } from "../../worktrees/types.ts";
 import { adoptAll } from "./adopt.ts";
 import { AgentManagerError } from "./errors.ts";
-import { setStatus } from "./henchman.ts";
+import { announcePullRequest, setStatus } from "./henchman.ts";
 import { closeQuietly } from "./launch.ts";
 import {
   type AgentManagerOptions,
@@ -74,7 +74,7 @@ export class AgentManager extends AgentRuntime {
     actor: OperationActor,
     input: SpawnInput,
     hooks?: { onAdmitted?(agentId: string): void; workspace?: PreparedWorkspace },
-  ): Promise<{ agentId: string; seatId: string }> {
+  ): Promise<{ agentId: string; seatId: string; name: string }> {
     const admitted = admitSpawn(
       {
         db: this.opts.db,
@@ -115,7 +115,7 @@ export class AgentManager extends AgentRuntime {
       this.failed(live, err);
       throw asManagerError(err, "the agent could not be started");
     }
-    return { agentId, seatId };
+    return { agentId, seatId, name: admitted.name };
   }
 
   async #launch(
@@ -210,8 +210,8 @@ export class AgentManager extends AgentRuntime {
     } catch (err) {
       throw asManagerError(err, "the pull request could not be opened");
     }
-    if (live.view.prNumber !== pr.number) {
-      live.view.prNumber = pr.number;
+    if (live.view.prNumber !== pr.number || pr.created) {
+      announcePullRequest(live.view, pr.number);
       this.publishLive(live);
     }
     this.observePullRequest(live, pr);

@@ -123,6 +123,22 @@
 }
 .rg-toast__text {
   color: var(--rg-color-ink);
+  white-space: pre-line;
+}
+.rg-toast__open {
+  margin-top: 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--rg-color-blue);
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.rg-toast__open:focus-visible {
+  outline: 2px solid var(--rg-color-blue);
+  outline-offset: 2px;
 }
 
 @keyframes rg-slide-in {

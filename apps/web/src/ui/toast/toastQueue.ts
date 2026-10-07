@@ -13,11 +13,19 @@ export interface ToastInput {
   message: string;
   /** Milliseconds shown before auto-dismiss; 0 keeps it until dismissed. */
   durationMs?: number;
+  /** A button on the toast ("Take me there", #256); running it dismisses the toast. */
+  open?: ToastOpen;
 }
 
-export interface Toast extends Required<Omit<ToastInput, "title">> {
+export interface ToastOpen {
+  label: string;
+  run: () => void;
+}
+
+export interface Toast extends Required<Omit<ToastInput, "title" | "open">> {
   id: string;
   title: string | undefined;
+  open: ToastOpen | undefined;
   createdAt: number;
   /** Set once the toast entered the visible window. */
   shownAt: number | null;
@@ -73,6 +81,7 @@ export function reduceToasts(
         kind,
         title: action.toast.title,
         message: action.toast.message,
+        open: action.toast.open,
         durationMs: action.toast.durationMs ?? DEFAULT_TOAST_DURATION_MS[kind],
         createdAt: now,
         shownAt: null,

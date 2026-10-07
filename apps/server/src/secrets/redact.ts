@@ -7,6 +7,10 @@
  *   any byte buffers are replaced, other strings (userId, provider, ...) pass
  *   through so the log line stays useful. Cycles and excessive depth are cut.
  * - Errors keep their name; only SecretsError messages are trusted verbatim.
+ *
+ * redactText(): make one piece of free text safe to show to other people (a
+ * henchman's status reason, the bubble over its head). Unlike redact() it
+ * keeps the sentence and replaces only what must not be shown.
  */
 
 import { isSecretsError } from "./errors.ts";
@@ -58,4 +62,25 @@ export function redact(value: string | Uint8Array | ArrayBuffer): string;
 export function redact(value: unknown): unknown;
 export function redact(value: unknown): unknown {
   return walk(value, 0, new WeakSet());
+}
+
+const TEXT_RULES: readonly [RegExp, string][] = [
+  // Provider keys and GitHub tokens, whatever surrounds them.
+  [/\b(?:sk-[A-Za-z0-9_-]{8,}|gh[pousr]_[A-Za-z0-9]{8,}|github_pat_[A-Za-z0-9_]{8,})/g, REDACTED],
+  // Env assignments: keep the name, drop the value.
+  [/\b([A-Z][A-Z0-9_]{1,63})=("[^"]*"|'[^']*'|\S*)/g, `$1=${REDACTED}`],
+  // Absolute and home-relative paths (workdirs, mounts, HOME, sockets, API paths).
+  [/(^|[\s'"`(=:,[])(?:~|\.{1,2})?\/[^\s'"`),;:\]]*/g, "$1<path>"],
+  // Long token-like runs: keys, container and exec ids, base64 blobs.
+  [/[A-Za-z0-9+/_=-]{32,}/g, REDACTED],
+];
+
+/**
+ * Free text with credentials, env values, paths and token-like runs replaced
+ * (SPEC §8). Idempotent: text that is already safe passes through unchanged.
+ */
+export function redactText(text: string): string {
+  let out = text;
+  for (const [re, to] of TEXT_RULES) out = out.replace(re, to);
+  return out;
 }

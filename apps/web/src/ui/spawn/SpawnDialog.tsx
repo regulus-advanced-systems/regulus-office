@@ -119,7 +119,10 @@ export function SpawnDialogHost({
     toast({
       kind: "success",
       title: "Henchman spawned",
-      message: henchman.taskTitle || `At desk ${henchman.seatId}.`,
+      // Its name (#256), then what it is here for.
+      message: [henchman.name, henchman.taskTitle || `At desk ${henchman.seatId}.`]
+        .filter(Boolean)
+        .join(": "),
     });
   }, [pending, seatId, operationState, userId, closeSpawn, toast]);
 

@@ -204,6 +204,7 @@ export const buildingFixture: BuildingState = {
 
 export const henchmanFixture: HenchmanState = {
   agentId: "a1",
+  name: "Gasket",
   ownerUserId: "u1",
   ownerName: "Ante",
   repoId: "r1",
@@ -223,6 +224,7 @@ export const henchmanFixture: HenchmanState = {
   statusReason: "",
   skin: "standard",
   bubbleEmits: { toolCalls: 12, fileEdits: 4, testRuns: 2, toolFailures: 1 },
+  bubble: { kind: "doing", text: "editing state.ts", targetKind: "none", targetId: "" },
   lastActivityAt: 1_700_000_003_000,
 };
 

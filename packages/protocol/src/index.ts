@@ -27,6 +27,7 @@
  * - commands/          client→server command union (zod, discriminated on `type`)
  * - agent-events.ts    adapter→server AgentEvent union (zod, discriminated on `kind`)
  * - agent-messages.ts  OperationRoom server→client henchman messages (permissions, results)
+ * - agent-bubble.ts    the bubble over any agent: doing / needs you / answer ready (#256)
  * - acl.ts             who may control a henchman, who may emergency-stop it (D12)
  * - permission-modes.ts per-provider henchman permission modes (#166)
  * - queue-api.ts       room task queue: limits, results, who may queue/reorder/retry (#37)
@@ -45,6 +46,7 @@
  * - workflows.ts       GitHub workflow definitions (#155); workflows-api.ts their REST shapes
  */
 export * from "./acl.ts";
+export * from "./agent-bubble.ts";
 export * from "./agent-events.ts";
 export * from "./agent-messages.ts";
 export * from "./blast-door.ts";

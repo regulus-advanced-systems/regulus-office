@@ -361,8 +361,10 @@ export class AgentRuntime implements AgentEventSink {
   }
 
   protected trackRow(row: AgentRow): LiveAgent {
+    // A henchman from before names existed (#256) gets its name on first sight and keeps it.
+    const name = row.name || this.store.ensureName(row.id);
     const live: LiveAgent = {
-      view: viewFromRow(row, this.store.ownerName(row.ownerUserId)),
+      view: viewFromRow({ ...row, name }, this.store.ownerName(row.ownerUserId)),
       profile: this.profileFor(row),
     };
     this.agents.set(row.id, live);

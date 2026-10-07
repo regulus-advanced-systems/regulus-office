@@ -1,10 +1,12 @@
 /**
  * What the world shows of an agent (protocol `HenchmanState`), derived from the
- * persisted row plus the event stream: status (through the state machine),
- * the desk animation (`action`), the raised hand and the bubble counters.
+ * persisted row plus the event stream: its name, status (through the state
+ * machine), the desk animation (`action`), the raised hand, the bubble
+ * counters and the bubble that says what it is doing (activity.ts, #256).
  */
 import { HUMAN_WAIT_REASONS } from "@regulus/agent-adapters";
 import {
+  AGENT_NAME_MAX,
   type AgentAction,
   type AgentEvent,
   type AgentStatus,
@@ -14,11 +16,14 @@ import {
   type ProviderId,
   type ToolKind,
 } from "@regulus/protocol";
+import { activityOf, askOf, bubbleFor } from "./activity.ts";
 import { MAX_STATUS_REASON, safeReason } from "./failure.ts";
 import { handRaised, transition } from "./state-machine.ts";
 
 export interface AgentView {
   agentId: string;
+  /** The henchman's own name (D29); "" only for a row not named yet. */
+  name: string;
   operationId: string;
   repoId: string;
   seatId: string;
@@ -43,12 +48,17 @@ export interface AgentView {
   /** Tool call ids already counted, so repeated updates of one call count once. */
   seenCalls: Set<string>;
   failedCalls: Set<string>;
+  /** Bubble words (activity.ts): what it does now, what it asks for, what it has to say at rest. */
+  activity: string;
+  ask: string;
+  announce: string;
 }
 
 /** A fresh view of a persisted `agents` row (bubbles restart at zero). */
 export function viewFromRow(
   row: {
     id: string;
+    name?: string | null;
     operationId: string;
     repoId: string;
     deskSeatId: string;
@@ -69,6 +79,7 @@ export function viewFromRow(
 ): AgentView {
   return {
     agentId: row.id,
+    name: row.name ?? "",
     operationId: row.operationId,
     repoId: row.repoId,
     seatId: row.deskSeatId,
@@ -90,6 +101,9 @@ export function viewFromRow(
     bubbles: { toolCalls: 0, fileEdits: 0, testRuns: 0, toolFailures: 0 },
     seenCalls: new Set(),
     failedCalls: new Set(),
+    activity: "",
+    ask: "",
+    announce: "",
   };
 }
 
@@ -112,8 +126,13 @@ const TOOL_ACTIONS: Readonly<Record<ToolKind, AgentAction>> = {
 const MAX_SEEN_CALLS = 512;
 
 export function henchmanState(view: AgentView): HenchmanState {
+  const statusReason =
+    view.status === "error" || view.status === "waiting_input"
+      ? view.statusReason.slice(0, MAX_STATUS_REASON)
+      : "";
   return {
     agentId: view.agentId,
+    name: view.name.slice(0, AGENT_NAME_MAX),
     ownerUserId: view.ownerUserId,
     ownerName: view.ownerName.slice(0, 64),
     repoId: view.repoId,
@@ -130,13 +149,18 @@ export function henchmanState(view: AgentView): HenchmanState {
     prNumber: view.prNumber,
     worktreeBranch: view.worktreeBranch.slice(0, 200),
     handRaised: handRaised(view.status),
-    statusReason:
-      view.status === "error" || view.status === "waiting_input"
-        ? view.statusReason.slice(0, MAX_STATUS_REASON)
-        : "",
+    statusReason,
     // The OperationRoom publishes the skin the admin's rules give this henchman (#184).
     skin: DEFAULT_SKIN_ID,
     bubbleEmits: { ...view.bubbles },
+    bubble: bubbleFor({
+      agentId: view.agentId,
+      status: view.status,
+      activity: view.activity,
+      ask: view.ask,
+      announce: view.announce,
+      statusReason,
+    }),
     lastActivityAt: view.lastActivityAt,
   };
 }
@@ -207,6 +231,7 @@ export function applyEvent(view: AgentView, event: AgentEvent, now: number): App
     const next = transition(view.status, wanted);
     if (next.refused) result.refused = { from: view.status, to: wanted };
     if (next.changed) {
+      restWords(view, view.status, next.status);
       view.status = next.status;
       view.action = actionFor(next.status, view.action);
       view.statusReason = event.kind === "status" ? statusReasonFor(next.status, event.reason) : "";
@@ -232,7 +257,13 @@ export function applyEvent(view: AgentView, event: AgentEvent, now: number): App
       case "tool_call":
         applyToolCall(view, event);
         break;
+      case "permission_request":
+        view.ask = askOf(event.toolName);
+        break;
     }
+    // What the bubble says it is doing (activity.ts); most events say nothing new.
+    const activity = activityOf(event);
+    if (activity) view.activity = activity;
     if (event.kind !== "usage" && event.kind !== "limit") view.lastActivityAt = now;
   }
 
@@ -262,13 +293,33 @@ function applyToolCall(view: AgentView, event: Extract<AgentEvent, { kind: "tool
   }
 }
 
+/**
+ * The bubble's words on a status change: an answered request is gone; a new turn
+ * drops what was announced at rest and starts by thinking; back at work after a
+ * request or a question, it is still doing what it was doing.
+ */
+function restWords(view: AgentView, from: AgentStatus, to: AgentStatus): void {
+  view.ask = "";
+  if (to !== "working" && to !== "starting") return;
+  view.announce = "";
+  if (to === "starting") view.activity = "";
+  else if (!handRaised(from) || !view.activity) view.activity = "thinking";
+}
+
 /** A manager-initiated status change (offline, resume), still through the state machine. */
 export function setStatus(view: AgentView, status: AgentStatus, now: number): boolean {
   const next = transition(view.status, status);
   if (!next.changed) return false;
+  restWords(view, view.status, next.status);
   view.status = next.status;
   view.action = actionFor(next.status, view.action);
   view.statusReason = "";
   view.lastActivityAt = now;
   return true;
+}
+
+/** The henchman's pull request is open: say so at rest (done, idle) until its next turn. */
+export function announcePullRequest(view: AgentView, prNumber: number): void {
+  view.prNumber = prNumber;
+  view.announce = `opened PR #${prNumber}`;
 }

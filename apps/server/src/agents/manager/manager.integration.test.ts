@@ -70,6 +70,11 @@ describe.skipIf(!hasTmux())("AgentManager (tmux)", () => {
       worktreeBranch: "trunk",
       bubbleEmits: { toolCalls: 1, fileEdits: 1, testRuns: 0, toolFailures: 0 },
     });
+    // It has a name from the start and a bubble that follows what it does (#256).
+    expect(henchman.name).toMatch(/^[A-Z][a-z]+/);
+    expect(henchmen.history.every((r) => r.name === henchman.name)).toBe(true);
+    expect(henchmen.history[0]?.bubble).toMatchObject({ kind: "doing", text: "starting up" });
+    expect(henchman.bubble.kind).toBe("doing");
     expect(henchmen.history[0]?.status).toBe("starting");
     expect(adapter.lastControl?.prompts.map((p) => p.text)).toEqual(["hello henchman"]);
 
@@ -199,8 +204,12 @@ describe.skipIf(!hasTmux())("AgentManager (tmux)", () => {
       office.member,
       spawnInput(office.operationId, office.repoId),
     );
-    await first.henchmen.waitFor(alive.agentId, (r) => r.status === "working");
-    await first.henchmen.waitFor(dead.agentId, (r) => r.status === "working");
+    const aliveName = (await first.henchmen.waitFor(alive.agentId, (r) => r.status === "working"))
+      .name;
+    const deadName = (await first.henchmen.waitFor(dead.agentId, (r) => r.status === "working"))
+      .name;
+    expect(alive.name).toBe(aliveName);
+    expect(deadName).not.toBe(aliveName);
     // The office goes away without stopping anything; one agent dies meanwhile.
     await first.manager.close();
     await runner.kill({ userId: office.member.id, agentId: dead.agentId });
@@ -212,6 +221,9 @@ describe.skipIf(!hasTmux())("AgentManager (tmux)", () => {
     const adopted = second.henchmen.henchmen.get(alive.agentId);
     expect(adopted?.status).toBe("working");
     expect(adopted?.seatId).toBe("seat-1");
+    // Names survive the restart, also for the one that went offline (#256).
+    expect(adopted?.name).toBe(aliveName);
+    expect(second.henchmen.henchmen.get(dead.agentId)?.name).toBe(deadName);
     expect(adapter.controls).toHaveLength(1);
     expect(adapter.controls[0]?.plan.agentId).toBe(alive.agentId);
     expect(adapter.spawns).toHaveLength(0); // nothing was re-run
@@ -223,6 +235,7 @@ describe.skipIf(!hasTmux())("AgentManager (tmux)", () => {
     await second.manager.resume(office.member, dead.agentId);
     expect(adapter.spawns.at(-1)?.resumeSessionId).toBe("sess-1");
     expect(second.henchmen.henchmen.get(dead.agentId)?.status).toBe("starting");
+    expect(second.henchmen.henchmen.get(dead.agentId)?.name).toBe(deadName);
     expect(
       await runner.sessionExists({ userId: office.member.id, name: `agent-${dead.agentId}` }),
     ).toBe(true);

@@ -26,6 +26,14 @@ export function DisplaySettings() {
         <section className="rg-settings__group" aria-label="Display">
           <h3 className="rg-settings__heading">Display</h3>
           <GraphicsSettings />
+          <div className="rg-field">
+            <Switch
+              checked={settings.activityBubbles}
+              onChange={(next) => update({ activityBubbles: next })}
+              label="Activity bubbles"
+              hint="A few words over each henchman on what it is doing. A henchman that needs you or has finished shows its bubble either way."
+            />
+          </div>
           <FirstPersonSettings />
         </section>
         <section className="rg-settings__group" aria-label="Motion and sound">

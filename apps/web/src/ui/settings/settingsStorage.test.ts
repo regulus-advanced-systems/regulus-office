@@ -38,6 +38,7 @@ describe("settings storage", () => {
       voiceVolume: 1,
       pushToTalk: false,
       micDeviceId: "",
+      activityBubbles: true,
     });
     expect(parseSettings('{"reducedMotion":"no","volume":-1}')).toEqual({
       reducedMotion: null,
@@ -50,6 +51,7 @@ describe("settings storage", () => {
       voiceVolume: 1,
       pushToTalk: false,
       micDeviceId: "",
+      activityBubbles: true,
     });
   });
 
@@ -58,11 +60,13 @@ describe("settings storage", () => {
       voiceVolume: 1,
       pushToTalk: false,
       micDeviceId: "",
+      activityBubbles: true,
     });
     expect(parseSettings('{"voiceVolume":3,"pushToTalk":"on","micDeviceId":7}')).toMatchObject({
       voiceVolume: 1,
       pushToTalk: false,
       micDeviceId: "",
+      activityBubbles: true,
     });
     expect(
       parseSettings('{"voiceVolume":0.3,"pushToTalk":true,"micDeviceId":"abc"}'),
@@ -108,6 +112,7 @@ describe("settings storage", () => {
       voiceVolume: 0.5,
       pushToTalk: true,
       micDeviceId: "mic-2",
+      activityBubbles: false,
     };
     saveSettings(storage, settings);
     expect(storage.map.get(SETTINGS_STORAGE_KEY)).toBe(serializeSettings(settings));
@@ -134,4 +139,10 @@ describe("settings storage", () => {
     expect(effectiveReducedMotion({ ...DEFAULT_SETTINGS, reducedMotion: false }, true)).toBe(false);
     expect(effectiveReducedMotion({ ...DEFAULT_SETTINGS, reducedMotion: true }, false)).toBe(true);
   });
+});
+
+test("activity bubbles are on unless turned off (#256)", () => {
+  expect(parseSettings("{}").activityBubbles).toBe(true);
+  expect(parseSettings('{"activityBubbles":false}').activityBubbles).toBe(false);
+  expect(parseSettings('{"activityBubbles":"no"}').activityBubbles).toBe(true);
 });

@@ -15,10 +15,11 @@ import {
   type OperationAccess,
   type UserRole,
 } from "@regulus/protocol";
-import { useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { Button } from "../components/Button.tsx";
 import { AgentChat } from "./AgentChat.tsx";
 import type { OfficeAgentsApi } from "./api.ts";
+import { useChatRequest } from "./chatRequest.ts";
 import { ago, ENGINE_LABELS, PRESET_LABELS, ROLE_LABELS, STATUS_LABELS } from "./labels.ts";
 
 export interface AgentCardActions {
@@ -52,6 +53,14 @@ export function AgentCard({
   actions: AgentCardActions;
 }) {
   const [chatting, setChatting] = useState(false);
+  // Asked for from the world (a click on this agent's bubble, #256): open the chat once.
+  const requested = useChatRequest((s) => s.agentId === agent.id);
+  const taken = useChatRequest((s) => s.taken);
+  useEffect(() => {
+    if (!requested) return;
+    if (agent.canTalk) setChatting(true);
+    taken(agent.id);
+  }, [requested, agent.canTalk, agent.id, taken]);
   const [confirming, setConfirming] = useState(false);
   const presetId = useId();
   const shared = agent.owner.kind === "office";

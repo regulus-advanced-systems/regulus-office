@@ -38,6 +38,18 @@ export function ToastCard({
       <div>
         {toast.title && <div className="rg-toast__title">{toast.title}</div>}
         <div className="rg-toast__text">{toast.message}</div>
+        {toast.open && (
+          <button
+            type="button"
+            className="rg-toast__open"
+            onClick={() => {
+              toast.open?.run();
+              onDismiss(toast.id);
+            }}
+          >
+            {toast.open.label}
+          </button>
+        )}
       </div>
       <CloseButton small label="Dismiss notification" onClick={() => onDismiss(toast.id)} />
     </div>
