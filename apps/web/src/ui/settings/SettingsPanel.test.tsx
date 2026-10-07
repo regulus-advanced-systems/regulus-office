@@ -77,7 +77,9 @@ describe("settings tabs", () => {
     await show("member");
     expect(tabNames()).toEqual(["You", "Notifications", "Display and sound"]);
     expect(document.body.textContent).not.toContain("Henchman skins");
-    expect(document.body.textContent).not.toContain("GitHub");
+    // The office's GitHub connection is for owners and admins; everyone has their own link (#267).
+    expect(document.querySelector('section[aria-label="GitHub"]')).toBeNull();
+    expect(document.querySelector('section[aria-label="Your GitHub account"]')).not.toBeNull();
   });
 
   test("a tablist with one tab stop; each panel is labelled by its tab", async () => {

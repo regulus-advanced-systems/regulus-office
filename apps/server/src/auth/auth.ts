@@ -79,6 +79,12 @@ export interface OfficeAuth {
   markJoinRequest(headers: Headers): Headers;
   /** Resolve the session cookie on any request (HTTP or WebSocket upgrade) to its user, or null. */
   getSessionFromRequest(request: Request): Promise<SessionUser | null>;
+  /**
+   * Called with the user id whenever a session is created (any sign-in
+   * method). The GitHub access snapshot is refreshed then (#267). Returns
+   * an unsubscribe function.
+   */
+  onSignIn(listener: (userId: string) => void): () => void;
 }
 
 export function createAuth(deps: AuthDeps): OfficeAuth {
@@ -93,6 +99,7 @@ export function createAuth(deps: AuthDeps): OfficeAuth {
   const allowedOrigins = deps.allowedOrigins ?? [];
   const github = config.githubOAuth;
   const joinNonce = crypto.randomUUID();
+  const signInListeners = new Set<(userId: string) => void>();
 
   const anyUserExists = (): boolean => {
     const [row] = db.select({ n: count() }).from(users).all();
@@ -111,11 +118,27 @@ export function createAuth(deps: AuthDeps): OfficeAuth {
       ? { github: { clientId: github.clientId, clientSecret: github.clientSecret.expose() } }
       : {},
     session: { expiresIn: SESSION_TTL_SECONDS },
+    // GitHub sign-in tokens are not stored in clear (SPEC §8). The office does not use them:
+    // what a person can see comes from their own link (github/access, #267).
+    account: { encryptOAuthTokens: true },
     // The office applies its own limiter (./rate-limit.ts) so custom routes share the policy.
     rateLimit: { enabled: false },
     telemetry: { enabled: false },
     advanced: { cookiePrefix: COOKIE_PREFIX, database: { generateId: "uuid" } },
     databaseHooks: {
+      session: {
+        create: {
+          after: async (session) => {
+            for (const listener of signInListeners) {
+              try {
+                listener(session.userId);
+              } catch (err) {
+                logger.error({ err }, "sign-in listener failed");
+              }
+            }
+          },
+        },
+      },
       user: {
         create: {
           /**
@@ -188,6 +211,12 @@ export function createAuth(deps: AuthDeps): OfficeAuth {
       return copy;
     },
     getSessionFromRequest,
+    onSignIn(listener) {
+      signInListeners.add(listener);
+      return () => {
+        signInListeners.delete(listener);
+      };
+    },
   };
 }
 
