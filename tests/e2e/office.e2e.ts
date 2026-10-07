@@ -43,6 +43,7 @@ import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, type Page, test } from "@playwright/test";
 import { checkAccessWithdrawn } from "./accessChecks.ts";
+import { checkAgentForm } from "./agentFormChecks.ts";
 import { checkBlastDoor } from "./blastDoorChecks.ts";
 import { checkBoardLayout } from "./boardLayoutChecks.ts";
 import {
@@ -656,6 +657,10 @@ test("Settings: tabs by keyboard, and a skin rule picked from the thumbnail gall
   await dialog.getByRole("button", { name: "Done" }).click();
   await expect(dialog).toHaveCount(0);
   await ownerPage.setViewportSize({ width: 1280, height: 800 });
+});
+
+test("Settings → Agents: an agent is created and changed in plain words, with a model and an appearance (#280)", async () => {
+  await checkAgentForm(ownerPage, process.env.E2E_AGENT_FORM_SHOTS);
 });
 
 test("clicking a free desk opens the spawn dialog and the server answers agent.spawn", async () => {

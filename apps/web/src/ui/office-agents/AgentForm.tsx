@@ -1,99 +1,141 @@
 /**
- * Settings → Agents: the form for a new office agent (#271). A shared agent
- * (owners and admins) must name an office-wide key; a personal one runs on
- * its owner's own login unless they pick a key.
+ * Settings → Agents: the form for a new office agent, and for changing one
+ * (#271, #280). Every field says in plain words what it is. "Runs on" lists
+ * only what is really connected: the owner's own login and keys for a personal
+ * agent, the office's own keys for a shared one (SPEC §8: never a person's
+ * login). The name, who it belongs to and what it runs as never change.
  */
 import {
+  agentModelsFor,
   type CreateOfficeAgent,
-  type CredentialProfileSummary,
+  DEFAULT_OFFICE_AGENT_APPEARANCE,
   DEFAULT_OFFICE_AGENT_PRESET,
+  defaultAgentModel,
   OFFICE_AGENT_LIMITS,
   OFFICE_AGENT_PRESETS,
   OFFICE_AGENT_ROLES,
   type OfficeAgentEngineKind,
   type OfficeAgentPreset,
   type OfficeAgentRole,
+  type OfficeAgentView,
+  type UpdateOfficeAgent,
 } from "@regulus/protocol";
-import { useEffect, useId, useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { Button } from "../components/Button.tsx";
+import { AppearancePicker } from "./AppearancePicker.tsx";
 import type { OfficeAgentsApi } from "./api.ts";
-import { ENGINE_LABELS, PRESET_HINTS, PRESET_LABELS, ROLE_LABELS } from "./labels.ts";
+import { ENGINE_HELP, ENGINE_WORDS, PRESET_WORDS, ROLE_WORDS } from "./labels.ts";
+import { keyOf, OTHER_MODEL, RunsOnPicker, usableChoices, useRunsOn } from "./RunsOnPicker.tsx";
 
-export function AgentForm({
-  api,
-  engines,
-  canCreateShared,
-  busy,
-  onSubmit,
-  onCancel,
-}: {
+type Common = {
   api: OfficeAgentsApi;
-  engines: readonly OfficeAgentEngineKind[];
-  canCreateShared: boolean;
   busy: boolean;
-  onSubmit: (input: CreateOfficeAgent) => void;
   onCancel: () => void;
-}) {
+  /** Open "Connect providers" (when nothing usable is connected). */
+  onConnect: () => void;
+};
+export type AgentFormProps = Common &
+  (
+    | {
+        /** Absent: a new agent. */
+        agent?: undefined;
+        engines: readonly OfficeAgentEngineKind[];
+        canCreateShared: boolean;
+        onCreate: (input: CreateOfficeAgent) => void;
+      }
+    | { agent: OfficeAgentView; onSave: (patch: UpdateOfficeAgent) => void }
+  );
+
+export function AgentForm(props: AgentFormProps) {
+  const { api, busy, agent } = props;
   const ids = {
     name: useId(),
     owner: useId(),
     engine: useId(),
     role: useId(),
     preset: useId(),
-    model: useId(),
-    profile: useId(),
     instructions: useId(),
   };
   // Text fields are uncontrolled, like the office's other forms: read on submit.
   const nameRef = useRef<HTMLInputElement>(null);
-  const modelRef = useRef<HTMLInputElement>(null);
+  const customRef = useRef<HTMLInputElement>(null);
   const instructionsRef = useRef<HTMLTextAreaElement>(null);
-  const [owner, setOwner] = useState<"me" | "office">("me");
+  const engines = agent ? [agent.engine] : props.engines;
+  const [owner, setOwner] = useState<"me" | "office">(
+    agent?.owner.kind === "office" ? "office" : "me",
+  );
   const [engine, setEngine] = useState<OfficeAgentEngineKind>(engines[0] ?? "cli-session");
-  const [role, setRole] = useState<OfficeAgentRole>("assistant");
-  const [preset, setPreset] = useState<OfficeAgentPreset>(DEFAULT_OFFICE_AGENT_PRESET);
-  const [profileId, setProfileId] = useState("");
-  const [profiles, setProfiles] = useState<CredentialProfileSummary[]>([]);
+  const [role, setRole] = useState<OfficeAgentRole>(agent?.role ?? "assistant");
+  const [preset, setPreset] = useState<OfficeAgentPreset>(
+    agent?.preset ?? DEFAULT_OFFICE_AGENT_PRESET,
+  );
+  const [appearance, setAppearance] = useState(
+    agent?.appearance ?? DEFAULT_OFFICE_AGENT_APPEARANCE,
+  );
+  // What the person picked; until they do, the agent's own choice or the first usable one.
+  const [pickedKey, setPickedKey] = useState<string | undefined>(
+    agent ? (agent.config?.profileId ?? "") : undefined,
+  );
+  const [pickedModel, setPickedModel] = useState<string | undefined>(agent?.model);
 
-  useEffect(() => {
-    let live = true;
-    void api.profiles("claude-code").then((res) => {
-      if (live && res.ok) setProfiles(res.data.profiles);
-    });
-    return () => {
-      live = false;
-    };
-  }, [api]);
-
+  const runsOn = useRunsOn(api);
   const shared = owner === "office";
-  const choices = profiles.filter((p) => (shared ? p.owner === "office" : true));
-  // A shared agent never runs on a person's login: the first office key is preselected.
-  const chosen = shared && !choices.some((p) => p.id === profileId) ? choices[0]?.id : profileId;
-  const blocked = shared && !chosen;
+  const usable = usableChoices(runsOn, shared);
+  const chosen = usable.find((c) => keyOf(c) === pickedKey) ?? usable[0];
+  const known = chosen ? agentModelsFor(chosen.kind) : [];
+  const model =
+    pickedModel === undefined
+      ? chosen
+        ? defaultAgentModel(chosen.kind)
+        : ""
+      : known.some((m) => m.id === pickedModel)
+        ? pickedModel
+        : OTHER_MODEL;
+  const picksModel = engine === "cli-session";
+  const blocked = picksModel && !chosen;
 
   const submit = () => {
     const name = nameRef.current?.value.trim() ?? "";
-    const model = modelRef.current?.value.trim() ?? "";
-    if (!name) return nameRef.current?.focus();
-    if (!model) return modelRef.current?.focus();
+    if (!agent && !name) return nameRef.current?.focus();
     if (blocked) return;
-    onSubmit({
+    const typed = customRef.current?.value.trim() ?? "";
+    const modelId = model === OTHER_MODEL ? typed : model;
+    if (picksModel && !modelId) return customRef.current?.focus();
+    const instructions = instructionsRef.current?.value ?? "";
+    const profileId = chosen?.profileId;
+    if (agent) {
+      // Only what changed: a change of looks alone does not restart a running agent.
+      const patch: UpdateOfficeAgent = {};
+      if (role !== agent.role) patch.role = role;
+      if (preset !== agent.preset) patch.preset = preset;
+      if (appearance !== agent.appearance) patch.appearance = appearance;
+      if (instructions !== (agent.config?.instructions ?? "")) patch.instructions = instructions;
+      if (picksModel && modelId !== agent.model) patch.model = modelId;
+      if (picksModel && (profileId ?? null) !== (agent.config?.profileId ?? null)) {
+        patch.profileId = profileId ?? null;
+      }
+      if (Object.keys(patch).length === 0) props.onCancel();
+      else props.onSave(patch);
+      return;
+    }
+    props.onCreate({
       name,
       owner,
       engine,
       role,
       preset,
-      provider: "claude-code",
-      model,
-      instructions: instructionsRef.current?.value ?? "",
-      ...(chosen ? { profileId: chosen } : {}),
+      provider: chosen?.provider ?? "claude-code",
+      model: modelId || "default",
+      appearance,
+      instructions,
+      ...(profileId ? { profileId } : {}),
     });
   };
 
   return (
     <form
       className="rg-office-agent-form"
-      aria-label="New agent"
+      aria-label={agent ? `Change ${agent.name}` : "New agent"}
       onSubmit={(e) => {
         e.preventDefault();
         submit();
@@ -108,10 +150,16 @@ export function AgentForm({
         ref={nameRef}
         maxLength={OFFICE_AGENT_LIMITS.nameMax}
         placeholder="Number Two"
+        defaultValue={agent?.name}
+        disabled={agent !== undefined}
         required
       />
-      <div className="rg-field__hint">Permanent and unique in the office.</div>
-      {canCreateShared && (
+      <div className="rg-field__hint">
+        {agent
+          ? "A name is for life: it cannot be changed."
+          : "What everyone calls it. A name is for life and no two agents share one."}
+      </div>
+      {(agent || props.canCreateShared) && (
         <>
           <label className="rg-field__label" htmlFor={ids.owner}>
             Belongs to
@@ -120,30 +168,68 @@ export function AgentForm({
             id={ids.owner}
             className="rg-input"
             value={owner}
-            onChange={(e) => setOwner(e.currentTarget.value as "me" | "office")}
+            disabled={agent !== undefined}
+            onChange={(e) => {
+              setOwner(e.currentTarget.value as "me" | "office");
+              setPickedKey(undefined);
+              setPickedModel(undefined);
+            }}
           >
-            <option value="me">Me (a personal agent only I can talk to)</option>
-            <option value="office">The office (shared by everyone)</option>
+            <option value="me">
+              {agent?.owner.kind === "user" ? agent.owner.displayName : "Me"} (a personal agent only
+              its owner can talk to)
+            </option>
+            <option value="office">The office (shared: every member can talk to it)</option>
           </select>
+          <div className="rg-field__hint">
+            {shared
+              ? "A shared agent works for everyone and is paid for by the office's own key."
+              : "A personal agent works for one person, with that person's rights and nothing more."}
+          </div>
         </>
       )}
       <label className="rg-field__label" htmlFor={ids.engine}>
-        Engine
+        Runs as
       </label>
       <select
         id={ids.engine}
         className="rg-input"
         value={engine}
+        disabled={agent !== undefined}
         onChange={(e) => setEngine(e.currentTarget.value as OfficeAgentEngineKind)}
       >
         {engines.map((kind) => (
           <option key={kind} value={kind}>
-            {ENGINE_LABELS[kind]}
+            {ENGINE_WORDS[kind].label}
           </option>
         ))}
       </select>
+      <div className="rg-field__hint">
+        {ENGINE_HELP} {ENGINE_WORDS[engine].hint}
+        {agent ? " It cannot be changed afterwards." : ""}
+      </div>
+      {picksModel ? (
+        <RunsOnPicker
+          state={runsOn}
+          shared={shared}
+          value={chosen}
+          onChange={(key) => {
+            setPickedKey(key);
+            setPickedModel(undefined);
+          }}
+          model={model}
+          onModel={setPickedModel}
+          customRef={customRef}
+          customDefault={
+            model === OTHER_MODEL && pickedModel !== OTHER_MODEL ? (pickedModel ?? "") : ""
+          }
+          onConnect={props.onConnect}
+        />
+      ) : (
+        <div className="rg-field__hint">This program brings its own provider and model.</div>
+      )}
       <label className="rg-field__label" htmlFor={ids.role}>
-        Role
+        Job
       </label>
       <select
         id={ids.role}
@@ -153,12 +239,13 @@ export function AgentForm({
       >
         {OFFICE_AGENT_ROLES.map((r) => (
           <option key={r} value={r}>
-            {ROLE_LABELS[r]}
+            {ROLE_WORDS[r].label}
           </option>
         ))}
       </select>
+      <div className="rg-field__hint">{ROLE_WORDS[role].hint}</div>
       <label className="rg-field__label" htmlFor={ids.preset}>
-        Privileges
+        What it may do
       </label>
       <select
         id={ids.preset}
@@ -168,49 +255,17 @@ export function AgentForm({
       >
         {OFFICE_AGENT_PRESETS.map((p) => (
           <option key={p} value={p}>
-            {PRESET_LABELS[p]}
+            {PRESET_WORDS[p].label}
           </option>
         ))}
       </select>
       <div className="rg-field__hint">
-        {PRESET_HINTS[preset]}{" "}
+        {PRESET_WORDS[preset].hint}{" "}
         {shared
-          ? "A shared agent also needs operations granted to it."
-          : "A personal agent never has more rights than you."}
+          ? "A shared agent sees no operation until you let it into one (on its card, after creating it)."
+          : "A personal agent can never do more than its owner."}
       </div>
-      <label className="rg-field__label" htmlFor={ids.model}>
-        Model
-      </label>
-      <input
-        id={ids.model}
-        className="rg-input"
-        ref={modelRef}
-        defaultValue="sonnet"
-        maxLength={100}
-        required
-      />
-      <label className="rg-field__label" htmlFor={ids.profile}>
-        Runs on
-      </label>
-      <select
-        id={ids.profile}
-        className="rg-input"
-        value={chosen ?? ""}
-        onChange={(e) => setProfileId(e.currentTarget.value)}
-      >
-        {!shared && <option value="">My Claude Code login</option>}
-        {choices.map((p) => (
-          <option key={p.id} value={p.id}>
-            {p.owner === "office" ? `Office key: ${p.label}` : `My key: ${p.label}`}
-          </option>
-        ))}
-      </select>
-      {blocked && (
-        <div className="rg-field__hint" role="note">
-          A shared agent runs on an office-wide key only, never on anyone's subscription login. Add
-          an office key under Connect providers first.
-        </div>
-      )}
+      <AppearancePicker value={appearance} onChange={setAppearance} />
       <label className="rg-field__label" htmlFor={ids.instructions}>
         Instructions
       </label>
@@ -220,13 +275,17 @@ export function AgentForm({
         rows={4}
         ref={instructionsRef}
         maxLength={OFFICE_AGENT_LIMITS.instructionsMax}
+        defaultValue={agent?.config?.instructions ?? ""}
         placeholder="What this agent is for and how it should work."
       />
+      <div className="rg-field__hint">
+        Written in your own words. The agent reads this before every conversation.
+      </div>
       <div className="rg-office-agent__actions">
         <Button type="submit" variant="primary" size="sm" disabled={busy || blocked}>
-          Create agent
+          {agent ? "Save changes" : "Create agent"}
         </Button>
-        <Button variant="ghost" size="sm" disabled={busy} onClick={onCancel}>
+        <Button variant="ghost" size="sm" disabled={busy} onClick={props.onCancel}>
           Cancel
         </Button>
       </div>

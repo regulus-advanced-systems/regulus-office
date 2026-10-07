@@ -15,6 +15,7 @@
  *   GET    /api/office-agents/requests              the caller's pending "ask a human" questions
  *   POST   /api/office-agents/requests/:id/answer
  *   GET    /api/office-agents/settings | PUT        caps (PUT: owners and admins)
+ *   GET    /api/office-agents/runs-on               what the caller can run an agent on (names, never keys)
  *
  * Session cookie on everything; writes need a same-origin request.
  */
@@ -23,6 +24,7 @@ import {
   CreateOfficeAgent,
   CreateOfficeAgentToken,
   OFFICE_AGENT_REQUESTS_API_PATH,
+  OFFICE_AGENT_RUNS_ON_API_PATH,
   OFFICE_AGENT_SETTINGS_API_PATH,
   OFFICE_AGENTS_API_PATH,
   OfficeAgentSettings,
@@ -84,6 +86,12 @@ export function mountOfficeAgentRoutes(router: Router, deps: OfficeAgentRoutesDe
       const settings = await readJsonBody(ctx.request, OfficeAgentSettings);
       return json(service.saveSettings(actor, settings));
     }, true),
+  );
+  router.get(
+    OFFICE_AGENT_RUNS_ON_API_PATH,
+    handle((_ctx, actor) =>
+      json(service.runsOn(actor), { headers: { "cache-control": "no-store" } }),
+    ),
   );
   router.get(
     OFFICE_AGENT_REQUESTS_API_PATH,

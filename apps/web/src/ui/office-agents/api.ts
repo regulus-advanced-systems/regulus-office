@@ -4,22 +4,23 @@
  * agents ask. Errors come back as short codes.
  */
 import {
-  CREDENTIAL_PROFILES_API_PATH,
   type CreateOfficeAgent,
-  CredentialProfileListResponse,
   HumanRequest,
   HumanRequestsResponse,
   OFFICE_AGENT_REQUESTS_API_PATH,
+  OFFICE_AGENT_RUNS_ON_API_PATH,
   OFFICE_AGENT_SETTINGS_API_PATH,
   OFFICE_AGENTS_API_PATH,
   OfficeAgentConversation,
   type OfficeAgentGrant,
   OfficeAgentMessage,
+  OfficeAgentRunsOnResponse,
   OfficeAgentSettings,
   OfficeAgentsResponse,
   OfficeAgentTokenCreated,
   OfficeAgentView,
-  type ProviderId,
+  PROVIDER_LOGINS_API_PATH,
+  ProviderLoginStatusResponse,
   type UpdateOfficeAgent,
 } from "@regulus/protocol";
 import type { ApiFailure, ApiResult } from "../auth/api.ts";
@@ -90,13 +91,14 @@ export function createOfficeAgentsApi(options: { fetch?: typeof fetch } = {}) {
       ),
     saveSettings: (settings: OfficeAgentSettings) =>
       call("PUT", OFFICE_AGENT_SETTINGS_API_PATH, OfficeAgentSettings, settings),
-    /** Ids and labels only: the caller's own key profiles and the office keys of a provider. */
-    profiles: (provider: ProviderId) =>
-      call(
-        "GET",
-        `${CREDENTIAL_PROFILES_API_PATH}?provider=${encodeURIComponent(provider)}`,
-        CredentialProfileListResponse,
-      ),
+    /** What the caller can run an agent on: names and kinds of logins and keys, never a key. */
+    runsOn: () => call("GET", OFFICE_AGENT_RUNS_ON_API_PATH, OfficeAgentRunsOnResponse),
+    /** Whether the caller's own Claude login is connected: true, false, or null when unknown. */
+    claudeLogin: async (): Promise<boolean | null> => {
+      const res = await call("GET", PROVIDER_LOGINS_API_PATH, ProviderLoginStatusResponse);
+      if (!res.ok) return null;
+      return res.data.providers.find((p) => p.provider === "claude-code")?.connected ?? null;
+    },
   };
 }
 
@@ -110,15 +112,15 @@ const ERRORS: Record<string, string> = {
   owner_or_admin_required: "Only office owners and admins can do that.",
   viewers_cannot: "Viewers cannot create agents or talk to shared ones.",
   name_taken: "Another agent already has that name. Names are permanent and unique.",
-  pm_exists: "There is already a PM here: the office has one, and so can each person.",
+  pm_exists: "There is already a project manager here: the office has one, and so can each person.",
   personal_agent_cap: "You have as many personal agents as the office allows.",
-  engine_unavailable: "That engine is not available in this office yet.",
-  provider_not_supported: "The CLI session engine runs Claude Code only for now.",
+  engine_unavailable: "This office cannot run an agent that way yet. Pick another under Runs as.",
+  provider_not_supported: "A Claude Code session cannot run on that provider yet.",
   office_key_required:
-    "A shared agent runs on an office-wide key only. An admin adds one under Connect providers.",
-  too_many_tokens: "This agent has the most tokens it can have. Revoke one first.",
+    "A shared agent runs on one of the office's own keys only. An owner or admin adds one under Connect providers.",
+  too_many_tokens: "This agent has as many access codes as it can have. Remove one first.",
   already_answered: "That question was already answered.",
-  invalid_body: "Check the form: a name (letters, digits, spaces), a model and a role.",
+  invalid_body: "Check the form: a name (letters, digits, spaces), a model and a job.",
 };
 
 export function describeOfficeAgentsError(failure: ApiFailure): string {

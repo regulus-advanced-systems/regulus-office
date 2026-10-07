@@ -484,10 +484,18 @@ test("3c. the henchman has a name of its own and a bubble that says what it is d
       bubbleKind: "needs_you",
       bubbleText: "waiting for you: approve an edit",
       clickable: true,
+      // Drawn, not only known (#283): the owner's own henchman keeps its name tag wherever the
+      // owner stands, and a bubble that asks shows at any distance.
+      tagShown: true,
+      bubbleShown: true,
     });
+  // The member is somewhere else in the room: the request still shows for them.
   await expect
-    .poll(async () => (await overhead(memberPage, agentId))?.bubbleText)
-    .toBe(`waiting for ${owner.name}: approve an edit`);
+    .poll(async () => {
+      const o = await overhead(memberPage, agentId);
+      return o && { text: o.bubbleText, shown: o.bubbleShown };
+    })
+    .toEqual({ text: `waiting for ${owner.name}: approve an edit`, shown: true });
 
   // A click on the bubble opens the request: the owner closes the prompt, then clicks the bubble.
   await ownerPage.bringToFront();
