@@ -33,6 +33,13 @@ export interface OverheadProbe {
   bubbleText: string;
   /** A click on the bubble opens something. */
   clickable: boolean;
+  /**
+   * Drawn this frame for this viewer (#283): the name tag shows near the viewer's character, under
+   * the cursor and for the viewer's own henchmen; a "doing" bubble near or under the cursor; a
+   * bubble that asks always.
+   */
+  tagShown: boolean;
+  bubbleShown: boolean;
 }
 
 /** What the page draws over one henchman, or null while it draws no label. */

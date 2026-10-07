@@ -112,6 +112,16 @@ export function distanceFade(distance: number, range: { from: number; to: number
   return 1 - (distance - range.from) / (range.to - range.from);
 }
 
+/** Screen pixels one metre covers at `distance` from the camera, across the view. */
+export function pixelsPerMetre(view: {
+  distance: number;
+  fovDeg: number;
+  viewportPx: number;
+}): number {
+  const visible = 2 * Math.max(0.1, view.distance) * Math.tan((view.fovDeg * Math.PI) / 360);
+  return Math.max(1, view.viewportPx) / visible;
+}
+
 /**
  * World height of a label: its own size in the world while the camera is close
  * (it grows and shrinks with the scene), and never less than `screenPx` on screen,
@@ -122,8 +132,7 @@ export function labelWorldHeight(
   view: { distance: number; fovDeg: number; viewportPx: number },
   max = 1.6,
 ): number {
-  const visible = 2 * Math.max(0.1, view.distance) * Math.tan((view.fovDeg * Math.PI) / 360);
-  const forScreen = (label.screenPx / Math.max(1, view.viewportPx)) * visible;
+  const forScreen = label.screenPx / pixelsPerMetre(view);
   return Math.min(max, Math.max(label.worldHeight, forScreen));
 }
 
