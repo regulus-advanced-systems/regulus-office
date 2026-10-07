@@ -7,10 +7,12 @@ import {
   type CreateOfficeAgent,
   HumanRequest,
   HumanRequestsResponse,
+  OFFICE_AGENT_ATTENTION_API_PATH,
   OFFICE_AGENT_REQUESTS_API_PATH,
   OFFICE_AGENT_RUNS_ON_API_PATH,
   OFFICE_AGENT_SETTINGS_API_PATH,
   OFFICE_AGENTS_API_PATH,
+  OfficeAgentAttention,
   OfficeAgentConversation,
   type OfficeAgentGrant,
   OfficeAgentMessage,
@@ -19,6 +21,9 @@ import {
   OfficeAgentsResponse,
   OfficeAgentTokenCreated,
   OfficeAgentView,
+  officeAgentDismissPath,
+  officeAgentRecallPath,
+  officeAgentSeenPath,
   PROVIDER_LOGINS_API_PATH,
   ProviderLoginStatusResponse,
   type UpdateOfficeAgent,
@@ -81,6 +86,13 @@ export function createOfficeAgentsApi(options: { fetch?: typeof fetch } = {}) {
     conversation: (id: string) => call("GET", `${agent(id)}/conversation`, OfficeAgentConversation),
     send: (id: string, text: string) =>
       call("POST", `${agent(id)}/messages`, OfficeAgentMessage, { text }),
+    /** A personal agent's owner sends it off to wander, or calls it back to their side (#252). */
+    dismiss: (id: string) => call("POST", officeAgentDismissPath(id), OfficeAgentView),
+    recall: (id: string) => call("POST", officeAgentRecallPath(id), OfficeAgentView),
+    /** The caller has read their conversation with it: its "answer ready" bubble clears. */
+    seen: (id: string) => call("POST", officeAgentSeenPath(id), NO_CONTENT),
+    /** What the caller's agents want from them: questions, unread replies, answers owed. */
+    attention: () => call("GET", OFFICE_AGENT_ATTENTION_API_PATH, OfficeAgentAttention),
     requests: () => call("GET", OFFICE_AGENT_REQUESTS_API_PATH, HumanRequestsResponse),
     answer: (requestId: string, body: { answer: string }) =>
       call(
@@ -119,6 +131,8 @@ const ERRORS: Record<string, string> = {
   office_key_required:
     "A shared agent runs on one of the office's own keys only. An owner or admin adds one under Connect providers.",
   too_many_tokens: "This agent has as many access codes as it can have. Remove one first.",
+  shared_agents_wander:
+    "A shared agent roams the lair on its own; only a personal agent can be dismissed.",
   already_answered: "That question was already answered.",
   invalid_body: "Check the form: a name (letters, digits, spaces), a model and a job.",
 };

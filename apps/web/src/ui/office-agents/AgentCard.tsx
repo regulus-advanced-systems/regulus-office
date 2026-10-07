@@ -34,6 +34,9 @@ import {
 export interface AgentCardActions extends AgentAccessActions {
   start(): void;
   stop(): void;
+  /** Send a personal agent off to roam the lair, or call it back to its owner's side (#252). */
+  dismiss(): void;
+  recall(): void;
   remove(): void;
   /** Resolves true when the change was saved. */
   update(patch: UpdateOfficeAgent): Promise<boolean>;
@@ -96,6 +99,7 @@ export function AgentCard({
             <span>Job: {ROLE_WORDS[agent.role].label}</span>
             <span>May: {PRESET_WORDS[agent.preset].label}</span>
             <span>Looks: {officeAgentAppearanceLabel(agent.appearance)}</span>
+            {!shared && <span>{agent.dismissed ? "Roaming the lair" : "Follows its owner"}</span>}
             <span>Last active {ago(agent.lastActivityAt, now)}</span>
           </div>
           <div className="rg-office-agent__facts" data-testid="agent-runs-on">
@@ -120,6 +124,20 @@ export function AgentCard({
         {(agent.canConfigure || emergency) && running && (
           <Button size="sm" disabled={busy} onClick={actions.stop}>
             {emergency ? "Emergency stop" : "Stop"}
+          </Button>
+        )}
+        {agent.canConfigure && !shared && (
+          <Button
+            size="sm"
+            disabled={busy}
+            onClick={agent.dismissed ? actions.recall : actions.dismiss}
+            title={
+              agent.dismissed
+                ? "It comes back to your side and follows you again."
+                : "It stops following you and roams the lair until you recall it."
+            }
+          >
+            {agent.dismissed ? "Recall to my side" : "Dismiss"}
           </Button>
         )}
         {agent.canConfigure && !editing && (

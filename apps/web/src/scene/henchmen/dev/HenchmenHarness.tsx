@@ -8,15 +8,18 @@
  * near=1 (seat them at the desks nearest the player), reduced=1, activity=0 (hide activity bubbles), seats=all, skins=mixed, providers=all, zoom=<0..1 camera zoom>,
  * yaw=<degrees>, nearby=<0..3 nearby rooms with henchmen too>, locked=<room ids the viewer may
  * not enter>, building=<room ids still being built>, rooms=<project rooms, 4..12>,
- * humans=<humans on screen, the local player included>. Not part of the production build.
+ * humans=<humans on screen, the local player included>, agents=<office agents walking the Dev
+ * room, #252>. Not part of the production build.
  */
 import type { HenchmanState, OperationState } from "@regulus/protocol";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useBuildingStore } from "../../../state/building.ts";
 import { useCameraStore } from "../../../state/camera.ts";
+import { useAgentAttention } from "../../../state/officeAgents.ts";
 import { useOperationStore } from "../../../state/operation.ts";
 import { usePlayerStore } from "../../../state/player.ts";
 import { useRoomsStore } from "../../../state/rooms.ts";
+import { useSessionStore } from "../../../state/session.ts";
 import { useUiStore } from "../../../state/ui.ts";
 import { WorkCounters } from "../../../ui/hud/WorkCounters.tsx";
 import { FpsProbe } from "../../avatar/showcase/FpsProbe.tsx";
@@ -28,6 +31,7 @@ import { dockPoint, type OutsideLayout, outsideLayout } from "../../compound/out
 import { roomById } from "../../compound/world.ts";
 import { useGongStore } from "../../gong/gongStore.ts";
 import { playGong } from "../../gong/gongSynth.ts";
+import { fakeBodies } from "../../officeAgents/dev/fakeBodies.ts";
 import { fakeHenchmen, harnessMode } from "./fakeHenchmen.ts";
 import { DEV_ROOM as DEV, fakeHumans, harnessBuilding, harnessWorld } from "./harnessWorld.ts";
 import "../../../ui/globals.css";
@@ -96,6 +100,7 @@ export function HenchmenHarness({ search }: { search: string }) {
   const building = params.get("building") ?? "";
   const roomCount = Math.min(12, Number(params.get("rooms") ?? 4));
   const humanCount = Math.max(1, Number(params.get("humans") ?? 1));
+  const agentCount = Math.max(0, Number(params.get("agents") ?? 0));
   const world = useMemo(
     () => harnessWorld(locked.split(","), building.split(","), roomCount),
     [locked, building, roomCount],
@@ -166,12 +171,44 @@ export function HenchmenHarness({ search }: { search: string }) {
     }
     // Other humans (#190 perf gate: 4 humans on screen), walking round the Dev room.
     const dev = roomById(world, DEV);
-    if (humanCount > 1 && dev) {
+    if ((humanCount > 1 || agentCount > 0) && dev) {
+      const seconds = tick / Math.max(0.1, rate);
       const centre = { x: dev.origin.x + dev.size.w / 2, z: dev.origin.z + dev.size.d / 2 };
-      const humans = fakeHumans(humanCount, centre, tick / Math.max(0.1, rate));
-      useBuildingStore.setState({ state: harnessBuilding(roomCount, humans), sessionId: "me" });
+      const humans = fakeHumans(humanCount, centre, seconds);
+      // Office agents (#252) walking the Dev room; the first is the viewer's own, with an answer ready.
+      const officeAgents = fakeBodies(
+        agentCount,
+        { x: dev.origin.x, z: dev.origin.z, w: dev.size.w, d: dev.size.d },
+        seconds,
+      );
+      useBuildingStore.setState({
+        state: { ...harnessBuilding(roomCount, humans), officeAgents },
+        sessionId: "me",
+      });
+      if (agentCount > 0) {
+        useSessionStore.setState({
+          user: { id: "me", displayName: "You", role: "owner" } as never,
+        });
+        useAgentAttention
+          .getState()
+          .set([{ agentId: "office-agent-1", unread: true, waiting: false }]);
+      }
     }
-  }, [tick, n, mode, allSeats, skins, providers, nearby, world, humanCount, roomCount, rate, near]);
+  }, [
+    tick,
+    n,
+    mode,
+    allSeats,
+    skins,
+    providers,
+    nearby,
+    world,
+    humanCount,
+    agentCount,
+    roomCount,
+    rate,
+    near,
+  ]);
 
   return (
     <div style={{ position: "fixed", inset: 0 }}>

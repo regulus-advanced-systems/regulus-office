@@ -1,7 +1,8 @@
 /**
  * A person's conversation with an office agent (#271): history kept by the
  * office, a box to say something, and the reply when it arrives (the
- * conversation is polled while it is open).
+ * conversation is polled while it is open). A reply shown here is read: the
+ * office is told, and the "answer ready" bubble over the agent clears (#252).
  */
 import { OFFICE_AGENT_LIMITS, type OfficeAgentConversation } from "@regulus/protocol";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
@@ -30,10 +31,20 @@ export function AgentChat({
   const inputId = useId();
   const log = useRef<HTMLOListElement>(null);
 
+  // The newest reply the office was told we have read.
+  const seenReply = useRef<string | null>(null);
   const load = useCallback(async () => {
     const res = await api.conversation(agentId);
-    if (res.ok) setConvo(res.data);
-    else setError(describeOfficeAgentsError(res));
+    if (!res.ok) {
+      setError(describeOfficeAgentsError(res));
+      return;
+    }
+    setConvo(res.data);
+    const reply = res.data.messages.findLast((m) => m.author === "agent");
+    if (reply && reply.id !== seenReply.current) {
+      seenReply.current = reply.id;
+      void api.seen(agentId);
+    }
   }, [api, agentId]);
 
   useEffect(() => {

@@ -61,11 +61,11 @@ export const OfficeAgentBody = z.object({
 });
 export type OfficeAgentBody = z.infer<typeof OfficeAgentBody>;
 
-/** How fast a body walks and runs, metres per second (the humans' speeds). */
-export const OFFICE_AGENT_WALK_SPEED = 3;
-export const OFFICE_AGENT_RUN_SPEED = 6;
-/** A body further than this from its target (along its path) runs to catch up. */
-export const OFFICE_AGENT_RUN_ABOVE = 7;
+/** How fast a body walks and runs, metres per second (a person walks at 2.4 and runs at 5.3). */
+export const OFFICE_AGENT_WALK_SPEED = 2.4;
+export const OFFICE_AGENT_RUN_SPEED = 5.6;
+/** A body with further than this to go (along its path) runs to catch up, metres. */
+export const OFFICE_AGENT_RUN_ABOVE = 5;
 /** How far from its owner a following agent stops, metres. */
 export const OFFICE_AGENT_POLITE_DISTANCE = 1.4;
 
