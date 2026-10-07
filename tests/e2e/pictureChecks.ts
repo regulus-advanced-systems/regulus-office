@@ -212,7 +212,11 @@ export async function checkWallPictures(owner: Page, member: Page, operation: st
   await expect
     .poll(async () => decorId in (await scenePictures(member)), { timeout: 30_000 })
     .toBe(false);
-  expect(decorId in (await scenePictures(owner))).toBe(false);
+  // The owner's own scene follows the same room state on its next render: wait for it like
+  // for the member's, instead of reading it once (the race of #232).
+  await expect
+    .poll(async () => decorId in (await scenePictures(owner)), { timeout: 30_000 })
+    .toBe(false);
 
   // Back out, the camera as it was.
   await owner.mouse.move(640, 420);
