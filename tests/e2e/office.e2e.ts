@@ -68,6 +68,7 @@ import {
 } from "./compoundProbes.ts";
 import { insideViewport, settledDialogLayout } from "./dialogLayout.ts";
 import { type FakeGitHub, startFakeGitHub } from "./fakeGitHub.ts";
+import { checkFirstPersonWindow } from "./fpvWindowChecks.ts";
 import { type GeniusLook, geniusOf } from "./geniusChecks.ts";
 import { ensureRemoteRepo } from "./gitRemote.ts";
 import { checkMergeGong } from "./gongChecks.ts";
@@ -832,6 +833,8 @@ test("a card from the issue board carried to a free desk opens the spawn dialog 
     const card = panel.getByRole("button", { name: "#7 Fix the lift doors" });
     await expect(card).toBeVisible({ timeout: 45_000 });
     await expect(panel.getByRole("region", { name: "Open" })).toContainText("#7");
+    // In first person a window frees the cursor and holds the view; closing it resumes (#282).
+    await checkFirstPersonWindow(ownerPage, panel, card);
     await card.click();
     await expect(panel.getByRole("region", { name: "Description" })).toContainText(
       "The doors stick.",
