@@ -376,7 +376,8 @@ export class HermesManagedEngine implements OfficeAgentEngine {
         return;
       }
     }
-    if (event.type === "status" && event.status === "ready" && instance.down) return;
+    // While the gateway is down the card says so; "busy" and "ready" wait for it to be back.
+    if (event.type === "status" && instance.down) return;
     this.#events.emit(event);
   }
 }

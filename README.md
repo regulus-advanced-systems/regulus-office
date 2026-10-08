@@ -165,12 +165,12 @@ For someone without a Hermes of their own, and for agents the whole office share
 **Turning it on (the office operator, Docker deployments).** In `deploy/`:
 
 ```sh
-docker compose --profile build-only build hermes-image   # pulls about 1 GB once
+docker compose --profile build-only build hermes-image   # about 1 GB to download, 4 GB on disk
 echo 'OFFICE_HERMES_IMAGE=regulus-office-hermes:0.21.5' >> .env
 docker compose up -d office
 ```
 
-The image (`hermes-runner/Dockerfile`) is the official `nousresearch/hermes-agent` image pinned by digest to release `v2026.9.24` (Hermes 0.21.5, MIT licence), with a non-root user of the runner uid added and its own entrypoint removed; nothing else is installed. It is about 1 GB compressed and shares no layers with the runner image. To move to another Hermes release, change the tag and the digest in that file together, rebuild, and run `REGULUS_HERMES_IMAGE=<image> bun test apps/server/src/pm/hermes/managed/docker-host.integration.test.ts` (it starts the real gateway with dummy keys and calls no model). Only the Docker runner backend can run it; with `linux-user` the choice stays greyed out.
+The image (`hermes-runner/Dockerfile`) is the official `nousresearch/hermes-agent` image pinned by digest to release `v2026.9.24` (Hermes 0.21.5, MIT licence), with a non-root user of the runner uid added and its own entrypoint removed; nothing else is installed. It is about 1 GB to download and about 4 GB on disk (it carries a browser and Hermes's full tool set), and shares no layers with the runner image; an idle Hermes uses about 300 MB of memory. To move to another Hermes release, change the tag and the digest in that file together, rebuild, and run `REGULUS_HERMES_IMAGE=<image> bun test apps/server/src/pm/hermes/managed/docker-host.integration.test.ts` (it starts the real gateway with dummy keys and calls no model). Only the Docker runner backend can run it; with `linux-user` the choice stays greyed out.
 
 **What the office does.** For each such agent the office creates one container `<prefix>-hermes-<agent>` on the runners network, with the same hardening as a henchman's sandbox (non-root, no capabilities, `no-new-privileges`, memory, CPU and process limits; `OFFICE_HERMES_MEMORY`, `OFFICE_HERMES_CPUS`, `OFFICE_HERMES_PIDS`). Its only mount is its own volume `<prefix>-hermes-home-<agent>`, where Hermes keeps its sessions, memory and skills, so they survive restarts; it sees no operation directory and nobody's files. The office makes up the gateway's API key, starts `hermes gateway run` and waits for it to answer. The agent is started with the first message and stopped with *Stop*. If Hermes crashes or stops answering, the card shows Error with the reason and the office starts it again, with a pause that grows up to a minute. Removing the agent removes its container and its volume.
 
