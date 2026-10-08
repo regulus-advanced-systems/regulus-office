@@ -17,7 +17,7 @@ import {
   officeAgentHermesPath,
 } from "@regulus/protocol";
 import { auditLog, officeAgentConnections, officeAgents } from "../../db/schema/index.ts";
-import { type AgentsOffice, agentsOffice } from "../test-helpers.ts";
+import { type AgentsOffice, APOLLO, agentsOffice, BOREALIS } from "../test-helpers.ts";
 import { HERMES_TESTS_PER_MINUTE } from "./service.ts";
 import { FakeHermesGateway } from "./testing/fake-gateway.ts";
 
@@ -180,6 +180,16 @@ describe("a person's own Hermes as an office agent", () => {
     // Mia is in Apollo and not in Borealis; so is her Hermes.
     expect(JSON.stringify(operations.body)).toContain("Apollo");
     expect(JSON.stringify(operations.body)).not.toContain("Borealis");
+    // Her rights are her own GitHub permission on each room's repo (#270), read at every call:
+    // when GitHub gives her Borealis and takes Apollo away, her Hermes follows at once.
+    o.setAccess(BOREALIS, o.people.mia.id, "view");
+    const moved = JSON.stringify((await o.tool(minted.body.token, "list_operations")).body);
+    expect(moved).toContain("Borealis");
+    expect(moved).not.toContain("Apollo");
+    o.setAccess(APOLLO, o.people.mia.id, "spawn");
+    const back = JSON.stringify((await o.tool(minted.body.token, "list_operations")).body);
+    expect(back).toContain("Apollo");
+    expect(back).not.toContain("Borealis");
   });
 
   test("another member cannot see it; an admin and the office owner see its card and nothing of the connection", async () => {
