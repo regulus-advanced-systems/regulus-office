@@ -15,6 +15,15 @@ export interface RoomClient {
   send(type: string, payload?: unknown): void;
   /** Disconnect this client; `code` is a WebSocket close code. */
   leave(code?: number): void;
+  /**
+   * Per-viewer state (#270). Fields a room's state marks as per viewer (in
+   * Colyseus, `.view()`) reach a client only for the entries shown to it;
+   * a client that was shown nothing receives none of them. `show` an entry
+   * that is in the state (a map or array item); `hide` takes it away again.
+   * Removing an entry from the state hides it from everyone.
+   */
+  show(item: object): void;
+  hide(item: object): void;
 }
 
 /** What a room definition can do with the live room instance. */

@@ -24,6 +24,7 @@ import {
 import { henchmanFixture } from "@regulus/protocol/src/fixtures.ts";
 import { smallTemplate } from "@regulus/room-layout";
 import { closeDatabase, type Db, openDatabase, runMigrations, schema } from "../../db/index.ts";
+import { seedRoomMember } from "../../github/access/test-snapshot.ts";
 import { createOfficeServer, type OfficeServer } from "../../http/server.ts";
 import { createLogger } from "../../logging.ts";
 import { createOperations } from "../../operations/index.ts";
@@ -137,8 +138,10 @@ beforeAll(async () => {
     repos: [{ repo: "octo/hello" }],
   });
   operationId = created.operation.operationId;
+  // Everyone here is in the room through GitHub (#270); the office roles alone open nothing.
+  for (const u of [users.owner, users.admin]) seedRoomMember(db, u.userId, operationId, "manage");
   for (const u of [users.henchmanOwner, users.member, users.viewer]) {
-    operations.service.setMember(owner, operationId, u.userId, "view");
+    seedRoomMember(db, u.userId, operationId, "view");
   }
   await created.cloned;
   server = createOfficeServer({

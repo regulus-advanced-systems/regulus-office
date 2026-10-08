@@ -37,7 +37,8 @@ import {
 import type { z } from "zod";
 import { AUDIT_ACTIONS, type AuditAction, writeAudit } from "../auth/audit.ts";
 import { AuthHttpError, forbidden } from "../auth/errors.ts";
-import { isOfficeManager, type OperationActor } from "../operations/access.ts";
+import { isOfficeManager, type OperationActor, operationAccessFor } from "../operations/access.ts";
+import { grantsAsSetBy } from "./access.ts";
 import type { Conversations } from "./conversations.ts";
 import type { AgentCredentials } from "./engines/credentials.ts";
 import { EngineRefusal } from "./engines/types.ts";
@@ -279,7 +280,8 @@ export class OfficeAgentService {
       // A personal agent has its owner's access, nothing can be granted on top.
       throw new AuthHttpError(400, "personal_agents_have_no_grants");
     }
-    if (!this.deps.store.setGrants(row.id, grants)) {
+    const merged = grantsAsSetBy(this.deps.store, actor, row.id, grants);
+    if (!this.deps.store.setGrants(row.id, merged)) {
       throw new AuthHttpError(400, "unknown_operation");
     }
     this.#audit(actor, AUDIT_ACTIONS.officeAgentGrantsSet, row.id, { grants });
@@ -375,9 +377,12 @@ export class OfficeAgentService {
 
   // ---- "Ask a human" --------------------------------------------------------------
 
-  /** The actor's own pending questions. Nobody reads another person's. */
+  /** The actor's own pending questions, about rooms they can still see (#270). */
   pendingRequests(actor: OperationActor): HumanRequest[] {
-    return this.deps.requests.pendingFor(actor.id);
+    const { db } = this.deps.store;
+    return this.deps.requests
+      .pendingFor(actor.id)
+      .filter((r) => !r.operationId || operationAccessFor(db, actor, r.operationId) !== null);
   }
 
   async answer(actor: OperationActor, requestId: string, answer: string): Promise<HumanRequest> {

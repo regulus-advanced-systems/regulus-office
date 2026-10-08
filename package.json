@@ -15,6 +15,7 @@
     "test": "bun test",
     "e2e": "bun run build:web && playwright test",
     "e2e:agents": "bun run build:web && E2E_AGENTS=1 playwright test",
+    "dev:github": "E2E_GITHUB_PORT=${E2E_GITHUB_PORT:-4699} bun tests/e2e/fakeGitHubServer.ts",
     "seed": "bun scripts/seed.ts",
     "lint": "bunx biome check .",
     "format": "bunx biome format --write ."

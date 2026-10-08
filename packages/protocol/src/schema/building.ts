@@ -63,6 +63,22 @@ export const OperationSummarySchema = schema(
   "OperationSummary",
 );
 
+export const ClosedRoomSchema = schema(
+  {
+    operationId: t.string().default(""),
+    levelId: t.string().default("lobby"),
+    gridX: t.int16().default(-1),
+    gridY: t.int16().default(-1),
+    width: t.uint16().default(0),
+    depth: t.uint16().default(0),
+    doorSide: t.string().default("south"),
+    doorX: t.int16().default(-1),
+    doorY: t.int16().default(-1),
+    closed: t.boolean().default(true),
+  },
+  "ClosedRoom",
+);
+
 export const ChatMessageSchema = schema(
   {
     id: t.string().default(""),
@@ -121,7 +137,8 @@ export const UsageSummarySchema = schema(
     todayCostUsdEstimate: t.float64().default(0),
     officeKeysCostUsdEstimate: t.float64().default(0),
     activeHumans: t.number().default(0),
-    topHenchmen: t.array(TopHenchmanUsageSchema),
+    // Per viewer (#270): a row reaches only clients whose view holds it.
+    topHenchmen: t.array(TopHenchmanUsageSchema).view(),
     dayStart: t.number().default(0),
     observedAt: t.number().default(0),
   },
@@ -227,17 +244,22 @@ export const OfficeAgentBodySchema = schema(
 
 export const BuildingStateSchema = schema(
   {
-    humans: t.map(HumanPresenceSchema),
-    operations: t.map(OperationSummarySchema),
-    chat: t.array(ChatMessageSchema),
+    // Per viewer (D26, D27; #270): each entry of these maps reaches only the
+    // clients whose view holds it (the BuildingRoom decides, rooms/building/viewers.ts).
+    humans: t.map(HumanPresenceSchema).view(),
+    operations: t.map(OperationSummarySchema).view(),
+    closedRooms: t.map(ClosedRoomSchema).view(),
+    // Per viewer too: a line written inside a room is for the people who may enter it.
+    chat: t.array(ChatMessageSchema).view(),
     jukebox: JukeboxStateSchema,
     usage: UsageSummarySchema,
     pm: PmStateSchema,
     compound: CompoundStateSchema,
-    levels: t.map(LevelStateSchema),
+    levels: t.map(LevelStateSchema).view(),
     blastDoor: BlastDoorStateSchema,
     lobbyWhiteboardVersion: t.uint32().default(0),
-    officeAgents: t.map(OfficeAgentBodySchema),
+    // Per viewer (#252, #270): a body reaches only clients who may see the place it is in.
+    officeAgents: t.map(OfficeAgentBodySchema).view(),
   },
   "BuildingState",
 );

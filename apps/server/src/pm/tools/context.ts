@@ -48,7 +48,8 @@ export interface OfficePorts {
   /** `TaskQueue.enqueueTask`: checks the actor's access again and that the profile is theirs. */
   enqueue(actor: OperationActor, input: EnqueueInput): { id: string };
   myUsage(userId: string): MyUsage;
-  officeUsage(): UsageSummary;
+  /** `henchmanRooms`: the room of each leaderboard henchman, for filtering only (#270). */
+  officeUsage(): UsageSummary & { henchmanRooms?: Record<string, string> };
   /** Posts with the office's GitHub credential for that repo. */
   comment(target: CommentTarget, body: string): Promise<{ id: number; url: string }>;
   postChat(line: { userId: string; displayName: string; operationId: string; text: string }): void;

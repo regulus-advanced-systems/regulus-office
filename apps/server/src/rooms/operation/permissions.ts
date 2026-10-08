@@ -26,7 +26,10 @@ export function mayControl(client: RoomClient, ownerUserId: string): boolean {
   return mayControlHenchman({ id: client.user.userId, role: client.user.role }, ownerUserId);
 }
 
-/** Office owners/admins may emergency-stop any henchman they can see (D12, #138). */
+/**
+ * Office owners/admins may emergency-stop any henchman they can see (D12, #138). In a room
+ * they cannot see they stop by person instead (agents/manager/emergency-routes.ts, #270).
+ */
 export function mayEmergencyStopAs(client: RoomClient): boolean {
   return mayEmergencyStop({ id: client.user.userId, role: client.user.role });
 }

@@ -47,9 +47,10 @@ beforeAll(async () => {
     profileId: o.addOfficeKey(),
   });
   shared = (await office.json()) as OfficeAgentView;
-  await o.send(`${OFFICE_AGENTS_API_PATH}/${shared.id}/grants`, "PUT", o.people.olga.cookie, {
-    grants: [{ operationId: APOLLO, access: "view" }],
-  });
+  // Granted by someone who has the room themselves (the rule for that is in routes.test.ts).
+  expect(o.officeAgents.store.setGrants(shared.id, [{ operationId: APOLLO, access: "view" }])).toBe(
+    true,
+  );
 });
 afterAll(async () => {
   await o.stop();

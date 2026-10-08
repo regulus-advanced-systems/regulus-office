@@ -11,6 +11,7 @@ import {
 } from "@regulus/protocol";
 import { type Office, startOffice } from "../auth/test-helpers.ts";
 import { desks, operationRepos, operations } from "../db/schema/index.ts";
+import { seedRoomMember } from "../github/access/test-snapshot.ts";
 import { createLogger } from "../logging.ts";
 import { createMeetings } from "./index.ts";
 import { FakeHenchmen, FakeOutputs, FakeWorkspaces, startInput } from "./test-helpers.ts";
@@ -105,9 +106,13 @@ describe("meeting routes", () => {
     expect(((await invalid.json()) as { error: string }).error).toBe("invalid_body");
   });
 
-  test("a member without access does not see the operation; the owner starts", async () => {
+  test("without GitHub access the operation is hidden, from the office owner too; with it the owner starts", async () => {
     const hidden = await post(MEETINGS_API_PATH, startInput(operationId, repoId), member.cookie);
     expect(hidden.status).toBe(404);
+    // The owner's office role opens no room (#270): only their GitHub permission on the repo does.
+    const roleOnly = await post(MEETINGS_API_PATH, startInput(operationId, repoId), owner.cookie);
+    expect(roleOnly.status).toBe(404);
+    seedRoomMember(office.db, owner.id, operationId, "manage");
     const res = await post(MEETINGS_API_PATH, startInput(operationId, repoId), owner.cookie);
     expect(res.status).toBe(200);
     const summary = (await res.json()) as MeetingSummary;

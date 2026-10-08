@@ -9,7 +9,7 @@ import {
   mayTalkToOfficeAgent,
   type OfficeAgentView,
 } from "@regulus/protocol";
-import type { OperationActor } from "../operations/access.ts";
+import { type OperationActor, operationAccessFor } from "../operations/access.ts";
 import { agentCost } from "./cost.ts";
 import { runsOnOf } from "./runs-on.ts";
 import type { OfficeAgentRow, OfficeAgentStore } from "./store.ts";
@@ -52,7 +52,13 @@ export function agentView(
           config: {
             instructions: row.instructions,
             ...(row.profileId ? { profileId: row.profileId } : {}),
-            grants: row.ownerUserId === null ? store.grants(row.id) : [],
+            // Only the rooms the person looking can see themselves (D27; #270).
+            grants:
+              row.ownerUserId === null
+                ? store
+                    .grants(row.id)
+                    .filter((g) => operationAccessFor(store.db, actor, g.operationId) !== null)
+                : [],
             tokens: tokens.list(row.id).map((t) => ({
               id: t.id,
               label: t.label,

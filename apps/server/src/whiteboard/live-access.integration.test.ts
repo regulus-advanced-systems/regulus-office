@@ -11,8 +11,9 @@ import {
   isFinalAccessClose,
   LOBBY_WHITEBOARD_ID,
 } from "@regulus/protocol";
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { operationMembers, operations, userProfiles } from "../db/schema/index.ts";
+import { seedRoomMember } from "../github/access/test-snapshot.ts";
 import { draw, ids, startWhiteboardOffice, until, type WhiteboardOffice } from "./test-helpers.ts";
 
 type User = { id: string; cookie: string };
@@ -43,20 +44,18 @@ const connect = (boardId: string, user: User) => {
 };
 const synced = (c: BoardClient) => until(() => c.provider.synced, "sync");
 
-/** A fresh operation with `member` on it, so tests do not share boards. */
+/** A fresh operation with the owner and `member` on it (through GitHub, #270), so tests do not share boards. */
 const room = async (access: "manage" | "spawn" | "view" = "spawn") => {
   seq += 1;
   const member = await office.signUp(`Member${seq}`, "member");
   const id = `op${seq}`;
-  office.addOperation(id, { [member.id]: access });
+  office.addOperation(id, { [owner.id]: "manage", [member.id]: access });
   return { id, member };
 };
 
+/** Their GitHub account loses the repo, as a refresh would record it (#270). */
 const removeMember = (operationId: string, userId: string) =>
-  office.db
-    .delete(operationMembers)
-    .where(and(eq(operationMembers.operationId, operationId), eq(operationMembers.userId, userId)))
-    .run();
+  seedRoomMember(office.db, userId, operationId, null);
 
 beforeAll(async () => {
   office = await startWhiteboardOffice();
@@ -108,10 +107,10 @@ describe("whiteboard: access withdrawn while connected", () => {
     draw(b.elements, "mine");
     await until(() => ids(a.elements).includes("mine"), "the member's stroke");
 
+    // A member row cannot grant, but it narrows what GitHub gives (#270).
     office.db
-      .update(operationMembers)
-      .set({ access: "view" })
-      .where(and(eq(operationMembers.operationId, id), eq(operationMembers.userId, member.id)))
+      .insert(operationMembers)
+      .values({ operationId: id, userId: member.id, access: "view" })
       .run();
     office.liveAccess.accessChanged({ userId: member.id, operationIds: [id] });
     await until(() => b.closes.length > 0, "the close");

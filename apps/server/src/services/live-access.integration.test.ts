@@ -7,8 +7,9 @@
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { ACCESS_CLOSE_CODES, servicesProxyPath } from "@regulus/protocol";
-import { and, eq } from "drizzle-orm";
-import { operationMembers, operations, sessions, userProfiles } from "../db/schema/index.ts";
+import { eq } from "drizzle-orm";
+import { operations, sessions, userProfiles } from "../db/schema/index.ts";
+import { seedRoomMember } from "../github/access/test-snapshot.ts";
 import { FakeRunner, type ServicesOffice, startServicesOffice } from "./test-helpers.ts";
 
 type User = { id: string; cookie: string };
@@ -106,7 +107,7 @@ describe("services proxy, path mode: the owner's app socket", () => {
     office = await startServicesOffice({ runner: runner.asRunner() });
     admin = await office.signUp("Admin"); // first account: office owner
     owner = await office.signUp("Rita");
-    office.addOperation("f1", { [owner.id]: "spawn" });
+    office.addOperation("f1", { [owner.id]: "spawn", [admin.id]: "manage" });
     office.addAgent("a1", "f1", owner.id);
     office.addAgent("a2", "f1", admin.id);
     for (const id of ["a1", "a2"]) {
@@ -135,10 +136,7 @@ describe("services proxy, path mode: the owner's app socket", () => {
     await until(() => mine.got.length > 2 && other.got.length > 2, "ticks");
     expect(app.open).toBe(2);
 
-    office.db
-      .delete(operationMembers)
-      .where(and(eq(operationMembers.operationId, "f1"), eq(operationMembers.userId, owner.id)))
-      .run();
+    seedRoomMember(office.db, owner.id, "f1", null);
     const at = Date.now();
     expect(office.liveAccess.accessChanged({ userId: owner.id, operationIds: ["f1"] })).toEqual({
       checked: 1,
@@ -213,10 +211,7 @@ describe("services proxy, app domain mode: owner and watcher", () => {
     const seeing = await openApp(watcher);
     await until(() => own.got.length > 2 && seeing.got.length > 2, "ticks");
 
-    office.db
-      .delete(operationMembers)
-      .where(and(eq(operationMembers.operationId, "f1"), eq(operationMembers.userId, watcher.id)))
-      .run();
+    seedRoomMember(office.db, watcher.id, "f1", null);
     office.liveAccess.accessChanged({ userId: watcher.id, operationIds: ["f1"] });
     expect((await seeing.closed).code).toBe(ACCESS_CLOSE_CODES.revoked);
     const seen = seeing.got.length;
@@ -264,10 +259,7 @@ describe("services proxy, app domain mode: owner and watcher", () => {
 
   test("operation archived: the app closes for everyone", async () => {
     const third = await office.signUp("Tess");
-    office.db
-      .insert(operationMembers)
-      .values({ operationId: "f1", userId: third.id, access: "view" })
-      .run();
+    seedRoomMember(office.db, third.id, "f1", "view");
     const seeing = await openApp(third);
     office.db
       .update(operations)

@@ -1,7 +1,8 @@
 /**
  * Archive, restore, send-home and delete over HTTP (#150): owners and admins
- * only (an operation manager, a member and a viewer get 403), same-origin, and the
- * refused delete names the henchmen still on the operation.
+ * only (an operation manager, a member and a viewer get 403), and only for a
+ * room whose repo their own GitHub account can see (#270; 404 otherwise),
+ * same-origin, and the refused delete names the henchmen still on the operation.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { randomUUID } from "node:crypto";
@@ -12,7 +13,8 @@ import type { OperationAccess, OperationInfo, UserRole } from "@regulus/protocol
 import { OperationHasHenchmenResponse } from "@regulus/protocol";
 import { eq } from "drizzle-orm";
 import { type Office, startOffice } from "../auth/test-helpers.ts";
-import { agents, desks, operationMembers, userProfiles } from "../db/schema/index.ts";
+import { agents, desks, userProfiles } from "../db/schema/index.ts";
+import { seedGitHubLink, seedRoomMember } from "../github/access/test-snapshot.ts";
 import { createLogger } from "../logging.ts";
 import { createOperations, mountOperationRoutes, type Operations } from "./index.ts";
 import { makeBareRepo } from "./test-helpers.ts";
@@ -24,6 +26,8 @@ let office: Office;
 let operations: Operations;
 let owner: Who;
 let admin: Who;
+/** An office admin with a linked GitHub account that cannot see the room's repo. */
+let blindAdmin: Who;
 let manager: Who;
 let member: Who;
 let viewer: Who;
@@ -31,11 +35,9 @@ let operation: OperationInfo;
 
 const setRole = (who: Who, role: UserRole) =>
   office.db.update(userProfiles).set({ role }).where(eq(userProfiles.userId, who.id)).run();
+/** The person's GitHub account has the permission on the room's repo that gives `access`. */
 const grant = (who: Who, access: OperationAccess) =>
-  office.db
-    .insert(operationMembers)
-    .values({ operationId: operation.operationId, userId: who.id, access })
-    .run();
+  seedRoomMember(office.db, who.id, operation.operationId, access);
 const send = (method: string, path: string, who: Who, body: unknown = {}, origin?: string) =>
   office.request(path, {
     method,
@@ -69,14 +71,21 @@ beforeAll(async () => {
   manager = await office.signUp("Mia");
   member = await office.signUp("Sam");
   viewer = await office.signUp("Vic");
+  blindAdmin = await office.signUp("Bea");
   setRole(admin, "admin");
+  setRole(blindAdmin, "admin");
   setRole(viewer, "viewer");
+  seedGitHubLink(office.db, owner.id);
+  seedGitHubLink(office.db, blindAdmin.id);
   const created = operations.service.create(
     { id: owner.id, role: "owner" },
     { name: "Apollo", tier: "small", repos: [{ repo: "octo/hello" }] },
+    undefined,
+    "admin",
   );
   await created.cloned;
   operation = created.operation;
+  grant(admin, "view");
   grant(manager, "manage");
   grant(member, "spawn");
   grant(viewer, "view");
@@ -109,8 +118,28 @@ describe("operation lifecycle routes", () => {
     expect((await send("DELETE", path(), owner, { confirmName: "Apollo" }, evil)).status).toBe(403);
   });
 
+  test("an office admin whose GitHub account cannot see the repo gets 404 for the room", async () => {
+    const calls = [
+      await send("POST", path("/archive"), blindAdmin),
+      await send("POST", path("/restore"), blindAdmin),
+      await send("POST", path("/send-home"), blindAdmin),
+      await send("DELETE", path(), blindAdmin, { confirmName: "Apollo" }),
+    ];
+    expect(calls.map((r) => r.status)).toEqual([404, 404, 404, 404]);
+    for (const res of calls) expect(await res.json()).toEqual({ error: "operation_not_found" });
+    expect((await office.request(path(), { cookie: owner.cookie })).status).toBe(200);
+  });
+
   test("archive, list archived, restore", async () => {
     expect((await send("POST", path("/archive"), admin)).status).toBe(204);
+    const listArchived = async (who: Who) => {
+      const res = await office.request("/api/operations/archived", { cookie: who.cookie });
+      return [res.status, ((await res.json()) as { operations: OperationInfo[] }).operations];
+    };
+    // The archive names no room of a repo the asking admin cannot see, and will not restore one.
+    expect(await listArchived(blindAdmin)).toEqual([200, []]);
+    expect((await send("POST", path("/restore"), blindAdmin)).status).toBe(404);
+    expect((await send("DELETE", path(), blindAdmin, { confirmName: "Apollo" })).status).toBe(404);
     const archived = await office.request("/api/operations/archived", { cookie: owner.cookie });
     const body = (await archived.json()) as { operations: OperationInfo[] };
     expect(body.operations.map((f) => [f.name, f.archivedAt !== null])).toEqual([["Apollo", true]]);

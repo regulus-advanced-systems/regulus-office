@@ -12,10 +12,14 @@ import {
   BuildingStateSchema,
   type CompoundState,
   EMPTY_COMPOUND,
+  LOBBY_LEVEL_ID,
+  LOBBY_OPERATION_ID,
   OFFICE_AGENT_ATTENTION_MESSAGE,
+  OfficeAgentBodySchema,
   ROOM_NAMES,
 } from "@regulus/protocol";
-import { closeDatabase, type Db, openDatabase, runMigrations } from "../../db/index.ts";
+import { closeDatabase, type Db, openDatabase, runMigrations, schema } from "../../db/index.ts";
+import { seedRoomAccess, seedRoomRepo } from "../../github/access/test-snapshot.ts";
 import { createOfficeServer, type OfficeServer } from "../../http/server.ts";
 import { createLogger } from "../../logging.ts";
 import { AgentWorld, type WorldAgent } from "../../pm/world/index.ts";
@@ -53,6 +57,9 @@ const AGENTS: WorldAgent[] = [
     dismissed: false,
   },
 ];
+
+const ALPHA = "room-alpha-private";
+const ANTE_LEVEL = "lv-ante-private";
 
 let dataDir: string;
 let db: Db;
@@ -93,7 +100,54 @@ beforeAll(async () => {
     publicUrl: "https://office.example.com",
     production: false,
   });
-  rooms.building.setCompound({ state: COMPOUND, rooms: new Map() });
+  // Alpha, a project room on Ante's level: Ante's GitHub access covers it, Mia's does not.
+  for (const [id, name] of [
+    ["u-ante", "Ante"],
+    ["u-mia", "Mia"],
+  ] as const) {
+    db.insert(schema.users)
+      .values({ id, name, email: `${id}@example.com`, emailVerified: false })
+      .run();
+    db.insert(schema.userProfiles).values({ userId: id, displayName: name, role: "member" }).run();
+  }
+  db.insert(schema.levels)
+    .values({ id: ANTE_LEVEL, kind: "account", login: "ante", name: "ante", position: 1 })
+    .run();
+  db.insert(schema.operations)
+    .values({
+      id: ALPHA,
+      name: "Alpha",
+      slug: "alpha",
+      index: 1,
+      paletteId: "oak-sky",
+      layoutTemplateId: "l2",
+      levelId: ANTE_LEVEL,
+    })
+    .run();
+  seedRoomRepo(db, ALPHA, "ante/alpha");
+  seedRoomAccess(db, "u-ante", ALPHA, "admin");
+  const level = (levelId: string, kind: "lobby" | "account", login: string, order: number) =>
+    ({ levelId, kind, login, name: login || "Lobby", order, state: COMPOUND }) as const;
+  rooms.building.setCompound({
+    state: COMPOUND,
+    rooms: new Map([
+      [
+        ALPHA,
+        {
+          gridX: 4,
+          gridY: 20,
+          width: 6,
+          depth: 6,
+          doorSide: "south" as const,
+          doorX: 6,
+          doorY: 26,
+          buildState: "ready" as const,
+          buildEndsAt: 0,
+        },
+      ],
+    ]),
+    levels: [level(LOBBY_LEVEL_ID, "lobby", "", 0), level(ANTE_LEVEL, "account", "ante", 1)],
+  });
   rooms.building.attachWorld(new AgentWorld({ agents: () => AGENTS, mayEnter: () => false }));
   server = createOfficeServer({
     config: { port: 0, host: "127.0.0.1", webDist: join(dataDir, "no-dist") },
@@ -154,4 +208,52 @@ test("the attention nudge reaches the person it is for and nobody else", async (
   await waitFor(() => forAnte === 1, "the nudge");
   await Bun.sleep(100);
   expect(forMia).toBe(0);
+});
+
+test("a body in a room is sent only to the people who may see into that room (#270)", async () => {
+  const ante = await joinAs("u-ante", "Ante");
+  const mia = await joinAs("u-mia", "Mia");
+  // A stand-in world that puts one body where the test says.
+  let place: { levelId: string; operationId: string } | null = {
+    levelId: ANTE_LEVEL,
+    operationId: ALPHA,
+  };
+  rooms.building.attachWorld({
+    tick(state) {
+      if (!place) return false;
+      state.officeAgents.clear();
+      const body = new OfficeAgentBodySchema();
+      body.agentId = "a-follower";
+      body.name = "Follower";
+      body.ownerUserId = "u-ante";
+      body.ownerName = "Ante";
+      body.levelId = place.levelId;
+      body.operationId = place.operationId;
+      state.officeAgents.set(body.agentId, body);
+      place = null;
+      return true;
+    },
+  });
+  const wire = (room: BuildingRoom) => JSON.stringify(room.state.toJSON());
+  const has = (room: BuildingRoom) => room.state.officeAgents?.has("a-follower") ?? false;
+
+  // In Alpha with its owner: the owner has it, the other person has no trace of it or the room.
+  await waitFor(() => has(ante), "the owner to get the body in Alpha");
+  await Bun.sleep(200);
+  expect(has(mia)).toBe(false);
+  expect(wire(mia)).not.toContain("a-follower");
+  expect(wire(mia)).not.toContain(ALPHA);
+  expect(wire(mia)).not.toContain(ANTE_LEVEL);
+
+  // Out in the lobby: everyone sees it.
+  place = { levelId: LOBBY_LEVEL_ID, operationId: LOBBY_OPERATION_ID };
+  await waitFor(() => has(mia), "the other person to get the body in the lobby");
+  expect(mia.state.officeAgents.get("a-follower")?.ownerName).toBe("Ante");
+  expect(has(ante)).toBe(true);
+
+  // Back into Alpha: gone for the other person again.
+  place = { levelId: ANTE_LEVEL, operationId: ALPHA };
+  await waitFor(() => !has(mia), "the body to leave the other person's state");
+  await waitFor(() => ante.state.officeAgents.get("a-follower")?.operationId === ALPHA, "owner");
+  expect(wire(mia)).not.toContain(ALPHA);
 });

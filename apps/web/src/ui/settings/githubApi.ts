@@ -116,6 +116,8 @@ export function describeGitHubError(err: ApiFailure): string {
       return "The GitHub App is set by the server environment (GITHUB_APP_ID), so it cannot be changed here.";
     case "github_rejected":
       return `GitHub did not accept that token${err.reason ? ` (${err.reason})` : ""}.`;
+    case "github_link_required":
+      return "Link your GitHub account first (Settings, You): the list shows the repos your own account can see.";
     case "github_unavailable":
       return `GitHub could not be asked for the repo list${err.reason ? ` (${err.reason})` : ""}.`;
     case "invalid_body":

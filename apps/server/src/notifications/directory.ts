@@ -9,6 +9,7 @@ import {
   type NotificationPrefs as Prefs,
 } from "@regulus/protocol";
 import { and, eq, inArray } from "drizzle-orm";
+import { getProfileByUserId } from "../auth/roles.ts";
 import type { Db } from "../db/index.ts";
 import {
   agents,
@@ -18,6 +19,7 @@ import {
   operations,
   userProfiles,
 } from "../db/schema/index.ts";
+import { operationAccessFor } from "../operations/access.ts";
 import { ATTENTION_STATUSES } from "./events.ts";
 
 export class NotificationDirectory {
@@ -61,6 +63,18 @@ export class NotificationDirectory {
     this.#prefs.set(userId, prefs);
   }
 
+  /**
+   * May this person see the room right now (D27; #270)? Asked for every
+   * recipient of every notification: a notice names the room, the henchman
+   * and its task, so it goes to nobody whose own GitHub access does not cover
+   * the room's repo, the henchman's owner and office admins included.
+   */
+  canSee(userId: string, operationId: string): boolean {
+    const profile = getProfileByUserId(this.#db, userId);
+    if (!profile) return false;
+    return operationAccessFor(this.#db, { id: userId, role: profile.role }, operationId) !== null;
+  }
+
   operationName(operationId: string): string {
     const row = this.#db
       .select({ name: operations.name })
@@ -92,13 +106,19 @@ export class NotificationDirectory {
       .map((r) => r.userId);
   }
 
-  /** The human's henchmen waiting for them now (their tab badge). */
+  /** The human's henchmen waiting for them now (their tab badge), in rooms they can still see. */
   attention(userId: string): string[] {
-    return this.#db
-      .select({ id: agents.id })
+    const rows = this.#db
+      .select({ id: agents.id, operationId: agents.operationId })
       .from(agents)
       .where(and(eq(agents.ownerUserId, userId), inArray(agents.status, [...ATTENTION_STATUSES])))
-      .all()
+      .all();
+    const seen = new Map<string, boolean>();
+    return rows
+      .filter((r) => {
+        if (!seen.has(r.operationId)) seen.set(r.operationId, this.canSee(userId, r.operationId));
+        return seen.get(r.operationId);
+      })
       .map((r) => r.id);
   }
 

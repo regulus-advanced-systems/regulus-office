@@ -11,8 +11,23 @@ import {
 } from "@regulus/protocol";
 
 type UsageState = InstanceType<typeof UsageSummarySchema>;
+type Row = InstanceType<typeof TopHenchmanUsageSchema>;
 
-export function applyUsageSummary(state: UsageState, summary: UsageSummary): void {
+/**
+ * The office summary as the server holds it: the leaderboard plus, for the
+ * server only, the room each of its henchmen is in. The BuildingRoom shows a
+ * row only to people who may enter that room (#270); the map is never sent.
+ */
+export interface OfficeUsage extends UsageSummary {
+  henchmanRooms: Record<string, string>;
+}
+
+/** `onRow` is told about each new leaderboard row (the room tags it with its operation). */
+export function applyUsageSummary(
+  state: UsageState,
+  summary: UsageSummary,
+  onRow?: (row: Row, agentId: string) => void,
+): void {
   state.todayInputTokens = summary.todayInputTokens;
   state.todayOutputTokens = summary.todayOutputTokens;
   state.todayCacheTokens = summary.todayCacheTokens;
@@ -30,6 +45,7 @@ export function applyUsageSummary(state: UsageState, summary: UsageSummary): voi
     row.provider = r.provider;
     row.tokens = r.tokens;
     state.topHenchmen.push(row);
+    onRow?.(row, r.agentId);
   }
 }
 

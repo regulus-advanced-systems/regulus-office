@@ -1,5 +1,6 @@
 /**
- * OperationRoom over the wire: one instance per operation, joins need view access,
+ * OperationRoom over the wire: one instance per operation, joins need view access
+ * (the person's own GitHub access to the repo, #270; an office role gives none),
  * desks come from the template, henchmen from the registry, archive closes the
  * room; BuildingRoom `operation.go` honours the same access rule.
  */
@@ -18,6 +19,7 @@ import {
 import { henchmanFixture } from "@regulus/protocol/src/fixtures.ts";
 import { legacyDeskCount, ROOM_LAYOUT_ID, roomDeskSeatIds } from "@regulus/room-layout";
 import { closeDatabase, type Db, openDatabase, runMigrations, schema } from "../../db/index.ts";
+import { seedRoomMember } from "../../github/access/test-snapshot.ts";
 import { createOfficeServer, type OfficeServer } from "../../http/server.ts";
 import { createLogger } from "../../logging.ts";
 import { createOperations, type Operations } from "../../operations/index.ts";
@@ -42,6 +44,8 @@ const users = {
   owner: { userId: "u-owner", displayName: "Olga", role: "owner" },
   member: { userId: "u-member", displayName: "Mia", role: "member" },
   stranger: { userId: "u-stranger", displayName: "Sam", role: "member" },
+  /** An office admin whose GitHub account sees neither repo. */
+  admin: { userId: "u-admin", displayName: "Ada", role: "admin" },
 };
 
 function client(user: (typeof users)[keyof typeof users]): Client {
@@ -78,7 +82,11 @@ beforeAll(async () => {
       .values({ id: u.userId, name: u.displayName, email: `${u.userId}@x.test` })
       .run();
     db.insert(schema.userProfiles)
-      .values({ userId: u.userId, displayName: u.displayName, role: u.role as "owner" | "member" })
+      .values({
+        userId: u.userId,
+        displayName: u.displayName,
+        role: u.role as "owner" | "admin" | "member",
+      })
       .run();
   }
   rooms = createRooms({
@@ -108,7 +116,9 @@ beforeAll(async () => {
   });
   operationId = a.operation.operationId;
   otherOperationId = b.operation.operationId;
-  operations.service.setMember(owner, operationId, users.member.userId, "view");
+  seedRoomMember(db, users.owner.userId, operationId, "manage");
+  seedRoomMember(db, users.owner.userId, otherOperationId, "manage");
+  seedRoomMember(db, users.member.userId, operationId, "view");
   await Promise.all([a.cloned, b.cloned]);
   server = createOfficeServer({
     config: { port: 0, host: "127.0.0.1", webDist: join(dir, "no-dist") },
@@ -156,6 +166,8 @@ describe("OperationRoom over the wire", () => {
 
   test("no access, unknown operations and missing options are rejected", async () => {
     await expect(joinOperation(users.stranger, operationId)).rejects.toThrow(/access denied/);
+    await expect(joinOperation(users.admin, operationId)).rejects.toThrow(/access denied/);
+    await expect(joinOperation(users.member, otherOperationId)).rejects.toThrow(/access denied/);
     await expect(joinOperation(users.owner, "no-such-operation")).rejects.toThrow(/access denied/);
     await expect(
       client(users.owner).joinOrCreate(ROOM_NAMES.operation, {}, OperationStateSchema),
@@ -365,20 +377,32 @@ describe("OperationRoom over the wire", () => {
     rooms.operations.setAgentCommands(undefined);
   });
 
-  test("operation.go in the building needs operation access", async () => {
+  test("the building lists a room only for those with access; operation.go to another is unknown", async () => {
     await rooms.refreshOperations();
-    const stranger = await client(users.stranger).joinOrCreate<BuildingState>(
-      ROOM_NAMES.building,
-      {},
-      BuildingStateSchema,
-    );
-    opened.push(stranger);
-    await waitFor(() => stranger.state.operations.has(operationId), "operation list");
-    const rejected = new Promise<CommandRejected>((resolve) =>
-      stranger.onMessage(COMMAND_REJECTED_MESSAGE, (m: CommandRejected) => resolve(m)),
-    );
-    stranger.send("operation.go", { operationId });
-    expect((await rejected).reason).toBe(`no access to operation ${operationId}`);
+    const joinBuilding = async (user: (typeof users)[keyof typeof users]) => {
+      const room = await client(user).joinOrCreate<BuildingState>(
+        ROOM_NAMES.building,
+        {},
+        BuildingStateSchema,
+      );
+      opened.push(room);
+      return room;
+    };
+    const member = await joinBuilding(users.member);
+    await waitFor(() => member.state.operations.has(operationId), "the member's operation list");
+    expect(member.state.operations.has(otherOperationId)).toBe(false);
+    // The stranger and the office admin have no GitHub access: the room is not there for them.
+    for (const user of [users.stranger, users.admin]) {
+      const outside = await joinBuilding(user);
+      await waitFor(() => outside.state.humans.has(outside.sessionId), "own presence");
+      await Bun.sleep(50);
+      expect(outside.state.operations.has(operationId)).toBe(false);
+      const rejected = new Promise<CommandRejected>((resolve) =>
+        outside.onMessage(COMMAND_REJECTED_MESSAGE, (m: CommandRejected) => resolve(m)),
+      );
+      outside.send("operation.go", { operationId });
+      expect((await rejected).reason).toBe(`unknown operation ${operationId}`);
+    }
   });
 
   test("archiving an operation closes its room and drops it from the building list", async () => {

@@ -107,6 +107,8 @@ export class AgentWorld {
   #syncedAt = Number.NEGATIVE_INFINITY;
   #steppedAt = Number.NEGATIVE_INFINITY;
   #lair: Lair | null = null;
+  /** A body appeared, left, or changed room or level since the last tick's answer. */
+  #placed = false;
 
   constructor(deps: AgentWorldDeps) {
     this.#deps = deps;
@@ -127,10 +129,21 @@ export class AgentWorld {
     brain.nextAt = 0;
   }
 
-  /** Called from the BuildingRoom's sweep. Costs one comparison while nobody is connected. */
-  tick(state: State, now: number): void {
-    if (state.humans.size === 0) return;
-    if (now - this.#steppedAt < STEP_MS) return;
+  /**
+   * Called from the BuildingRoom's sweep. Costs one comparison while nobody is connected.
+   * True when a body appeared, left, or changed room or level: who may see it has changed
+   * (state is per viewer, #270), so the room brings its clients' views in line.
+   */
+  tick(state: State, now: number): boolean {
+    if (state.humans.size === 0) return false;
+    if (now - this.#steppedAt < STEP_MS) return false;
+    this.#step(state, now);
+    const placed = this.#placed;
+    this.#placed = false;
+    return placed;
+  }
+
+  #step(state: State, now: number): void {
     this.#steppedAt = now;
     const key = lairKey(state);
     if (!this.#lair || this.#lair.key !== key) this.#lair = readLair(state);
@@ -184,6 +197,7 @@ export class AgentWorld {
       if (ids.has(id)) continue;
       state.officeAgents.delete(id);
       this.#brains.delete(id);
+      this.#placed = true;
     }
     for (const agent of this.#agents) {
       let body = state.officeAgents.get(agent.id);
@@ -199,6 +213,7 @@ export class AgentWorld {
         });
         this.#send(body, "wander", home, { hop: true, doing: home.doing });
         if (!state.officeAgents.has(agent.id)) state.officeAgents.set(agent.id, body);
+        this.#placed = true;
       }
       const owner = agent.ownerUserId ?? "";
       if (body.name !== agent.name) body.name = agent.name;
@@ -252,7 +267,10 @@ export class AgentWorld {
     if (body.levelId !== to.levelId) this.#travelToLevel(body, to.levelId);
     else if (options.hop) body.hop += 1;
     if (body.mode !== mode) body.mode = mode;
-    if (body.operationId !== to.operationId) body.operationId = to.operationId;
+    if (body.operationId !== to.operationId) {
+      body.operationId = to.operationId;
+      this.#placed = true;
+    }
     const doing = (options.doing ?? "").slice(0, OFFICE_AGENT_DOING_MAX);
     if (body.doing !== doing) body.doing = doing;
     const t = body.target;
@@ -268,6 +286,7 @@ export class AgentWorld {
   #travelToLevel(body: Body, levelId: string): void {
     body.levelId = levelId;
     body.hop += 1;
+    this.#placed = true;
   }
 
   #follow(
