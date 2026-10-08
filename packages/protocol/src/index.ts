@@ -37,6 +37,7 @@
  * - office-agents.ts  office agents (shared and personal): model, REST shapes, who may do what (#271)
  * - office-agent-mind.ts an office agent's soul, memories and notes, and who may read them (#136)
  * - office-agent-tools.ts the office tools they act through, over MCP and REST (#271)
+ * - office-agent-hermes.ts connecting a person's own running Hermes agent (#58)
  * - forms.ts          character forms: the skins plus office-agent-only forms such as the secretary (#281)
  * - skins.ts          henchman skins and the admin `skin_rules` that assign them (#184)
  * - schema/            @colyseus/schema classes mirroring the state shapes
@@ -75,6 +76,7 @@ export * from "./meeting-plan.ts";
 export * from "./meetings-api.ts";
 export * from "./model-presets.ts";
 export * from "./notifications.ts";
+export * from "./office-agent-hermes.ts";
 export * from "./office-agent-mind.ts";
 export * from "./office-agent-runs-on.ts";
 export * from "./office-agent-tools.ts";

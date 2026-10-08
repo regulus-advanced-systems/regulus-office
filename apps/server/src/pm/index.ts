@@ -7,6 +7,7 @@
  * - conversations.ts  each person's conversation with an agent; open turns
  * - requests.ts       "ask a human" questions and their answers
  * - engines/          `OfficeAgentEngine`, the CLI session engine, the fake engine
+ * - hermes/           a person's own running Hermes as an agent: connection, client, engine (#58)
  * - runtime.ts        start / stop / deliver on an engine; what engines report
  * - tools/            the office tools: authorisation, audit, reads and writes, memories
  * - mind/             each agent's soul (with history), memories and notes, and who may read them (#136)

@@ -39,7 +39,7 @@ import type { Runner } from "../runners/types.ts";
 import { encryptSecret } from "../secrets/index.ts";
 import { UsageTracker } from "../usage/index.ts";
 import { FakeEngine, type FakeEngineOptions } from "./engines/fake.ts";
-import { createOfficeAgents } from "./setup.ts";
+import { createOfficeAgents, type OfficeAgentsOptions } from "./setup.ts";
 
 export const OFFICE_KEY = "sk-ant-api03-FAKE-office-agent-key-0123456789";
 export const APOLLO = "op-apollo";
@@ -52,6 +52,8 @@ export interface AgentsOfficeOptions {
   /** With a runner the real CLI session engine is registered instead of the fake one. */
   runner?: Pick<Runner, "provision" | "spawnPiped" | "backend">;
   cliCommand?: string;
+  /** Timings of the Hermes engine (#58). */
+  hermes?: OfficeAgentsOptions["hermes"];
 }
 
 export async function agentsOffice(options: AgentsOfficeOptions = {}) {
@@ -218,6 +220,7 @@ export async function agentsOffice(options: AgentsOfficeOptions = {}) {
     engines: options.runner ? [] : [fake],
     runner: options.runner,
     cliCommand: options.cliCommand,
+    hermes: options.hermes,
     usage: new UsageTracker(db),
   });
   officeAgents.bind({

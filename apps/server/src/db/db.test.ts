@@ -64,6 +64,7 @@ const EXTRA_TABLES = [
   "office_agent_messages",
   "office_agent_requests",
   "office_agent_settings",
+  "office_agent_connections",
   "office_agent_soul_versions",
   "office_agent_memories",
   "github_user_links",

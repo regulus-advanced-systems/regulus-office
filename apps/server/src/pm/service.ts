@@ -49,12 +49,12 @@ import { runsOnChoices } from "./runs-on.ts";
 import type { AgentRuntime } from "./runtime.ts";
 import type { OfficeAgentRow, OfficeAgentStore } from "./store.ts";
 import type { OfficeAgentTokens } from "./tokens.ts";
-import { agentView } from "./view.ts";
+import { agentView, type ViewExtras } from "./view.ts";
 
 export type CreateInput = z.output<typeof CreateOfficeAgent>;
 export type UpdateInput = z.output<typeof UpdateOfficeAgent>;
 
-export interface OfficeAgentServiceDeps {
+export interface OfficeAgentServiceDeps extends ViewExtras {
   store: OfficeAgentStore;
   tokens: OfficeAgentTokens;
   runtime: AgentRuntime;
