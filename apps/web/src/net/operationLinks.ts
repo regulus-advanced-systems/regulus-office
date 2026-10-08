@@ -4,12 +4,16 @@
  * commands go) plus up to three nearby visible rooms. Joins missing rooms,
  * leaves rooms no longer wanted, re-joins lost rooms with backoff and gives
  * up on denied ones. Every room's state goes to `onState`; only the
- * primary's messages and rejections reach the listeners. A room the server
+ * primary's messages and rejections reach the listeners. Messages that say
+ * what is open in a room (`HELD_TYPES`: the requests waiting for this person)
+ * are kept while the room is only nearby and handed over when the player
+ * walks in, since the server sends them once, when the room is joined. A room the server
  * closed because access was withdrawn (#244) is not asked for again; one whose
  * access changed is joined once more at once.
  */
 import {
   type AccessCloseKind,
+  AGENT_PERMISSIONS_MESSAGE,
   accessCloseKind,
   type CommandRejected,
   type OperationState,
@@ -25,6 +29,16 @@ import {
 
 /** At most this many OperationRooms besides the primary (SPEC §9.1). */
 export const MAX_NEARBY_ROOMS = 3;
+
+/**
+ * Messages kept for a room that is joined but not the primary (#60). The server sends a
+ * henchman's open permission requests when a room is joined and when they change; a client
+ * joins nearby rooms before the player walks in, so without this an owner who comes to a
+ * henchman that was already waiting would never be shown its request.
+ */
+export const HELD_TYPES: readonly string[] = [AGENT_PERMISSIONS_MESSAGE];
+/** At most this many held messages per room; the oldest go first. */
+const MAX_HELD = 200;
 
 export type Scheduler = (fn: () => void, delayMs: number) => () => void;
 
@@ -58,6 +72,8 @@ interface Link {
   cancelRetry: (() => void) | null;
   subs: Unsubscribe[];
   messageSubs: Map<string, Unsubscribe>;
+  /** `HELD_TYPES` messages that arrived while the room was not the primary, oldest first. */
+  held: Array<{ type: string; payload: unknown }>;
 }
 
 function isDenied(err: unknown): boolean {
@@ -145,7 +161,23 @@ export class OperationLinks {
     };
   }
 
+  private dispatch(type: string, payload: unknown): void {
+    for (const listener of this.listeners.get(type) ?? []) listener(payload);
+  }
+
+  /** From the moment a room is joined: its `HELD_TYPES` go to the listeners, or wait. */
+  private holdMessages(link: Link, handle: RoomHandle<OperationState>): Unsubscribe[] {
+    return HELD_TYPES.map((type) =>
+      handle.onMessage(type, (payload) => {
+        if (link.operationId === this.primaryId) return this.dispatch(type, payload);
+        link.held.push({ type, payload });
+        if (link.held.length > MAX_HELD) link.held.shift();
+      }),
+    );
+  }
+
   private subscribeMessage(link: Link, type: string): void {
+    if (HELD_TYPES.includes(type)) return; // `holdMessages` listens from the join on
     if (!link.handle || link.messageSubs.has(type)) return;
     link.messageSubs.set(
       type,
@@ -161,6 +193,8 @@ export class OperationLinks {
     for (const link of this.links.values()) {
       if (link.operationId === this.primaryId) {
         for (const type of this.listeners.keys()) this.subscribeMessage(link, type);
+        // The player walked in: what was said to this room meanwhile, in order.
+        for (const { type, payload } of link.held.splice(0)) this.dispatch(type, payload);
       } else {
         for (const off of link.messageSubs.values()) off();
         link.messageSubs.clear();
@@ -181,6 +215,7 @@ export class OperationLinks {
         cancelRetry: null,
         subs: [],
         messageSubs: new Map(),
+        held: [],
       };
       this.links.set(operationId, link);
     }
@@ -219,6 +254,7 @@ export class OperationLinks {
       handle.onRejected((notice) => {
         if (link.operationId === this.primaryId) this.deps.onRejected(notice);
       }),
+      ...this.holdMessages(link, handle),
     ];
     if (link.operationId === this.primaryId)
       for (const type of this.listeners.keys()) this.subscribeMessage(link, type);

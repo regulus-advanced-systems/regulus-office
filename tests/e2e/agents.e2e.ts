@@ -57,6 +57,7 @@ import { pickGenius } from "./geniusChecks.ts";
 import { linkGitHub, setRepoPermission } from "./githubAccess.ts";
 import { createRemoteRepo } from "./gitRemote.ts";
 import { checkHenchmanCheers } from "./gongChecks.ts";
+import { checkPmRounds } from "./pmRoundsChecks.ts";
 import { freeDeskPoint, OFFICE_PROBE_PATH, waitForScene } from "./probes.ts";
 import { checkHenchmanTerminal } from "./terminalChecks.ts";
 
@@ -572,6 +573,18 @@ test("4. the permission prompt reaches the owner, not the member nor an admin", 
   await expect(adminPage.getByRole("dialog", { name: "Permission needed" })).toHaveCount(0);
   await expect(adminPage.getByText("FAKE_CLAUDE.md")).toHaveCount(0);
   await adminCtx.close();
+});
+
+test("4b. the office PM keeps reception, walks its round to the waiting henchman, and its owner hears once (#60)", async () => {
+  test.setTimeout(600_000);
+  await checkPmRounds(ownerPage, memberPage, {
+    dbPath: join(dataDir, "office.db"),
+    operation: OPERATION,
+    henchmanId: agentId,
+    henchmanName,
+    ownerName: owner.name,
+    shots: process.env.E2E_PM_SHOTS,
+  });
 });
 
 test("5. the owner approves; the henchman commits and finishes", async () => {

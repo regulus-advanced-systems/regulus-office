@@ -272,7 +272,7 @@ export function seedMultiRepoOffice(sql: Database, root: string): void {
   // A shared office agent (#271) granted on apollo and on solo, with a question asked in apollo.
   insert(sql, "office_agents", {
     id: "oa-pm",
-    name: "Moneypenny",
+    name: "Quillon",
     name_key: "moneypenny",
     engine: "cli-session",
     role: "pm",

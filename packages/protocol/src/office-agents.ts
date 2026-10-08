@@ -77,6 +77,11 @@ export type OfficeAgentStatus = (typeof OFFICE_AGENT_STATUSES)[number];
  */
 export const OFFICE_AGENT_APPEARANCES: readonly string[] = CHARACTER_FORM_IDS;
 export const DEFAULT_OFFICE_AGENT_APPEARANCE: string = DEFAULT_SKIN_ID;
+/** The office PM's suit: what a "Project manager" wears when no look was chosen (#60). */
+export const PM_OFFICE_AGENT_APPEARANCE: string = "number_two";
+/** The look an agent of this job gets when none was chosen. */
+export const defaultOfficeAgentAppearance = (role: OfficeAgentRole): string =>
+  role === "pm" ? PM_OFFICE_AGENT_APPEARANCE : DEFAULT_OFFICE_AGENT_APPEARANCE;
 export const isOfficeAgentAppearance = (value: unknown): value is string =>
   typeof value === "string" && OFFICE_AGENT_APPEARANCES.includes(value);
 
@@ -219,7 +224,8 @@ export const CreateOfficeAgent = z.object({
   model: ModelName,
   effort: Effort.optional(),
   profileId: Id.optional(),
-  appearance: Appearance.default(DEFAULT_OFFICE_AGENT_APPEARANCE),
+  /** Left out: the default for the job (`defaultOfficeAgentAppearance`). */
+  appearance: Appearance.optional(),
   instructions: Instructions.default(""),
   /** Required for `hermes-external`: where the person's Hermes is and its access token. */
   hermes: HermesConnectionInput.optional(),

@@ -217,7 +217,7 @@ export const buildingFixture: BuildingState = {
   officeAgents: {
     oa1: {
       agentId: "oa1",
-      name: "Moneypenny",
+      name: "Quillon",
       ownerUserId: "u1",
       ownerName: "Ada",
       appearance: "secretary",
@@ -229,6 +229,7 @@ export const buildingFixture: BuildingState = {
       hop: 1,
       doing: "",
       dismissed: false,
+      post: "none",
     },
   },
 };

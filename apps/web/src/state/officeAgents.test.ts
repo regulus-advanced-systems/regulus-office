@@ -15,7 +15,7 @@ import {
 
 const body = (over: Partial<OfficeAgentBody>): OfficeAgentBody => ({
   agentId: "a1",
-  name: "Moneypenny",
+  name: "Quillon",
   ownerUserId: "ante",
   ownerName: "Ante",
   appearance: "secretary",
@@ -27,6 +27,7 @@ const body = (over: Partial<OfficeAgentBody>): OfficeAgentBody => ({
   hop: 1,
   doing: "",
   dismissed: false,
+  post: "none",
   ...over,
 });
 const SHARED = body({

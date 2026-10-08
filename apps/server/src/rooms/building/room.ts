@@ -56,6 +56,7 @@ import { applyLook, chatLine } from "./schema-copy.ts";
 import { createScreenShareRules, type ScreenShareRules } from "./screen-share.ts";
 import { seatWorldOn } from "./seats.ts";
 import { createSocialRules } from "./social.ts";
+import { placeAtSpawn } from "./spawn.ts";
 import {
   type BuildingRoom,
   type BuildingRoomDeps,
@@ -363,6 +364,8 @@ export function createBuildingRoom(deps: BuildingRoomDeps): BuildingRoom {
       human.levelId = LOBBY_LEVEL_ID;
       human.animation = "idle";
       human.joinedAt = now();
+      // Where their own client puts them, until their first `move` says otherwise (spawn.ts).
+      placeAtSpawn(human, room.state.compound);
       room.state.humans.set(client.sessionId, human);
       books.set(client.sessionId, { lastMoveAt: 0, emoteUntil: 0 });
       recountHumans();
@@ -451,6 +454,11 @@ export function createBuildingRoom(deps: BuildingRoomDeps): BuildingRoom {
       compound = snapshot;
       if (!handle) return;
       applyCompoundState(handle.state.compound, snapshot.state);
+      // Whoever joined before the lair was published and has not moved yet.
+      const published = handle.state.compound;
+      handle.state.humans.forEach((human, sessionId) => {
+        if (books.get(sessionId)?.lastMoveAt === 0) placeAtSpawn(human, published);
+      });
       applyLevels(handle.state.levels, snapshot);
       handle.state.operations.forEach((entry, operationId) =>
         applyRoomFields(entry, snapshot.rooms.get(operationId)),
