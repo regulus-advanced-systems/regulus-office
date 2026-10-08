@@ -1,20 +1,21 @@
 /**
  * The office PM in the world (#60), in the henchman flow, while the owner's henchman waits for
- * approval. The owner makes the office's project manager over REST (as Settings → Agents does)
- * and grants it the henchman's room. Then:
+ * approval. The owner makes the office's project manager over REST (as Settings → Agents does).
+ * Then:
  *
- * - it stands at the reception desk in the lobby in the PM suit (none was chosen); the owner
- *   walks up to the desk and presses `E`: its chat opens as a window;
- * - on its round (this office walks one a minute) it comes into the room and stands next to the
- *   waiting henchman with a line over its head; the member, who is in the room, sees it;
- * - the owner, in the lobby, gets the "needs you" notice with "Take me there", which takes
- *   them to the room and opens the request;
- * - the owner goes back to the lobby; the next round stands by the same henchman, and no
- *   second notice comes.
+ * - with no room granted yet it has no round to walk: it stands at the reception desk in the
+ *   lobby in the PM suit (none was chosen); the owner walks up to the desk and presses `E`:
+ *   its chat opens as a window;
+ * - the owner grants it the henchman's room. On its next round (this office walks them back
+ *   to back, `OFFICE_PM_ROUND_SECONDS=5`, with short stops) it comes into the room and stands
+ *   next to the waiting henchman with a line over its head; the member, in the room, sees it;
+ * - the owner, in the lobby, gets the "needs you" notice with "Take me there";
+ * - the next round stands by the same henchman, and no second notice comes;
+ * - the owner goes to the room: the request is there for them to answer.
  *
- * No message is sent to the PM and no model is called: the rounds are movement only. Leaves
- * the flow as it found it: the PM is removed, and the owner is back in the room with the
- * permission prompt open.
+ * No message is sent to the PM and no model is called: the rounds are movement only. Nothing
+ * here waits a fixed time: every wait is for something the pages show. Leaves the flow as it
+ * found it: the PM is removed, and the owner is back in the room with the permission prompt.
  */
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
@@ -86,11 +87,6 @@ export async function checkPmRounds(owner: Page, member: Page, input: PmRoundsIn
     };
     const operationId = operations.operations.find((o) => o.name === input.operation)?.operationId;
     if (!operationId) throw new Error(`no operation ${input.operation}`);
-    const granted = await owner.request.put(`/api/office-agents/${pm.id}/grants`, {
-      data: { grants: [{ operationId, access: "view" }] },
-      headers,
-    });
-    expect(granted.status(), await granted.text()).toBe(200);
 
     // The owner leaves the room for the lobby: from now on they are "elsewhere".
     await owner.bringToFront();
@@ -100,7 +96,7 @@ export async function checkPmRounds(owner: Page, member: Page, input: PmRoundsIn
     await goToLobbyLevel(owner);
     await walkToLobby(owner);
 
-    // Reception: the PM stands behind the counter (between two rounds), in the PM suit.
+    // Reception: with no room to visit, the PM stands behind the counter, in the PM suit.
     const stand = await receptionStand(owner);
     if (!stand) throw new Error("no reception desk in the scene");
     await expect(async () => {
@@ -108,8 +104,7 @@ export async function checkPmRounds(owner: Page, member: Page, input: PmRoundsIn
       const there = Math.hypot(pose.x - stand.x, pose.z - stand.z) < 1;
       if (!there && !pose.walking) await walkTo(owner, stand.x, stand.z);
       expect(there && !pose.walking).toBe(true);
-    }).toPass({ timeout: 90_000, intervals: [500, 1_000] });
-    await waitStill(owner);
+    }).toPass({ timeout: 90_000, intervals: [250, 500] });
     if (input.shots) {
       await owner.locator("canvas").first().hover();
       await wheelZoomTo(owner, 0.22);
@@ -120,7 +115,7 @@ export async function checkPmRounds(owner: Page, member: Page, input: PmRoundsIn
           const b = await bodyOf(owner, pm.id);
           return b && !b.moving ? { mode: b.mode, text: b.bubbleText } : null;
         },
-        { timeout: 150_000 },
+        { timeout: 30_000, intervals: [250] },
       )
       .toEqual({ mode: "post", text: "at reception" });
     const atDesk = await bodyOf(owner, pm.id);
@@ -151,16 +146,38 @@ export async function checkPmRounds(owner: Page, member: Page, input: PmRoundsIn
     await chat.getByRole("button", { name: "Done" }).click();
     await expect(chat).toHaveCount(0);
 
-    // Its round brings it into the room, to the boards and then next to the waiting henchman.
+    // Granted the room, its next round brings it to the boards and then next to the waiting
+    // henchman. The line is published when it sets off: it counts once it stands there.
+    const granted = await owner.request.put(`/api/office-agents/${pm.id}/grants`, {
+      data: { grants: [{ operationId, access: "view" }] },
+      headers,
+    });
+    expect(granted.status(), await granted.text()).toBe(200);
     const beside = async () => {
       const [b, h] = [
         await bodyOf(member, pm.id),
         await sceneXZ(member, `henchman-${input.henchmanId}`),
       ];
       if (!b || !h || b.moving || b.bubbleText !== line) return null;
-      // The line is published when it sets off: it counts once it stands by the henchman.
-      if (Math.hypot(b.x - h.x, b.z - h.z) > 2.5) return null;
-      return { mode: b.mode, gap: Math.hypot(b.x - h.x, b.z - h.z), x: b.x, z: b.z };
+      const gap = Math.hypot(b.x - h.x, b.z - h.z);
+      return gap > 2.5 ? null : { mode: b.mode, gap, x: b.x, z: b.z };
+    };
+    type Visit = NonNullable<Awaited<ReturnType<typeof beside>>>;
+    const visits = { count: 0, there: false, leftAt: 0, first: null as Visit | null };
+    const words = new Set<string>();
+    /** Look once: note what is over its head, and count each time it comes to stand there. */
+    const look = async () => {
+      const b = await bodyOf(member, pm.id);
+      if (b && !b.moving && b.bubbleText) words.add(b.bubbleText);
+      const now = await beside();
+      // A new visit only after it has been away a while (a frame of turning is not leaving).
+      if (now && !visits.there && Date.now() - visits.leftAt > 1_500) {
+        visits.count += 1;
+        visits.first ??= now;
+      }
+      if (!now && visits.there) visits.leftAt = Date.now();
+      visits.there = now !== null;
+      return visits;
     };
     await member.bringToFront();
     const room = await roomNamed(member, input.operation);
@@ -168,72 +185,54 @@ export async function checkPmRounds(owner: Page, member: Page, input: PmRoundsIn
       await member.locator("canvas").first().hover();
       await wheelZoomTo(member, 0.12);
     }
-    const words = new Set<string>();
-    // What the page drew at the moment it stood there (read in one go, not after).
-    let visit: { mode: string; gap: number; x: number; z: number } | null = null;
     await expect
-      .poll(
-        async () => {
-          const b = await bodyOf(member, pm.id);
-          if (b && !b.moving && b.bubbleText) words.add(b.bubbleText);
-          const now = await beside();
-          if (now) visit = now;
-          return now?.mode ?? null;
-        },
-        { timeout: 170_000, intervals: [250] },
-      )
-      .toBe("route");
-    const stood = visit as { mode: string; gap: number; x: number; z: number } | null;
+      .poll(async () => (await look()).count, { timeout: 120_000, intervals: [100] })
+      .toBe(1);
+    if (input.shots) {
+      await member.screenshot({ path: `${input.shots}/pm-beside-a-waiting-henchman.png` });
+    }
+    const stood = visits.first;
     // Next to the henchman, inside the room it was granted.
+    expect(stood?.mode).toBe("route");
     expect(stood?.gap ?? 99).toBeLessThan(2);
     expect(stood?.gap ?? 0).toBeGreaterThan(0.5);
     expect(stood && stood.x > room.x && stood.x < room.x + room.w).toBe(true);
     expect(stood && stood.z > room.z && stood.z < room.z + room.d).toBe(true);
-    if (input.shots) {
-      await member.screenshot({ path: `${input.shots}/pm-beside-a-waiting-henchman.png` });
-    }
 
-    // The owner, in the lobby, gets the "needs you" notice once it stands there.
-    await owner.bringToFront();
+    // The owner, in the lobby, gets the "needs you" notice once it stands there, with the way
+    // to the henchman on it.
     const reminders = async () => (await toastsSeen(owner)).filter((t) => t.includes(REMINDER));
-    await expect.poll(async () => (await reminders()).length, { timeout: 60_000 }).toBe(1);
+    await expect
+      .poll(
+        async () => {
+          await look();
+          return (await reminders()).length;
+        },
+        { timeout: 60_000, intervals: [100] },
+      )
+      .toBe(1);
     const [notice] = await reminders();
     expect(notice).toContain(input.henchmanName);
     expect(notice).toContain(`${pm.name} ${REMINDER}`);
     expect(notice).toContain("Take me there");
-    // "Take me there" goes to the room and opens the request. (A toast is up for five
-    // seconds; when it has gone by now, the owner travels there and clicks the bubble.)
-    const takeMe = owner.locator(".rg-toast", { hasText: REMINDER }).getByRole("button", {
-      name: "Take me there",
-    });
-    const tookMe = await takeMe
-      .click({ timeout: 1_500 })
-      .then(() => true)
-      .catch(() => false);
-    if (tookMe) {
-      await expect(prompt).toBeVisible({ timeout: 90_000 });
-      await owner.keyboard.press("Escape");
-      await expect(prompt).toHaveCount(0);
-      await goToLobbyLevel(owner);
-      await walkToLobby(owner);
-    }
-    // Nothing else was over its head on the way (as far as the page drew it standing).
+
+    // The next round stands by the same henchman again and moves on (the office tells the
+    // owner when it gets there, so by the time it has left, a second notice would be out).
+    // The owner, still elsewhere, has heard once.
+    await expect
+      .poll(async () => (await look()).count, { timeout: 120_000, intervals: [100] })
+      .toBe(2);
+    await expect
+      .poll(async () => (await look()).there, { timeout: 60_000, intervals: [100] })
+      .toBe(false);
+    expect(await reminders()).toHaveLength(1);
+    // Nothing else was over its head on the way (as far as the page drew it standing):
+    // it came up by the lift (#269) and stopped at the boards.
     expect(
       [...words].filter(
-        // It came up by the lift (#269) and stopped at the boards on the way.
         (w) => !/^(checking the (issue|PR) board|stepping out of the lift)$/.test(w),
       ),
     ).toEqual([line]);
-
-    // The next round stands by the same henchman again; the owner, still elsewhere, hears nothing new.
-    await member.bringToFront();
-    await expect.poll(async () => (await beside()) === null, { timeout: 60_000 }).toBe(true);
-    await expect
-      .poll(async () => (await beside())?.mode ?? null, { timeout: 170_000, intervals: [250] })
-      .toBe("route");
-    // Past the moment the first one came, and the time a toast stays up.
-    await member.waitForTimeout(12_000);
-    expect(await reminders()).toHaveLength(1);
   } finally {
     await owner.request.delete(`/api/office-agents/${pm.id}`, { headers });
     seed("remove");

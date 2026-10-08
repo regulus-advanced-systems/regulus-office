@@ -307,7 +307,7 @@ export interface OfficeConfig {
   githubSync: { polling: boolean; pollIntervalMs: number };
   /**
    * Time between two rounds of the office PM through the rooms it was granted (#60):
-   * OFFICE_PM_ROUND_SECONDS (20..3600, default 900: four an hour, on the quarter).
+   * OFFICE_PM_ROUND_SECONDS (5..3600, default 900: four an hour, on the quarter).
    */
   pmRoundMs: number;
   /** Envelope-encryption root key (SPEC §8 rule 2). Absent means secrets cannot be stored. */

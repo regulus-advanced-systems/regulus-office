@@ -88,7 +88,13 @@ export const OFFICE_AGENT_POLITE_DISTANCE = 1.4;
  * (`OFFICE_PM_ROUND_SECONDS`). Movement and presence only.
  */
 export const PM_ROUND_EVERY_MS = 15 * 60_000;
-export const PM_ROUND_MIN_MS = 20_000;
+/** The shortest time between rounds: for the tests, which cannot wait a quarter of an hour. */
+export const PM_ROUND_MIN_MS = 5_000;
+/**
+ * Rounds closer together than this have shorter stops in proportion (down to a
+ * quarter), so that a round still fits between two starts.
+ */
+export const PM_ROUND_FULL_STOPS_MS = 2 * 60_000;
 export const PM_ROUND_MAX_MS = 60 * 60_000;
 
 // ---- What an agent wants from one person -----------------------------------------

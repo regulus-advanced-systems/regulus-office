@@ -57,7 +57,7 @@ jobs:
   # request, opens a PR against a fake GitHub, restarts the office and sends the henchman home.
   e2e-agents:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2

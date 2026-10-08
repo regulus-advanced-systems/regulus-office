@@ -8,6 +8,7 @@ import { projectRoomLayout, receptionSpec } from "@regulus/room-layout";
 import { rng } from "@regulus/room-layout/src/compound/test-support.ts";
 import { inRect, type LairRoom, lobbyOf, readLair, roomAt } from "./geometry.ts";
 import {
+  BOARD_PAUSE_MS,
   PmRounds,
   ROUND_START_WINDOW_MS,
   type RoundHenchman,
@@ -16,6 +17,8 @@ import {
   roundHenchmanOf,
   roundRooms,
   roundSlot,
+  stopPace,
+  WAITING_PAUSE_MS,
 } from "./rounds.ts";
 import type { RouteVisit } from "./route.ts";
 import { ACME, APOLLO, BOREALIS, lairState, person } from "./test-lair.ts";
@@ -201,6 +204,24 @@ describe("the clock", () => {
     const borealis = state.operations.get(BOREALIS);
     if (borealis) borealis.buildState = "building";
     expect(roundRooms(readLair(state), () => true, 0).map((r) => r.id)).toEqual([APOLLO]);
+  });
+});
+
+describe("stops", () => {
+  test("rounds less than two minutes apart keep their stops short, down to a quarter", () => {
+    expect(stopPace(15 * 60_000)).toBe(1);
+    expect(stopPace(2 * 60_000)).toBe(1);
+    expect(stopPace(60_000)).toBe(0.5);
+    expect(stopPace(5_000)).toBe(0.25);
+    const s = setup([pm()], {});
+    const apollo = s.room(ACME, APOLLO);
+    const pauses = (pace?: number) => roomStops(apollo, [henchman()], pace).map((x) => x.pauseMs);
+    expect(pauses()).toEqual([BOARD_PAUSE_MS, BOARD_PAUSE_MS, WAITING_PAUSE_MS]);
+    expect(pauses(0.25)).toEqual([1_000, 1_000, 2_000]);
+    // The same places either way.
+    expect(roomStops(apollo, [henchman()], 0.25).map((x) => [x.x, x.z])).toEqual(
+      roomStops(apollo, [henchman()]).map((x) => [x.x, x.z]),
+    );
   });
 });
 

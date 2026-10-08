@@ -21,6 +21,7 @@ import {
   LOBBY_LEVEL_ID,
   LOBBY_OPERATION_ID,
   PM_ROUND_EVERY_MS,
+  PM_ROUND_FULL_STOPS_MS,
 } from "@regulus/protocol";
 import {
   anchorStandPose,
@@ -83,6 +84,13 @@ export const WAITING_PAUSE_MS = 8_000;
 export const FINISHED_PAUSE_MS = 5_000;
 /** How far from a henchman's chair it stands, metres. */
 const BESIDE = 0.95;
+
+/**
+ * How long the stops of a round are, as a share of the full pauses: rounds less
+ * than two minutes apart keep them shorter in proportion, down to a quarter.
+ */
+export const stopPace = (everyMs: number): number =>
+  Math.min(1, Math.max(0.25, everyMs / PM_ROUND_FULL_STOPS_MS));
 
 /** The number of the round the clock is in. */
 export const roundSlot = (now: number, everyMs: number): number => Math.floor(now / everyMs);
@@ -185,12 +193,18 @@ const line = (h: RoundHenchman): string => {
  * The stops inside one room, as it is when the PM gets there: its issue and PR
  * boards, then the henchmen that wait (first) or have finished, by seat.
  */
-export function roomStops(room: LairRoom, henchmen: readonly RoundHenchman[]): RouteStop[] {
+export function roomStops(
+  room: LairRoom,
+  henchmen: readonly RoundHenchman[],
+  pace = 1,
+): RouteStop[] {
   const layout = layoutOf(room);
   const base = { levelId: room.levelId, operationId: room.id };
   if (!layout) {
     const c = centreOf(room.rect);
-    return [{ ...base, ...c, heading: 0, pauseMs: BOARD_PAUSE_MS, doing: "looking over the crew" }];
+    return [
+      { ...base, ...c, heading: 0, pauseMs: BOARD_PAUSE_MS * pace, doing: "looking over the crew" },
+    ];
   }
   const place = (local: Pose) => {
     const p = clampInto(room.rect, { x: room.rect.x + local.x, z: room.rect.z + local.z }, 0.5);
@@ -203,7 +217,7 @@ export function roomStops(room: LairRoom, henchmen: readonly RoundHenchman[]): R
     if (!anchor || !wall) continue;
     out.push({
       ...place(anchorStandPose(wall, anchor)),
-      pauseMs: BOARD_PAUSE_MS,
+      pauseMs: BOARD_PAUSE_MS * pace,
       doing: kind === "issue_board" ? "checking the issue board" : "checking the PR board",
     });
   }
@@ -220,7 +234,7 @@ export function roomStops(room: LairRoom, henchmen: readonly RoundHenchman[]): R
     if (!seat) continue;
     out.push({
       ...place(besideSeat(layout, seat)),
-      pauseMs: h.state === "waiting" ? WAITING_PAUSE_MS : FINISHED_PAUSE_MS,
+      pauseMs: (h.state === "waiting" ? WAITING_PAUSE_MS : FINISHED_PAUSE_MS) * pace,
       doing: line(h),
       visit: { henchmanId: h.agentId, ownerUserId: h.ownerUserId },
     });
@@ -229,7 +243,11 @@ export function roomStops(room: LairRoom, henchmen: readonly RoundHenchman[]): R
 }
 
 /** One round: room after room, each room's stops decided when the PM turns to it. */
-export function roundRoute(rooms: readonly LairRoom[], henchmen: () => RoundHenchman[]): Route {
+export function roundRoute(
+  rooms: readonly LairRoom[],
+  henchmen: () => RoundHenchman[],
+  pace = 1,
+): Route {
   let next = 0;
   let queue: RouteStop[] = [];
   return {
@@ -239,7 +257,7 @@ export function roundRoute(rooms: readonly LairRoom[], henchmen: () => RoundHenc
       while (queue.length === 0) {
         const room = rooms[next++];
         if (!room) return null;
-        queue = roomStops(room, henchmen());
+        queue = roomStops(room, henchmen(), pace);
       }
       return queue.shift() ?? null;
     },
@@ -278,6 +296,6 @@ export class PmRounds {
     const late = now - slot * this.everyMs;
     if (late > Math.min(ROUND_START_WINDOW_MS, this.everyMs / 2)) return null;
     const rooms = roundRooms(lair, mayEnter, slot);
-    return rooms.length > 0 ? roundRoute(rooms, this.#henchmen) : null;
+    return rooms.length > 0 ? roundRoute(rooms, this.#henchmen, stopPace(this.everyMs)) : null;
   }
 }

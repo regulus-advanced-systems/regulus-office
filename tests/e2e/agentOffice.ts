@@ -194,8 +194,8 @@ export class AgentOffice {
       OFFICE_LOG_LEVEL: process.env.OFFICE_LOG_LEVEL ?? "info",
       // A new room's build phase (#181), short so the flow walks in at once (#186).
       OFFICE_ROOM_BUILD_SECONDS: "1",
-      // The office PM's rounds (#60): one a minute, so the flow sees two.
-      OFFICE_PM_ROUND_SECONDS: "60",
+      // The office PM's rounds (#60): back to back, with short stops, so the flow sees two.
+      OFFICE_PM_ROUND_SECONDS: "5",
       // Same secrets across restarts: sessions and encrypted rows must survive.
       BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET ?? secret(),
       OFFICE_MASTER_KEY: process.env.OFFICE_MASTER_KEY ?? secret(),
