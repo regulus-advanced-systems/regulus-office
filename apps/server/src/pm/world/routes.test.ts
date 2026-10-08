@@ -5,6 +5,7 @@
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import {
+  LOBBY_LEVEL_ID,
   LOBBY_OPERATION_ID,
   OFFICE_AGENT_ATTENTION_API_PATH,
   OFFICE_AGENTS_API_PATH,
@@ -208,18 +209,73 @@ describe("bodies and the office's access gate", () => {
     o.setAccess(APOLLO, o.people.mia.id, "spawn");
   });
 
-  test("a shared agent enters only the rooms it was granted; nothing private is in a body", () => {
+  test("the office PM keeps the reception desk and its round enters only the rooms it was granted", () => {
     const state = lairState();
     person(state, o.people.sam.id, { x: 60, z: 120, levelId: ACME });
+    // From just before a quarter of an hour to the next one (the default rhythm).
+    const quarter = 15 * 60_000;
     const rooms = new Set<string>();
-    for (let i = 0; i < 300; i++) {
-      step(state, 100_000 + i * 4_000);
-      rooms.add(state.officeAgents.get(shared.id)?.operationId ?? "");
+    const modes = new Set<string>();
+    const lines = new Set<string>();
+    for (let t = 40 * quarter - 4_000; t < 41 * quarter; t += 4_000) {
+      step(state, t);
+      const body = state.officeAgents.get(shared.id);
+      rooms.add(body?.operationId ?? "");
+      modes.add(body?.mode ?? "");
+      lines.add(body?.doing ?? "");
     }
+    // Apollo was granted; Borealis, on the same level, was not.
     expect([...rooms].sort()).toEqual([LOBBY_OPERATION_ID, APOLLO].sort());
+    expect([...modes].sort()).toEqual(["post", "route"]);
+    expect([...lines].sort()).toEqual([
+      "at reception",
+      "checking the PR board",
+      "checking the issue board",
+    ]);
+    const body = state.officeAgents.get(shared.id);
+    expect(body).toMatchObject({ mode: "post", post: "reception", levelId: LOBBY_LEVEL_ID });
+    // No look was chosen for it: a project manager wears the PM suit.
+    expect(shared.appearance).toBe("number_two");
+    expect(body?.appearance).toBe("number_two");
     const published = JSON.stringify(state.officeAgents.toJSON());
     expect(published).not.toContain(SECRET);
     expect(published).not.toContain("Ship Borealis");
     expect(published).not.toContain("status?");
+  });
+
+  test("a personal agent with the job project manager is a companion: no post, no rounds", async () => {
+    const { sam } = o.people;
+    const res = await o.send(OFFICE_AGENTS_API_PATH, "POST", sam.cookie, {
+      engine: "cli-session",
+      provider: "claude-code",
+      model: "sonnet",
+      name: "Docket",
+      owner: "me",
+      role: "pm",
+    });
+    expect(res.status).toBe(201);
+    const mine = (await res.json()) as OfficeAgentView;
+    expect(mine.appearance).toBe("number_two");
+    const state = lairState();
+    person(state, sam.id, { x: 60, z: 120 });
+    const quarter = 15 * 60_000;
+    const modes = new Set<string>();
+    for (let t = 80 * quarter - 4_000; t < 80 * quarter + 120_000; t += 4_000) {
+      step(state, t);
+      modes.add(state.officeAgents.get(mine.id)?.mode ?? "");
+    }
+    expect([...modes]).toEqual(["follow"]);
+    expect(state.officeAgents.get(mine.id)?.post).toBe("none");
+    // A look that was chosen is kept, whatever the job.
+    const chosen = await o.send(OFFICE_AGENTS_API_PATH, "POST", o.people.mia.cookie, {
+      engine: "cli-session",
+      provider: "claude-code",
+      model: "sonnet",
+      name: "Abacus",
+      owner: "me",
+      role: "pm",
+      appearance: "secretary",
+    });
+    expect(((await chosen.json()) as OfficeAgentView).appearance).toBe("secretary");
   });
 });

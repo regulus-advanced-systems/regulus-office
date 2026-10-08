@@ -22,7 +22,7 @@ import { closeDatabase, type Db, openDatabase, runMigrations, schema } from "../
 import { seedRoomAccess, seedRoomRepo } from "../../github/access/test-snapshot.ts";
 import { createOfficeServer, type OfficeServer } from "../../http/server.ts";
 import { createLogger } from "../../logging.ts";
-import { AgentWorld, type WorldAgent } from "../../pm/world/index.ts";
+import { AgentWorld, PmRounds, type WorldAgent } from "../../pm/world/index.ts";
 import { createDevHeaderAuth, DEV_USER_HEADER } from "../auth.ts";
 import { createRooms, type Rooms } from "../index.ts";
 
@@ -257,3 +257,58 @@ test("a body in a room is sent only to the people who may see into that room (#2
   await waitFor(() => ante.state.officeAgents.get("a-follower")?.operationId === ALPHA, "owner");
   expect(wire(mia)).not.toContain(ALPHA);
 });
+
+test("the office PM's round: in a room, its body reaches only the viewer whose access covers it (#60)", async () => {
+  const ante = await joinAs("u-ante", "Ante");
+  const mia = await joinAs("u-mia", "Mia");
+  // Rounds every two seconds, held back until the test has seen it at its desk. The PM was
+  // granted Alpha.
+  let released = false;
+  const rounds = new PmRounds({ henchmen: () => [], everyMs: 2_000 });
+  const world = new AgentWorld({
+    agents: () => [
+      {
+        id: "a-pm",
+        name: "Ledger",
+        ownerUserId: null,
+        ownerName: "",
+        appearance: "number_two",
+        status: "ready",
+        dismissed: false,
+        post: "reception",
+      },
+    ],
+    mayEnter: (_agentId, operationId) => operationId === ALPHA,
+    duty: (agent, context) => (released ? rounds.duty(agent, context) : null),
+  });
+  rooms.building.attachWorld(world);
+  const body = (room: BuildingRoom) => room.state.officeAgents?.get("a-pm");
+  const wire = (room: BuildingRoom) => JSON.stringify(room.state.toJSON());
+
+  // At reception both of them see it.
+  await waitFor(
+    () => body(mia)?.mode === "post" && body(ante)?.mode === "post",
+    "the PM at its post",
+  );
+  expect(body(mia)?.toJSON()).toEqual(body(ante)?.toJSON() as object);
+  expect(body(mia)).toMatchObject({ post: "reception", doing: "at reception" });
+
+  released = true;
+  // On its round it walks into Alpha: Ante, who may enter Alpha, sees it at the boards there;
+  // Mia, whose GitHub access does not cover Alpha, has no body and no trace of the room.
+  await waitFor(() => body(ante)?.operationId === ALPHA, "the PM in Alpha for Ante", 6_000);
+  expect(body(ante)).toMatchObject({ mode: "route", levelId: ANTE_LEVEL });
+  expect(body(ante)?.doing).toMatch(/^checking the (issue|PR) board$/);
+  await waitFor(() => body(mia) === undefined, "the body to leave Mia's state");
+  await Bun.sleep(200);
+  expect(body(mia)).toBeUndefined();
+  expect(wire(mia)).not.toContain("a-pm");
+  expect(wire(mia)).not.toContain(ALPHA);
+  expect(wire(mia)).not.toContain("checking the");
+
+  // Sent back to its desk: Mia has it again, the same body Ante has.
+  world.setRoute("a-pm", null);
+  await waitFor(() => body(mia)?.operationId === LOBBY_OPERATION_ID, "the PM back for Mia");
+  await waitFor(() => body(ante)?.operationId === LOBBY_OPERATION_ID, "the PM back for Ante");
+  expect(body(mia)?.levelId).toBe(LOBBY_LEVEL_ID);
+}, 20_000);
