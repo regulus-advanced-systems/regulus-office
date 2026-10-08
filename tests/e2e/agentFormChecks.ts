@@ -22,7 +22,11 @@ export async function checkAgentForm(page: Page, screenshotDir?: string) {
   await expect(form.getByLabel("Runs as").locator("option")).toHaveText([
     "Claude Code session (runs here in the office)",
     "Connect my existing Hermes agent",
+    // This office has no Hermes image: the choice is there, greyed out, and says so (#57).
+    "Hermes, run by the office (not turned on in this office)",
   ]);
+  await expect(form.getByLabel("Runs as").locator("option").last()).toBeDisabled();
+  await expect(form).toContainText("set OFFICE_HERMES_IMAGE");
   await expect(form).toContainText("The program that runs this agent.");
   // Runs on: the owner's own login is there (this office cannot check it, so it is not ruled out).
   await expect(form.getByLabel("Runs on").locator("option")).toHaveText([

@@ -49,6 +49,24 @@ describe("loadConfig", () => {
     expect(() => loadConfig({ OFFICE_RUNNER_BACKEND: "k8s" })).toThrow(/OFFICE_RUNNER_BACKEND/);
   });
 
+  test("Hermes run by the office (#57): off until an image is named; limits are optional", () => {
+    expect(loadConfig({}).hermes).toBeNull();
+    expect(loadConfig({ OFFICE_HERMES_IMAGE: "" }).hermes).toBeNull();
+    expect(loadConfig({ OFFICE_HERMES_IMAGE: "regulus-office-hermes:0.21.5" }).hermes).toEqual({
+      image: "regulus-office-hermes:0.21.5",
+      memoryBytes: undefined,
+      cpus: undefined,
+      pids: undefined,
+    });
+    const c = loadConfig({
+      OFFICE_HERMES_IMAGE: "h:1",
+      OFFICE_HERMES_MEMORY: "1g",
+      OFFICE_HERMES_CPUS: "0.5",
+      OFFICE_HERMES_PIDS: "256",
+    });
+    expect(c.hermes).toEqual({ image: "h:1", memoryBytes: 1024 ** 3, cpus: 0.5, pids: 256 });
+  });
+
   test("per-agent sandboxes (#169): on by default with limits for the 16 GB VM, configurable", () => {
     expect(loadConfig({}).sandbox).toEqual({
       memoryBytes: 2 * 1024 ** 3,

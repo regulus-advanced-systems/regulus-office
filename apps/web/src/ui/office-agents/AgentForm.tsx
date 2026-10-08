@@ -28,7 +28,14 @@ import { Button } from "../components/Button.tsx";
 import { AppearancePicker } from "./AppearancePicker.tsx";
 import type { OfficeAgentsApi } from "./api.ts";
 import { HermesFields, readHermesFields, useHermesFieldRefs } from "./HermesConnection.tsx";
-import { ENGINE_HELP, ENGINE_WORDS, PRESET_WORDS, ROLE_WORDS, SOUL_WORDS } from "./labels.ts";
+import {
+  ENGINE_HELP,
+  ENGINE_WORDS,
+  MANAGED_HERMES_OFF,
+  PRESET_WORDS,
+  ROLE_WORDS,
+  SOUL_WORDS,
+} from "./labels.ts";
 import { keyOf, OTHER_MODEL, RunsOnPicker, usableChoices, useRunsOn } from "./RunsOnPicker.tsx";
 
 type Common = {
@@ -91,7 +98,9 @@ export function AgentForm(props: AgentFormProps) {
 
   const runsOn = useRunsOn(api);
   const shared = owner === "office";
-  const usable = usableChoices(runsOn, shared);
+  const usable = usableChoices(runsOn, shared, engine);
+  // The office has no Hermes of its own to start: the choice is shown, greyed out, with what to do.
+  const hermesOff = !agent && !props.engines.includes("hermes-managed");
   const chosen = usable.find((c) => keyOf(c) === pickedKey) ?? usable[0];
   const known = chosen ? agentModelsFor(chosen.kind) : [];
   const model =
@@ -218,22 +227,34 @@ export function AgentForm(props: AgentFormProps) {
         className="rg-input"
         value={engine}
         disabled={agent !== undefined}
-        onChange={(e) => setEngine(e.currentTarget.value as OfficeAgentEngineKind)}
+        onChange={(e) => {
+          setEngine(e.currentTarget.value as OfficeAgentEngineKind);
+          // Another program lists other keys and models.
+          setPickedKey(undefined);
+          setPickedModel(undefined);
+        }}
       >
         {engines.map((kind) => (
           <option key={kind} value={kind}>
             {ENGINE_WORDS[kind].label}
           </option>
         ))}
+        {hermesOff && (
+          <option value="" disabled>
+            {MANAGED_HERMES_OFF.option}
+          </option>
+        )}
       </select>
       <div className="rg-field__hint">
         {ENGINE_HELP} {ENGINE_WORDS[engine].hint}
         {agent ? " It cannot be changed afterwards." : ""}
       </div>
+      {hermesOff && <div className="rg-field__hint">{MANAGED_HERMES_OFF.hint}</div>}
       {picksModel ? (
         <RunsOnPicker
           state={runsOn}
           shared={shared}
+          engine={engine}
           value={chosen}
           onChange={(key) => {
             setPickedKey(key);

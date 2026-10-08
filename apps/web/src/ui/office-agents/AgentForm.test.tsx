@@ -35,11 +35,13 @@ describe("office agent form", () => {
     await settle();
     expect(document.querySelector("label[for]")?.textContent).toBe("Name");
     expect(text()).not.toContain("Belongs to");
-    // "Runs as" stays in view with its one option, and says what it is.
+    // "Runs as" stays in view and says what it is; what this office has not turned on is greyed out.
     const runsAs = select("Runs as");
     expect(Array.from(runsAs.options).map((o) => o.textContent)).toEqual([
       "Claude Code session (runs here in the office)",
+      "Hermes, run by the office (not turned on in this office)",
     ]);
+    expect(runsAs.options[1]?.disabled).toBe(true);
     expect(text()).toContain("The program that runs this agent. It decides which providers");
     // "Runs on" lists what is connected; the login is preselected, with Claude's models.
     const runsOn = select("Runs on");

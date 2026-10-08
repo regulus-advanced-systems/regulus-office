@@ -4,6 +4,8 @@ on:
   push:
     branches: [master]
   pull_request:
+  # By hand: runs everything, the `hermes-image` job's heavy part included.
+  workflow_dispatch:
 
 jobs:
   check:
@@ -375,6 +377,79 @@ jobs:
       - name: Proxy log
         if: failure()
         run: docker logs regulus-ci-proxy
+      - name: Tear down
+        if: always()
+        run: docker rm -f regulus-ci-proxy || true
+
+  # "Hermes, run by the office" (#57): builds hermes-runner/Dockerfile (the official Hermes image,
+  # pinned by digest) and starts the real gateway in it the way the office does, through the socket
+  # proxy with the deploy/ allowlist: non-root, no capabilities, keys only in the exec. Dummy keys,
+  # no message sent: no model is called and nothing is spent.
+  #
+  # The image is about 1 GB to pull, so the heavy steps run only when something they test changed
+  # (the Dockerfile, the managed Hermes code, this workflow) or when the workflow is started by
+  # hand. Otherwise the job ends green after the first step: it never blocks an unrelated change.
+  hermes-image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Did anything the image check covers change?
+        id: changed
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          run=false
+          if [ "$EVENT" = workflow_dispatch ]; then
+            run=true
+          else
+            if [ "$EVENT" = pull_request ]; then
+              range="origin/$BASE_REF...HEAD"
+            else
+              range="$BEFORE..HEAD"
+            fi
+            # A range that cannot be read (a first push, a rewritten branch) runs the check.
+            if files=$(git diff --name-only "$range" 2>/dev/null); then
+              if printf '%s\n' "$files" | grep -qE '^(hermes-runner/|apps/server/src/pm/hermes/managed/|\.github/workflows/ci\.yml$)'; then
+                run=true
+              fi
+            else
+              run=true
+            fi
+          fi
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+          echo "hermes image check: run=$run"
+      - uses: oven-sh/setup-bun@v2
+        if: steps.changed.outputs.run == 'true'
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+        if: steps.changed.outputs.run == 'true'
+      - run: docker build -t regulus-office-hermes:ci hermes-runner
+        if: steps.changed.outputs.run == 'true'
+      - name: Socket proxy with the deploy/ allowlist
+        if: steps.changed.outputs.run == 'true'
+        run: |
+          compose=deploy/docker-compose.yml
+          img=$(sed -n 's/^    image: \(wollomatic\/socket-proxy.*\)$/\1/p' "$compose")
+          mapfile -t allow < <(sed -n 's/^      - -\(allow[A-Z]*=.*\)$/-\1/p' "$compose")
+          test -n "$img" && test "${#allow[@]}" -gt 5
+          docker run -d --name regulus-ci-proxy --user 0:0 --cap-drop ALL --network host \
+            -v /var/run/docker.sock:/var/run/docker.sock:ro "$img" \
+            -proxyport=2375 -allowbindmountfrom=/tmp "${allow[@]}"
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:2375/_ping && break; sleep 1; done
+      - run: bun test apps/server/src/pm/hermes/managed/docker-host.integration.test.ts
+        if: steps.changed.outputs.run == 'true'
+        env:
+          REGULUS_HERMES_IMAGE: regulus-office-hermes:ci
+          REGULUS_DOCKER_RUNNER_HOST: tcp://127.0.0.1:2375
+      - name: Proxy log
+        if: failure()
+        run: docker logs regulus-ci-proxy || true
       - name: Tear down
         if: always()
         run: docker rm -f regulus-ci-proxy || true

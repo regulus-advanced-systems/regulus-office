@@ -31,7 +31,7 @@ export async function checkHermesConnection(page: Page, screenshotDir?: string) 
   await expect(form).toContainText(`url: "${new URL(page.url()).origin}/mcp"`);
   // A shared agent cannot be someone's own Hermes.
   await form.getByLabel("Belongs to").selectOption("office");
-  await expect(form.getByLabel("Runs as").locator("option")).toHaveCount(1);
+  await expect(form.getByLabel("Runs as").locator("option:not([disabled])")).toHaveCount(1);
   await form.getByLabel("Belongs to").selectOption("me");
   await form.getByLabel("Runs as").selectOption({ label: "Connect my existing Hermes agent" });
 

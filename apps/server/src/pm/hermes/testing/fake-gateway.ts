@@ -48,6 +48,9 @@ export interface FakeGatewayOptions {
   sessionChat?: boolean;
   /** Not a Hermes at all: `/health` answers something else. */
   impostor?: boolean;
+  /** Listen here instead of on a free port of 127.0.0.1 (the fake as a process, #57). */
+  port?: number;
+  hostname?: string;
 }
 
 const json = (body: unknown, status = 200, headers: Record<string, string> = {}) =>
@@ -73,6 +76,7 @@ export class FakeHermesGateway {
 
   constructor(private readonly options: FakeGatewayOptions = {}) {
     this.key = options.key ?? "fake-hermes-key-0123456789abcdef";
+    this.#port = options.port ?? 0;
   }
 
   get url(): string {
@@ -83,7 +87,7 @@ export class FakeHermesGateway {
   up(): this {
     if (this.#server) return this;
     this.#server = Bun.serve({
-      hostname: "127.0.0.1",
+      hostname: this.options.hostname ?? "127.0.0.1",
       port: this.#port,
       idleTimeout: 0,
       fetch: (request) => this.#handle(request),

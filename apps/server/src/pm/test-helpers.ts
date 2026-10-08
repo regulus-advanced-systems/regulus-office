@@ -54,6 +54,7 @@ export interface AgentsOfficeOptions {
   cliCommand?: string;
   /** Timings of the Hermes engine (#58). */
   hermes?: OfficeAgentsOptions["hermes"];
+  managedHermes?: OfficeAgentsOptions["managedHermes"];
 }
 
 export async function agentsOffice(options: AgentsOfficeOptions = {}) {
@@ -221,6 +222,7 @@ export async function agentsOffice(options: AgentsOfficeOptions = {}) {
     runner: options.runner,
     cliCommand: options.cliCommand,
     hermes: options.hermes,
+    managedHermes: options.managedHermes,
     usage: new UsageTracker(db),
   });
   officeAgents.bind({
