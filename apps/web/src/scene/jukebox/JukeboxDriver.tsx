@@ -7,7 +7,8 @@
  * through the shared falloff curve (audio/spatial.ts), times the room
  * occlusion (full in the lobby, half in the corridors, a fifth in another
  * room). Written to `useJukeboxStore.level` five times a second; the
- * playback hook and the YouTube panel apply it.
+ * playback hook and the YouTube panel apply it. The jukebox is in the lobby,
+ * on the lobby level: on any other level it is silent.
  *
  * Using it: a click on the jukebox walks over and opens the jukebox panel
  * on arrival; `E` opens it from the spot in front. A lamp on top glows
@@ -45,6 +46,8 @@ export function JukeboxDriver({ world, grid }: { world: CompoundWorld; grid: Nav
   const lamp = useRef<Mesh>(null);
   useEffect(() => {
     useJukeboxStore.getState().setStand(spot ? spot.stand : null);
+    // A level without the jukebox (every level but the lobby level, #269) does not hear it.
+    if (!spot) useJukeboxStore.getState().setLevel(0, Number.POSITIVE_INFINITY);
     return () => useJukeboxStore.getState().setStand(null);
   }, [spot]);
 

@@ -11,10 +11,12 @@
  * kept in memory only between "Choose a spot…" and the confirm or cancel,
  * then dropped.
  */
+
 import type { DoorSide, PlacementError, PlaceRoomRequest, RoomPlacement } from "@regulus/protocol";
 import { create } from "zustand";
 import type { CompoundWorld } from "../../scene/compound/world.ts";
 import { useCameraStore } from "../../state/camera.ts";
+import { leaveDraftLevel } from "../../state/travel.ts";
 import { useUiStore } from "../../state/ui.ts";
 import {
   clampGhost,
@@ -184,6 +186,8 @@ export const useBuildModeStore = create<BuildModeState>()((set, get) => ({
       followMove: result.moved ?? null,
     });
     useUiStore.getState().closeOverlay(BUILD_MODE_OVERLAY);
+    // The spot was picked on the draft of a new level (#269): back to a real one.
+    leaveDraftLevel();
     if (!result.placed && !s.watching) get().stopWatching();
   },
   cancel: () => get().finish(),

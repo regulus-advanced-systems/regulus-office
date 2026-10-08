@@ -65,6 +65,7 @@ import {
   navPose,
   navRooms,
   roomNamed,
+  travelButton,
   travelInto,
   walkInto,
   walkToLobby,
@@ -78,6 +79,7 @@ import { ensureRemoteRepo } from "./gitRemote.ts";
 import { checkMergeGong } from "./gongChecks.ts";
 import { checkHermesConnection } from "./hermesChecks.ts";
 import { checkJukebox } from "./jukeboxChecks.ts";
+import { checkLift, checkOpenAndClosedRooms } from "./liftChecks.ts";
 import { checkAgentsInTheWorld } from "./officeAgentWorldChecks.ts";
 import { loadOwnerGenius, type OfficeSession, openOffice, owner } from "./officeSession.ts";
 import { reportFramePerf } from "./perfProbe.ts";
@@ -466,13 +468,16 @@ test("the owner adds an operation in build mode: a refused spot, then placed, bu
   const spot = first.placement;
   if (!spot) throw new Error("no ghost");
 
-  // Over the lobby the ghost turns red with the server's reason, and nothing can be built.
-  const lobby = (await navRooms(ownerPage)).find((r) => r.kind === "lobby");
-  if (!lobby) throw new Error("lobby missing");
-  await aimAt(ownerPage, lobby.x + lobby.w / 2, lobby.z + lobby.d / 2);
+  // The room goes on its repo owner's level (#268): build mode shows that level's grid, for a
+  // new owner the grid the new level will have, with its lift landing and nothing else (#269).
+  expect((await navRooms(ownerPage)).map((r) => r.kind)).toEqual(["landing"]);
+  // Over the lift landing the ghost turns red with the server's reason, and nothing can be built.
+  const landing = (await navRooms(ownerPage)).find((r) => r.kind === "landing");
+  if (!landing) throw new Error("landing missing");
+  await aimAt(ownerPage, landing.x + landing.w / 2, landing.z + landing.d / 2);
   const refused = await settledVerdict(ownerPage);
-  expect(refused.server).toMatchObject({ ok: false, reason: "overlap", conflicts: ["lobby"] });
-  await expect(status).toHaveText("It overlaps the lobby.");
+  expect(refused.server).toMatchObject({ ok: false, reason: "overlap", conflicts: ["landing"] });
+  await expect(status).toHaveText("It overlaps the lift landing.");
   await expect(build).toBeDisabled();
 
   // Back over the free spot with the mouse; a click holds the ghost there.
@@ -562,10 +567,11 @@ test("the owner adds an operation in build mode: a refused spot, then placed, bu
   await memberPage.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
   await memberPage.keyboard.press("f");
   const travel = memberPage.getByRole("dialog", { name: "Quick travel" });
-  await expect(travel.getByRole("list", { name: "Levels" })).toHaveCount(0);
-  const listed = travel.getByRole("list", { name: "Rooms you can enter" });
-  await expect(listed.getByRole("button", { name: /^Lobby/ })).toBeVisible();
-  await expect(listed.getByRole("button", { name: /^Apollo/ })).toHaveCount(0);
+  // One level is all they are shown (#269): no other level's group, no way to one.
+  await expect(travel.getByRole("button", { name: /^Go to / })).toHaveCount(0);
+  await expect(travel.locator("section")).toHaveCount(1);
+  await expect(travelButton(travel, "Lobby")).toBeVisible();
+  await expect(travelButton(travel, "Apollo")).toHaveCount(0);
   await memberPage.keyboard.press("Escape");
   await expect(travel).toHaveCount(0);
   const layout = await (await memberPage.request.get("/api/compound")).text();
@@ -575,13 +581,12 @@ test("the owner adds an operation in build mode: a refused spot, then placed, bu
   expect(await (await memberPage.request.get("/api/operations")).text()).not.toContain("Apollo");
   await expect.poll(() => remoteHumans(memberPage)).toHaveLength(0);
 
-  // Out of the room, the owner is still on a level the member cannot reach, so still not
-  // drawn; back on the shared lobby level the member sees them again.
-  await ownerPage.bringToFront();
-  await walkToLobby(ownerPage);
+  // Still inside, the owner is on a level the member cannot reach, so not drawn; back on
+  // the shared lobby level (the lobby is only there, #269) the member sees them again.
   await memberPage.waitForTimeout(500);
   expect(await remoteHumans(memberPage)).toHaveLength(0);
-  await goToLobbyLevel(ownerPage);
+  await ownerPage.bringToFront();
+  await walkToLobby(ownerPage);
   await expect.poll(() => remoteHumans(memberPage)).toHaveLength(1);
 });
 
@@ -911,6 +916,22 @@ test("a PR merged on the board rings the gong; henchmen cheer and sit back as th
 test("the blast door opens for everyone, the owner walks out onto the dock, it shuts by itself (#188)", async () => {
   test.setTimeout(240_000);
   await checkBlastDoor(ownerPage, memberPage, owner.name);
+});
+
+test("the lift: E opens its panel; the owner rides to Apollo's level, the member sees them gone, and back (#269)", async () => {
+  test.skip(!process.env.E2E_DATA_DIR, "needs the locally started server (local git remotes)");
+  await ensureApollo();
+  await checkLift(ownerPage, memberPage, owner.name);
+});
+
+test("a second person on a level: one room opens for them, the other is a sealed door that says nothing (#269)", async () => {
+  test.skip(!process.env.E2E_DATA_DIR, "needs the locally started server (local git remotes)");
+  // A second room is built, a page reloads and two people walk: more than one step's default.
+  test.setTimeout(300_000);
+  await ensureApollo();
+  ensureRemoteRepo(process.env.E2E_DATA_DIR ?? "", "octo", "forge");
+  await ensureOperation(ownerPage, "Vulcan", "octo/forge");
+  await checkOpenAndClosedRooms(ownerPage, memberPage, "Apollo", "octo/hello", "Vulcan");
 });
 
 test("the jukebox: E opens it, a queued track plays in both browsers at the same playhead (#47)", async () => {

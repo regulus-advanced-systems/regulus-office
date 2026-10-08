@@ -3,7 +3,12 @@ import { SPECIAL_ROOM_KINDS } from "@regulus/protocol";
 import { isHumanSeat, projectRoomLayout, projectRoomSeats, specialRoomSeats } from "./seats.ts";
 import { BREAK_ROOM_TILES, CONFERENCE_TILES, LOBBY_TILES } from "./special.ts";
 
-const SIZES = { lobby: LOBBY_TILES, conference: CONFERENCE_TILES, break_room: BREAK_ROOM_TILES };
+const SIZES = {
+  lobby: LOBBY_TILES,
+  conference: CONFERENCE_TILES,
+  break_room: BREAK_ROOM_TILES,
+  landing: LOBBY_TILES,
+};
 
 describe("specialRoomSeats", () => {
   test.each([...SPECIAL_ROOM_KINDS])(

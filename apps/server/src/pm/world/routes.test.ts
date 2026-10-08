@@ -222,7 +222,8 @@ describe("bodies and the office's access gate", () => {
       const body = state.officeAgents.get(shared.id);
       rooms.add(body?.operationId ?? "");
       modes.add(body?.mode ?? "");
-      lines.add(body?.doing ?? "");
+      // (Between levels it steps out of the lift, #269.)
+      if (body?.doing !== "stepping out of the lift") lines.add(body?.doing ?? "");
     }
     // Apollo was granted; Borealis, on the same level, was not.
     expect([...rooms].sort()).toEqual([LOBBY_OPERATION_ID, APOLLO].sort());

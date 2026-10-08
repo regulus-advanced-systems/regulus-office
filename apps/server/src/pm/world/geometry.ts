@@ -16,7 +16,7 @@ import {
   SPECIAL_ROOM_KINDS,
   type SpecialRoomKind,
 } from "@regulus/protocol";
-import { doorApproach, type Pose, type Rect, type Vec2 } from "@regulus/room-layout";
+import { doorApproach, liftSpotIn, type Pose, type Rect, type Vec2 } from "@regulus/room-layout";
 
 export type LairRoomKind = "project" | SpecialRoomKind;
 
@@ -180,9 +180,28 @@ export function doorWait(room: LairRoom): Pose {
   return doorApproach(room.tiles, room.doorSide);
 }
 
-/** The lobby of a level (every level has the lobby's footprint: where the lift arrives). */
+/** The lobby: on the lobby level only (#269; the other levels have a lift landing instead). */
 export function lobbyOf(level: LairLevel | undefined): LairRoom | null {
   return level?.rooms.find((r) => r.kind === "lobby") ?? null;
+}
+
+/** The room the lift opens into on a level: the lobby, or the level's landing (#269). */
+export function arrivalRoomOf(level: LairLevel | undefined): LairRoom | null {
+  return level?.rooms.find((r) => r.kind === "lobby" || r.kind === "landing") ?? null;
+}
+
+/**
+ * Where a body that changes level appears (#269): by the lift on that level's
+ * landing, as the people who ride it do, a step aside so it does not stand
+ * on whoever just stepped out. `t` in [0, 1) spreads several bodies out.
+ * Null while the level has no arrival room (not published yet).
+ */
+export function liftArrival(level: LairLevel | undefined, t: number): Pose | null {
+  const room = arrivalRoomOf(level);
+  if (!room) return null;
+  const { stand } = liftSpotIn(room.tiles);
+  const at = clampInto(room.rect, { x: stand.x - 0.9, z: stand.z - 1.2 + t * 2.2 }, 0.5);
+  return { x: at.x, z: at.z, heading: stand.heading };
 }
 
 export const centreOf = (r: Rect): Vec2 => ({ x: r.x + r.w / 2, z: r.z + r.d / 2 });

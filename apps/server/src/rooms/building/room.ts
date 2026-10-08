@@ -43,7 +43,7 @@ import type { RoomClient, RoomDefinition, RoomHandle } from "../transport.ts";
 import { type BlastDoorOptions, createBlastDoor } from "./blast-door.ts";
 import { applyClosedRooms } from "./closed-rooms.ts";
 import { checkCommand, wrapHeading } from "./commands.ts";
-import { levelOfGo, returnToAllowedPlaces } from "./levels.ts";
+import { humansOn, levelOfGo, returnToAllowedPlaces } from "./levels.ts";
 import { applyLobbyCommand } from "./lobby-commands.ts";
 import {
   applyOperationRecord,
@@ -54,6 +54,7 @@ import {
 import { RateLimiter } from "./rate-limiter.ts";
 import { applyLook, chatLine } from "./schema-copy.ts";
 import { createScreenShareRules, type ScreenShareRules } from "./screen-share.ts";
+import { seatWorldOn } from "./seats.ts";
 import { createSocialRules } from "./social.ts";
 import { placeAtSpawn } from "./spawn.ts";
 import {
@@ -219,9 +220,11 @@ export function createBuildingRoom(deps: BuildingRoomDeps): BuildingRoom {
       case "sit": {
         const key = command.seatId ?? "";
         if (key && key !== human.seatId) {
+          // Seats and positions are per level (#269): the seat on the human's own
+          // level, held only against the people on that level.
           const check = social.checkSit(
-            room.state,
-            room.state.humans,
+            seatWorldOn(room.state, human.levelId),
+            humansOn(room.state.humans, human.levelId),
             client.sessionId,
             client.user,
             key,
@@ -306,6 +309,11 @@ export function createBuildingRoom(deps: BuildingRoomDeps): BuildingRoom {
         return;
       }
       case "blast_door.press": {
+        // The blast door is the lobby level's; the other levels are all rock there (#269).
+        if (human.levelId !== LOBBY_LEVEL_ID) {
+          reject(client, command.type, "The blast door is on the lobby level.");
+          return;
+        }
         const result = blastDoor.press(
           room.state.blastDoor,
           { userId: human.userId, displayName: human.displayName },

@@ -5,13 +5,19 @@
  * - a room still `building`: two walls up, scaffolding, crates and a work light;
  * - a room this viewer may not enter: the bare shell behind a closed door
  *   (the scene caps it, so the interior stays private, SPEC §9.1);
- * - the special rooms: their shell and fixed dressing (special.ts).
+ * - a closed room (D26, #269: nothing about it is known but its footprint):
+ *   rock walls under the same cap, its door barred with welded beams, or no
+ *   door at all when none is known;
+ * - the special rooms: their shell and fixed dressing (special.ts), with the
+ *   lift in the lobby and on every landing.
  * Results are cached per room and setting, so a re-render or a counter
  * change never regenerates a room. Pure.
  */
 import type { Rect, RoomLayout } from "@regulus/room-layout";
-import { type RoomShell, roomShell } from "../lair/assembly.ts";
+import { type RoomShell, roomShell, WALL_YAW } from "../lair/assembly.ts";
 import { type WorldLamp, worldLamps } from "../lair/components/BlinkingLamps.tsx";
+import type { Vec3 } from "../lair/geometry/builder.ts";
+import { DOOR_BARS_OUT, LIFT_DOOR_INSET } from "../lair/geometry/lift.ts";
 import { LAIR_MODELS } from "../lair/models.ts";
 import type { PiecePlacement } from "../lair/placements.ts";
 import { type LookItem, lairRoomScene } from "../lair/roomScene.ts";
@@ -21,7 +27,7 @@ import type { WorldRoom } from "./world.ts";
 
 export { roomLayout };
 
-export type RoomLook = "open" | "building" | "locked" | "special";
+export type RoomLook = "open" | "building" | "locked" | "closed" | "special";
 
 export interface RoomArt {
   look: RoomLook;
@@ -51,6 +57,7 @@ export interface RoomArt {
 /** How a room is drawn for this viewer. */
 export function roomLook(room: WorldRoom): RoomLook {
   if (room.kind !== "project") return "special";
+  if (room.closed) return "closed";
   if (room.buildState === "building") return "building";
   return room.enterable ? "open" : "locked";
 }
@@ -81,14 +88,21 @@ function bareShell(room: WorldRoom, look: RoomLook): RoomShell {
     w: room.rect.w,
     d: room.rect.d,
     door: { side: room.doorSide, tile: doorTile(room), span: 2 },
-    floor: look === "special" && room.kind === "conference" ? "floor_carpet" : "floor_concrete",
+    floor:
+      look === "special" && room.kind === "conference"
+        ? "floor_carpet"
+        : room.kind === "landing"
+          ? "floor_steel"
+          : "floor_concrete",
     finish:
       room.kind === "lobby"
         ? { north: "wall_concrete", south: "wall_steel" }
         : room.kind === "break_room"
           ? { north: "wall_concrete" }
-          : undefined,
-    lampEvery: look === "locked" ? 0 : 3,
+          : room.kind === "landing"
+            ? { east: "wall_concrete" }
+            : undefined,
+    lampEvery: look === "locked" || look === "closed" ? 0 : 3,
     services: look === "special" ? ["north", "east", "west"] : [],
   });
 }
@@ -155,17 +169,30 @@ function specialRoom(room: WorldRoom): RoomArt {
   );
   let pieces = [...shell.pieces, ...furniture];
   if (room.kind === "lobby") pieces = pieces.filter((p) => !isBlastDoorWall(p, room));
+  const lift = dressing.lift;
+  const doors = [...shell.doors];
+  if (lift) {
+    // The shaft housing faces west; its door is a one-tile sliding door set into the pylons.
+    const yaw = WALL_YAW.east;
+    pieces.push({
+      piece: "lift_shaft",
+      position: [lift.rect.x + lift.rect.w / 2, 0, lift.rect.z + lift.rect.d / 2],
+      rotationY: yaw,
+    });
+    doors.push({ position: [lift.door.x + LIFT_DOOR_INSET, 0, lift.door.z], rotationY: yaw });
+  }
   return {
     ...EMPTY,
     look: "special",
     pieces,
-    doors: shell.doors,
+    doors,
     beacons: shell.beacons,
     lamps: shell.lamps,
     consoleLamps,
     obstacles: [
       ...dressing.furniture.map((f) => f.rect),
       ...(dressing.tv ? [dressing.tv.rect] : []),
+      ...(lift ? [lift.rect] : []),
     ],
     dressing,
   };
@@ -209,6 +236,36 @@ function lockedRoom(room: WorldRoom): RoomArt {
   };
 }
 
+/**
+ * A closed room (D26, #269): rock walls and nothing else. With a known door
+ * the frame and its shut leaves stand in the wall under welded bars; without
+ * one the walls run all the way round. No floor, lamps or beacons: the scene
+ * caps the room, and nothing inside is ever drawn.
+ */
+function closedRoom(room: WorldRoom): RoomArt {
+  const shell = roomShell({
+    w: room.rect.w,
+    d: room.rect.d,
+    door: room.sealed ? undefined : { side: room.doorSide, tile: doorTile(room), span: 2 },
+    lampEvery: 0,
+    services: [],
+  });
+  const pieces = shell.pieces.filter(
+    (p) => !p.piece.startsWith("floor_") && p.piece !== "hazard_strip",
+  );
+  for (const door of shell.doors) {
+    // On the corridor side of the frame, facing out.
+    const yaw = (door.rotationY ?? 0) + Math.PI;
+    const at: Vec3 = [
+      door.position[0] + Math.sin(yaw) * DOOR_BARS_OUT,
+      0,
+      door.position[2] + Math.cos(yaw) * DOOR_BARS_OUT,
+    ];
+    pieces.push({ piece: "door_bars", position: at, rotationY: yaw });
+  }
+  return { ...EMPTY, look: "closed", pieces, doors: shell.doors, beacons: [], lamps: [] };
+}
+
 const arts = new Map<string, RoomArt>();
 
 function artKey(room: WorldRoom, look: RoomLook): string {
@@ -220,6 +277,9 @@ function artKey(room: WorldRoom, look: RoomLook): string {
     room.rect.w,
     room.rect.d,
     room.doorSide,
+    room.door.x,
+    room.door.y,
+    room.sealed ? 1 : 0,
     room.deskCount,
     room.decorStyle,
   ].join(":");
@@ -235,6 +295,7 @@ export function roomArt(room: WorldRoom): RoomArt {
   if (look === "special") art = specialRoom(room);
   else if (look === "building") art = buildSite(room);
   else if (look === "locked") art = lockedRoom(room);
+  else if (look === "closed") art = closedRoom(room);
   else {
     const layout = roomLayout(room);
     art = layout ? openRoom(room, layout) : lockedRoom(room);

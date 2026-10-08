@@ -1,7 +1,12 @@
 import { describe, expect, test } from "bun:test";
-import { checkPlacement, defaultCompoundSpec, mainCorridor } from "@regulus/room-layout";
-import { rowPlacement, testWorld } from "../../scene/compound/testing.ts";
-import { lobbyOf } from "../../scene/compound/world.ts";
+import {
+  checkPlacement,
+  defaultCompoundSpec,
+  landingSpec,
+  mainCorridor,
+} from "@regulus/room-layout";
+import { closedRoomOf, rowPlacement, testState, testWorld } from "../../scene/compound/testing.ts";
+import { arrivalRoomOf, compoundWorld, lobbyOf } from "../../scene/compound/world.ts";
 import {
   arrowStep,
   buildFrame,
@@ -10,6 +15,7 @@ import {
   ghostAt,
   localCheck,
   newCorridorTiles,
+  placedRooms,
   placementOf,
   presetOf,
   rotateDoor,
@@ -93,6 +99,63 @@ describe("build mode rules", () => {
     const main = mainCorridor(spec);
     for (const r of result.corridor)
       expect(r.y + r.d <= main.y || r.y >= main.y + main.d).toBe(true);
+  });
+
+  test("a level other than the lobby level has its own rules: only the lift landing is fixed (#269)", () => {
+    const level = testState([{ id: "apollo", placement: rowPlacement(4) }], 48, {
+      levelId: "lv-a",
+      landing: true,
+    });
+    const below = compoundWorld(level, new Set(["apollo"]), "lv-a");
+    if (!below) throw new Error("no world");
+    expect(specOf(below)).toEqual(landingSpec(defaultCompoundSpec(48)));
+    const landing = arrivalRoomOf(below);
+    if (!landing) throw new Error("no landing");
+    const onLanding = placementOf(landing.rect, { w: 8, d: 8 }, "south");
+    expect(localCheck(below, onLanding)).toMatchObject({ ok: false, conflicts: ["landing"] });
+    expect(describeRefusal(below, "overlap", ["landing"])).toBe("It overlaps the lift landing.");
+    expect(describeRefusal(below, "unreachable", [])).toBe(
+      "No corridor can reach that door from the lift landing.",
+    );
+    expect(describeRefusal(world, "unreachable", [])).toBe(
+      "No corridor can reach that door from the lobby.",
+    );
+    // Where the lobby level has its war room, this level has free rock to build in.
+    const war = world.rooms.find((r) => r.kind === "conference");
+    if (!war) throw new Error("no war room");
+    const there = placementOf(war.rect, { w: 8, d: 8 }, "north");
+    expect(localCheck(world, there).ok).toBe(false);
+    expect(localCheck(below, there).ok).toBe(true);
+    expect(suggestSpot(below, { w: 8, d: 8 })).not.toBeNull();
+  });
+
+  test("a closed room's spot is taken, and all the ghost says is that it is a closed room (#269)", () => {
+    const level = testState(
+      [
+        { id: "apollo", name: "Apollo", placement: rowPlacement(4) },
+        { id: "vault", name: "Top secret", placement: rowPlacement(16) },
+      ],
+      48,
+      { levelId: "lv-a", landing: true },
+    );
+    const { vault, ...operations } = level.operations;
+    if (!vault) throw new Error("no vault");
+    const below = compoundWorld(
+      { compound: level.compound, operations, closedRooms: [closedRoomOf(vault)] },
+      new Set(["apollo"]),
+      "lv-a",
+    );
+    if (!below) throw new Error("no world");
+    expect(placedRooms(below).map((r) => r.id)).toEqual(["apollo", "vault"]);
+    const onVault = rowPlacement(16);
+    const check = localCheck(below, onVault);
+    expect(check).toMatchObject({ ok: false, reason: "overlap", conflicts: ["vault"] });
+    expect(describeRefusal(below, check.reason, check.conflicts)).toBe(
+      "It overlaps a closed room.",
+    );
+    // Right beside it is too close, as beside any room.
+    expect(localCheck(below, rowPlacement(25)).reason).toBe("too_close");
+    expect(suggestSpot(below, { w: 8, d: 8 })).not.toBeNull();
   });
 
   test("new corridor tiles are those of the next network not in the current one", () => {

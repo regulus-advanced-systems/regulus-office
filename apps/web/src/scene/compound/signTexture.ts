@@ -72,14 +72,55 @@ export function paintSign(ctx: Ctx, t: SignText): void {
   ctx.fillText(status, w / 2, h * 0.74, inside);
 }
 
+/** The two lines of a closed room's plate (#269): the same on every one, and nothing about the room. */
+export const NO_ENTRY_LINES = { title: "NO ENTRY", status: "RESTRICTED AREA" } as const;
+
+/**
+ * The plate of a room this viewer may not enter (D26, #269): a dark plate in
+ * a red frame with a hazard stripe. Neutral on purpose: it takes no room.
+ */
+export function paintNoEntry(ctx: Ctx): void {
+  const { w, h } = SIGN_PX;
+  ctx.fillStyle = "#1E2124";
+  ctx.fillRect(0, 0, w, h);
+  // A hazard stripe along the foot, inside the frame.
+  for (let x = 10; x < w - 10; x += 32) {
+    ctx.fillStyle = (x / 32) % 2 < 1 ? LAIR.yellow : "#1C1D1F";
+    ctx.fillRect(x, h - 30, Math.min(32, w - 10 - x), 20);
+  }
+  ctx.strokeStyle = LAIR.red;
+  ctx.lineWidth = 10;
+  ctx.strokeRect(5, 5, w - 10, h - 10);
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = "#F2E6C8";
+  ctx.font = "bold 60px 'Courier New', monospace";
+  ctx.fillText(NO_ENTRY_LINES.title, w / 2, h * 0.34, w - 48);
+  ctx.font = "bold 26px 'Courier New', monospace";
+  ctx.fillStyle = LAIR.red;
+  ctx.fillText(NO_ENTRY_LINES.status, w / 2, h * 0.64, w - 48);
+}
+
 export function createSignTexture(t: SignText): CanvasTexture | null {
+  return canvasSign(SIGN_PX, (ctx) => paintSign(ctx, t));
+}
+
+export function createNoEntryTexture(): CanvasTexture | null {
+  return canvasSign(SIGN_PX, paintNoEntry);
+}
+
+/** A canvas of `px` painted once and wrapped as a texture; null without a DOM (tests). */
+export function canvasSign(
+  px: { w: number; h: number },
+  paint: (ctx: CanvasRenderingContext2D) => void,
+): CanvasTexture | null {
   if (typeof document === "undefined") return null;
   const canvas = document.createElement("canvas");
-  canvas.width = SIGN_PX.w;
-  canvas.height = SIGN_PX.h;
+  canvas.width = px.w;
+  canvas.height = px.h;
   const ctx = canvas.getContext("2d");
   if (!ctx) return null;
-  paintSign(ctx, t);
+  paint(ctx);
   const texture = new CanvasTexture(canvas);
   texture.colorSpace = SRGBColorSpace;
   // Mipmaps and anisotropy keep the lettering steady seen from afar and at a slant (#190).

@@ -2,8 +2,8 @@ import { describe, expect, test } from "bun:test";
 import { SPECIAL_ROOM_KINDS } from "@regulus/protocol";
 import { specialRoomSeats } from "@regulus/room-layout";
 import { specialDressing } from "../compound/special.ts";
-import { rowPlacement, testWorld } from "../compound/testing.ts";
-import type { WorldRoom } from "../compound/world.ts";
+import { rowPlacement, testState, testWorld } from "../compound/testing.ts";
+import { type CompoundWorld, compoundWorld, type WorldRoom } from "../compound/world.ts";
 import { seatedPlacement } from "./seatPose.ts";
 import { nearestFreeSeat, roomSeats, seatByKey, takenSeats, worldSeats } from "./seats.ts";
 
@@ -14,11 +14,17 @@ const world = testWorld(
   ],
   ["apollo"],
 );
+const landingWorld = compoundWorld(
+  testState([], 48, { levelId: "lv-a", landing: true }),
+  new Set(),
+  "lv-a",
+) as CompoundWorld;
 const room = (id: string) => world.rooms.find((r) => r.id === id) as WorldRoom;
 
 describe("special-room seats sit on the furniture the scene draws (#49)", () => {
   test.each([...SPECIAL_ROOM_KINDS])("%s", (kind) => {
-    const r = world.rooms.find((x) => x.kind === kind) as WorldRoom;
+    // The landing is another level's fixed room (#269): it has its own world.
+    const r = [...world.rooms, ...landingWorld.rooms].find((x) => x.kind === kind) as WorldRoom;
     const dressing = specialDressing(kind, r.size.w, r.size.d);
     const chairs = dressing.extras.filter((e) => /chair/.test(e.piece));
     for (const seat of specialRoomSeats(kind, r.size.w, r.size.d)) {
@@ -84,5 +90,14 @@ describe("seats this viewer can use", () => {
       },
     } as unknown as Parameters<typeof takenSeats>[0];
     expect([...takenSeats(state, "me")]).toEqual(["lobby/sofa-1"]);
+  });
+});
+
+describe("seats are per level (#269)", () => {
+  test("a landing offers its two armchairs and none of the lobby's seats", () => {
+    const keys = worldSeats(landingWorld).map((s) => s.key);
+    expect(keys).toEqual(["landing/armchair-w", "landing/armchair-e"]);
+    expect(seatByKey(landingWorld, "lobby/sofa-1")).toBeNull();
+    expect(seatByKey(world, "landing/armchair-w")).toBeNull();
   });
 });

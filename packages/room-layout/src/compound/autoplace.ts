@@ -16,6 +16,7 @@ import type { CompoundRoomInput } from "./layout.ts";
 import {
   type CompoundSpec,
   defaultCompoundSpec,
+  landingSpec,
   MAIN_CORRIDOR_MARGIN_TILES,
   mainCorridor,
   specialRooms,
@@ -206,6 +207,7 @@ export function planMigration(
     // At the largest size, place what fits and report the rest.
     const result = reconcilePlacements(current, rooms, { stopAtUnplaced: !largest });
     if (result.unplaced.length === 0 || largest) return { spec: current, result };
-    current = defaultCompoundSpec(width, depth);
+    const grown = defaultCompoundSpec(width, depth);
+    current = spec.landing ? landingSpec(grown) : grown;
   }
 }

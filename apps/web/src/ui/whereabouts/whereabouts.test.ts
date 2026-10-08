@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { HumanPresence } from "@regulus/protocol";
+import type { HumanPresence, LevelState } from "@regulus/protocol";
 import { humanFixture } from "@regulus/protocol/src/fixtures.ts";
 import { rowPlacement, testWorld } from "../../scene/compound/testing.ts";
 import type { WorldRoom } from "../../scene/compound/world.ts";
@@ -96,6 +96,68 @@ describe("rows", () => {
     expect(doingLine({ doing: "", seatId: "lobby/sofa-1" })).toBe("sitting down");
     expect(doingLine({ doing: "at the PR board", seatId: "lobby/sofa-1" })).toBe("at the PR board");
     expect(doingLine({ doing: "", seatId: "" })).toBe("");
+  });
+});
+
+describe("who is on which level (#269)", () => {
+  const lobby = mid(room("lobby"));
+  const levelOf = (
+    levelId: string,
+    kind: "lobby" | "org" | "account",
+    name: string,
+    order: number,
+  ) =>
+    ({
+      levelId,
+      kind,
+      login: kind === "lobby" ? "" : name.toLowerCase(),
+      name,
+      order,
+    }) as LevelState;
+  const state = {
+    levels: {
+      lobby: levelOf("lobby", "lobby", "Lobby", 0),
+      "lv-octo": levelOf("lv-octo", "org", "Octo", 1),
+    },
+    humans: {
+      me: human("me", "Moe", lobby),
+      // The same coordinates on another level are not the lobby.
+      s1: human("s1", "Ada", lobby, { levelId: "lv-octo" }),
+      // On a level this viewer is not shown: no level is named.
+      s2: human("s2", "Bea", mid(room("apollo")), { levelId: "lv-secret" }),
+      s3: human("s3", "Cy", mid(room("apollo"))),
+    },
+  };
+
+  test("people on the viewed level are placed in its rooms; others by their level, if it is one the viewer can reach", () => {
+    const rows = whereaboutsRows(state, world, "me");
+    expect(rows.map((r) => [r.name, r.place.label, r.place.zone, r.place.roomId])).toEqual([
+      ["Moe", "Lobby", "room", "lobby"],
+      ["Ada", "On Octo", "level", null],
+      ["Bea", "Elsewhere in the lair", "unknown", null],
+      ["Cy", "Apollo", "room", "apollo"],
+    ]);
+    expect(JSON.stringify(rows)).not.toContain("lv-secret");
+  });
+
+  test("seen from the other level, it is the other way round", () => {
+    const there = { ...world, levelId: "lv-octo" };
+    const rows = whereaboutsRows(state, there, "me");
+    expect(rows.map((r) => [r.name, r.place.label])).toEqual([
+      ["Moe", "On Lobby level"],
+      ["Ada", "Lobby"],
+      ["Bea", "Elsewhere in the lair"],
+      ["Cy", "On Lobby level"],
+    ]);
+  });
+
+  test("moving within another level changes nothing here; changing level does", () => {
+    const before = rowsKey(whereaboutsRows(state, world, "me"));
+    const moved = structuredClone(state);
+    moved.humans.s1.position.x += 30;
+    expect(rowsKey(whereaboutsRows(moved, world, "me"))).toBe(before);
+    moved.humans.s1.levelId = "lobby";
+    expect(rowsKey(whereaboutsRows(moved, world, "me"))).not.toBe(before);
   });
 });
 

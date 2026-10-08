@@ -22,6 +22,8 @@ export interface NavRoom {
   name: string;
   kind: string;
   enterable: boolean;
+  /** Closed to this viewer (#269): a footprint with no name. */
+  closed: boolean;
   buildState: string;
   x: number;
   z: number;
@@ -41,6 +43,16 @@ interface Nav {
   camera(): CameraState;
   level(): string;
   levelOf(roomName: string): { levelId: string; name: string } | null;
+  levels(): NavLevel[];
+  lift(): { x: number; z: number } | null;
+  closedDoor(operationId: string): { x: number; z: number } | null;
+}
+
+/** A level as the lift's panel and quick travel name it (#269). */
+export interface NavLevel {
+  levelId: string;
+  name: string;
+  mark: string;
 }
 
 export interface CameraState {
@@ -102,10 +114,25 @@ export const walkToSeat = (page: Page, operationId: string, seatId: string): Pro
 export const navLevel = (page: Page): Promise<string> =>
   page.evaluate(`(${probe.toString()})().level()`) as Promise<string>;
 
+/** The levels the page is shown, in lift order (#269). */
+export const navLevels = (page: Page): Promise<NavLevel[]> =>
+  page.evaluate(`(${probe.toString()})().levels()`) as Promise<NavLevel[]>;
+
+/** Where to stand to call the lift on the level the page is on. */
+export const liftSpot = (page: Page): Promise<{ x: number; z: number } | null> =>
+  page.evaluate(`(${probe.toString()})().lift()`) as Promise<{ x: number; z: number } | null>;
+
+/** In front of a closed room's door, where `E` is answered "no entry" (#269). */
+export const closedDoorSpot = (page: Page, id: string): Promise<{ x: number; z: number } | null> =>
+  page.evaluate(`(${probe.toString()})().closedDoor(${JSON.stringify(id)})`) as Promise<{
+    x: number;
+    z: number;
+  } | null>;
+
 /**
- * Look at the level the room called `name` is on (#268): a room is on the level of its
- * repo's owner, and the world shows one level at a time. Through quick travel's level list,
- * as a person would; the player arrives at that level's lobby door. False when the room (or
+ * Go to the level the room called `name` is on (#268, #269): a room is on the level of its
+ * repo's owner, and the world shows one level at a time. Through quick travel's level groups,
+ * as a person would; the player arrives at that level's lift landing. False when the room (or
  * its level) is not published yet; true once the page is on that level.
  */
 export async function goToLevelOf(page: Page, name: string): Promise<boolean> {
@@ -117,9 +144,9 @@ export async function goToLevelOf(page: Page, name: string): Promise<boolean> {
   return true;
 }
 
-/** Look at the shared lobby level (where everyone arrives; it has no project rooms). */
+/** Go to the shared lobby level (where everyone arrives; it has no project rooms). */
 export const goToLobbyLevel = (page: Page): Promise<void> =>
-  goToLevel(page, { levelId: "lobby", name: "Lobby" });
+  goToLevel(page, { levelId: "lobby", name: "Lobby level" });
 
 async function goToLevel(page: Page, target: { levelId: string; name: string }): Promise<void> {
   if ((await navLevel(page)) === target.levelId) return;
@@ -127,13 +154,43 @@ async function goToLevel(page: Page, target: { levelId: string; name: string }):
   await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
   const dialog = page.getByRole("dialog", { name: "Quick travel" });
   if ((await dialog.count()) === 0) await page.keyboard.press("f");
-  await dialog
-    .getByRole("list", { name: "Levels" })
-    .getByRole("button", { name: new RegExp(`^${target.name}`) })
-    .click();
-  await page.keyboard.press("Escape");
+  // Each level is a group with a "Go" button to its lift landing.
+  await dialog.getByRole("button", { name: `Go to ${target.name}`, exact: true }).click();
   await expect(dialog).toHaveCount(0);
   await expect.poll(() => navLevel(page)).toBe(target.levelId);
+}
+
+/**
+ * Ride the lift to a level (#269), as a person would: walk up to the lift on the level the page
+ * is on, `E` for its panel, pick the level, and wait until the ride is over and the player stands
+ * on that level's landing (or in the lobby). Returns the panel's level names as it listed them.
+ */
+export async function rideLiftTo(page: Page, levelId: string): Promise<string[]> {
+  await page.bringToFront();
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  const at = await liftSpot(page);
+  if (!at) throw new Error("no lift on this level");
+  const panel = page.getByRole("dialog", { name: "Lift" });
+  await expect(async () => {
+    if (await panel.isVisible()) return;
+    const pose = await navPose(page);
+    const there = Math.hypot(pose.x - at.x, pose.z - at.z) <= 1;
+    if (there && !pose.walking) {
+      await page.keyboard.press("e");
+      await expect(panel).toBeVisible({ timeout: 3_000 });
+      return;
+    }
+    if (!pose.walking) expect(await walkTo(page, at.x, at.z)).toBe(true);
+    throw new Error("walking to the lift");
+  }).toPass({ timeout: 90_000, intervals: [500, 1_000] });
+  const rows = panel.getByRole("list", { name: "Levels you can reach" }).getByRole("button");
+  const listed = await rows.locator(".rg-lift__name").allTextContents();
+  await panel.locator(`[data-level="${levelId}"]`).click();
+  await expect(panel).toHaveCount(0);
+  await expect.poll(() => navLevel(page), { timeout: 15_000 }).toBe(levelId);
+  // The ride's doors have opened again.
+  await expect(page.getByTestId("lift-ride")).toHaveCount(0, { timeout: 15_000 });
+  return listed;
 }
 
 /**
@@ -183,8 +240,10 @@ export async function walkInto(page: Page, name: string): Promise<NavRoom> {
   return room;
 }
 
-/** Walk back out to the lobby. */
+/** Walk back out to the lobby (from another level: to the lobby level first). */
 export async function walkToLobby(page: Page): Promise<void> {
+  // The lobby is on the lobby level (#269); the other levels have a lift landing instead.
+  await goToLobbyLevel(page);
   const lobby = (await navRooms(page)).find((r) => r.kind === "lobby");
   if (!lobby) throw new Error("no lobby");
   await expect(async () => {
@@ -196,16 +255,23 @@ export async function walkToLobby(page: Page): Promise<void> {
   await expect(page.locator(".rg-topbar__operation")).toHaveText("Lobby");
 }
 
+/**
+ * A room's button in the quick travel dialog, whichever level's group it is in (#269). The
+ * levels' own buttons are "Go to ...", and a room's gear is "Operation settings: ...".
+ */
+export function travelButton(dialog: Locator, name: string): Locator {
+  return dialog
+    .getByRole("list", { name: /^Rooms you can enter/ })
+    .getByRole("button", { name: new RegExp(`^${name}`) });
+}
+
 /** Quick travel (`F`) to a room's door, then walk in. */
 export async function travelInto(page: Page, name: string): Promise<NavRoom> {
   await page.bringToFront();
   await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
   await page.keyboard.press("f");
   const dialog = page.getByRole("dialog", { name: "Quick travel" });
-  await dialog
-    .getByRole("list", { name: "Rooms you can enter" })
-    .getByRole("button", { name: new RegExp(`^${name}`) })
-    .click();
+  await travelButton(dialog, name).click();
   await expect(dialog).toHaveCount(0);
   return walkInto(page, name);
 }

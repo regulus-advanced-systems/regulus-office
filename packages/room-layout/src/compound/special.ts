@@ -21,6 +21,18 @@ export interface CompoundSpec {
   readonly width: number;
   readonly depth: number;
   readonly lobby: TileRect;
+  /**
+   * A level other than the lobby level (D26, #269): the lift landing stands
+   * on the lobby's footprint (the lift shaft runs through every level at the
+   * same spot); there is no war room, break room, blast door or beach.
+   * Never stored: {@link landingSpec} derives it from the one stored spec.
+   */
+  readonly landing?: boolean;
+}
+
+/** The spec of a level other than the lobby level: same grid, a lift landing as its only fixed room. */
+export function landingSpec(spec: CompoundSpec): CompoundSpec {
+  return spec.landing ? spec : { ...spec, landing: true };
 }
 
 export interface SpecialRoom {
@@ -55,9 +67,14 @@ export function defaultCompoundSpec(
   };
 }
 
-/** Lobby (door north onto the main corridor), conference room west of it, break room east. */
+/**
+ * Lobby (door north onto the main corridor), conference room west of it, break
+ * room east; on a level other than the lobby level, only the lift landing.
+ * The first entry is always the room people arrive in.
+ */
 export function specialRooms(spec: CompoundSpec): SpecialRoom[] {
   const { lobby } = spec;
+  if (spec.landing) return [{ kind: "landing", rect: lobby, doorSide: "north" }];
   const south = lobby.y + lobby.d;
   return [
     { kind: "lobby", rect: lobby, doorSide: "north" },
@@ -94,9 +111,13 @@ export function mainCorridor(spec: CompoundSpec): TileRect {
   };
 }
 
-/** The blast door: a segment of the lobby's south wall (on the compound's south edge). */
+/**
+ * The blast door: a segment of the lobby's south wall (on the compound's south
+ * edge). Only the lobby level has one (width 0 elsewhere: solid rock).
+ */
 export function blastDoor(spec: CompoundSpec): { x: number; y: number; width: number } {
   const { lobby } = spec;
+  if (spec.landing) return { x: lobby.x, y: lobby.y + lobby.d, width: 0 };
   return {
     x: lobby.x + Math.floor((lobby.w - BLAST_DOOR_TILES) / 2),
     y: lobby.y + lobby.d,

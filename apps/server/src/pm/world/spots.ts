@@ -41,6 +41,7 @@ const FLOOR_WORDS: Readonly<Record<LairRoom["kind"], string>> = {
   lobby: "patrolling the lobby",
   conference: "inspecting the war room",
   break_room: "checking the break room",
+  landing: "patrolling the landing",
   project: "looking over the crew",
 };
 
@@ -48,6 +49,7 @@ const SEAT_WORDS: Readonly<Record<LairRoom["kind"], string>> = {
   lobby: "loitering by the lounge",
   conference: "eyeing the war table",
   break_room: "hovering by the snacks",
+  landing: "waiting by the lift",
   project: "resting by the lounge",
 };
 

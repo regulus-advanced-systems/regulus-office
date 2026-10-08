@@ -3,11 +3,18 @@
  * are in (a room's name, a corridor, the beach) and what they are doing
  * (their `doing` status, or sitting). Pure: built from the BuildingRoom
  * presence map and the client's compound world.
+ *
+ * The lair has levels (D26; #268, #269) and positions are per level: someone
+ * on the level being looked at is placed in its rooms and corridors; someone
+ * on another level is on that level, by its name, and no closer than that.
+ * Only levels the server publishes to this viewer have a name here: a
+ * person on any other level is "elsewhere in the lair".
  */
-import type { BuildingState, HumanPresence } from "@regulus/protocol";
+import { type BuildingState, type HumanPresence, LOBBY_LEVEL_ID } from "@regulus/protocol";
 import { type CompoundWorld, roomAt } from "../../scene/compound/world.ts";
+import { levelLabelOf } from "../../state/level.ts";
 
-export type Zone = "room" | "corridor" | "outside" | "unknown";
+export type Zone = "room" | "corridor" | "outside" | "level" | "unknown";
 
 export interface Place {
   label: string;
@@ -26,11 +33,18 @@ export interface WhereaboutsRow {
   self: boolean;
 }
 
+/** The place of someone on a level other than the one being looked at. */
+export const ELSEWHERE: Place = { label: "Elsewhere in the lair", zone: "unknown", roomId: null };
+
+/** A closed room has no name here (#269): someone inside it is just behind a closed door. */
+export const BEHIND_CLOSED_DOOR = "Behind a closed door";
+
 /** Where a compound point is, in words. */
 export function placeAt(world: CompoundWorld | null, x: number, z: number): Place {
   if (!world) return { label: "In the office", zone: "unknown", roomId: null };
   const room = roomAt(world, x, z);
-  if (room) return { label: room.name, zone: "room", roomId: room.id };
+  if (room)
+    return { label: room.closed ? BEHIND_CLOSED_DOOR : room.name, zone: "room", roomId: room.id };
   const m = world.tileMetres;
   if (z >= world.depth * m) return { label: "On the beach", zone: "outside", roomId: null };
   const tx = Math.floor(x / m);
@@ -54,10 +68,19 @@ export function doingLine(h: Pick<HumanPresence, "doing" | "seatId">): string {
  * several tabs open is listed once (their newest session).
  */
 export function whereaboutsRows(
-  state: Pick<BuildingState, "humans"> | null | undefined,
+  state:
+    | (Pick<BuildingState, "humans"> & Partial<Pick<BuildingState, "levels">>)
+    | null
+    | undefined,
   world: CompoundWorld | null,
   selfSessionId: string | null,
 ): WhereaboutsRow[] {
+  const placeOf = (h: HumanPresence): Place => {
+    const levelId = h.levelId || LOBBY_LEVEL_ID;
+    if (!world || levelId === world.levelId) return placeAt(world, h.position.x, h.position.z);
+    const label = levelLabelOf(state ?? null, levelId);
+    return label ? { label: `On ${label.title}`, zone: "level", roomId: null } : ELSEWHERE;
+  };
   const humans = Object.entries(state?.humans ?? {});
   const selfUser = selfSessionId ? state?.humans[selfSessionId]?.userId : undefined;
   const newest = new Map<string, [string, HumanPresence]>();
@@ -72,7 +95,7 @@ export function whereaboutsRows(
       sessionId,
       userId: h.userId,
       name: h.displayName,
-      place: placeAt(world, h.position.x, h.position.z),
+      place: placeOf(h),
       doing: doingLine(h),
       seated: h.seatId !== "",
       self: h.userId === selfUser,

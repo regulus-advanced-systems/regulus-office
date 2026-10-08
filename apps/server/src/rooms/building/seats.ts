@@ -43,6 +43,35 @@ export interface SeatWorld {
   };
 }
 
+/** The slice of the BuildingRoom state {@link seatWorldOn} reads. */
+export interface LevelledSeatState {
+  compound: SeatWorld["compound"];
+  levels: { get(levelId: string): { compound: SeatWorld["compound"] } | undefined };
+  operations: {
+    get(
+      operationId: string,
+    ): (NonNullable<ReturnType<SeatWorld["operations"]["get"]>> & { levelId: string }) | undefined;
+  };
+}
+
+/**
+ * The seats of one level (#269): that level's fixed rooms (the lobby, war
+ * room and break room on the lobby level, the landing elsewhere) and the
+ * project rooms on it. Positions are per level, so a seat key only ever
+ * means the seat on the level the human is on.
+ */
+export function seatWorldOn(state: LevelledSeatState, levelId: string): SeatWorld {
+  return {
+    compound: state.levels.get(levelId)?.compound ?? state.compound,
+    operations: {
+      get(operationId) {
+        const room = state.operations.get(operationId);
+        return room && room.levelId === levelId ? room : undefined;
+      },
+    },
+  };
+}
+
 export interface SeatSpot {
   /** Operation id of a project room (or the lobby's id), else the special room's kind. */
   roomId: string;

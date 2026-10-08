@@ -8,7 +8,8 @@
  * - Project rooms: the non-desk seats of the generated interior (#182), the
  *   lounge nook's armchairs when the room has one.
  * - Special rooms: the lobby's sofa and armchairs, the break room's couch and
- *   bar stools, the war room's chairs. Their points mirror the hand-placed
+ *   bar stools, the war room's chairs, the armchairs of a level's landing
+ *   (#269). Their points mirror the hand-placed
  *   dressing in apps/web/src/scene/compound/special.ts (a web test keeps the
  *   two together), in the room's own frame (metres from its north-west corner).
  *
@@ -98,9 +99,27 @@ function breakRoomSeats(w: number, d: number): Seat[] {
   return out;
 }
 
+/** The waiting nook of a level's landing: two armchairs across a table (footprints). */
+export function landingNook(w: number, d: number) {
+  return {
+    west: { x: w - 10.6, z: d - 5.6, w: 1.1, d: 1.1 },
+    east: { x: w - 6.3, z: d - 5.6, w: 1.1, d: 1.1 },
+    table: { x: w - 8.9, z: d - 5.65, w: 2, d: 1.2 },
+  };
+}
+
+function landingSeats(w: number, d: number): Seat[] {
+  const nook = landingNook(w, d);
+  return [
+    seat("armchair-w", "couch", "armchair", nook.west.x + 0.55, nook.west.z + 0.55, "east"),
+    seat("armchair-e", "couch", "armchair", nook.east.x + 0.55, nook.east.z + 0.55, "west"),
+  ];
+}
+
 /** The seats of a special room of `w × d` metres, room frame. */
 export function specialRoomSeats(kind: SpecialRoomKind, w: number, d: number): Seat[] {
   if (kind === "lobby") return lobbySeats(w, d);
+  if (kind === "landing") return landingSeats(w, d);
   if (kind === "conference") return conferenceSeats(w, d);
   return breakRoomSeats(w, d);
 }

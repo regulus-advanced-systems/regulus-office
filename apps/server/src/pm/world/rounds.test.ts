@@ -213,8 +213,11 @@ describe("a round", () => {
     const seen = trail(s, EVERY - 10_000);
     expect(seen).toEqual([
       "post|lobby|lobby|at reception",
+      // A change of level is by the lift (#269): out on the landing, then on foot.
+      `route|${ACME}|lobby|stepping out of the lift`,
       `route|${ACME}|${APOLLO}|checking the issue board`,
       `route|${ACME}|${APOLLO}|checking the PR board`,
+      "post|lobby|lobby|stepping out of the lift",
       "post|lobby|lobby|at reception",
     ]);
     expect(s.body().target.x).toBe(s.post.x);
@@ -241,10 +244,12 @@ describe("a round", () => {
     });
     expect(seen).toEqual([
       "at reception",
+      "stepping out of the lift",
       "checking the issue board",
       "checking the PR board",
       "Gasket is waiting for Mia",
       "Rivet has finished",
+      "stepping out of the lift",
       "at reception",
     ]);
     // Next to each one's own chair, inside the room, and not on any furniture.

@@ -17,12 +17,16 @@
  * never compared across levels. The grid's size is shared, so when one level
  * needs a bigger compound on first creation, every level is planned again
  * with it. Rooms split off a multi-repo operation arrive here unplaced and
- * get a spot on their level.
+ * get a spot on their level. A level other than the lobby level has the lift
+ * landing as its only fixed room (#269, `landingSpec`), so its rooms are
+ * checked against that.
  */
+import { LOBBY_LEVEL_ID } from "@regulus/protocol";
 import {
   type CompoundSpec,
   compoundSpecProblems,
   defaultCompoundSpec,
+  landingSpec,
   planMigration,
   type ReconcileInput,
   type ReconcileResult,
@@ -65,19 +69,29 @@ function elevatorOrder(db: DbOrTx): Map<string, number> {
 
 const sameSize = (a: CompoundSpec, b: CompoundSpec) => a.width === b.width && a.depth === b.depth;
 
+interface LevelInputs {
+  levelId: string;
+  inputs: ReconcileInput[];
+}
+
+/** The grid rules of a level: the lobby level's fixed rooms, or only the lift landing. */
+const specFor = (spec: CompoundSpec, levelId: string): CompoundSpec =>
+  levelId === LOBBY_LEVEL_ID ? spec : landingSpec(spec);
+
 /** Plan every level on one spec, growing it (for all levels) until each level fits or it is at its largest. */
 function planLevels(
   start: CompoundSpec,
-  levels: readonly ReconcileInput[][],
+  levels: readonly LevelInputs[],
 ): { spec: CompoundSpec; results: ReconcileResult[] } {
   let spec = start;
   for (;;) {
     const results: ReconcileResult[] = [];
     let grown: CompoundSpec | null = null;
-    for (const inputs of levels) {
-      const plan = planMigration(spec, inputs);
+    for (const { levelId, inputs } of levels) {
+      const plan = planMigration(specFor(spec, levelId), inputs);
       if (!sameSize(plan.spec, spec)) {
-        grown = plan.spec;
+        // Only the size and the lobby's footprint are stored; `landing` is per level.
+        grown = { width: plan.spec.width, depth: plan.spec.depth, lobby: plan.spec.lobby };
         break;
       }
       results.push(plan.result);
@@ -96,21 +110,24 @@ export function ensureCompound(
     (tx) => {
       const stored = readSpec(tx);
       const rooms = liveRooms(tx);
-      const levels: ReconcileInput[][] = [...roomsByLevel(rooms).values()].map((onLevel) =>
-        onLevel.map((room) => ({
+      const levels: LevelInputs[] = [...roomsByLevel(rooms)].map(([levelId, onLevel]) => ({
+        levelId,
+        inputs: onLevel.map((room) => ({
           id: room.id,
           placement: room.placement,
           size: sizeForUnplaced(tx, room),
         })),
-      );
+      }));
       let spec: CompoundSpec;
       let results: ReconcileResult[];
       if (stored) {
         spec = stored;
-        results = levels.map((inputs) => reconcilePlacements(stored, inputs));
+        results = levels.map(({ levelId, inputs }) =>
+          reconcilePlacements(specFor(stored, levelId), inputs),
+        );
       } else {
         const order = elevatorOrder(tx);
-        for (const inputs of levels)
+        for (const { inputs } of levels)
           inputs.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
         const start = defaultCompoundSpec(options.sizeTiles);
         const problems = compoundSpecProblems(start);

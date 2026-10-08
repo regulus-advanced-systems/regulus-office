@@ -29,8 +29,9 @@ import {
 import { useEffect, useId, useState } from "react";
 import { useBuildingStore } from "../../state/building.ts";
 import { syncCompoundWorld, useCompoundStore } from "../../state/compound.ts";
-import { levelList, useLevelStore } from "../../state/level.ts";
+import { DRAFT_LEVEL_ID, levelList, useLevelStore } from "../../state/level.ts";
 import { canManageOffice, useSessionStore } from "../../state/session.ts";
+import { showDraftLevel } from "../../state/travel.ts";
 import { useUiStore } from "../../state/ui.ts";
 import { FormAlert } from "../auth/AuthCard.tsx";
 import { buildFrame } from "../build-mode/logic.ts";
@@ -241,7 +242,7 @@ export function levelForRepo(repo: string): string {
   const path = repo.trim().replace(/^https?:\/\/[^/]+\//i, "");
   const owner = levelLoginOf(path.split("/")[0] ?? "");
   const levels = levelList(useBuildingStore.getState().state);
-  return levels.find((l) => l.login !== "" && l.login === owner)?.levelId ?? LOBBY_LEVEL_ID;
+  return levels.find((l) => l.login !== "" && l.login === owner)?.levelId ?? DRAFT_LEVEL_ID;
 }
 
 /**
@@ -265,10 +266,11 @@ export function AddOperationDialogHost({ github = defaultGitHubApi }: { github?:
   if (!allowed) return null;
   const toBuildMode = (request: AddOperationRequest) => {
     // The room goes on its repo owner's level (#268): build mode shows that level's grid.
-    // An owner without a level yet gets a new, empty one; the lobby level's grid is the
-    // same (it has no project rooms), so that is where the spot is picked.
+    // An owner without a level yet gets a new one: the spot is picked on the empty grid
+    // that level will have, with its lift landing (the draft level, #269).
     const levelId = levelForRepo(request.repos[0]?.repo ?? "");
-    if (levelId !== useLevelStore.getState().levelId) {
+    if (levelId === DRAFT_LEVEL_ID) showDraftLevel();
+    else if (levelId !== useLevelStore.getState().levelId) {
       useLevelStore.getState().set(levelId);
       syncCompoundWorld();
     }

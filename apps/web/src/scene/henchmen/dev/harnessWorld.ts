@@ -1,21 +1,33 @@
 /**
- * The dev harness's compound (dev/office.html, #186, #190): the 12 × 12 Dev
- * room with every desk and three ordinary rooms, plus `rooms=<n>` more
- * 8 × 8 rooms auto-placed in the rows north of the main corridor (the §11
- * performance gate measures 12), and fake remote humans (`humans=<n>`, the
- * local player included) strolling round the Dev room. Not part of the build.
+ * The dev harness's lair (dev/office.html, #186, #190, #269). Three levels:
+ * - the lobby level (the lobby, war room, break room, blast door and beach);
+ * - "Regulus Advanced Systems", an organisation's level: the 12 × 12 Dev room
+ *   with every desk and three ordinary rooms, plus `rooms=<n>` more 8 × 8
+ *   rooms auto-placed in the rows north of the main corridor (the §11
+ *   performance gate measures 12);
+ * - "Ante", a personal account's level: two rooms the viewer may enter and
+ *   two closed ones (`closed=<ids>`, published as #270's `closedRooms`: one
+ *   with its door, drawn sealed, one without a usable door, drawn as rock);
+ * and, with `holding=1`, the holding level with one room that has no repo.
+ * Fake remote humans (`humans=<n>`, the local player included) stroll round
+ * the Dev room. Not part of the build.
  */
 
 import {
   ARCHETYPE_DEFAULTS,
   type BuildingState,
+  type ClosedRoom,
   DECOR_STYLES,
   GENIUS_ARCHETYPES,
+  HOLDING_LEVEL_ID,
   type HumanPresence,
+  type LevelState,
+  LOBBY_LEVEL_ID,
+  type OperationSummary,
 } from "@regulus/protocol";
+import { buildingFixture } from "@regulus/protocol/src/fixtures.ts";
 import { defaultCompoundSpec, findPlacement } from "@regulus/room-layout";
-import { type TestRoom, testState, testWorld } from "../../compound/testing.ts";
-import type { CompoundWorld } from "../../compound/world.ts";
+import { closedRoomOf, type TestRoom, testState } from "../../compound/testing.ts";
 
 export const HARNESS_SIZE = 64;
 export const DEV_ROOM = "dev";
@@ -74,39 +86,135 @@ export function harnessRooms(total: number): TestRoom[] {
   return rooms;
 }
 
-/** The harness compound with `total` project rooms. */
-export function harnessWorld(
-  locked: readonly string[],
-  building: readonly string[],
-  total = BASE_ROOMS.length,
-): CompoundWorld {
-  const rooms = harnessRooms(Math.max(BASE_ROOMS.length, total));
-  return testWorld(
-    rooms.map((r) => ({ ...r, building: building.includes(r.id) })),
-    rooms.map((r) => r.id).filter((id) => !locked.includes(id)),
-    HARNESS_SIZE,
-  );
+/** The harness's levels besides the lobby level. */
+export const REGULUS_LEVEL = "lv-regulus";
+export const ANTE_LEVEL = "lv-ante";
+
+const south = (gridX: number, width: number, depth: number) => ({
+  gridX,
+  gridY: 54 - depth,
+  width,
+  depth,
+  doorSide: "south" as const,
+});
+
+/** The account level's rooms: two the viewer has, two they have not. */
+const ANTE_ROOMS: TestRoom[] = [
+  { id: "dotfiles", name: "Dotfiles", placement: south(22, 8, 8), deskCount: 2 },
+  { id: "vault", name: "Vault", placement: south(34, 10, 8), deskCount: 3, working: 2 },
+  { id: "crypt", name: "Crypt", placement: south(8, 8, 8), deskCount: 2, waiting: 1 },
+  {
+    id: "sideproject",
+    name: "Side project",
+    placement: south(48, 8, 10),
+    deskCount: 2,
+    decorStyle: "workshop",
+    working: 1,
+  },
+];
+/** Closed by default (`closed=` overrides): `vault` keeps its door, `crypt` is all rock. */
+export const DEFAULT_CLOSED = ["vault", "crypt"];
+const ROCK_ONLY = new Set(["crypt"]);
+
+export interface HarnessOptions {
+  /** Project rooms on the organisation's level (4..12). */
+  rooms: number;
+  /** Rooms the viewer is no member of (the old "locked" look: name and counts stay). */
+  locked: readonly string[];
+  building: readonly string[];
+  /** Rooms sent as closed (#270's shape): footprint only. */
+  closed: readonly string[];
+  /** Also publish the holding level, with one room. */
+  holding: boolean;
 }
 
-const published = new Map<number, ReturnType<typeof testState>>();
-
-/** The published BuildingState slice of the harness compound (remote humans read it). */
-export function harnessBuilding(total: number, humans: Record<string, HumanPresence>) {
-  const n = Math.max(BASE_ROOMS.length, total);
-  // Placing rooms routes corridors: do it once per size, not on every tick.
-  let state = published.get(n);
-  if (!state) {
-    state = testState(harnessRooms(n), HARNESS_SIZE);
-    published.set(n, state);
-  }
-  return {
-    compound: state.compound,
-    operations: state.operations,
-    humans,
-    // The scene's jukebox driver reads this as soon as there is a building state.
-    jukebox: { playing: false, queue: [], volume: 0, startedAtServerMs: 0, pausedAtMs: 0 },
+/** Everything else the scene reads from the building state, quiet: no music, the door shut. */
+const QUIET: Omit<BuildingState, "compound" | "levels" | "operations" | "closedRooms" | "humans"> =
+  {
+    chat: [],
+    jukebox: { ...buildingFixture.jukebox, playing: false, queue: [] },
+    usage: buildingFixture.usage,
+    pm: { ...buildingFixture.pm, enabled: false },
+    blastDoor: { phase: "closed", openedAt: 0, closesAt: 0, openedBy: "", presses: 0 },
+    lobbyWhiteboardVersion: 0,
     officeAgents: {},
-  } as unknown as BuildingState;
+  };
+
+export interface HarnessLair {
+  state: Omit<BuildingState, "humans">;
+  /** Rooms the viewer may enter (the REST operation list). */
+  enterable: string[];
+}
+
+const cache = new Map<string, HarnessLair>();
+
+/** The harness's published levels and rooms; routed once per set of options. */
+export function harnessLair(options: HarnessOptions): HarnessLair {
+  const key = JSON.stringify(options);
+  const hit = cache.get(key);
+  if (hit) return hit;
+  const lobby = testState([], HARNESS_SIZE);
+  const mark = (rooms: TestRoom[]) =>
+    rooms.map((r) => ({ ...r, building: options.building.includes(r.id) }));
+  const regulusRooms = harnessRooms(Math.max(BASE_ROOMS.length, options.rooms));
+  const parts: Array<{ info: Omit<LevelState, "compound">; rooms: TestRoom[] }> = [
+    {
+      info: {
+        levelId: REGULUS_LEVEL,
+        kind: "org",
+        login: "regulus-advanced-systems",
+        name: "Regulus Advanced Systems",
+        order: 1,
+      },
+      rooms: regulusRooms,
+    },
+    {
+      info: { levelId: ANTE_LEVEL, kind: "account", login: "antepante", name: "Ante", order: 2 },
+      rooms: ANTE_ROOMS,
+    },
+  ];
+  if (options.holding)
+    parts.push({
+      info: {
+        levelId: HOLDING_LEVEL_ID,
+        kind: "holding",
+        login: "",
+        name: "Unassigned",
+        order: 65535,
+      },
+      rooms: [{ id: "scratch", name: "Scratch", placement: south(26, 8, 8) }],
+    });
+  const levels: Record<string, LevelState> = {
+    [LOBBY_LEVEL_ID]: {
+      levelId: LOBBY_LEVEL_ID,
+      kind: "lobby",
+      login: "",
+      name: "Lobby",
+      order: 0,
+      compound: lobby.compound,
+    },
+  };
+  const operations: Record<string, OperationSummary> = { ...lobby.operations };
+  const closedRooms: Record<string, ClosedRoom> = {};
+  const enterable: string[] = [];
+  for (const { info, rooms } of parts) {
+    const level = testState(mark(rooms), HARNESS_SIZE, { levelId: info.levelId, landing: true });
+    levels[info.levelId] = { ...info, compound: level.compound };
+    for (const room of rooms) {
+      const entry = level.operations[room.id];
+      if (!entry) continue;
+      const closed = options.closed.includes(room.id);
+      if (closed) closedRooms[room.id] = closedRoomOf(entry, !ROCK_ONLY.has(room.id));
+      else operations[room.id] = entry;
+      if (!closed && !options.locked.includes(room.id)) enterable.push(room.id);
+    }
+  }
+  const lair = {
+    state: { ...QUIET, compound: lobby.compound, levels, operations, closedRooms },
+    enterable,
+  };
+  cache.set(key, lair);
+  return lair;
 }
 
 /**
@@ -126,7 +234,7 @@ export function fakeHumans(
     const id = `h${i}`;
     out[id] = {
       sessionId: id,
-      levelId: "lobby",
+      levelId: REGULUS_LEVEL,
       userId: `u${i}`,
       displayName: ["Mia", "Olga", "Linus", "Ada", "Ben"][i - 1] ?? `Human ${i}`,
       role: "member",

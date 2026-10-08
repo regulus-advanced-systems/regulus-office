@@ -9,6 +9,8 @@ import {
   CLOCK_PONG_MESSAGE,
   type ClientCommand,
   type ClockPong,
+  LOBBY_LEVEL_ID,
+  SCREEN_SHARE_REJECTIONS,
 } from "@regulus/protocol";
 import type { JukeboxPlayer } from "../../jukebox/player.ts";
 import type { RoomClient } from "../transport.ts";
@@ -53,6 +55,13 @@ export function applyLobbyCommand(
     }
     case "screen.share.start":
     case "screen.share.stop": {
+      // The lounge TV is in the lobby, on the lobby level; "in no project room" on
+      // another level is that level's corridors and landing (#269).
+      if (
+        command.type === "screen.share.start" &&
+        state.humans.get(client.sessionId)?.levelId !== LOBBY_LEVEL_ID
+      )
+        return { handled: true, reason: SCREEN_SHARE_REJECTIONS.notInLobby };
       const result = deps.screen.apply(state.humans, client.sessionId, client.user, command);
       return result.ok ? { handled: true } : { handled: true, reason: result.reason };
     }

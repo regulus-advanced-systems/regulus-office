@@ -11,6 +11,7 @@ import { join } from "node:path";
 import { Client, type Room } from "@colyseus/sdk";
 import {
   BuildingStateSchema,
+  blastDoorButtons,
   CHAT_BURST,
   type ChatMessage,
   COMMAND_REJECTED_MESSAGE,
@@ -23,6 +24,7 @@ import {
   LOBBY_LEVEL_ID,
   LOBBY_OPERATION_ID,
   ROOM_NAMES,
+  SCREEN_SHARE_REJECTIONS,
   seatKey,
 } from "@regulus/protocol";
 import { specialRoomSeats } from "@regulus/room-layout";
@@ -521,5 +523,114 @@ describe("BuildingRoom over the wire", () => {
     rooms.building.setCompound({ state: COMPOUND, rooms: new Map() });
     await waitFor(() => bob.state.levels.size === 1, "one level left");
     await waitFor(() => adaSeen()?.levelId === LOBBY_LEVEL_ID, "Ada in the lobby");
+  });
+
+  test("seats, the blast door and the lounge TV are per level (#269)", async () => {
+    const landing: CompoundState = {
+      ...COMPOUND,
+      version: 21,
+      specialRooms: [{ kind: "landing", ...LOBBY_ROOM, doorSide: "north", doorX: 31, doorY: 56 }],
+    };
+    const lobbyLevel: CompoundState = {
+      ...COMPOUND,
+      version: 20,
+      outsideDepth: 6,
+      blastDoorX: 30,
+      blastDoorY: 64,
+      blastDoorWidth: 4,
+    };
+    const level = (
+      levelId: string,
+      kind: "lobby" | "org",
+      state: CompoundState,
+      order: number,
+    ) => ({
+      levelId,
+      kind,
+      login: kind === "org" ? levelId : "",
+      name: levelId,
+      order,
+      state,
+    });
+    rooms.building.setCompound({
+      state: lobbyLevel,
+      rooms: new Map(),
+      levels: [level(LOBBY_LEVEL_ID, "lobby", lobbyLevel, 0), level("lv-octo", "org", landing, 1)],
+    });
+    // A level is reached through a room on it (#270): the project room goes to octo's level.
+    db.insert(schema.levels)
+      .values({ id: "lv-octo", kind: "org", login: "octo", name: "octo", position: 1 })
+      .onConflictDoNothing()
+      .run();
+    db.update(schema.operations)
+      .set({ levelId: "lv-octo" })
+      .where(eq(schema.operations.id, operationId))
+      .run();
+    await rooms.refreshOperations();
+    const ada = await joinAs(person("u-ada11", "Ada", "member", "view"));
+    const bob = await joinAs(person("u-bob11", "Bob", "member", "view"));
+    const cy = await joinAs(person("u-cy11", "Cy", "member", "view"));
+    await waitFor(() => cy.state.humans.size >= 3 && cy.state.levels.size === 2, "everyone in");
+    const seen = (room: BuildingRoom) => cy.state.humans.get(room.sessionId);
+    const m = COMPOUND.tileMetres;
+    const chair = specialRoomSeats("landing", LOBBY_ROOM.width * m, LOBBY_ROOM.depth * m)[0];
+    if (!chair) throw new Error("no landing seat");
+    const CHAIR_KEY = seatKey("landing", chair.id);
+    const at = { x: LOBBY_ROOM.gridX * m + chair.pose.x, z: LOBBY_ROOM.gridY * m + chair.pose.z };
+
+    // The landing's chair is not a seat of the lobby level, wherever one stands there.
+    ada.send("move", { x: at.x, z: at.z - 1, heading: 0 });
+    await waitFor(() => seen(ada)?.position.x === at.x, "Ada at the spot");
+    const noSuch = nextRejection(ada);
+    ada.send("sit", { seatId: CHAIR_KEY });
+    expect((await noSuch).reason).toBe(`no seat ${CHAIR_KEY}`);
+
+    // On octo's level it is a seat, for one person at a time.
+    bob.send("operation.go", { operationId: LOBBY_OPERATION_ID, levelId: "lv-octo" });
+    cy.send("operation.go", { operationId: LOBBY_OPERATION_ID, levelId: "lv-octo" });
+    await waitFor(
+      () => seen(bob)?.levelId === "lv-octo" && seen(cy)?.levelId === "lv-octo",
+      "levels",
+    );
+    bob.send("move", { x: at.x, z: at.z - 1, heading: 0 });
+    cy.send("move", { x: at.x + 0.3, z: at.z - 1, heading: 0 });
+    await waitFor(
+      () => seen(bob)?.position.x === at.x && seen(cy)?.position.z === at.z - 1,
+      "moved",
+    );
+    await Bun.sleep(80);
+    bob.send("sit", { seatId: CHAIR_KEY });
+    await waitFor(() => seen(bob)?.seatId === CHAIR_KEY, "Bob seated on octo's landing");
+    const taken = nextRejection(cy);
+    cy.send("sit", { seatId: CHAIR_KEY });
+    expect((await taken).reason).toBe("someone is already sitting there");
+    // And the lobby's sofa is not on a landing level.
+    const noSofa = nextRejection(bob);
+    bob.send("sit", { seatId: SOFA_KEY });
+    expect((await noSofa).reason).toBe(`no seat ${SOFA_KEY}`);
+    bob.send("sit", { seatId: null });
+    await waitFor(() => seen(bob)?.seatId === "", "Bob stood up");
+
+    // The blast door's button is on the lobby level only, at the same coordinates or not.
+    const [button] = blastDoorButtons(lobbyLevel);
+    if (!button) throw new Error("no button");
+    bob.send("move", { x: button.stand.x, z: button.stand.z, heading: 0 });
+    await waitFor(() => seen(bob)?.position.x === button.stand.x, "Bob at the button's spot");
+    const notHere = nextRejection(bob);
+    bob.send("blast_door.press", {});
+    expect(await notHere).toEqual({
+      type: "blast_door.press",
+      reason: "The blast door is on the lobby level.",
+    });
+    expect(cy.state.blastDoor.phase).toBe("closed");
+    const tv = nextRejection(bob);
+    bob.send("screen.share.start", {});
+    expect((await tv).reason).toBe(SCREEN_SHARE_REJECTIONS.notInLobby);
+    rooms.building.setCompound({ state: COMPOUND, rooms: new Map() });
+    db.update(schema.operations)
+      .set({ levelId: HOLDING_LEVEL_ID })
+      .where(eq(schema.operations.id, operationId))
+      .run();
+    await rooms.refreshOperations();
   });
 });
