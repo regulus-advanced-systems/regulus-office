@@ -123,6 +123,9 @@ function AgentBody({
     if (g) {
       g.position.set(walker.pose.x, 0, walker.pose.z);
       g.rotation.y = walker.pose.heading;
+      // A placed body (a hop) does not step: the probes read where it was put.
+      g.userData.x = walker.pose.x;
+      g.userData.z = walker.pose.z;
     }
     setHidden(walker.hidden);
   }, [walker, grid, world, tx, tz, th, hop]);

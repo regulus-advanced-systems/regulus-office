@@ -24,7 +24,12 @@ import { E2E_GITHUB_CLIENT } from "./githubClient.ts";
 
 const ROOT = resolve(import.meta.dirname, "../..");
 const RUNNER_DIR = join(ROOT, "tests/e2e/runner");
-export const RUNNER_IMAGE = "regulus-office-e2e-runner:local";
+/**
+ * The test runner image. One tag per machine by default; E2E_RUNNER_IMAGE names another when
+ * several checkouts run this flow at once (each builds its own fake `claude` into the tag, so a
+ * shared tag can be rebuilt by another checkout between this run's build and its spawn).
+ */
+export const RUNNER_IMAGE = process.env.E2E_RUNNER_IMAGE || "regulus-office-e2e-runner:local";
 const LABEL_PREFIX = "org.regulus.office.prefix";
 
 /** Run a command, return trimmed stdout; throws with stderr on failure. */

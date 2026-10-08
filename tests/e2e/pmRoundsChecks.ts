@@ -82,9 +82,9 @@ export async function checkPmRounds(owner: Page, member: Page, input: PmRoundsIn
 
   try {
     const operations = (await (await owner.request.get("/api/operations")).json()) as {
-      operations: Array<{ id: string; name: string }>;
+      operations: Array<{ operationId: string; name: string }>;
     };
-    const operationId = operations.operations.find((o) => o.name === input.operation)?.id;
+    const operationId = operations.operations.find((o) => o.name === input.operation)?.operationId;
     if (!operationId) throw new Error(`no operation ${input.operation}`);
     const granted = await owner.request.put(`/api/office-agents/${pm.id}/grants`, {
       data: { grants: [{ operationId, access: "view" }] },
@@ -112,7 +112,7 @@ export async function checkPmRounds(owner: Page, member: Page, input: PmRoundsIn
     await waitStill(owner);
     if (input.shots) {
       await owner.locator("canvas").first().hover();
-      await wheelZoomTo(owner, 0.05);
+      await wheelZoomTo(owner, 0.22);
     }
     await expect
       .poll(
@@ -158,7 +158,9 @@ export async function checkPmRounds(owner: Page, member: Page, input: PmRoundsIn
         await sceneXZ(member, `henchman-${input.henchmanId}`),
       ];
       if (!b || !h || b.moving || b.bubbleText !== line) return null;
-      return { mode: b.mode, gap: Math.hypot(b.x - h.x, b.z - h.z) };
+      // The line is published when it sets off: it counts once it stands by the henchman.
+      if (Math.hypot(b.x - h.x, b.z - h.z) > 2.5) return null;
+      return { mode: b.mode, gap: Math.hypot(b.x - h.x, b.z - h.z), x: b.x, z: b.z };
     };
     await member.bringToFront();
     const room = await roomNamed(member, input.operation);
@@ -167,23 +169,26 @@ export async function checkPmRounds(owner: Page, member: Page, input: PmRoundsIn
       await wheelZoomTo(member, 0.12);
     }
     const words = new Set<string>();
+    // What the page drew at the moment it stood there (read in one go, not after).
+    let visit: { mode: string; gap: number; x: number; z: number } | null = null;
     await expect
       .poll(
         async () => {
           const b = await bodyOf(member, pm.id);
           if (b && !b.moving && b.bubbleText) words.add(b.bubbleText);
-          return (await beside())?.mode ?? null;
+          const now = await beside();
+          if (now) visit = now;
+          return now?.mode ?? null;
         },
         { timeout: 170_000, intervals: [250] },
       )
       .toBe("route");
-    const visit = await beside();
-    const body = await bodyOf(member, pm.id);
+    const stood = visit as { mode: string; gap: number; x: number; z: number } | null;
     // Next to the henchman, inside the room it was granted.
-    expect(visit?.gap ?? 99).toBeLessThan(2);
-    expect(visit?.gap ?? 0).toBeGreaterThan(0.5);
-    expect(body && body.x > room.x && body.x < room.x + room.w).toBe(true);
-    expect(body && body.z > room.z && body.z < room.z + room.d).toBe(true);
+    expect(stood?.gap ?? 99).toBeLessThan(2);
+    expect(stood?.gap ?? 0).toBeGreaterThan(0.5);
+    expect(stood && stood.x > room.x && stood.x < room.x + room.w).toBe(true);
+    expect(stood && stood.z > room.z && stood.z < room.z + room.d).toBe(true);
     if (input.shots) {
       await member.screenshot({ path: `${input.shots}/pm-beside-a-waiting-henchman.png` });
     }
