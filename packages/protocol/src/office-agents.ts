@@ -32,6 +32,7 @@ import {
   type UserRole,
 } from "./enums.ts";
 import { CHARACTER_FORM_IDS, CHARACTER_FORM_LABELS, isCharacterFormId } from "./forms.ts";
+import { HermesConnectionInput, HermesConnectionView } from "./office-agent-hermes.ts";
 import { OfficeAgentRunsOn } from "./office-agent-runs-on.ts";
 import {
   DEFAULT_SKIN_ID,
@@ -183,6 +184,8 @@ export const OfficeAgentView = z.object({
           lastUsedAt: TimestampMs.optional(),
         }),
       ),
+      /** `hermes-external` only: whether its connection is stored. Never the address or the token. */
+      hermes: HermesConnectionView.optional(),
     })
     .optional(),
 });
@@ -218,6 +221,8 @@ export const CreateOfficeAgent = z.object({
   profileId: Id.optional(),
   appearance: Appearance.default(DEFAULT_OFFICE_AGENT_APPEARANCE),
   instructions: Instructions.default(""),
+  /** Required for `hermes-external`: where the person's Hermes is and its access token. */
+  hermes: HermesConnectionInput.optional(),
 });
 export type CreateOfficeAgent = z.input<typeof CreateOfficeAgent>;
 

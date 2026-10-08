@@ -138,6 +138,8 @@ export function OfficeAgentsSection({
               refresh: () => void load(),
               update: async (patch) => (await run(() => api.update(agent.id, patch))) !== undefined,
               connect: () => openProvidersPanel("claude-code"),
+              setHermes: async (input) =>
+                (await run(() => api.setHermes(agent.id, input))) !== undefined,
               setPreset: (preset) => void run(() => api.update(agent.id, { preset })),
               setGrants: (grants) => void run(() => api.setGrants(agent.id, grants)),
               revokeToken: (tokenId) => void run(() => api.revokeToken(agent.id, tokenId)),

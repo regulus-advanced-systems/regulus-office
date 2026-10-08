@@ -94,6 +94,32 @@ export const officeAgentTokens = sqliteTable(
   ],
 );
 
+/**
+ * A personal agent's connection to something its owner runs elsewhere (#58:
+ * the owner's Hermes gateway). A credential of that person (SPEC §8): the
+ * address and the access token are one encrypted envelope, bound to the owner
+ * and the agent, decrypted only to talk to that gateway. Nothing here is
+ * ever sent to a browser.
+ */
+export const officeAgentConnections = sqliteTable(
+  "office_agent_connections",
+  {
+    agentId: text("agent_id")
+      .primaryKey()
+      .references(() => officeAgents.id, { onDelete: "cascade" }),
+    /** The person whose credential this is; always the agent's owner. */
+    ownerUserId: text("owner_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** Envelope (AES-256-GCM, `OFFICE_MASTER_KEY`) over JSON `{ url, token, sessionId? }`. */
+    encryptedSecret: text("encrypted_secret").notNull(),
+    /** Not secret: whether the owner named an existing session to continue. */
+    continuesSession: integer("continues_session", { mode: "boolean" }).notNull().default(false),
+    ...timestamps(),
+  },
+  (t) => [index("office_agent_connections_owner_idx").on(t.ownerUserId)],
+);
+
 /** What a shared agent may do where; personal agents have their owner's access instead. */
 export const officeAgentGrants = sqliteTable(
   "office_agent_grants",

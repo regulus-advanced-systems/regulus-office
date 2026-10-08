@@ -76,6 +76,7 @@ import { type GeniusLook, geniusOf } from "./geniusChecks.ts";
 import { loadBoards } from "./githubAccess.ts";
 import { ensureRemoteRepo } from "./gitRemote.ts";
 import { checkMergeGong } from "./gongChecks.ts";
+import { checkHermesConnection } from "./hermesChecks.ts";
 import { checkJukebox } from "./jukeboxChecks.ts";
 import { checkAgentsInTheWorld } from "./officeAgentWorldChecks.ts";
 import { loadOwnerGenius, type OfficeSession, openOffice, owner } from "./officeSession.ts";
@@ -674,6 +675,10 @@ test("office agents in the world: a personal one follows its owner and only they
   test.setTimeout(420_000);
   if (process.env.E2E_DATA_DIR) await ensureApollo();
   await checkAgentsInTheWorld(ownerPage, memberPage, process.env.E2E_AGENT_WORLD_SHOTS);
+});
+
+test("Settings → Agents: the owner connects their existing Hermes, and a gateway that is away is said plainly (#58)", async () => {
+  await checkHermesConnection(ownerPage, process.env.E2E_HERMES_SHOTS);
 });
 
 test("Settings → Agents: who an agent is, what it remembers and its notes; a personal agent's stay private (#136)", async () => {

@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "943aa7f8-7722-44c4-adc0-f239cdd63bcd",
-  "prevId": "207df4ca-695e-4e73-abc3-1688075073e8",
+  "id": "207df4ca-695e-4e73-abc3-1688075073e8",
+  "prevId": "f245240c-8146-4d28-9b2a-8a59f9ab4d56",
   "tables": {
     "agent_events": {
       "name": "agent_events",
@@ -2948,83 +2948,6 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "office_agent_reads": {
-      "name": "office_agent_reads",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "agent_id": {
-          "name": "agent_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "seen_at": {
-          "name": "seen_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "office_agent_reads_agent_user_unique": {
-          "name": "office_agent_reads_agent_user_unique",
-          "columns": ["agent_id", "user_id"],
-          "isUnique": true
-        }
-      },
-      "foreignKeys": {
-        "office_agent_reads_agent_id_office_agents_id_fk": {
-          "name": "office_agent_reads_agent_id_office_agents_id_fk",
-          "tableFrom": "office_agent_reads",
-          "tableTo": "office_agents",
-          "columnsFrom": ["agent_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "office_agent_reads_user_id_users_id_fk": {
-          "name": "office_agent_reads_user_id_users_id_fk",
-          "tableFrom": "office_agent_reads",
-          "tableTo": "users",
-          "columnsFrom": ["user_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
     "office_agent_requests": {
       "name": "office_agent_requests",
       "columns": {
@@ -3504,14 +3427,6 @@
           "notNull": true,
           "autoincrement": false,
           "default": "'standard'"
-        },
-        "dismissed": {
-          "name": "dismissed",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": false
         },
         "instructions": {
           "name": "instructions",

@@ -87,7 +87,10 @@ export function AgentChat({
         ))}
       </ol>
       <div role="status" aria-live="polite" className="rg-field__hint">
-        {convo?.waiting ? `${agentName} is working on an answer…` : ""}
+        {/* A closing line from the office ("Not delivered: …") means nothing is on its way. */}
+        {convo?.waiting && convo.messages.at(-1)?.author !== "system"
+          ? `${agentName} is working on an answer…`
+          : ""}
       </div>
       <form
         className="rg-office-agent-chat__form"

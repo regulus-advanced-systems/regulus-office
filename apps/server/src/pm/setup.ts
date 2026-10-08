@@ -22,6 +22,11 @@ import { Conversations } from "./conversations.ts";
 import { CliSessionEngine } from "./engines/cli-session.ts";
 import { AgentCredentials } from "./engines/credentials.ts";
 import type { OfficeAgentEngine } from "./engines/types.ts";
+import type { HermesClientOptions } from "./hermes/client.ts";
+import { HermesConnections } from "./hermes/connections.ts";
+import { type HermesEngineOptions, HermesExternalEngine } from "./hermes/engine.ts";
+import { mountHermesRoutes } from "./hermes/routes.ts";
+import { HermesAgentService } from "./hermes/service.ts";
 import { mountMcp } from "./mcp.ts";
 import { AgentMind } from "./mind/mind.ts";
 import { MindService } from "./mind/people.ts";
@@ -55,6 +60,11 @@ export interface OfficeAgentsOptions {
   usage?: UsageRecorder;
   /** Extra engines (tests: the fake engine; later the Hermes engines of #57 and #58). */
   engines?: readonly OfficeAgentEngine[];
+  /** Timings of the `hermes-external` engine and its client (tests shorten them). */
+  hermes?: Pick<
+    HermesEngineOptions,
+    "healthIntervalMs" | "backoffBaseMs" | "backoffMaxMs" | "sendAttempts"
+  > & { client?: HermesClientOptions };
   /** CLI override for the session engine (tests: the fake `claude`). */
   cliCommand?: string;
   now?: () => number;
@@ -79,6 +89,7 @@ export interface OfficeAgents {
   world: AgentWorld;
   /** Tell one person's clients that what their agents want from them changed (#252). */
   onAttention(notify: (userId: string) => void): void;
+  hermes: HermesAgentService;
   /** Souls, memories and notes (#136). */
   mind: AgentMind;
   mount(
@@ -126,6 +137,12 @@ export function createOfficeAgents(opts: OfficeAgentsOptions): OfficeAgents {
         command: opts.cliCommand,
       }),
     );
+  }
+
+  // A person's own Hermes, running elsewhere (#58). The managed one (#57) registers beside it.
+  const connections = new HermesConnections(db, opts.keyring);
+  if (!runtime.engine("hermes-external")) {
+    runtime.register(new HermesExternalEngine({ connections, logger, ...opts.hermes }));
   }
 
   let bound: Partial<BoundPorts> = {};
@@ -180,7 +197,16 @@ export function createOfficeAgents(opts: OfficeAgentsOptions): OfficeAgents {
     conversations,
     requests,
     credentials,
+    hermes: connections,
     minds: mindService,
+    now,
+  });
+  const hermes = new HermesAgentService({
+    store,
+    service,
+    runtime,
+    connections,
+    client: opts.hermes?.client,
     now,
   });
 
@@ -225,13 +251,15 @@ export function createOfficeAgents(opts: OfficeAgentsOptions): OfficeAgents {
     onAttention(fn) {
       notify = fn;
     },
+    hermes,
     mind,
     mount(router, auth) {
       // Before the agent routes: `/attention` is not an agent id.
       mountAgentWorldRoutes(router, { auth, service: worldService });
       mountMcp(router, { store, tokens, tools, version: opts.version });
       mountToolRoutes(router, { store, tokens, tools });
-      mountOfficeAgentRoutes(router, { auth, service, mind: mindService });
+      mountHermesRoutes(router, { auth, hermes });
+      mountOfficeAgentRoutes(router, { auth, service, hermes, mind: mindService });
     },
     bind(next) {
       bound = { ...bound, ...next };

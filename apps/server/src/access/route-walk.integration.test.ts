@@ -130,6 +130,10 @@ const OFFICE_ROUTES: Record<string, string> = {
   "DELETE /mcp": "office agents: per-agent token",
   "GET /api/agent-tools": "office agents: per-agent token",
   "POST /api/agent-tools/:name": "office agents: per-agent token; tools go through the gate",
+  "POST /api/office-agents/hermes/test":
+    "office agents: the caller tries a Hermes address and token, or their own agent's stored connection (#58)",
+  "PUT /api/office-agents/:id/hermes":
+    "office agents: an agent's connection to its owner's Hermes, the owner's own credential (#58)",
   "GET /api/office-agents/settings": "office agents",
   "PUT /api/office-agents/settings": "office agents",
   "GET /api/office-agents/runs-on": "office agents",

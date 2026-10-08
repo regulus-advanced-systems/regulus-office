@@ -17,6 +17,8 @@ import { RUNS_ON_LABELS } from "@regulus/protocol";
 
 interface Words {
   label: string;
+  /** On a card, when the label is a sentence. */
+  short?: string;
   /** One line of help. */
   hint: string;
 }
@@ -32,8 +34,9 @@ export const ENGINE_WORDS: Readonly<Record<OfficeAgentEngineKind, Words>> = {
     hint: "The office starts and looks after a Hermes agent for you.",
   },
   "hermes-external": {
-    label: "My existing Hermes agent (runs somewhere else)",
-    hint: "Your own Hermes keeps running where it is and connects to the office.",
+    label: "Connect my existing Hermes agent",
+    short: "My own Hermes",
+    hint: "Your own Hermes keeps running where it is, and Telegram and its other channels keep working. The office becomes one more place to talk to it. It brings its own provider and model.",
   },
   openclaw: {
     label: "OpenClaw (runs here in the office)",
@@ -44,7 +47,7 @@ export const ENGINE_HELP =
   "The program that runs this agent. It decides which providers and models you can pick below.";
 /** On a card, without the explanation in brackets. */
 export const engineName = (kind: OfficeAgentEngineKind) =>
-  ENGINE_WORDS[kind].label.replace(/\s*\(.*\)$/, "");
+  ENGINE_WORDS[kind].short ?? ENGINE_WORDS[kind].label.replace(/\s*\(.*\)$/, "");
 
 /** "Job": what the agent is for. */
 export const ROLE_WORDS: Readonly<Record<OfficeAgentRole, Words>> = {

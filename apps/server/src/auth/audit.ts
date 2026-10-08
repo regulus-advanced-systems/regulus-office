@@ -94,6 +94,8 @@ export const AUDIT_ACTIONS = {
   /** An office owner/admin stopped someone else's personal agent. */
   officeAgentEmergencyStop: "office_agent.emergency_stop",
   officeAgentSettings: "office_agent.settings",
+  /** A person set or replaced their agent's connection (#58); never the address or the token. */
+  officeAgentConnectionSet: "office_agent.connection_set",
   officeAgentRequestAnswer: "office_agent.request_answer",
   /** A personal agent's owner sent it off to wander, or called it back (#252). */
   officeAgentDismiss: "office_agent.dismiss",
