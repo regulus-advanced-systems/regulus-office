@@ -21,6 +21,7 @@ import {
   operationRepos,
   operations as operationsTable,
 } from "../db/schema/index.ts";
+import { seedRoomMember } from "../github/access/test-snapshot.ts";
 import { createLogger } from "../logging.ts";
 import { OfficeOperationDirRemover } from "../worktrees/operation-dirs.ts";
 import { createOperations } from "./index.ts";
@@ -55,6 +56,8 @@ async function setup() {
   const owner = addUser("Olga", "owner");
   const admin = addUser("Adam", "admin");
   const member = addUser("Mia", "member");
+  // The office owner and admin both administer the repo on GitHub, which is what
+  // opens its rooms to them (#270; without it: lifecycle-access.test.ts).
   const make = async (name: string) => {
     const { operation, cloned } = operations.service.create(owner, {
       name,
@@ -62,6 +65,8 @@ async function setup() {
       repos: [{ repo: "octo/hello" }],
     });
     await cloned;
+    seedRoomMember(db, owner.id, operation.operationId, "manage");
+    seedRoomMember(db, admin.id, operation.operationId, "manage");
     // A human's area as the worktrees module lays it out: a clone and an agent worktree.
     const area = join(worktreesDir, operation.slug, "u1");
     await mkdir(join(area, "_clones", "hello", ".git"), { recursive: true });
@@ -127,8 +132,10 @@ describe("OperationLifecycle", () => {
   test("only owners and admins archive, restore, list archived, send home and delete", async () => {
     const t = await setup();
     const operation = await t.make("Apollo");
-    t.operations.service.setMember(t.owner, operation.operationId, t.member.id, "manage");
+    // Managing the room through GitHub is not the office role.
+    seedRoomMember(t.db, t.member.id, operation.operationId, "manage");
     const { lifecycle, service } = t.operations;
+    expect(service.get(t.member, operation.operationId).access).toBe("manage");
     expect(await failure(() => service.archive(t.member, operation.operationId))).toBe(
       "403 owner_or_admin_required",
     );

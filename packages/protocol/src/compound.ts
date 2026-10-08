@@ -154,12 +154,20 @@ export const COMPOUND_API_PATH = "/api/compound";
 export const COMPOUND_CHECK_API_PATH = `${COMPOUND_API_PATH}/check`;
 export const COMPOUND_ROOMS_API_PATH = `${COMPOUND_API_PATH}/rooms`;
 
-/** A project room as listed by `GET /api/compound` (same fields as the building room's summary). */
+/**
+ * A project room as listed by `GET /api/compound` (same fields as the building
+ * room's summary). The list is the viewer's own (D26, #270): rooms on levels
+ * they reach. A room they may not enter is `closed`: its id, level and
+ * footprint only, with an empty name and no build state.
+ */
 export const CompoundRoomInfo = RoomPlacement.extend({
   operationId: Id,
   /** The level whose grid the room is placed on (#268). */
   levelId: Id,
+  /** Empty for a closed room. */
   name: z.string().max(80),
+  /** True when the viewer may not enter the room; absent or false otherwise. */
+  closed: z.boolean().optional(),
   doorX: Tile,
   doorY: Tile,
   buildState: z.enum(ROOM_BUILD_STATES),
@@ -171,9 +179,9 @@ export type CompoundRoomInfo = z.infer<typeof CompoundRoomInfo>;
 export const CompoundLayoutResponse = z.object({
   /** The lobby level's layout. */
   compound: CompoundState,
-  /** Every level with its own layout, lobby first (#268). */
+  /** The levels the viewer reaches, each with its own layout, lobby first (#268, #270). */
   levels: z.array(LevelState),
-  /** The project rooms of every level; `levelId` says which grid each is on. */
+  /** The project rooms of those levels; `levelId` says which grid each is on. */
   rooms: z.array(CompoundRoomInfo),
 });
 export type CompoundLayoutResponse = z.infer<typeof CompoundLayoutResponse>;

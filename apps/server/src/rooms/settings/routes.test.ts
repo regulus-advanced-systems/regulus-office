@@ -3,7 +3,8 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { OperationStateSchema, roomSettingsPath } from "@regulus/protocol";
 import { ROOM_LAYOUT_ID, roomDeskSeatIds } from "@regulus/room-layout";
 import { type Office, startOffice } from "../../auth/test-helpers.ts";
-import { desks, operationMembers, operations } from "../../db/schema/index.ts";
+import { desks, operations } from "../../db/schema/index.ts";
+import { seedRoomMember } from "../../github/access/test-snapshot.ts";
 import { DrizzleOperationRoomSource } from "../operation/source.ts";
 import { writeSnapshot } from "../operation/state.ts";
 import { mountRoomSettingsRoutes } from "./routes.ts";
@@ -44,10 +45,9 @@ beforeAll(async () => {
     .insert(desks)
     .values(roomDeskSeatIds(1).map((seatId) => ({ operationId: OPERATION, seatId })))
     .run();
-  office.db
-    .insert(operationMembers)
-    .values({ operationId: OPERATION, userId: viewer.id, access: "view" })
-    .run();
+  // The room has a repo; the office owner manages it through GitHub, not by role (#270).
+  seedRoomMember(office.db, owner.id, OPERATION, "manage");
+  seedRoomMember(office.db, viewer.id, OPERATION, "view");
 });
 
 afterAll(async () => {

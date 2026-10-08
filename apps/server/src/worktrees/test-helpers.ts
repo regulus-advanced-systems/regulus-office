@@ -8,6 +8,7 @@ import { mkdtemp, readdir, readFile, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { agents } from "../db/schema/index.ts";
+import { seedRoomMember } from "../github/access/test-snapshot.ts";
 import { type GitRunner, gitBaseEnv, runGit } from "../github/git.ts";
 import type { ConnectionTokens } from "../github/repo-access.ts";
 import { createLogger } from "../logging.ts";
@@ -94,7 +95,8 @@ export function fakeGitHub(respond: (req: RecordedRequest) => Response) {
 
 /**
  * A ready operation `wt-operation` on `octo/hello` (default branch `trunk`, with a
- * stored PAT unless `token: false`), an owner, and the worktrees service.
+ * stored PAT unless `token: false`), an owner whose GitHub account has admin on
+ * the repo, and the worktrees service.
  */
 export async function setupOperation(
   root: string,
@@ -128,6 +130,8 @@ export async function setupOperation(
   const operationId = created.operation.operationId;
   const repo = operations.repos.listOperationRepos(operationId)[0];
   if (!repo || repo.cloneStatus !== "ready") throw new Error("fixture clone failed");
+  // The owner's own GitHub account has admin on octo/hello: their office role opens no room (#270).
+  seedRoomMember(db, owner.id, operationId, "manage");
   const worktreesDir = join(root, `worktrees-${id}`);
   const mounts: string[] = [];
   const gitCalls: string[][] = [];

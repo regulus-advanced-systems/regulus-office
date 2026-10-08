@@ -1,7 +1,8 @@
 /**
  * Compound REST (SPEC §9.1; protocol `compound.ts`). Session-cookie auth;
  * writes need a same-origin request. Owners and admins build, move and
- * remove rooms; anyone signed in reads the layout.
+ * remove rooms, of repos their own GitHub account can see; anyone signed in
+ * reads the layout as far as their own access goes (D26, D27; #270).
  *
  *   GET    /api/compound                    layout + room summaries
  *   POST   /api/compound/check              placement check for the build-mode ghost
@@ -68,7 +69,7 @@ export function mountCompoundRoutes(router: Router, deps: CompoundRouteDeps): vo
 
   router.get(
     COMPOUND_API_PATH,
-    route(() => json(compound.layoutResponse())),
+    route((_ctx, actor) => json(compound.layoutResponse(actor))),
   );
 
   router.post(
@@ -83,9 +84,9 @@ export function mountCompoundRoutes(router: Router, deps: CompoundRouteDeps): vo
     COMPOUND_ROOMS_API_PATH,
     route(async (ctx, actor) => {
       const { placement, ...input } = await readJsonBody(ctx.request, PlaceRoomBody);
-      const { operation } = operations.create(actor, input, placement);
+      const { operation } = await operations.createChecked(actor, input, placement);
       const room = compound
-        .layoutResponse()
+        .layoutResponse(actor)
         .rooms.find((r) => r.operationId === operation.operationId);
       return json({ operation, room }, { status: 201 });
     }, true),

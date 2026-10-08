@@ -10,6 +10,7 @@
 import type { GitHubRepoPermission } from "@regulus/protocol";
 import { createGitHubCaller, type FetchFn, type GitHubCaller, redactGitHubText } from "../api.ts";
 import { GitHubApiError } from "../pulls.ts";
+import { listTokenRepos } from "../repo-list.ts";
 import type { OrgMembership, UserTokens } from "./store.ts";
 
 /** The OAuth client people authorise: the office GitHub App's client, or an OAuth App. */
@@ -208,6 +209,23 @@ export class AccessGitHub {
       throw classify(err, [token]);
     }
     return out;
+  }
+
+  /**
+   * Every repo the account can see, as lower-case `owner/name` (#270: the
+   * repo picker lists only these). `truncated` when the account sees more
+   * than the list holds.
+   */
+  async visibleRepoNames(token: string): Promise<{ names: Set<string>; truncated: boolean }> {
+    try {
+      const list = await listTokenRepos(this.#api, token);
+      return {
+        names: new Set(list.repos.map((r) => r.fullName.toLowerCase())),
+        truncated: list.truncated,
+      };
+    } catch (err) {
+      throw classify(err, [token]);
+    }
   }
 
   /**

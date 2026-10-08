@@ -90,12 +90,15 @@ describe.skipIf(!hasTmux() || !hasBunPty())("terminal bridge (tmux + Bun PTY)", 
     member = await office.signUp("Mo");
     viewer = await office.signUp("Vi", "viewer");
     outsider = await office.signUp("Out");
+    // Office roles open no room (#270): owner and admin are on f1 through GitHub too.
     office.addOperation("f1", {
+      [owner.id]: "manage",
+      [admin.id]: "manage",
       [henchmanOwner.id]: "spawn",
       [member.id]: "view",
       [viewer.id]: "view",
     });
-    office.addOperation("f2");
+    office.addOperation("f2", { [owner.id]: "manage" });
     office.addAgent("a1", "f1", henchmanOwner.id);
     office.addAgent("a2", "f2", owner.id);
     office.addAgent("gone", "f1", henchmanOwner.id);
@@ -169,6 +172,9 @@ describe.skipIf(!hasTmux() || !hasBunPty())("terminal bridge (tmux + Bun PTY)", 
 
     test("an operation the user cannot see hides the henchman", async () => {
       expect((await office.probe("a2", "watch", { cookie: member.cookie })).status).toBe(404);
+      // An office admin whose GitHub account cannot see the repo is no exception (#270).
+      expect((await office.probe("a2", "watch", { cookie: admin.cookie })).status).toBe(404);
+      expect((await office.probe("a2", "control", { cookie: admin.cookie })).status).toBe(404);
     });
   });
 

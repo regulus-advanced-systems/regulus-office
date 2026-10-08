@@ -1,18 +1,15 @@
 /**
- * The two halves of the operation settings panel: who has access now (change or
- * remove), and "Add people" (search office people by name, tick, choose the
- * access, add). Plain form controls, so everything works from the keyboard.
+ * The two halves of the operation settings panel. Who can enter a room comes
+ * from each person's own GitHub access to its repo (D27; #270), so nothing
+ * here lets anyone in: a room manager can only limit a person to less than
+ * GitHub gives them. "Limits" lists the people limited now (change or lift),
+ * "Limit someone" searches office people by name. Plain form controls, so
+ * everything works from the keyboard.
  */
 import type { OfficeUserInfo, OperationAccess, OperationMemberInfo } from "@regulus/protocol";
 import { useId, useMemo, useState } from "react";
 import { Button } from "../components/Button.tsx";
-import {
-  ACCESS_LABELS,
-  ACCESS_ORDER,
-  addCandidates,
-  effectiveGrant,
-  isOfficeManagerRole,
-} from "./operationSettings.ts";
+import { ACCESS_LABELS, ACCESS_ORDER, addCandidates, effectiveGrant } from "./operationSettings.ts";
 
 function AccessSelect({
   value,
@@ -61,10 +58,10 @@ export function MemberList({
   onRemove: (member: OperationMemberInfo) => void;
 }) {
   if (members.length === 0) {
-    return <p className="rg-muted">No one has been added to this operation yet.</p>;
+    return <p className="rg-muted">No one is limited in this room.</p>;
   }
   return (
-    <ul className="rg-list" aria-label="People with access">
+    <ul className="rg-list" aria-label="People with a limit">
       {members.map((m) => {
         const viewer = roles.get(m.userId) === "viewer";
         return (
@@ -75,7 +72,7 @@ export function MemberList({
               {viewer && <span className="rg-member__note">Office viewer: can only watch</span>}
             </span>
             <AccessSelect
-              label={`Access for ${m.displayName}`}
+              label={`Limit for ${m.displayName}`}
               value={effectiveGrant(viewer ? "viewer" : undefined, m.access)}
               viewerOnly={viewer}
               disabled={busy}
@@ -84,11 +81,11 @@ export function MemberList({
             <Button
               variant="ghost"
               size="sm"
-              aria-label={`Remove ${m.displayName}`}
+              aria-label={`Lift the limit for ${m.displayName}`}
               disabled={busy}
               onClick={() => onRemove(m)}
             >
-              Remove
+              Lift
             </Button>
           </li>
         );
@@ -106,12 +103,12 @@ export function AddPeople({
   people: readonly OfficeUserInfo[];
   members: readonly OperationMemberInfo[];
   busy: boolean;
-  /** Resolves true when every grant succeeded (the selection is then cleared). */
+  /** Resolves true when every limit was set (the selection is then cleared). */
   onAdd: (picked: OfficeUserInfo[], access: OperationAccess) => Promise<boolean>;
 }) {
   const [query, setQuery] = useState("");
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
-  const [access, setAccess] = useState<OperationAccess>("spawn");
+  const [access, setAccess] = useState<OperationAccess>("view");
   const searchId = useId();
   const candidates = useMemo(() => addCandidates(people, members, query), [people, members, query]);
   const anyone = useMemo(() => addCandidates(people, members, "").length > 0, [people, members]);
@@ -136,15 +133,10 @@ export function AddPeople({
   };
 
   if (!anyone) {
-    return (
-      <p className="rg-muted">
-        Everyone in the office can already use this operation. Invite more people to the office
-        first.
-      </p>
-    );
+    return <p className="rg-muted">Everyone in the office already has a limit in this room.</p>;
   }
   return (
-    <form onSubmit={(e) => void submit(e)} aria-label="Add people">
+    <form onSubmit={(e) => void submit(e)} aria-label="Limit someone">
       <div className="rg-field">
         <label className="rg-field__label" htmlFor={searchId}>
           Search people
@@ -162,7 +154,7 @@ export function AddPeople({
       {candidates.length === 0 ? (
         <p className="rg-muted">No one matches “{query.trim()}”.</p>
       ) : (
-        <ul className="rg-list rg-member-picker" aria-label="People to add">
+        <ul className="rg-list rg-member-picker" aria-label="People to limit">
           {candidates.map((p) => (
             <li key={p.userId}>
               <label className="rg-member-pick">
@@ -182,24 +174,25 @@ export function AddPeople({
         </ul>
       )}
       <div className="rg-member-add">
-        <AccessSelect label="Access for the people you add" value={access} onChange={setAccess} />
+        <AccessSelect label="Limit for the people you picked" value={access} onChange={setAccess} />
         <Button variant="primary" type="submit" disabled={busy || chosen.length === 0}>
           {chosen.length === 0
-            ? "Add"
-            : `Add ${chosen.length} ${chosen.length === 1 ? "person" : "people"}`}
+            ? "Limit"
+            : `Limit ${chosen.length} ${chosen.length === 1 ? "person" : "people"}`}
         </Button>
       </div>
     </form>
   );
 }
 
-/** "Owners and admins always manage every operation: …" for the people who need no grant. */
-export function OfficeManagersNote({ people }: { people: readonly OfficeUserInfo[] }) {
-  const names = people.filter((p) => isOfficeManagerRole(p.role)).map((p) => p.displayName);
-  if (names.length === 0) return null;
+/** Where access to the room comes from, and what the limits below can and cannot do. */
+export function AccessFromGitHubNote() {
   return (
     <p className="rg-field__hint">
-      Owners and admins can always manage every operation: {names.join(", ")}.
+      Who can enter this room comes from each person's own access to its repo on GitHub: read lets
+      them watch, write lets them work here, admin lets them manage the room. That holds for office
+      owners and admins too. A limit below can only lower what GitHub gives a person; it never lets
+      anyone in.
     </p>
   );
 }

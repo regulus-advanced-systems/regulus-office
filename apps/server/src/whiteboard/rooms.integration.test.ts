@@ -12,6 +12,7 @@ import {
   ROOM_NAMES,
 } from "@regulus/protocol";
 import { MEMORY_DB_PATH, openDatabase, runMigrations, schema } from "../db/index.ts";
+import { seedRoomMember } from "../github/access/test-snapshot.ts";
 import { createOfficeServer, type OfficeServer } from "../http/server.ts";
 import { createLogger } from "../logging.ts";
 import { createDevHeaderAuth, DEV_USER_HEADER } from "../rooms/auth.ts";
@@ -44,6 +45,9 @@ beforeAll(async () => {
       layoutTemplateId: "t",
     })
     .run();
+  // The dev-header user is in the room through GitHub (#270), so they need a `users` row.
+  db.insert(schema.users).values({ id: "u1", name: "U", email: "u1@example.com" }).run();
+  seedRoomMember(db, "u1", "op1", "view");
   new WhiteboardStore(db).saveSnapshot("op1", "op1.png");
   rooms = createRooms({
     db,

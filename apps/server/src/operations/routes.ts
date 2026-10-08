@@ -11,10 +11,14 @@
  *   POST   /api/operations/:operationId/send-home                send its henchmen home (owner/admin)
  *   DELETE /api/operations/:operationId                          delete for good (owner/admin; #150)
  *   GET    /api/operations/:operationId/members                  members (manage)
- *   PUT    /api/operations/:operationId/members/:userId          grant access (manage)
- *   DELETE /api/operations/:operationId/members/:userId          revoke (manage)
+ *   PUT    /api/operations/:operationId/members/:userId          narrow a person's access (manage)
+ *   DELETE /api/operations/:operationId/members/:userId          lift that limit (manage)
  *   POST   /api/operations/:operationId/repos/:repoId/clone      retry a failed clone (manage)
- *   GET    /api/users                                    office people to grant (manage any operation)
+ *   GET    /api/users                                    office people to pick (manage any operation)
+ *
+ * Every operation-scoped route answers through operations/access.ts: a room
+ * opens with the caller's own GitHub permission on its repo (D27; #270), and
+ * "owner/admin" above means the office role on top of that, never instead.
  *
  * Repo tokens are accepted in bodies and never echoed back.
  */
@@ -91,7 +95,7 @@ export function mountOperationRoutes(
     OPERATIONS_API_PATH,
     route(async (ctx, actor) => {
       const body = await readJsonBody(ctx.request, CreateOperationBody);
-      const { operation } = operations.create(actor, body);
+      const { operation } = await operations.createChecked(actor, body);
       return json(operation, { status: 201 });
     }, true),
   );

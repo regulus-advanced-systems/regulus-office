@@ -72,6 +72,10 @@ describe("reading a card", () => {
   test("signed out 401; strangers, unknown cards and other operations' repos 404", async () => {
     expect((await f.call("GET", issue7())).status).toBe(401);
     expect((await f.call("GET", issue7(), f.people.stranger.cookie)).status).toBe(404);
+    // The office role reads no board: the admin's GitHub account cannot see the repo (#270).
+    expect((await f.call("GET", issue7(), f.people.admin.cookie)).status).toBe(404);
+    const people = await f.call("GET", boardAssigneesPath(OPERATION, HELLO), f.people.admin.cookie);
+    expect(people.status).toBe(404);
     const missing = boardCardPath(OPERATION, "issue", HELLO, 404);
     expect((await f.call("GET", missing, f.people.viewer.cookie)).status).toBe(404);
     // #9 is a PR, not an issue.
@@ -118,6 +122,9 @@ describe("write access", () => {
       }
     }
     expect((await f.call("POST", issue7("close"), f.people.stranger.cookie, {})).status).toBe(404);
+    // Nor does it write one.
+    expect((await f.call("POST", issue7("close"), f.people.admin.cookie, {})).status).toBe(404);
+    expect((await f.call("POST", pull9("merge"), f.people.admin.cookie, {})).status).toBe(404);
     expect((await f.call("POST", issue7("close"), undefined, {})).status).toBe(401);
     expect(f.boardCalls().length).toBe(before);
     expect(audits()).toEqual([]);

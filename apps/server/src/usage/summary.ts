@@ -22,6 +22,7 @@ import { and, desc, eq, gte, isNull, type SQL, sql } from "drizzle-orm";
 import type { Db } from "../db/index.ts";
 import { agents, usageLimits, usageSamples, userProfiles, users } from "../db/schema/index.ts";
 import { PRICES_AS_OF } from "./prices.ts";
+import type { OfficeUsage } from "./room-state.ts";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -124,7 +125,7 @@ export class UsageSummaries {
   }
 
   /** Shared office totals for today (BuildingRoom state). */
-  office(): UsageSummary {
+  office(): OfficeUsage {
     const now = this.now();
     const dayStart = localDayStart(now, this.officeTzOffset());
     const today = gte(usageSamples.ts, new Date(dayStart));
@@ -142,17 +143,22 @@ export class UsageSummaries {
       todayCostUsdEstimate: all.costUsd,
       officeKeysCostUsdEstimate: officeKeys.costUsd,
       activeHumans: Number(active?.n ?? 0),
-      topHenchmen: this.topHenchmen(dayStart),
+      ...this.topHenchmen(dayStart),
       dayStart,
       observedAt: now,
     };
   }
 
-  /** Henchman name and owner name only: no operation, task, model or cost. */
-  topHenchmen(since: number): UsageSummary["topHenchmen"] {
+  /**
+   * Henchman name and owner name only: no task, model or cost. `henchmanRooms`
+   * says which room each is in, for the server alone: a row is shown only to
+   * people who may enter that room (#270).
+   */
+  topHenchmen(since: number): Pick<OfficeUsage, "topHenchmen" | "henchmanRooms"> {
     const rows = this.db
       .select({
         agentId: usageSamples.agentId,
+        operationId: agents.operationId,
         provider: agents.provider,
         henchmanName: agents.name,
         ownerName: sql<string | null>`coalesce(${userProfiles.displayName}, ${users.name})`,
@@ -167,9 +173,11 @@ export class UsageSummaries {
       .orderBy(desc(tokenSum))
       .limit(USAGE_TOP_HENCHMEN)
       .all();
-    return rows.flatMap((r) => {
+    const henchmanRooms: Record<string, string> = {};
+    const topHenchmen = rows.flatMap((r) => {
       if (!r.agentId || Number(r.tokens) <= 0) return [];
       const ownerName = (r.ownerName ?? "").slice(0, 64);
+      henchmanRooms[r.agentId] = r.operationId;
       return [
         {
           agentId: r.agentId,
@@ -180,5 +188,6 @@ export class UsageSummaries {
         },
       ];
     });
+    return { topHenchmen, henchmanRooms };
   }
 }

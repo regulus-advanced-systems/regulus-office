@@ -39,7 +39,13 @@ export function mountWorktreeRoutes(
         targetId: null,
         meta: { removed: result.removed.length, failed: result.failed.length, repos: result.repos },
       });
-      return json(result);
+      // Counts only: a path names the room's directory, and the office role does
+      // not show a room of a repo the person cannot see (D27; #270).
+      return json({
+        removed: result.removed.length,
+        failed: result.failed.length,
+        repos: result.repos,
+      });
     } catch (err) {
       if (err instanceof AuthHttpError) return err.toResponse();
       throw err;

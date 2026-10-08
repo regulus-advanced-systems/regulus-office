@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { createLogger } from "../logging.ts";
 import { createOperations } from "../operations/index.ts";
 import { FAKE_PAT, makeBareRepo, testDb } from "../operations/test-helpers.ts";
+import { seedRoomMember } from "./access/test-snapshot.ts";
 import { RepoCredentialError } from "./credentials.ts";
 import type { GitRunOptions } from "./git.ts";
 import { runGit } from "./git.ts";
@@ -36,20 +37,23 @@ async function operationWith(connection: ConnectionTokens | undefined, repoToken
       return runGit(args, opts);
     },
   });
-  const created = operations.service.create(addUser("Olga", "owner"), {
+  const owner = addUser("Olga", "owner");
+  const created = operations.service.create(owner, {
     name: "Access",
     tier: "small",
     repos: [{ repo: "octo/hello", ...(repoToken ? { token: FAKE_PAT } : {}) }],
   });
   await created.cloned;
   const repoId = created.operation.repos[0]?.repoId ?? "";
+  // The room is the owner's to read through their own GitHub access to the repo (#270).
+  seedRoomMember(db, owner.id, created.operation.operationId, "manage");
   const pick = () =>
     operations.repos.withRepoCredential(repoId, ({ token, source, redact }) => ({
       token,
       source,
       redacted: redact(`x ${token ?? ""} y`),
     }));
-  return { operations, repoId, tokensSeen, pick };
+  return { operations, owner, repoId, tokensSeen, pick };
 }
 
 const covering = (calls: string[] = []): ConnectionTokens => ({
@@ -98,7 +102,7 @@ describe("withRepoCredential token selection", () => {
     expect(err).toBeInstanceOf(RepoCredentialError);
     expect((err as RepoCredentialError).code).toBe("connection_failed");
     // The clone reported it in plain words.
-    const repo = t.operations.service.list({ id: "x", role: "owner" })[0]?.repos[0];
+    const repo = t.operations.service.list(t.owner)[0]?.repos[0];
     expect(repo?.cloneStatus).toBe("error");
     expect(repo?.cloneError).toContain("GitHub connection could not issue a token");
   });

@@ -18,6 +18,7 @@ import { join } from "node:path";
 import { FakeAdapter } from "@regulus/agent-adapters";
 import { and, eq } from "drizzle-orm";
 import { agents, desks } from "../../db/schema/index.ts";
+import { seedRoomMember } from "../../github/access/test-snapshot.ts";
 import type { OperationActor } from "../../operations/access.ts";
 import { runnerId } from "../../runners/layout.ts";
 import { hasTmux, LocalTmuxRunner, shellQuote } from "../../runners/testing/local-tmux-runner.ts";
@@ -88,6 +89,8 @@ describe.skipIf(!hasTmux())("per-human clones (#114)", () => {
   test("a hook, fsmonitor, include.path or filter planted by A's agent never runs for B", async () => {
     const f = await setupOperation(root);
     const bob = f.addUser("Bob", "admin");
+    // Bob works in the room with his own GitHub write access; his admin role gives none (#270).
+    seedRoomMember(f.db, bob.id, f.operationId, "spawn");
     runner = await LocalTmuxRunner.create();
     const scripts = join(root, `scripts-${Date.now()}`);
     const log = join(scripts, "ran.log");

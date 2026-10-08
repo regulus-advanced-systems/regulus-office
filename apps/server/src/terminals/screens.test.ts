@@ -51,7 +51,8 @@ beforeAll(async () => {
   owner = await office.signUp("Owner");
   member = await office.signUp("Member", "member");
   outsider = await office.signUp("Outsider", "member");
-  office.addOperation("f1", { [member.id]: "view" });
+  // The office owner is on f1 through GitHub like anyone else, and not on f2 (#270).
+  office.addOperation("f1", { [owner.id]: "manage", [member.id]: "view" });
   office.addOperation("f2");
   office.addAgent("a1", "f1", owner.id);
   office.addAgent("a2", "f1", member.id);
@@ -72,6 +73,7 @@ describe("screen feed", () => {
     );
     expect((await probe("f1", {})).status).toBe(401);
     expect((await probe("f1", { cookie: outsider.cookie })).status).toBe(404);
+    expect((await probe("f2", { cookie: owner.cookie })).status).toBe(404);
     expect((await probe("..%2Fx", { cookie: owner.cookie })).status).toBe(404);
     expect((await probe("%E0%A4%A", { cookie: owner.cookie })).status).toBe(404);
   });

@@ -120,6 +120,28 @@ export const OperationSummary = z.object({
 });
 export type OperationSummary = z.infer<typeof OperationSummary>;
 
+/**
+ * A room the viewer may not enter, on a level they can reach (D26, #270): its
+ * id, its level and where it stands, and nothing else. No name, no counts, no
+ * room settings, no build state: a closed room reveals nothing about its repo.
+ * The viewer's own `BuildingState.closedRooms` lists them; a room on a level
+ * the viewer cannot reach is in neither list.
+ */
+export const ClosedRoom = z.object({
+  operationId: Id,
+  levelId: Id,
+  gridX: RoomTile,
+  gridY: RoomTile,
+  width: Count,
+  depth: Count,
+  doorSide: z.enum(DOOR_SIDES),
+  doorX: RoomTile,
+  doorY: RoomTile,
+  /** Always true: lets code that handles both kinds of room tell them apart. */
+  closed: z.boolean(),
+});
+export type ClosedRoom = z.infer<typeof ClosedRoom>;
+
 /** The placement and build fields of a `OperationSummary`. */
 export type RoomSummaryFields = Pick<
   OperationSummary,
@@ -230,6 +252,7 @@ export const UsageSummary = z.object({
   dayStart: TimestampMs,
   observedAt: TimestampMs,
 });
+// `topHenchmen` is per viewer in the BuildingRoom: only henchmen of rooms open to them (#270).
 export type UsageSummary = z.infer<typeof UsageSummary>;
 
 export const PmState = z.object({
@@ -247,12 +270,26 @@ export const PmState = z.object({
 });
 export type PmState = z.infer<typeof PmState>;
 
+/**
+ * The state is **per viewer** (D26, D27; #270): `humans`, `operations`,
+ * `closedRooms`, `levels`, `chat` and `usage.topHenchmen` hold only what the viewer's
+ * own GitHub access covers. Two people in the same office get different maps.
+ */
 export const BuildingState = z.object({
-  /** Keyed by Colyseus session id. */
+  /**
+   * Keyed by Colyseus session id. Only people the viewer can see: on a level
+   * the viewer reaches, and not inside a room that is closed to the viewer.
+   */
   humans: z.record(Id, HumanPresence),
-  /** Keyed by operation id. */
+  /** Keyed by operation id: the lobby and the rooms the viewer may enter. */
   operations: z.record(Id, OperationSummary),
-  /** Recent messages, oldest first; the server trims to a fixed window. */
+  /** Keyed by operation id: rooms closed to the viewer on levels they reach. */
+  closedRooms: z.record(Id, ClosedRoom),
+  /**
+   * Recent messages, oldest first; the server trims to a fixed window. Lines
+   * written in the lobby or a corridor are everyone's; a line written inside
+   * a room reaches only people who may enter that room (#270).
+   */
   chat: z.array(ChatMessage),
   jukebox: JukeboxState,
   usage: UsageSummary,
@@ -263,7 +300,11 @@ export const BuildingState = z.object({
    * `levels`; this field stays for the lobby's own features (blast door, seats).
    */
   compound: CompoundState,
-  /** Levels of the lair by level id (D26, #268), each with its own layout. */
+  /**
+   * Levels of the lair by level id (D26, #268), each with its own layout: the
+   * lobby level and the levels with a room the viewer may enter. A level the
+   * viewer cannot reach is absent.
+   */
   levels: z.record(Id, LevelState),
   /** The lobby's blast door (#188): shared, opened by a button, shuts on a timer. */
   blastDoor: BlastDoorState,
