@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { CompoundState, LevelState, OperationInfo, OperationSummary } from "@regulus/protocol";
-import { closedEntry, rowPlacement, testState, testWorld } from "../../scene/compound/testing.ts";
+import { closedRoomOf, rowPlacement, testState, testWorld } from "../../scene/compound/testing.ts";
 import { compoundWorld } from "../../scene/compound/world.ts";
 import { levelView } from "../../state/level.ts";
 import { anyCloning, cloneBadge } from "../../state/operations.ts";
@@ -52,7 +52,9 @@ describe("quick travel rooms (#186)", () => {
         zeus: { ...acme.operations.zeus, levelId: "acme" },
         hades: { ...acme.operations.hades, levelId: "acme" },
         // A closed room (#269): on the map of its level, never offered.
-        vault: closedEntry({ ...acme.operations.vault, levelId: "acme" } as OperationSummary),
+      },
+      closedRooms: {
+        vault: closedRoomOf({ ...acme.operations.vault, levelId: "acme" } as OperationSummary),
       },
     } as unknown as Parameters<typeof travelGroups>[1];
     const enterable = new Set(["apollo", "zeus", "vault"]);

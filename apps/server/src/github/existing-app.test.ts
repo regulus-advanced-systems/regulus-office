@@ -68,6 +68,8 @@ beforeAll(async () => {
     db: office.db,
     logger,
     ...github,
+    // The repo picker lists what the asking person's own GitHub account sees (#270).
+    ownRepos: async () => ({ names: new Set(["octo/hello"]), truncated: false }),
   });
   owner = await office.signUp("Olga");
   member = await office.signUp("Mia");

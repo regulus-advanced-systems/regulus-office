@@ -1,12 +1,12 @@
 /**
  * The dev harness's lair (#269): its levels, and the closed-room fixture it
- * publishes in the shape agreed with #270, so the scene is built against
+ * publishes as #270's `closedRooms`, so the scene is built against
  * what the server will send.
  */
 import { describe, expect, test } from "bun:test";
-import { HOLDING_LEVEL_ID, LOBBY_LEVEL_ID, type OperationSummary } from "@regulus/protocol";
+import { ClosedRoom, HOLDING_LEVEL_ID, LOBBY_LEVEL_ID } from "@regulus/protocol";
 import { levelLabel, levelList, levelView } from "../../../state/level.ts";
-import { type CompoundWorld, compoundWorld, isClosedEntry } from "../../compound/world.ts";
+import { type CompoundWorld, compoundWorld } from "../../compound/world.ts";
 import { ANTE_LEVEL, DEFAULT_CLOSED, harnessLair, REGULUS_LEVEL } from "./harnessWorld.ts";
 
 const options = { rooms: 4, locked: [], building: [], closed: DEFAULT_CLOSED, holding: false };
@@ -56,22 +56,15 @@ describe("the harness's levels (#269)", () => {
   });
 
   test("closed rooms are published as footprint only, and drawn with nothing else", () => {
-    const sent = lair.state.operations as Record<string, OperationSummary>;
     for (const id of DEFAULT_CLOSED) {
-      const entry = sent[id];
-      if (!entry) throw new Error(id);
-      expect(isClosedEntry(entry)).toBe(true);
-      expect([
-        entry.name,
-        entry.slug,
-        entry.henchmenWorking,
-        entry.henchmenWaiting,
-        entry.henchmenTotal,
-      ]).toEqual(["", "", 0, 0, 0]);
-      expect(entry.levelId).toBe(ANTE_LEVEL);
-      expect(entry.width).toBeGreaterThan(0);
+      const sent = lair.state.closedRooms[id];
+      if (!sent) throw new Error(id);
+      expect(ClosedRoom.parse(sent)).toEqual(sent);
+      expect(sent.levelId).toBe(ANTE_LEVEL);
+      expect(lair.state.operations[id]).toBeUndefined();
       expect(lair.enterable).not.toContain(id);
     }
+    expect(JSON.stringify(lair.state.closedRooms)).not.toMatch(/Vault|Crypt/);
     const world = worldOf(ANTE_LEVEL);
     const byId = [...world.rooms].sort((a, b) => a.id.localeCompare(b.id));
     expect(byId.map((r) => [r.id, r.closed, r.sealed, r.enterable, r.name])).toEqual([

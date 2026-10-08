@@ -6,8 +6,8 @@
  *   rooms auto-placed in the rows north of the main corridor (the §11
  *   performance gate measures 12);
  * - "Ante", a personal account's level: two rooms the viewer may enter and
- *   two closed ones (`closed=<ids>`; the fixture for the shape agreed with
- *   #270: one with its door known, drawn sealed, one without, drawn as rock);
+ *   two closed ones (`closed=<ids>`, published as #270's `closedRooms`: one
+ *   with its door, drawn sealed, one without a usable door, drawn as rock);
  * and, with `holding=1`, the holding level with one room that has no repo.
  * Fake remote humans (`humans=<n>`, the local player included) stroll round
  * the Dev room. Not part of the build.
@@ -16,6 +16,7 @@
 import {
   ARCHETYPE_DEFAULTS,
   type BuildingState,
+  type ClosedRoom,
   DECOR_STYLES,
   GENIUS_ARCHETYPES,
   HOLDING_LEVEL_ID,
@@ -26,7 +27,7 @@ import {
 } from "@regulus/protocol";
 import { buildingFixture } from "@regulus/protocol/src/fixtures.ts";
 import { defaultCompoundSpec, findPlacement } from "@regulus/room-layout";
-import { closedEntry, type TestRoom, testState } from "../../compound/testing.ts";
+import { closedRoomOf, type TestRoom, testState } from "../../compound/testing.ts";
 
 export const HARNESS_SIZE = 64;
 export const DEV_ROOM = "dev";
@@ -128,14 +129,15 @@ export interface HarnessOptions {
 }
 
 /** Everything else the scene reads from the building state, quiet: no music, the door shut. */
-const QUIET: Omit<BuildingState, "compound" | "levels" | "operations" | "humans"> = {
-  chat: [],
-  jukebox: { ...buildingFixture.jukebox, playing: false, queue: [] },
-  usage: buildingFixture.usage,
-  pm: { ...buildingFixture.pm, enabled: false },
-  blastDoor: { phase: "closed", openedAt: 0, closesAt: 0, openedBy: "", presses: 0 },
-  lobbyWhiteboardVersion: 0,
-};
+const QUIET: Omit<BuildingState, "compound" | "levels" | "operations" | "closedRooms" | "humans"> =
+  {
+    chat: [],
+    jukebox: { ...buildingFixture.jukebox, playing: false, queue: [] },
+    usage: buildingFixture.usage,
+    pm: { ...buildingFixture.pm, enabled: false },
+    blastDoor: { phase: "closed", openedAt: 0, closesAt: 0, openedBy: "", presses: 0 },
+    lobbyWhiteboardVersion: 0,
+  };
 
 export interface HarnessLair {
   state: Omit<BuildingState, "humans">;
@@ -192,6 +194,7 @@ export function harnessLair(options: HarnessOptions): HarnessLair {
     },
   };
   const operations: Record<string, OperationSummary> = { ...lobby.operations };
+  const closedRooms: Record<string, ClosedRoom> = {};
   const enterable: string[] = [];
   for (const { info, rooms } of parts) {
     const level = testState(mark(rooms), HARNESS_SIZE, { levelId: info.levelId, landing: true });
@@ -200,11 +203,15 @@ export function harnessLair(options: HarnessOptions): HarnessLair {
       const entry = level.operations[room.id];
       if (!entry) continue;
       const closed = options.closed.includes(room.id);
-      operations[room.id] = closed ? closedEntry(entry, !ROCK_ONLY.has(room.id)) : entry;
+      if (closed) closedRooms[room.id] = closedRoomOf(entry, !ROCK_ONLY.has(room.id));
+      else operations[room.id] = entry;
       if (!closed && !options.locked.includes(room.id)) enterable.push(room.id);
     }
   }
-  const lair = { state: { ...QUIET, compound: lobby.compound, levels, operations }, enterable };
+  const lair = {
+    state: { ...QUIET, compound: lobby.compound, levels, operations, closedRooms },
+    enterable,
+  };
   cache.set(key, lair);
   return lair;
 }

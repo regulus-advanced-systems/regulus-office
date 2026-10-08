@@ -10,6 +10,7 @@
  */
 import {
   type BuildingState,
+  type ClosedRoom,
   type HumanPresence,
   type LevelInfo,
   type LevelState,
@@ -57,7 +58,7 @@ export function draftLevelCompound(lobby: BuildingState["compound"]): BuildingSt
 }
 
 type Levels = Pick<BuildingState, "compound" | "operations"> &
-  Partial<Pick<BuildingState, "levels">>;
+  Partial<Pick<BuildingState, "levels" | "closedRooms">>;
 
 /** The published levels, lobby first; empty until the layout is published. */
 export function levelList(state: Partial<Pick<BuildingState, "levels">> | null): LevelState[] {
@@ -86,15 +87,33 @@ export function isKnownLevel(
 export function levelView(
   state: Levels | null,
   levelId: string,
-): Pick<BuildingState, "compound" | "operations"> | null {
+): (Pick<BuildingState, "compound" | "operations"> & { closedRooms: ClosedRoom[] }) | null {
   if (!state) return null;
   const operations: BuildingState["operations"] = {};
   for (const [id, f] of Object.entries(state.operations)) {
     if (id === LOBBY_OPERATION_ID || f.levelId === levelId) operations[id] = f;
   }
   const lobby = state.levels?.[LOBBY_LEVEL_ID]?.compound ?? state.compound;
-  if (levelId === DRAFT_LEVEL_ID) return { compound: draftLevelCompound(lobby), operations };
-  return { compound: state.levels?.[levelId]?.compound ?? state.compound, operations };
+  if (levelId === DRAFT_LEVEL_ID)
+    return { compound: draftLevelCompound(lobby), operations, closedRooms: [] };
+  return {
+    compound: state.levels?.[levelId]?.compound ?? state.compound,
+    operations,
+    closedRooms: closedRoomsOnLevel(state, levelId),
+  };
+}
+
+/**
+ * The rooms on a level that are closed to this viewer (D26, #270): each is
+ * an id and a footprint, nothing else. The scene draws them as closed doors
+ * (#269); they are not in `operations`, so nothing that lists, enters or
+ * previews rooms ever sees them.
+ */
+export function closedRoomsOnLevel(
+  state: Partial<Pick<BuildingState, "closedRooms">> | null,
+  levelId: string,
+): ClosedRoom[] {
+  return Object.values(state?.closedRooms ?? {}).filter((room) => room.levelId === levelId);
 }
 
 /** The level a room is on, from the published state. */

@@ -7,9 +7,10 @@
  *   everyone else (their only lever is the OperationRoom `agent.emergencyStop`).
  * - `viewer`s watch only, even their own henchmen.
  *
- * "Can view the operation" is any access from operations/access.ts (owners/admins see
- * every live operation, others need an `operation_members` row, archived operations are
- * invisible), so the terminal and the OperationRoom agree on who sees a henchman.
+ * "Can view the operation" is any access from operations/access.ts (the person's own
+ * GitHub permission on the room's repo, for office owners and admins too; archived
+ * operations are invisible), so the terminal and the OperationRoom agree on who sees a
+ * henchman. A henchman's owner who lost the room cannot open its terminal either (#270).
  */
 import { mayControlHenchman, type TerminalMode, type UserRole } from "@regulus/protocol";
 import type { Db } from "../db/index.ts";

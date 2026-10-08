@@ -10,13 +10,8 @@ import { dbAccessSubjects, LiveAccess } from "../auth/live-access.ts";
 import { cookieHeaderFrom, mountAuthRoutes } from "../auth/routes.ts";
 import { PASSWORD, TEST_SECRET } from "../auth/test-helpers.ts";
 import { MEMORY_DB_PATH, openDatabase, runMigrations } from "../db/index.ts";
-import {
-  agents,
-  operationMembers,
-  operationRepos,
-  operations,
-  userProfiles,
-} from "../db/schema/index.ts";
+import { agents, operationRepos, operations, userProfiles } from "../db/schema/index.ts";
+import { seedRoomMember } from "../github/access/test-snapshot.ts";
 import { createOfficeServer } from "../http/server.ts";
 import { WsRouter } from "../http/ws-router.ts";
 import { createLogger } from "../logging.ts";
@@ -126,6 +121,7 @@ export async function startServicesOffice(options: ServicesOfficeOptions) {
     return { id: body.user.id, cookie: cookieHeaderFrom(res.headers) };
   };
 
+  /** An operation with a repo; `members` is each person's GitHub-given access to it (#270). */
   const addOperation = (id: string, members: Record<string, "manage" | "spawn" | "view"> = {}) => {
     db.insert(operations)
       .values({ id, name: id, slug: id, index: seq + 1, paletteId: "p", layoutTemplateId: "t" })
@@ -141,7 +137,7 @@ export async function startServicesOffice(options: ServicesOfficeOptions) {
       })
       .run();
     for (const [userId, access] of Object.entries(members)) {
-      db.insert(operationMembers).values({ operationId: id, userId, access }).run();
+      seedRoomMember(db, userId, id, access);
     }
   };
 

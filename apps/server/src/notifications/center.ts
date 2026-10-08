@@ -12,6 +12,12 @@
  *   and a henchman's errors to owners/admins who opted in;
  * - routes events to the enabled webhook channels that take that event on
  *   that operation.
+ *
+ * Nobody is told about a room their own GitHub access does not cover (D27;
+ * #270): each recipient is checked against the access gate when the notice
+ * goes out, the henchman's owner included (an owner who lost the room hears
+ * no more of it), and a team channel carries a room's events only while the
+ * person who set the channel up can see that room.
  */
 import {
   henchmanDisplayName,
@@ -219,12 +225,17 @@ export class NotificationCenter {
       own,
       ts: n.ts,
     });
-    if (directory.prefs(n.ownerUserId).desktop[n.event]) {
+    if (
+      directory.prefs(n.ownerUserId).desktop[n.event] &&
+      directory.canSee(n.ownerUserId, n.operationId)
+    ) {
       sink.sendToUser(n.ownerUserId, NOTIFY_EVENT_MESSAGE, payload(true));
     }
     if (n.event !== "error") return;
     for (const managerId of directory.managers()) {
       if (managerId === n.ownerUserId || !directory.prefs(managerId).adminErrors) continue;
+      // The office role does not show an admin a room of a repo they cannot see.
+      if (!directory.canSee(managerId, n.operationId)) continue;
       sink.sendToUser(managerId, NOTIFY_EVENT_MESSAGE, payload(false));
     }
   }
@@ -233,7 +244,9 @@ export class NotificationCenter {
     const channels = this.#o.channels
       .routable()
       .filter((c) => c.events.includes(n.event))
-      .filter((c) => c.operationIds === null || c.operationIds.includes(n.operationId));
+      .filter((c) => c.operationIds === null || c.operationIds.includes(n.operationId))
+      // "Every operation" means every one the channel's creator can see.
+      .filter((c) => c.createdBy !== null && this.#o.directory.canSee(c.createdBy, n.operationId));
     if (channels.length === 0) return;
     const now = this.#o.now();
     const recent = (this.#team.get(n.agentId) ?? []).filter((t) => now - t < this.#o.teamWindowMs);

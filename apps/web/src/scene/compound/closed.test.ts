@@ -1,19 +1,21 @@
 /**
  * Closed rooms (SPEC §14 D26; #269): what the client is given for a room the
- * viewer may not enter (the shape agreed with #270: id, level, footprint,
- * `closed: true`) and everything the scene derives from it. Whatever else an
- * entry carries must not reach the world.
+ * viewer may not enter (`BuildingState.closedRooms`, #270: id, level,
+ * footprint, door, `closed: true`) and everything the scene derives from it.
  */
 import { afterEach, describe, expect, test } from "bun:test";
-import type { OperationSummary } from "@regulus/protocol";
+import { ClosedRoom, type OperationSummary } from "@regulus/protocol";
 import { findWorldPath } from "@regulus/room-layout";
 import { worldKey } from "../../state/compound.ts";
 import {
   NO_ENTRY_EVERY_MS,
   NO_ENTRY_MESSAGE,
+  NO_ENTRY_UNLINKED,
+  noEntryMessage,
   refuseEntry,
   resetEntryNotice,
 } from "../../state/entry.ts";
+import { levelView } from "../../state/level.ts";
 import { useUiStore } from "../../state/ui.ts";
 import { travelRooms } from "../../ui/hud/QuickTravel.tsx";
 import { BEHIND_CLOSED_DOOR, placeAt } from "../../ui/whereabouts/whereabouts.ts";
@@ -26,12 +28,10 @@ import { closedDoors, compoundNavGrid, navKey } from "./navigation.ts";
 import { placeRoom } from "./placed.ts";
 import { createPresenceMemory, pickRooms } from "./presence.ts";
 import { NO_ENTRY_LINES, signLines } from "./signTexture.ts";
-import { closedEntry, rowPlacement, testState } from "./testing.ts";
+import { closedRoomOf, rowPlacement, testState } from "./testing.ts";
 import {
-  type ClosedRoomFields,
   type CompoundWorld,
   compoundWorld,
-  isClosedEntry,
   isOpenRoom,
   roomAt,
   travelPose,
@@ -57,10 +57,15 @@ const published = testState(
 );
 const entry = (id: string) => published.operations[id] as OperationSummary;
 
-/** The world when the server marks `vault` (door known) and `crypt` (footprint only) closed. */
-function worldWith(operations: Record<string, OperationSummary>): CompoundWorld {
+/**
+ * The world as this viewer is given it: the rooms in `closed` are not in
+ * `operations` at all, only in `closedRooms` (id, level, footprint, door).
+ */
+function worldWith(closed: Record<string, ClosedRoom>): CompoundWorld {
+  const operations = { ...published.operations };
+  for (const id of Object.keys(closed)) delete operations[id];
   const world = compoundWorld(
-    { compound: published.compound, operations: { ...published.operations, ...operations } },
+    { compound: published.compound, operations, closedRooms: Object.values(closed) },
     // Even a viewer whose REST list named the room does not get in while it is closed.
     new Set(["open", "vault", "crypt"]),
     LEVEL,
@@ -69,27 +74,32 @@ function worldWith(operations: Record<string, OperationSummary>): CompoundWorld 
   return world;
 }
 const world = worldWith({
-  vault: closedEntry(entry("vault")),
-  crypt: closedEntry(entry("crypt"), false),
+  vault: closedRoomOf(entry("vault")),
+  crypt: closedRoomOf(entry("crypt"), false),
 });
 const room = (id: string, w = world) => w.rooms.find((r) => r.id === id) as WorldRoom;
 
 afterEach(() => resetEntryNotice());
 
-describe("the closed-room entry (the shape agreed with #270)", () => {
-  test("is the id, the level, the footprint and closed: true; everything else at its default", () => {
-    const sent = closedEntry(entry("vault"), false) as OperationSummary & ClosedRoomFields;
-    expect(isClosedEntry(sent)).toBe(true);
-    expect(isClosedEntry(entry("vault"))).toBe(false);
-    expect({
-      operationId: sent.operationId,
-      levelId: sent.levelId,
-      gridX: sent.gridX,
-      gridY: sent.gridY,
-      width: sent.width,
-      depth: sent.depth,
-      closed: sent.closed,
-    }).toEqual({
+describe("a closed room as the server sends it (protocol ClosedRoom, #270)", () => {
+  test("is the id, the level, the footprint, the door and closed: true, and nothing else", () => {
+    const sent = closedRoomOf(entry("vault"));
+    expect(ClosedRoom.parse(sent)).toEqual(sent);
+    expect(Object.keys(sent).sort()).toEqual(
+      [
+        "closed",
+        "depth",
+        "doorSide",
+        "doorX",
+        "doorY",
+        "gridX",
+        "gridY",
+        "levelId",
+        "operationId",
+        "width",
+      ].sort(),
+    );
+    expect(sent).toMatchObject({
       operationId: "vault",
       levelId: LEVEL,
       gridX: 16,
@@ -98,17 +108,34 @@ describe("the closed-room entry (the shape agreed with #270)", () => {
       depth: 8,
       closed: true,
     });
-    expect([sent.name, sent.slug, sent.henchmenTotal, sent.humansPresent]).toEqual(["", "", 0, 0]);
+    expect(JSON.stringify(sent)).not.toContain("Top secret");
+  });
+
+  test("it reaches the world through the level's slice of the building state", () => {
+    const state = {
+      compound: published.compound,
+      levels: { [LEVEL]: { compound: published.compound } },
+      operations: { open: entry("open") },
+      closedRooms: {
+        vault: closedRoomOf(entry("vault")),
+        // A closed room of another level is not on this level's map.
+        other: { ...closedRoomOf(entry("crypt")), operationId: "other", levelId: "lv-b" },
+      },
+    } as unknown as Parameters<typeof levelView>[0];
+    const view = levelView(state, LEVEL);
+    expect(view?.closedRooms.map((r) => r.operationId)).toEqual(["vault"]);
+    const built = compoundWorld(view, new Set(["open"]), LEVEL);
+    expect(built?.rooms.map((r) => [r.id, r.closed])).toEqual([
+      ["landing", false],
+      ["open", false],
+      ["vault", true],
+    ]);
   });
 });
 
 describe("a closed room in the world", () => {
-  test("keeps its footprint and nothing else, even when the entry carried more", () => {
-    // A server that (wrongly) sent the name and counts along: the client drops them.
-    const leaky = worldWith({
-      vault: { ...entry("vault"), closed: true } as OperationSummary,
-    });
-    for (const r of [room("vault"), room("vault", leaky)]) {
+  test("keeps its footprint and nothing else", () => {
+    for (const r of [room("vault")]) {
       expect(r).toMatchObject({
         id: "vault",
         kind: "project",
@@ -125,7 +152,7 @@ describe("a closed room in the world", () => {
       });
       expect(isOpenRoom(r)).toBe(false);
     }
-    expect(JSON.stringify(leaky.rooms)).not.toContain("Top secret");
+    expect(JSON.stringify(world.rooms)).not.toMatch(/secret/i);
     expect(room("open")).toMatchObject({ closed: false, enterable: true, name: "Open" });
   });
 
@@ -134,9 +161,7 @@ describe("a closed room in the world", () => {
     expect(room("vault").door).toEqual({ x: entry("vault").doorX, y: entry("vault").doorY });
     expect(room("crypt").sealed).toBe(true);
     // A door that is not on the footprint's wall is not believed.
-    const odd = worldWith({
-      vault: { ...closedEntry(entry("vault")), doorX: 3, doorY: 3 } as OperationSummary,
-    });
+    const odd = worldWith({ vault: { ...closedRoomOf(entry("vault")), doorX: 3, doorY: 3 } });
     expect(room("vault", odd).sealed).toBe(true);
   });
 
@@ -285,6 +310,11 @@ describe("trying to go in", () => {
       ["error", "No entry", NO_ENTRY_MESSAGE],
     ]);
     expect(NO_ENTRY_MESSAGE).toStartWith("No entry.");
+    // Someone who has not linked GitHub is told that instead: it is about them, not the room.
+    expect(noEntryMessage("linked")).toBe(NO_ENTRY_MESSAGE);
+    expect(noEntryMessage(undefined)).toBe(NO_ENTRY_MESSAGE);
+    expect(noEntryMessage("unlinked")).toBe(NO_ENTRY_UNLINKED);
+    expect(noEntryMessage("revoked")).toBe(NO_ENTRY_UNLINKED);
     expect(NO_ENTRY_MESSAGE).not.toMatch(/secret|vault|henchm|repo name/i);
   });
 });

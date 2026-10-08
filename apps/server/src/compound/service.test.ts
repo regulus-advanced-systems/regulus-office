@@ -18,7 +18,9 @@ import {
 } from "@regulus/protocol";
 import { eq } from "drizzle-orm";
 import { operationRepos, operations as operationsTable } from "../db/schema/index.ts";
+import { seedGitHubLink } from "../github/access/test-snapshot.ts";
 import { createLogger } from "../logging.ts";
+import { lairViewFor } from "../operations/access.ts";
 import { createOperations } from "../operations/index.ts";
 import { makeBareRepo, testDb } from "../operations/test-helpers.ts";
 import { DrizzleOperationSource } from "../rooms/building/operations.ts";
@@ -45,6 +47,9 @@ async function office(buildMs: number, remote = true, now?: () => number) {
   if (remote) await makeBareRepo(join(root, "remotes"), "acme", "rockets");
   const { db, addUser } = testDb();
   const owner = addUser("Olga", "owner");
+  // The owner's GitHub account is linked; rooms they must enter are created
+  // with their GitHub permission on the repo, as `createChecked` stores it (#270).
+  seedGitHubLink(db, owner.id);
   const ready: string[] = [];
   const snapshots: CompoundSnapshot[] = [];
   const compound = new CompoundService({
@@ -165,16 +170,18 @@ describe("BuildingRoom publish", () => {
   test("the layout and room fields land in the room state in the protocol's shape", async () => {
     const o = await office(60_000);
     const actor = { id: o.owner.id, role: "owner" as const };
-    const made = o.operations.service.create(actor, {
-      name: "Apollo",
-      tier: "small",
-      repos: [{ repo: "octo/hello" }],
-    });
+    const made = o.operations.service.create(
+      actor,
+      { name: "Apollo", tier: "small", repos: [{ repo: "octo/hello" }] },
+      undefined,
+      "admin",
+    );
     await made.cloned;
     const room = createBuildingRoom({
       chat: new MemoryChatStore(),
       operations: new DrizzleOperationSource(o.db),
       logger,
+      lairView: (user) => lairViewFor(o.db, { id: user.userId, role: user.role }),
     });
     const state = new BuildingStateSchema();
     const handle: RoomHandle<typeof state> = {
@@ -269,12 +276,14 @@ describe("BuildingRoom publish", () => {
       actor,
       { name: "Hello", tier: "small", repos: [{ repo: "octo/hello" }] },
       spot,
+      "admin",
     );
     // Another owner's level: the very same placement is valid there.
     const second = o.operations.service.create(
       actor,
       { name: "Rockets", tier: "small", repos: [{ repo: "acme/rockets" }] },
       spot,
+      "admin",
     );
     await Promise.all([first.cloned, second.cloned]);
     expect(second.operation.levelId).not.toBe(first.operation.levelId);
@@ -300,7 +309,7 @@ describe("BuildingRoom publish", () => {
     // Moving a room is checked on its own level, ignoring itself.
     expect(check(undefined, first.operation.operationId)).toBe(true);
 
-    const layout = o.compound.layoutResponse();
+    const layout = o.compound.layoutResponse(actor);
     expect(layout.levels.map((l) => l.login)).toEqual(["", "octo", "acme"]);
     expect(layout.rooms.map((r) => [r.name, r.levelId === first.operation.levelId]).sort()).toEqual(
       [

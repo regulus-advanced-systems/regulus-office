@@ -80,6 +80,7 @@ export function useCompoundWorldSync(): void {
       if (
         s.state?.compound !== prev.state?.compound ||
         s.state?.levels !== prev.state?.levels ||
+        s.state?.closedRooms !== prev.state?.closedRooms ||
         s.state?.operations !== prev.state?.operations
       )
         syncCompoundWorld();

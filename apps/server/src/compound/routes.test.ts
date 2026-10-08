@@ -1,8 +1,9 @@
 /**
  * Compound REST (#181): owners and admins place, move and remove rooms (a
  * operation manager, a member and a viewer get 403; anonymous 401; cross-origin
- * 403), every change is audited, invalid placements and moves with running
- * henchmen are refused, and removal is the operation delete.
+ * 403), of repos their own GitHub account can see (#270: 404 otherwise, and the
+ * layout is per viewer), every change is audited, invalid placements and moves
+ * with running henchmen are refused, and removal is the operation delete.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { randomUUID } from "node:crypto";
@@ -24,7 +25,12 @@ import {
 import { layoutProblems } from "@regulus/room-layout";
 import { and, eq } from "drizzle-orm";
 import { type Office, startOffice } from "../auth/test-helpers.ts";
-import { agents, auditLog, desks, operationMembers, userProfiles } from "../db/schema/index.ts";
+import { agents, auditLog, desks, userProfiles } from "../db/schema/index.ts";
+import {
+  seedGitHubLink,
+  seedRepoPermission,
+  seedRoomMember,
+} from "../github/access/test-snapshot.ts";
 import { createLogger } from "../logging.ts";
 import { createOperations, mountOperationRoutes, type Operations } from "../operations/index.ts";
 import { makeBareRepo } from "../operations/test-helpers.ts";
@@ -40,6 +46,8 @@ let operations: Operations;
 let compound: CompoundService;
 let owner: Who;
 let admin: Who;
+/** An office admin with a linked GitHub account that sees none of the repos. */
+let blindAdmin: Who;
 let manager: Who;
 let member: Who;
 let viewer: Who;
@@ -48,8 +56,9 @@ const published: number[] = [];
 
 const setRole = (who: Who, role: UserRole) =>
   office.db.update(userProfiles).set({ role }).where(eq(userProfiles.userId, who.id)).run();
+/** The person's GitHub account has the permission on the room's repo that gives `access`. */
 const grant = (who: Who, operationId: string, access: OperationAccess) =>
-  office.db.insert(operationMembers).values({ operationId, userId: who.id, access }).run();
+  seedRoomMember(office.db, who.id, operationId, access);
 const send = (method: string, path: string, who: Who | null, body: unknown = {}, origin?: string) =>
   office.request(path, {
     method,
@@ -103,6 +112,15 @@ beforeAll(async () => {
     keyring: undefined,
     placer: compound,
     onChange: (operationId) => compound.operationChanged(operationId),
+    // GitHub's answers (#270): the owner and the admin administer every repo; the
+    // refresh after a new room brings the other one's snapshot up to date.
+    newRoomAccess: {
+      permissionOf: async (userId) =>
+        userId === owner.id || userId === admin.id ? "admin" : "none",
+      roomCreated: (repoId) => {
+        for (const who of [owner, admin]) seedRepoPermission(office.db, who.id, repoId, "admin");
+      },
+    },
   });
   mountOperationRoutes(office.server.router, {
     auth: office.auth,
@@ -120,9 +138,12 @@ beforeAll(async () => {
   manager = await office.signUp("Mia");
   member = await office.signUp("Sam");
   viewer = await office.signUp("Vic");
+  blindAdmin = await office.signUp("Bea");
   setRole(admin, "admin");
+  setRole(blindAdmin, "admin");
   setRole(viewer, "viewer");
-  const created = operations.service.create(
+  for (const who of [owner, admin, blindAdmin]) seedGitHubLink(office.db, who.id);
+  const created = await operations.service.createChecked(
     { id: owner.id, role: "owner" },
     { name: "Apollo", tier: "small", repos: [{ repo: "octo/hello" }] },
   );
@@ -233,6 +254,44 @@ describe("compound routes", () => {
     }));
     if (spec) expect(layoutProblems(spec, placed)).toEqual([]);
     await operations.cloner.idle();
+
+    // The layout is per viewer: Sam works in Apollo only, so Hermes (same level) is a closed door.
+    const seen = (await layout(member)).rooms.map((r) => [r.name, r.closed, r.buildState]);
+    expect(seen.sort()).toEqual([
+      ["", true, "ready"],
+      ["Apollo", undefined, "building"],
+    ]);
+    const closed = (await layout(member)).rooms.find((r) => r.closed);
+    expect(closed).toMatchObject({ operationId: operation.operationId, gridX: 4, buildEndsAt: 0 });
+  });
+
+  test("an office admin whose GitHub account sees no repo gets the lobby and 404s", async () => {
+    const seen = await layout(blindAdmin);
+    expect(seen.levels.map((l) => l.kind)).toEqual(["lobby"]);
+    expect(seen.rooms).toEqual([]);
+    const refused = await send("POST", "/api/compound/rooms", blindAdmin, {
+      name: "Blind",
+      repos: [{ repo: "octo/hello" }],
+      placement: spot(30, 30),
+    });
+    expect([refused.status, await refused.json()]).toMatchObject([
+      403,
+      { error: "repo_not_visible" },
+    ]);
+    const path = `/api/compound/rooms/${apollo.operationId}`;
+    const before = await roomOf(apollo.operationId);
+    const moved = await send("PATCH", path, blindAdmin, { placement: spot(40, 30) });
+    expect([moved.status, await moved.json()]).toEqual([404, { error: "operation_not_found" }]);
+    const removed = await send("DELETE", path, blindAdmin, { confirmName: "Apollo" });
+    expect(removed.status).toBe(404);
+    expect(await roomOf(apollo.operationId)).toEqual(before);
+    // The ghost check tells them nothing about a level they cannot reach: an empty grid.
+    const taken = { placement: before, levelId: apollo.levelId };
+    const check = async (who: Who) =>
+      PlacementCheckResponse.parse(
+        await (await send("POST", "/api/compound/check", who, taken)).json(),
+      ).ok;
+    expect([await check(owner), await check(blindAdmin)]).toEqual([false, true]);
   });
 
   test("moving: refused while a henchman runs in the room, refused onto another room, audited", async () => {

@@ -8,7 +8,7 @@
 import { expect, type Page, test } from "@playwright/test";
 import { scenePoint } from "./agentProbes.ts";
 import { clickInScene, navPose, walkInto } from "./compoundProbes.ts";
-import { startFakeGitHub } from "./fakeGitHub.ts";
+import { loadBoards } from "./githubAccess.ts";
 import {
   boneDriftDeg,
   boneSnapshot,
@@ -21,7 +21,7 @@ import { recordToasts, toastsSeen } from "./probes.ts";
 
 const GONG = "gong-hotspot-gong";
 
-export async function checkMergeGong(page: Page, opts: { githubPort: number; operation: string }) {
+export async function checkMergeGong(page: Page, opts: { operation: string }) {
   const orgToken = "github_pat_E2Egong_0123456789abcdefghijk";
   // The office rings once per merge (celebrations/merges.ts): a repeated run (`--repeat-each`)
   // merges another PR.
@@ -43,9 +43,10 @@ export async function checkMergeGong(page: Page, opts: { githubPort: number; ope
     head: { ref: "office/gong", sha: `e2e${number}` },
     base: { ref: "trunk" },
   };
-  const gh = await startFakeGitHub(
+  // The fake GitHub runs beside the office (#270); this step loads its org and board into it.
+  const gh = await loadBoards(
     { orgToken, repos: [{ owner: "octo", name: "hello", defaultBranch: "trunk" }] },
-    { port: opts.githubPort, boards: { "octo/hello": { issues: [], pulls: [pull] } } },
+    { "octo/hello": { issues: [], pulls: [pull] } },
   );
   const origin = new URL(page.url()).origin;
   try {

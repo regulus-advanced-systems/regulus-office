@@ -4,6 +4,7 @@
  */
 
 import {
+  type ClosedRoom,
   DEFAULT_ROOM_SETTINGS,
   type DecorStyle,
   LOBBY_OPERATION_ID,
@@ -86,34 +87,24 @@ export function testState(rooms: readonly TestRoom[], size = 48, level: TestLeve
 }
 
 /**
- * A room entry as the server sends it for a room this viewer may not enter
- * (the convention agreed with #270, world.ts `ClosedRoomFields`): its id,
- * level and footprint with `closed: true`, every other field at its schema
- * default. `door` keeps the door fields (a sealed blast door); without it
- * the room is solid rock.
+ * A room as the server sends it when this viewer may not enter it (protocol
+ * `ClosedRoom`, #270): id, level, footprint and door, `closed: true`. With
+ * `door` false the door fields are off the footprint, as for an unplaced
+ * room: the scene then draws solid rock.
  */
-export function closedEntry(room: OperationSummary, door = true): OperationSummary {
-  const closed: OperationSummary & { closed: true } = {
+export function closedRoomOf(room: OperationSummary, door = true): ClosedRoom {
+  return {
     operationId: room.operationId,
     levelId: room.levelId,
-    name: "",
-    slug: "",
-    index: 0,
-    paletteId: "",
-    henchmenWorking: 0,
-    henchmenWaiting: 0,
-    henchmenTotal: 0,
-    humansPresent: 0,
-    ...UNPLACED_ROOM,
-    ...DEFAULT_ROOM_SETTINGS,
     gridX: room.gridX,
     gridY: room.gridY,
     width: room.width,
     depth: room.depth,
-    ...(door ? { doorSide: room.doorSide, doorX: room.doorX, doorY: room.doorY } : {}),
+    doorSide: room.doorSide,
+    doorX: door ? room.doorX : -1,
+    doorY: door ? room.doorY : -1,
     closed: true,
   };
-  return closed;
 }
 
 /** The client world of a test compound; `enterable` defaults to every room. */

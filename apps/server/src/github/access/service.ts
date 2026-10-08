@@ -22,21 +22,14 @@ import {
 import type { Logger } from "../../logging.ts";
 import { type AccessGitHub, AccessGitHubError, type OAuthClient } from "./client.ts";
 import { AccessEventBus } from "./events.ts";
+import { linkStatus, type VisibleLevel, visibleLevels } from "./status.ts";
 import { type AccessStore, AccessStoreError, type OfficeRepo, type UserTokens } from "./store.ts";
+
+export type { VisibleLevel } from "./status.ts";
 
 /** Refresh a GitHub App user token this long before it expires. */
 const EXPIRY_MARGIN_MS = 5 * 60_000;
 const REPO_CONCURRENCY = 4;
-
-/** An organisation or personal account with at least one repo the person can see (D26). */
-export interface VisibleLevel {
-  /** The owner login as the office's repos spell it. */
-  owner: string;
-  /** Lower-case owner login: the key to compare with. */
-  key: string;
-  /** Office repo ids on this level the person can see, i.e. the rooms they may enter. */
-  repoIds: string[];
-}
 
 export class LinkError extends Error {
   override name = "LinkError";
@@ -114,17 +107,7 @@ export class GitHubAccessService {
    * and is not listed. Empty without a link.
    */
   levelsVisibleTo(userId: string): VisibleLevel[] {
-    const visible = this.#d.store.permissions(userId);
-    if (visible.size === 0) return [];
-    const levels = new Map<string, VisibleLevel>();
-    for (const repo of this.#d.store.officeRepos()) {
-      if (!visible.has(repo.id)) continue;
-      const key = repo.owner.toLowerCase();
-      const level = levels.get(key) ?? { owner: repo.owner, key, repoIds: [] };
-      level.repoIds.push(repo.id);
-      levels.set(key, level);
-    }
-    return [...levels.values()].sort((a, b) => a.key.localeCompare(b.key));
+    return visibleLevels(this.#d.store, userId);
   }
 
   /** The person's organisations (lower-case logins), from the snapshot. */
@@ -150,29 +133,7 @@ export class GitHubAccessService {
 
   /** What Settings shows the person about their own link. Never a token. */
   status(userId: string): GitHubLinkStatus {
-    const reason = this.unavailableReason();
-    const link = this.#d.store.link(userId);
-    const visible = this.#d.store.permissions(userId);
-    const repos = this.#d.store
-      .officeRepos()
-      .flatMap((repo) => {
-        const permission = visible.get(repo.id);
-        const access = permission ? operationAccessForRepoPermission(permission) : null;
-        if (!permission || !access) return [];
-        return [{ repoId: repo.id, fullName: `${repo.owner}/${repo.name}`, permission, access }];
-      })
-      .sort((a, b) => a.fullName.localeCompare(b.fullName));
-    return {
-      available: reason === null,
-      unavailableReason: reason,
-      state: link ? link.status : "not_linked",
-      login: link?.login ?? null,
-      linkedAt: link?.linkedAt ?? null,
-      lastCheckedAt: link?.lastCheckedAt ?? null,
-      lastError: link?.lastError?.slice(0, 300) ?? null,
-      organizations: this.organizationsOf(userId),
-      repos,
-    };
+    return linkStatus(this.#d.store, userId, this.unavailableReason());
   }
 
   // ---- Linking -------------------------------------------------------------------
@@ -255,6 +216,35 @@ export class GitHubAccessService {
         this.#d.logger.error({ userId, err }, "refreshing github access failed");
       }
     }
+  }
+
+  /**
+   * One question to GitHub as the person, with their own token (#270: adding
+   * a room, the repo picker). `not_linked` without a link in force;
+   * `unavailable` when GitHub cannot answer or refuses the token (the next
+   * refresh deals with a refused token). Never used to open a room: rooms
+   * are answered from the snapshot.
+   */
+  async asPerson<T>(
+    userId: string,
+    ask: (token: string, github: AccessGitHub) => Promise<T>,
+  ): Promise<T | "not_linked" | "unavailable"> {
+    const link = this.#d.store.link(userId);
+    if (!link || link.status !== "linked") return "not_linked";
+    try {
+      const stored = this.#d.store.openTokens(userId);
+      if (!stored) return "not_linked";
+      return await ask(await this.#usableToken(userId, stored), this.#d.github);
+    } catch {
+      return "unavailable";
+    }
+  }
+
+  /** What the person may do on a repo that has no room yet, asked now. */
+  askRepoPermission(userId: string, repo: { owner: string; name: string }) {
+    return this.asPerson(userId, (token, github) =>
+      github.repoPermission(token, repo.owner, repo.name),
+    );
   }
 
   #serial<T>(userId: string, fn: () => Promise<T>): Promise<T> {

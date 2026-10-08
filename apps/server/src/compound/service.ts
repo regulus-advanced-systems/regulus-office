@@ -41,7 +41,12 @@ import { AuthHttpError, forbidden } from "../auth/errors.ts";
 import type { Db } from "../db/index.ts";
 import { levelInfo, shownLevels } from "../levels/store.ts";
 import type { Logger } from "../logging.ts";
-import { isOfficeManager, type OperationActor } from "../operations/access.ts";
+import {
+  isOfficeManager,
+  lairViewFor,
+  type OperationActor,
+  operationAccessFor,
+} from "../operations/access.ts";
 import { henchmenOn } from "../operations/lifecycle.ts";
 import { BuildTimers } from "./build.ts";
 import type { CompoundConfig } from "./config.ts";
@@ -218,18 +223,24 @@ export class CompoundService implements RoomPlacer {
     }
   }
 
-  /** `GET /api/compound`: layout and room summaries (any signed-in human). */
-  layoutResponse(): CompoundLayoutResponse {
+  /**
+   * `GET /api/compound`: the layout as this person may see it (D26; #270).
+   * Levels they reach; on those, the rooms they may enter in full and the
+   * others closed (id, level and footprint, nothing else). A level they
+   * cannot reach, and its rooms, are not in the answer.
+   */
+  layoutResponse(actor: OperationActor): CompoundLayoutResponse {
+    const view = lairViewFor(this.#db, actor);
     const { state, rooms, levels = [] } = this.snapshot();
     const rows = new Map(liveRooms(this.#db).map((r) => [r.id, r]));
     const list: CompoundRoomInfo[] = [];
     for (const [operationId, f] of rooms) {
       const row = rows.get(operationId);
       if (operationId === LOBBY_OPERATION_ID || !row) continue;
-      list.push({
+      if (!view.levels.has(row.levelId)) continue;
+      const placement = {
         operationId,
         levelId: row.levelId,
-        name: row.name,
         gridX: f.gridX,
         gridY: f.gridY,
         width: f.width,
@@ -237,13 +248,18 @@ export class CompoundService implements RoomPlacer {
         doorSide: f.doorSide,
         doorX: f.doorX,
         doorY: f.doorY,
-        buildState: f.buildState,
-        buildEndsAt: f.buildEndsAt,
-      });
+      };
+      list.push(
+        view.rooms.has(operationId)
+          ? { ...placement, name: row.name, buildState: f.buildState, buildEndsAt: f.buildEndsAt }
+          : { ...placement, name: "", buildState: "ready", buildEndsAt: 0, closed: true },
+      );
     }
     return {
       compound: state,
-      levels: levels.map(({ state: compound, ...level }) => ({ ...level, compound })),
+      levels: levels
+        .filter((level) => view.levels.has(level.levelId))
+        .map(({ state: compound, ...level }) => ({ ...level, compound })),
       rooms: list,
     };
   }
@@ -263,13 +279,24 @@ export class CompoundService implements RoomPlacer {
   ): PlacementCheckResponse {
     requireManager(actor);
     const rooms = liveRooms(this.#db);
-    const moving = operationId ? rooms.find((r) => r.id === operationId) : undefined;
-    const level = moving?.levelId ?? levelId ?? LOBBY_LEVEL_ID;
+    // A room or level the person cannot see is not there for them (#270): a room
+    // that is not theirs is checked like a new one, an unreachable level like
+    // the empty grid of a level that does not exist yet. The real placement is
+    // checked again, on the real grid, when the room is created or moved.
+    const view = lairViewFor(this.#db, actor);
+    const moving =
+      operationId && view.rooms.has(operationId)
+        ? rooms.find((r) => r.id === operationId)
+        : undefined;
+    const named = levelId !== undefined && view.levels.has(levelId) ? levelId : undefined;
+    const level = moving?.levelId ?? named ?? LOBBY_LEVEL_ID;
+    // A new room is never on the lobby level: without a level it is the empty grid of a
+    // level that does not exist yet, with its lift landing (#269).
     const onLevel = level === LOBBY_LEVEL_ID && !moving ? [] : roomsOnLevel(rooms, level);
     const result = checkPlacement(
       moving ? specOn(this.#spec(), level) : landingSpec(this.#spec()),
       placed(onLevel),
-      operationId ?? "new",
+      moving?.id ?? "new",
       placement,
     );
     return result.ok
@@ -323,6 +350,10 @@ export class CompoundService implements RoomPlacer {
   /** Move and/or resize a room. Refused while any henchman in it is running. */
   move(actor: OperationActor, operationId: string, placement: RoomPlacement): CompoundRoomInfo {
     requireManager(actor);
+    // The office role moves rooms; it does not reach a room of a repo the person cannot see.
+    if (!operationAccessFor(this.#db, actor, operationId)) {
+      throw new AuthHttpError(404, "operation_not_found");
+    }
     this.#db.transaction(
       (tx) => {
         const rooms = liveRooms(tx);
@@ -353,7 +384,7 @@ export class CompoundService implements RoomPlacer {
       { behavior: "immediate" },
     );
     this.#changed([operationId]);
-    const info = this.layoutResponse().rooms.find((r) => r.operationId === operationId);
+    const info = this.layoutResponse(actor).rooms.find((r) => r.operationId === operationId);
     if (!info) throw new AuthHttpError(404, "operation_not_found");
     return info;
   }

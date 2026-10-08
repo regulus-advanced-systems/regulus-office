@@ -10,7 +10,8 @@ import {
   notificationChannelPath,
 } from "@regulus/protocol";
 import { type Office, startOffice } from "../auth/test-helpers.ts";
-import { auditLog, notificationChannels } from "../db/schema/index.ts";
+import { auditLog, notificationChannels, operations } from "../db/schema/index.ts";
+import { seedRoomMember } from "../github/access/test-snapshot.ts";
 import { createNotifications } from "./setup.ts";
 import { captureLogger, startFakeWebhooks, testKeyring } from "./testing.ts";
 
@@ -36,6 +37,23 @@ beforeAll(async () => {
   member = await office.signUp("Mia");
   admin = await office.signUp("Ada");
   office.db.$client.run(`update user_profiles set role = 'admin' where user_id = '${admin.id}'`);
+  // Two rooms. The owner's GitHub account can see both repos, the admin's only
+  // operation-x's: an office role alone shows nobody a room (#270).
+  for (const [index, id] of ["operation-x", "operation-y"].entries()) {
+    office.db
+      .insert(operations)
+      .values({
+        id,
+        name: id,
+        slug: id,
+        index: index + 1,
+        paletteId: "oak-sky",
+        layoutTemplateId: "t",
+      })
+      .run();
+    seedRoomMember(office.db, owner.id, id, "manage");
+  }
+  seedRoomMember(office.db, admin.id, "operation-x", "view");
 });
 
 afterAll(async () => {
@@ -135,6 +153,7 @@ describe("team channels", () => {
       operationIds: ["operation-x"],
       events: ["error"],
     });
+    // The admin's own GitHub account can see operation-x's repo.
     expect(tg.status).toBe(201);
 
     const listRes = await send(NOTIFICATION_CHANNELS_API_PATH, "GET", owner.cookie);
@@ -186,6 +205,97 @@ describe("team channels", () => {
     ]);
     expectNoSecrets(JSON.stringify(audit));
     expectNoSecrets(log.text());
+  });
+
+  test("a channel can only name rooms its author can see; other ids are refused as unknown", async () => {
+    const naming = (operationIds: string[]) => ({ ...slackInput(), operationIds });
+    const before = office.db.select().from(notificationChannels).all().length;
+    // operation-y exists, but the admin's GitHub account cannot see its repo.
+    const hidden = await send(
+      NOTIFICATION_CHANNELS_API_PATH,
+      "POST",
+      admin.cookie,
+      naming(["operation-x", "operation-y"]),
+    );
+    expect(hidden.status).toBe(400);
+    expect(await hidden.json()).toEqual({ error: "unknown_operation" });
+    // The same answer as for a room that does not exist.
+    const missing = await send(
+      NOTIFICATION_CHANNELS_API_PATH,
+      "POST",
+      owner.cookie,
+      naming(["nope"]),
+    );
+    expect([missing.status, await missing.json()]).toEqual([400, { error: "unknown_operation" }]);
+    expect(office.db.select().from(notificationChannels).all()).toHaveLength(before);
+
+    const made = await send(
+      NOTIFICATION_CHANNELS_API_PATH,
+      "POST",
+      owner.cookie,
+      naming(["operation-x", "operation-y"]),
+    );
+    expect(made.status).toBe(201);
+    const view = (await made.json()) as NotificationChannelView;
+    expect(view.operationIds).toEqual(["operation-x", "operation-y"]);
+    // Patching follows the same rule, and a refused patch changes nothing.
+    const patched = await send(notificationChannelPath(view.id), "PATCH", admin.cookie, {
+      label: "Renamed",
+      operationIds: ["operation-y"],
+    });
+    expect(patched.status).toBe(400);
+    expect(await patched.json()).toEqual({ error: "unknown_operation" });
+    const row = office.db.select().from(notificationChannels).all().at(-1);
+    expect(row).toMatchObject({ label: "Team", operationIdsJson: '["operation-x","operation-y"]' });
+    const allowed = await send(notificationChannelPath(view.id), "PATCH", owner.cookie, {
+      operationIds: ["operation-y"],
+    });
+    expect(allowed.status).toBe(200);
+    expect(((await allowed.json()) as NotificationChannelView).operationIds).toEqual([
+      "operation-y",
+    ]);
+    expect((await send(notificationChannelPath(view.id), "DELETE", owner.cookie)).status).toBe(204);
+  });
+
+  test("the list and the PATCH answer show a viewer only the room ids they can see", async () => {
+    const made = await send(NOTIFICATION_CHANNELS_API_PATH, "POST", owner.cookie, {
+      ...slackInput(),
+      operationIds: ["operation-x", "operation-y"],
+    });
+    const { id } = (await made.json()) as NotificationChannelView;
+    const idsFor = async (cookie: string) => {
+      const list = (await (
+        await send(NOTIFICATION_CHANNELS_API_PATH, "GET", cookie)
+      ).json()) as NotificationChannelsResponse;
+      return list.channels.find((c) => c.id === id)?.operationIds;
+    };
+    expect(await idsFor(owner.cookie)).toEqual(["operation-x", "operation-y"]);
+    const asAdmin = await send(NOTIFICATION_CHANNELS_API_PATH, "GET", admin.cookie);
+    const text = await asAdmin.text();
+    expect(text).not.toContain("operation-y");
+    expect(await idsFor(admin.cookie)).toEqual(["operation-x"]);
+    // A patch that leaves the rooms alone answers with the same narrowed view, and keeps both.
+    const renamed = await send(notificationChannelPath(id), "PATCH", admin.cookie, {
+      label: "Renamed",
+    });
+    expect(renamed.status).toBe(200);
+    expect(await renamed.json()).toMatchObject({ label: "Renamed", operationIds: ["operation-x"] });
+    expect(await idsFor(owner.cookie)).toEqual(["operation-x", "operation-y"]);
+    // Saving the rooms the admin was shown does not drop the one they were not shown.
+    const resaved = await send(notificationChannelPath(id), "PATCH", admin.cookie, {
+      operationIds: [],
+    });
+    expect(await resaved.json()).toMatchObject({ operationIds: [] });
+    expect(await idsFor(owner.cookie)).toEqual(["operation-y"]);
+    await send(notificationChannelPath(id), "PATCH", admin.cookie, {
+      operationIds: ["operation-x"],
+    });
+    expect((await idsFor(owner.cookie))?.sort()).toEqual(["operation-x", "operation-y"]);
+    // An admin whose GitHub account loses the last room sees the channel with no room ids.
+    seedRoomMember(office.db, admin.id, "operation-x", null);
+    expect(await idsFor(admin.cookie)).toEqual([]);
+    seedRoomMember(office.db, admin.id, "operation-x", "view");
+    expect((await send(notificationChannelPath(id), "DELETE", owner.cookie)).status).toBe(204);
   });
 
   test("bad secrets are refused without echoing them", async () => {

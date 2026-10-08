@@ -33,7 +33,8 @@ import {
   walkToSeat,
   wheelZoomTo,
 } from "./compoundProbes.ts";
-import { type FakeGitHub, startFakeGitHub } from "./fakeGitHub.ts";
+import { type FakeGitHub, MEMBER_GITHUB, OWNER_GITHUB, startFakeGitHub } from "./fakeGitHub.ts";
+import { linkGitHub, setRepoPermission } from "./githubAccess.ts";
 import { createRemoteRepo } from "./gitRemote.ts";
 import { OFFICE_PROBE_PATH, waitForScene } from "./probes.ts";
 
@@ -209,7 +210,11 @@ test("the owner and a member sign in; the owner adds the operation and lets the 
   };
   await memberPage.goto(invite.url);
   await register(memberPage, member, "Create account and join");
-  const me = (await api(memberPage, "GET", "/api/me")) as { id: string };
+  // Rooms open with each person's own GitHub access (#270): the owner administers the repo
+  // there, the member may read it and so watch in its room.
+  await setRepoPermission(github.url, MEMBER_GITHUB, `${REPO.owner}/${REPO.name}`, "read");
+  await linkGitHub(ownerPage, OWNER_GITHUB);
+  await linkGitHub(memberPage, MEMBER_GITHUB);
 
   const created = (await api(ownerPage, "POST", "/api/operations", {
     name: OPERATION,
@@ -225,10 +230,15 @@ test("the owner and a member sign in; the owner adds the operation and lets the 
       return op.repos[0]?.cloneStatus;
     })
     .toBe("ready");
-  await api(ownerPage, "PUT", `/api/operations/${operationId}/members/${me.id}`, {
-    access: "view",
-  });
-
+  // Creating the room refreshed everyone's GitHub snapshot for its repo.
+  await expect
+    .poll(async () => {
+      const list = (await api(memberPage, "GET", "/api/operations")) as {
+        operations: { operationId: string; access: string }[];
+      };
+      return list.operations.find((o) => o.operationId === operationId)?.access;
+    })
+    .toBe("view");
   const visible = (await api(memberPage, "GET", "/api/operations")) as {
     operations: { operationId: string; access: string }[];
   };

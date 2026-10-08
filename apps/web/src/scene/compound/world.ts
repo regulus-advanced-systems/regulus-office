@@ -14,6 +14,7 @@
 
 import {
   type BuildingState,
+  type ClosedRoom,
   DEFAULT_ROOM_SETTINGS,
   type DecorStyle,
   DOOR_SIDES,
@@ -84,36 +85,14 @@ const SPECIAL_NAMES: Readonly<Record<SpecialRoomKind, string>> = {
 };
 
 /**
- * What the server sends for a room this viewer may not enter, as agreed with
- * #270: its id, its level, its grid footprint and `closed: true`, nothing
- * else. The door fields are optional: with them the room shows a sealed
- * blast door, without them solid rock.
- */
-export interface ClosedRoomFields {
-  operationId: string;
-  levelId: string;
-  gridX: number;
-  gridY: number;
-  width: number;
-  depth: number;
-  closed: true;
-  doorSide?: DoorSide;
-  doorX?: number;
-  doorY?: number;
-}
-
-/** True for a published room entry marked closed (the field is #270's; absent means open). */
-export function isClosedEntry(entry: object): boolean {
-  return (entry as { closed?: unknown }).closed === true;
-}
-
-/**
  * The world from the published state, or null until the compound is first
  * published. `enterable` lists the operation ids the viewer may enter (the REST
  * operation list); null while it is loading, when only the special rooms are open.
  */
 export function compoundWorld(
-  state: Pick<BuildingState, "compound" | "operations"> | null,
+  state:
+    | (Pick<BuildingState, "compound" | "operations"> & { closedRooms?: readonly ClosedRoom[] })
+    | null,
   enterable: ReadonlySet<string> | null,
   levelId: string = LOBBY_LEVEL_ID,
 ): CompoundWorld | null {
@@ -150,12 +129,10 @@ export function compoundWorld(
       (f) => f.operationId !== LOBBY_OPERATION_ID && f.gridX >= 0 && f.gridY >= 0 && f.width > 0,
     )
     .sort((a, b) => a.index - b.index);
-  for (const f of placed)
-    rooms.push(
-      isClosedEntry(f)
-        ? closedRoom(f, m)
-        : projectRoom(f, m, enterable?.has(f.operationId) ?? false),
-    );
+  for (const f of placed) rooms.push(projectRoom(f, m, enterable?.has(f.operationId) ?? false));
+  // Rooms closed to this viewer (D26; #270 sends them apart from `operations`): footprints only.
+  for (const f of state.closedRooms ?? [])
+    if (f.width > 0 && f.gridX >= 0) rooms.push(closedRoom(f, m));
   return {
     levelId,
     version: c.version,
@@ -194,15 +171,11 @@ function projectRoom(f: OperationSummary, m: number, enterable: boolean): WorldR
 }
 
 /**
- * A closed room (#269): the footprint and nothing else. Name, counts, desks,
- * decor and build state are dropped here even if an entry carried them, so
- * nothing downstream (plaques, quick travel, who is where, sounds) can show them.
+ * A closed room (#269; protocol `ClosedRoom`, #270): the footprint and its
+ * door, nothing else. It has no name, counts, desks, decor or build state to
+ * show, so nothing downstream (plaques, quick travel, who is where, sounds) can.
  */
-function closedRoom(
-  f: Pick<ClosedRoomFields, "operationId" | "gridX" | "gridY" | "width" | "depth"> &
-    Partial<Pick<ClosedRoomFields, "doorSide" | "doorX" | "doorY">>,
-  m: number,
-): WorldRoom {
+function closedRoom(f: ClosedRoom, m: number): WorldRoom {
   const rect = { x: f.gridX, y: f.gridY, w: f.width, d: f.depth };
   const door = closedRoomDoor(f, rect);
   const doorSide = door?.side ?? "south";
@@ -230,7 +203,7 @@ function closedRoom(
 
 /** The door of a closed entry when it names one that lies on that wall of the footprint, else null. */
 function closedRoomDoor(
-  f: Partial<Pick<ClosedRoomFields, "doorSide" | "doorX" | "doorY">>,
+  f: Partial<Pick<ClosedRoom, "doorSide" | "doorX" | "doorY">>,
   rect: TileRect,
 ): { side: DoorSide; x: number; y: number } | null {
   const { doorSide: side, doorX: x, doorY: y } = f;

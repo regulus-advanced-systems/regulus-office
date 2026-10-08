@@ -42,9 +42,9 @@ export const ACCESS_LABELS: Record<OperationAccess, string> = {
 };
 
 export const ACCESS_HINT =
-  "View: walk into the room and watch. Spawn henchmen: also put henchmen to work. Manage: also add and remove people.";
+  "View: walk into the room and watch. Spawn henchmen: also put henchmen to work. Manage: also change the room and these limits.";
 
-/** Owners and admins manage every operation already; granting them anything is a no-op. */
+/** Office owners and admins: they run the office; rooms open for them like for anyone (D27). */
 export const isOfficeManagerRole = (role: UserRole): boolean =>
   role === "owner" || role === "admin";
 
@@ -57,8 +57,9 @@ export function effectiveGrant(
 }
 
 /**
- * People who could be added: not yet members, not owners/admins, whose
- * display name matches `query` (case-insensitive, anywhere in the name).
+ * People who could be limited: no limit yet, whose display name matches
+ * `query` (case-insensitive, anywhere in the name). Owners and admins too:
+ * their role gives them no room (D27; #270).
  */
 export function addCandidates(
   people: readonly OfficeUserInfo[],
@@ -68,9 +69,6 @@ export function addCandidates(
   const taken = new Set(members.map((m) => m.userId));
   const q = query.trim().toLocaleLowerCase();
   return people.filter(
-    (p) =>
-      !taken.has(p.userId) &&
-      !isOfficeManagerRole(p.role) &&
-      (q === "" || p.displayName.toLocaleLowerCase().includes(q)),
+    (p) => !taken.has(p.userId) && (q === "" || p.displayName.toLocaleLowerCase().includes(q)),
   );
 }

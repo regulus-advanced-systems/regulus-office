@@ -210,6 +210,8 @@ export function conflictName(world: CompoundWorld, id: string): string {
   if (id === MAIN_CORRIDOR_ID) return "the main corridor";
   const room: WorldRoom | undefined = world.rooms.find((r) => r.id === id || r.kind === id);
   if (!room) return "another room";
+  // A closed room (#269) has no name here: its spot is taken, and that is all one may know.
+  if (room.closed) return "a closed room";
   return room.kind === "project" ? room.name : `the ${room.name.toLowerCase()}`;
 }
 

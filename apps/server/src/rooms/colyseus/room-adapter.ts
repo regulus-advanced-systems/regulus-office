@@ -8,7 +8,7 @@
  * human's office role is no longer the one the seat was given.
  */
 import { type AuthContext, type Client, Room, ServerError } from "@colyseus/core";
-import { ACCESS_CLOSE_CODES } from "@regulus/protocol";
+import { ACCESS_CLOSE_CODES, StateView } from "@regulus/protocol";
 import { type LiveAccess, type LiveConnection, sessionRefOf } from "../../auth/live-access.ts";
 import type { Logger } from "../../logging.ts";
 import type { RoomAuth, RoomAuthUser } from "../auth.ts";
@@ -114,11 +114,21 @@ export function createColyseusRoomClass<S extends object, J>(
       const user = client.auth;
       if (!user) throw new ServerError(AUTH_FAILED, "authentication required");
       const joinOptions = parseOptions(options);
+      // Per-viewer state (#270): every client has its own view, empty until the room
+      // shows it something, so a `.view()` entry is never sent by default.
+      const view = new StateView();
+      client.view = view;
       const wrapped: RoomClient = {
         sessionId: client.sessionId,
         user,
         send: (type, payload) => client.send(type, payload),
         leave: (code) => client.leave(code),
+        show: (item) => {
+          view.add(item as Parameters<StateView["add"]>[0]);
+        },
+        hide: (item) => {
+          view.remove(item as Parameters<StateView["remove"]>[0]);
+        },
       };
       this.#wrapped.set(client.sessionId, wrapped);
       const release = deps.liveAccess?.register(seat(name, definition, wrapped, joinOptions));

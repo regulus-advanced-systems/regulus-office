@@ -10,6 +10,7 @@ import { originPolicyFor } from "../auth/origin.ts";
 import type { Db } from "../db/index.ts";
 import type { JukeboxPlayer } from "../jukebox/player.ts";
 import type { Logger } from "../logging.ts";
+import { lairViewFor } from "../operations/access.ts";
 import type { RoomAuth } from "./auth.ts";
 import { DrizzleOperationSource } from "./building/operations.ts";
 import { type BuildingRoom, createBuildingRoom } from "./building/room.ts";
@@ -78,7 +79,8 @@ export function createRooms(options: RoomsOptions): Rooms {
     chat: new DrizzleChatStore(db),
     operations: new DrizzleOperationSource(db),
     logger: logger.child({ room: ROOM_NAMES.building }),
-    canVisit: (user, operationId) => operationSource.canEnter(user, operationId),
+    // The one gate (operations/access.ts): what each person may see of the lair.
+    lairView: (user) => lairViewFor(db, { id: user.userId, role: user.role }),
     jukebox,
     screenShare: createScreenShareRules({
       enabled: mediaEnabled ?? false,

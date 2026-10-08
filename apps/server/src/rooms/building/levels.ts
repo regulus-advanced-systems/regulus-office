@@ -11,6 +11,7 @@ import {
   LOBBY_OPERATION_ID,
 } from "@regulus/protocol";
 import { type CompoundSnapshot, snapshotLevels } from "../../compound/room-state.ts";
+import type { LairView } from "../../operations/access.ts";
 import type { OperationRecord } from "./operations.ts";
 
 type Humans = InstanceType<typeof BuildingStateSchema>["humans"];
@@ -37,14 +38,28 @@ export function levelOfGo(
   return shown ? named : null;
 }
 
-/** A level that is no longer shown (its last room archived): its people are in the lobby. */
-export function leaveHiddenLevels(humans: Humans, snapshot: CompoundSnapshot): void {
-  const shown = new Set(snapshotLevels(snapshot).map((l) => l.levelId));
-  humans.forEach((human) => {
-    if (shown.has(human.levelId)) return;
-    human.levelId = LOBBY_LEVEL_ID;
-    human.operationId = LOBBY_OPERATION_ID;
-    human.seatId = "";
+/**
+ * Nobody stays where they may not be (D26, D27; #270): a person in a room that
+ * is no longer open to them stands outside it, in the level's corridor, and a
+ * person on a level they can no longer reach (or one that is no longer shown,
+ * its last room archived) is back in the lobby. `viewOf` answers per session;
+ * a session it does not know is left alone.
+ */
+export function returnToAllowedPlaces(
+  humans: Humans,
+  viewOf: (sessionId: string) => LairView | undefined,
+): void {
+  humans.forEach((human, sessionId) => {
+    const view = viewOf(sessionId);
+    if (!view) return;
+    if (!view.levels.has(human.levelId)) {
+      human.levelId = LOBBY_LEVEL_ID;
+      human.operationId = LOBBY_OPERATION_ID;
+      human.seatId = "";
+    } else if (human.operationId !== LOBBY_OPERATION_ID && !view.rooms.has(human.operationId)) {
+      human.operationId = LOBBY_OPERATION_ID;
+      human.seatId = "";
+    }
   });
 }
 

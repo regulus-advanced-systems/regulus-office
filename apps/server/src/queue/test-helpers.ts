@@ -11,7 +11,8 @@ import type { AgentView } from "../agents/manager/henchman.ts";
 import type { SpawnInput } from "../agents/manager/spawn.ts";
 import { AgentStore } from "../agents/manager/store.ts";
 import type { Db } from "../db/index.ts";
-import { agents, desks, operationMembers, operationRepos, operations } from "../db/schema/index.ts";
+import { agents, desks, operationRepos, operations } from "../db/schema/index.ts";
+import { seedRoomMember } from "../github/access/test-snapshot.ts";
 import { createLogger } from "../logging.ts";
 import type { OperationActor } from "../operations/access.ts";
 import { testDb } from "../operations/test-helpers.ts";
@@ -60,14 +61,17 @@ export function roomFixture(seats = 3) {
     db.insert(desks)
       .values({ operationId, seatId: `seat-${i}` })
       .run();
+  // Rooms open with each person's own GitHub permission on the repo (#270): the
+  // office owner's role gives nothing, and nobody here can see operation-2's repo.
   const access = [
+    [owner, "manage"],
     [member, "spawn"],
     [other, "spawn"],
     [manager, "manage"],
     [viewer, "view"],
   ] as const;
   for (const [user, level] of access) {
-    db.insert(operationMembers).values({ operationId, userId: user.id, access: level }).run();
+    seedRoomMember(db, user.id, operationId, level);
   }
   return { db, owner, member, other, manager, viewer, stranger, operationId, repoId };
 }

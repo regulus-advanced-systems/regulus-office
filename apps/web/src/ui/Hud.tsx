@@ -8,6 +8,7 @@
  * between panels.
  */
 import { useUiStore } from "../state/ui.ts";
+import { GitHubLinkPrompt } from "./access/GitHubLinkPrompt.tsx";
 import { AgentHost } from "./agent/AgentHost.tsx";
 import { BoardsHost } from "./boards/BoardsHost.tsx";
 import { BuildModeHost } from "./build-mode/BuildModeHost.tsx";
@@ -100,6 +101,7 @@ export function Hud() {
       <WorkCounters />
       <StatusBox />
       <div className="rg-hud__left">
+        <GitHubLinkPrompt />
         <RoomsPanel />
         <WhereaboutsPanel />
         <RunningApps />

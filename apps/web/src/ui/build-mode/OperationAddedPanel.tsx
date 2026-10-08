@@ -1,7 +1,7 @@
 /**
  * The new room's status after it is placed (#187): a docked, non-modal
  * panel so the build stays in view. It counts down the build phase, lists
- * the repos' clone status (Go to room once built), and offers Add people…
+ * the repos' clone status (Go to room once built), and offers Who can enter…
  * straight away, as the Add operation dialog did before build mode.
  */
 import { useEffect, useId, useState } from "react";
@@ -83,7 +83,7 @@ export function OperationAddedPanel({
               openOverlay(operationSettingsOverlay(operationId));
             }}
           >
-            Add people…
+            Who can enter…
           </Button>
           <Button variant="secondary" onClick={close}>
             Done
