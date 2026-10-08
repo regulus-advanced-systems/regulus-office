@@ -8,7 +8,8 @@
  *
  * No model is ever called: the model key is a dummy and no message is sent.
  *
- * Opt-in: REGULUS_HERMES_IMAGE=<image tag> (CI job `hermes-image`). Everything
+ * Opt-in: REGULUS_HERMES_IMAGE=<image tag> (CI job `hermes-image`), with
+ * REGULUS_DOCKER_RUNNER_HOST pointing the host at a socket proxy. Everything
  * it creates is labelled `regulus-test=1`, named `rghermes-<random>-…` and
  * removed in afterAll.
  */
@@ -33,7 +34,9 @@ const API_KEY = "0123456789abcdef0123456789abcdef0123456789abcdef";
 const MODEL_KEY = "sk-ant-integration-DUMMY-never-used-0000";
 const OFFICE_TOKEN = "roa_integration-DUMMY-office-token-0000";
 
-const host = new DockerHermesHost(engine, {
+// As in production: the host's own calls go through the socket proxy with deploy/'s allowlist.
+const hostEngine = new EngineClient(process.env.REGULUS_DOCKER_RUNNER_HOST ?? undefined);
+const host = new DockerHermesHost(hostEngine, {
   image,
   prefix: PREFIX,
   user: "1001:1001",

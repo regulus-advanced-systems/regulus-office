@@ -158,6 +158,26 @@ An operation can run a review henchman whenever something happens on GitHub, and
 - **Discord** ([webhooks](https://docs.discord.com/developers/resources/webhook#execute-webhook)): the channel's *Edit Channel* → *Integrations* → *Webhooks* → *New Webhook* → *Copy Webhook URL* (`https://discord.com/api/webhooks/…`). Messages never ping anyone (`allowed_mentions` is empty).
 - **Telegram** ([Bot API](https://core.telegram.org/bots/api#sendmessage)): talk to [@BotFather](https://t.me/BotFather), `/newbot`, copy the token (`123456789:AA…`). Add the bot to the group (or as an admin of the channel), send `/start@<your_bot>` there (bots only see commands in groups by default), open `https://api.telegram.org/bot<token>/getUpdates` and copy `chat.id` (groups start with `-100`; public channels can use `@name`). In the office paste the token and the chat id.
 
+### Hermes run by the office
+
+For someone without a Hermes of their own, and for agents the whole office shares, the office can run [Hermes Agent](https://github.com/NousResearch/hermes-agent) itself: Settings → *Agents* → *New agent…* → *Runs as*: **Hermes, run by the office (nothing to install)**. It is off until whoever runs the office turns it on; until then the choice is greyed out.
+
+**Turning it on (the office operator, Docker deployments).** In `deploy/`:
+
+```sh
+docker compose --profile build-only build hermes-image   # pulls about 1 GB once
+echo 'OFFICE_HERMES_IMAGE=regulus-office-hermes:0.21.5' >> .env
+docker compose up -d office
+```
+
+The image (`hermes-runner/Dockerfile`) is the official `nousresearch/hermes-agent` image pinned by digest to release `v2026.9.24` (Hermes 0.21.5, MIT licence), with a non-root user of the runner uid added and its own entrypoint removed; nothing else is installed. It is about 1 GB compressed and shares no layers with the runner image. To move to another Hermes release, change the tag and the digest in that file together, rebuild, and run `REGULUS_HERMES_IMAGE=<image> bun test apps/server/src/pm/hermes/managed/docker-host.integration.test.ts` (it starts the real gateway with dummy keys and calls no model). Only the Docker runner backend can run it; with `linux-user` the choice stays greyed out.
+
+**What the office does.** For each such agent the office creates one container `<prefix>-hermes-<agent>` on the runners network, with the same hardening as a henchman's sandbox (non-root, no capabilities, `no-new-privileges`, memory, CPU and process limits; `OFFICE_HERMES_MEMORY`, `OFFICE_HERMES_CPUS`, `OFFICE_HERMES_PIDS`). Its only mount is its own volume `<prefix>-hermes-home-<agent>`, where Hermes keeps its sessions, memory and skills, so they survive restarts; it sees no operation directory and nobody's files. The office makes up the gateway's API key, starts `hermes gateway run` and waits for it to answer. The agent is started with the first message and stopped with *Stop*. If Hermes crashes or stops answering, the card shows Error with the reason and the office starts it again, with a pause that grows up to a minute. Removing the agent removes its container and its volume.
+
+**What it runs on.** A pay-per-use key picked under *Runs on*: an **Anthropic API key** or a **DeepSeek** key, from "Connect providers". A shared agent runs on one of the office's own keys only; a personal agent on a key its owner picked. A subscription login cannot be used. Keys are handed to the Hermes process when it starts and are never written to disk, logged or shown. Other kinds of key (Z.AI, Kimi, custom endpoints) are not offered for Hermes yet.
+
+**Office tools from the first message.** The office writes its own MCP address into the agent's Hermes configuration together with the agent's own access (kept in the process's environment, replaced at every start and revoked at stop), so there is nothing to copy. The agent's rights are those of its owner (personal) or what the office granted it (shared), within *What it may do*.
+
 ### Connect your own Hermes agent
 
 If you already run a [Hermes Agent](https://github.com/NousResearch/hermes-agent) (for example a personal assistant you talk to over Telegram), you can talk to the same agent in the office. The office connects to your running Hermes and becomes one more channel to it; Telegram and its other channels keep working. Hermes keeps its own model, keys and memory: the office stores only how to reach it.
@@ -246,6 +266,7 @@ Visitors need a modern browser with WebGL2 (Chrome, Firefox, Safari, Edge) on a 
 
 - [AgentSystemLabs/agent-office](https://github.com/AgentSystemLabs/agent-office) (MIT) for many of the office ideas.
 - Game Dev Tycoon by Greenheart Games for the look. No assets from the game are used.
+- [Hermes Agent](https://github.com/NousResearch/hermes-agent) by Nous Research (MIT). Nothing of it is in this repository: `hermes-runner/Dockerfile` builds on its official image, pinned by digest, for "Hermes run by the office".
 - Character and furniture assets from Quaternius, Kenney and KayKit (CC0); attribution for CC-BY assets will live in `packages/assets/ATTRIBUTION.md`.
 
 ## License
