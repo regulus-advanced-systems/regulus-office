@@ -78,6 +78,11 @@ export const NotifyEvent = z.object({
   prUrl: z.string().max(400),
   /** True when the recipient owns the henchman; false for an admin's emergency notice. */
   own: z.boolean(),
+  /**
+   * Set when this is a reminder brought by an office agent standing next to the
+   * waiting henchman (the office PM on its rounds, #60): that agent's name.
+   */
+  via: z.string().max(40).optional(),
   ts: TimestampMs,
 });
 export type NotifyEvent = z.infer<typeof NotifyEvent>;

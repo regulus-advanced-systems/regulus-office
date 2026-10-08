@@ -323,6 +323,11 @@ export class AgentRuntime implements AgentEventSink {
     return this.agents.get(agentId)?.view;
   }
 
+  /** Every henchman at a desk right now (the office PM's rounds read who waits, #60). */
+  views(): Readonly<AgentView>[] {
+    return [...this.agents.values()].map((live) => live.view);
+  }
+
   /**
    * Remove orphaned henchman sandboxes now and then every minute (sandbox-reaper.ts,
    * #169). Started once henchmen are re-adopted at boot.

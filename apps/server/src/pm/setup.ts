@@ -49,6 +49,8 @@ import {
   AgentWorld,
   AgentWorldService,
   mountAgentWorldRoutes,
+  PmRounds,
+  type RoundHenchman,
 } from "./world/index.ts";
 
 export interface OfficeAgentsOptions {
@@ -68,6 +70,16 @@ export interface OfficeAgentsOptions {
     HermesEngineOptions,
     "healthIntervalMs" | "backoffBaseMs" | "backoffMaxMs" | "sendAttempts"
   > & { client?: HermesClientOptions };
+  /**
+   * The office PM's rounds (#60): who waits or has finished at a desk, and the
+   * existing "needs you" notice for a henchman's owner (`NotificationCenter.remind`).
+   */
+  rounds?: {
+    henchmen(): RoundHenchman[];
+    remind(henchmanId: string, via: string): void;
+    /** Time between two rounds, ms. */
+    everyMs?: number;
+  };
   /**
    * Where the office runs Hermes agents of its own (#57): given, the
    * `hermes-managed` engine is offered. Absent: the office has no Hermes image.
@@ -236,6 +248,11 @@ export function createOfficeAgents(opts: OfficeAgentsOptions): OfficeAgents {
 
   // Bodies in the world (#252). A body is looks only: where it may stand is the access gate's answer.
   const access = new AgentAccess(store);
+  // The office PM (D28): at reception, and on its rounds by the clock (#60). Movement only.
+  const rounds = new PmRounds({
+    henchmen: () => opts.rounds?.henchmen() ?? [],
+    everyMs: opts.rounds?.everyMs,
+  });
   const world = new AgentWorld({
     agents: () =>
       store.list().map((row) => ({
@@ -246,10 +263,17 @@ export function createOfficeAgents(opts: OfficeAgentsOptions): OfficeAgents {
         appearance: row.appearance,
         status: row.status,
         dismissed: row.ownerUserId !== null && row.dismissed,
+        // A personal PM is a companion: it follows its owner and does no rounds.
+        post: row.ownerUserId === null && row.role === "pm" ? "reception" : "none",
       })),
     mayEnter: (agentId, operationId) => {
       const row = store.get(agentId);
       return row !== undefined && access.operation(row, operationId) !== null;
+    },
+    duty: (agent, context) => rounds.duty(agent, context),
+    // Its owner is in the office but not in that room: they get the "needs you" notice, once.
+    standingBy: (agent, visit, owner) => {
+      if (owner === "elsewhere") opts.rounds?.remind(visit.henchmanId, agent.name);
     },
   });
   let notify: (userId: string) => void = () => {};

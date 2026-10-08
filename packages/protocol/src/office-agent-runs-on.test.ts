@@ -10,6 +10,7 @@ import {
 import {
   CreateOfficeAgent,
   DEFAULT_OFFICE_AGENT_APPEARANCE,
+  defaultOfficeAgentAppearance,
   isOfficeAgentAppearance,
   OFFICE_AGENT_APPEARANCES,
   officeAgentAppearanceLabel,
@@ -77,7 +78,11 @@ describe("what an office agent runs on (#280)", () => {
       provider: "claude-code",
       model: "deepseek-flash",
     };
-    expect(CreateOfficeAgent.parse(base).appearance).toBe(DEFAULT_OFFICE_AGENT_APPEARANCE);
+    // None chosen: the default for the job, which for a project manager is the PM suit (#60).
+    expect(CreateOfficeAgent.parse(base).appearance).toBeUndefined();
+    expect(defaultOfficeAgentAppearance("assistant")).toBe(DEFAULT_OFFICE_AGENT_APPEARANCE);
+    expect(defaultOfficeAgentAppearance("pm")).toBe("number_two");
+    expect(isOfficeAgentAppearance(defaultOfficeAgentAppearance("pm"))).toBe(true);
     expect(CreateOfficeAgent.parse({ ...base, appearance: "secretary" }).appearance).toBe(
       "secretary",
     );

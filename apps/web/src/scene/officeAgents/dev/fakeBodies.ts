@@ -7,7 +7,7 @@
  */
 import { CHARACTER_FORM_IDS, type OfficeAgentBody } from "@regulus/protocol";
 
-const NAMES = ["Moneypenny", "Number Two", "Q", "Oddjob", "Nick Nack", "Frau Farbissina"];
+const NAMES = ["Quillon", "Number Two", "Ledger", "Tally", "Docket", "Abacus"];
 /** Seconds between two targets of one body. */
 const LEG_SECONDS = 5;
 
@@ -46,6 +46,7 @@ export function fakeBodies(
       hop: 1,
       doing: i % 3 === 1 ? "looking over the crew" : "",
       dismissed: false,
+      post: "none",
     };
   }
   return out;

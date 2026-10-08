@@ -378,7 +378,7 @@ describe("OfficeClient", () => {
     const { transport, client } = setup();
     const seen: unknown[] = [];
     const rejected: string[] = [];
-    client.onOperationMessage("agent.permissions", (p) => seen.push(p));
+    client.onOperationMessage("agent.result", (p) => seen.push(p));
     client.onRejected((n) => rejected.push(n.type));
     await client.connect();
     await client.setRooms("f1", ["f2"]);
@@ -386,14 +386,41 @@ describe("OfficeClient", () => {
     client.send("agent.stop", { agentId: "a1" });
     expect(r1?.sent).toHaveLength(1);
     expect(r2?.sent).toHaveLength(0);
-    r2?.message("agent.permissions", { from: "f2" });
+    r2?.message("agent.result", { from: "f2" });
     r2?.reject({ type: "agent.spawn", reason: "nearby" });
-    r1?.message("agent.permissions", { from: "f1" });
+    r1?.message("agent.result", { from: "f1" });
     await client.setRooms("f2", ["f1"]);
-    r2?.message("agent.permissions", { from: "f2 now" });
-    r1?.message("agent.permissions", { from: "f1 now nearby" });
+    r2?.message("agent.result", { from: "f2 now" });
+    r1?.message("agent.result", { from: "f1 now nearby" });
     expect(seen).toEqual([{ from: "f1" }, { from: "f2 now" }]);
     expect(rejected).toEqual([]);
+  });
+
+  test("the requests open in a nearby room are handed over when the player walks in (#60)", async () => {
+    const { transport, client } = setup();
+    const seen: unknown[] = [];
+    client.onOperationMessage("agent.permissions", (p) => seen.push(p));
+    await client.connect();
+    await client.setRooms("f1", ["f2"]);
+    const [r1, r2] = transport.operationRooms;
+    // The server sends what is open when a room is joined, and again when it changes: the
+    // henchman in f2 asked before we got there, and asked again while we were next door.
+    r2?.message("agent.permissions", { agentId: "h", requests: ["first"] });
+    r2?.message("agent.permissions", { agentId: "h", requests: ["second"] });
+    r1?.message("agent.permissions", { agentId: "g", requests: ["here"] });
+    expect(seen).toEqual([{ agentId: "g", requests: ["here"] }]);
+    // We walk in: both, in the order they came, so the last one stands.
+    await client.setRooms("f2", ["f1"]);
+    expect(seen.slice(1)).toEqual([
+      { agentId: "h", requests: ["first"] },
+      { agentId: "h", requests: ["second"] },
+    ]);
+    // Once handed over they are not repeated; f1, now nearby, keeps its own for our return.
+    r1?.message("agent.permissions", { agentId: "g", requests: [] });
+    await client.setRooms("f2", ["f1"]);
+    expect(seen).toHaveLength(3);
+    await client.setRooms("f1", ["f2"]);
+    expect(seen.slice(3)).toEqual([{ agentId: "g", requests: [] }]);
   });
 
   test("a denied operation join is not retried", async () => {

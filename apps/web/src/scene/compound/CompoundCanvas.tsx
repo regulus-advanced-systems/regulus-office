@@ -37,6 +37,7 @@ import { MovementController } from "../movement/MovementController.tsx";
 import { OfficeAgentLayer } from "../officeAgents/OfficeAgentLayer.tsx";
 import { StatsOverlay } from "../perf/StatsOverlay.tsx";
 import { statsEnabled } from "../perf/stats.ts";
+import { ReceptionDesk } from "../reception/ReceptionDesk.tsx";
 import { LoungeTv } from "../tv/LoungeTv.tsx";
 import { UsageScreen } from "../usage/UsageScreen.tsx";
 import { LobbyWhiteboard } from "../whiteboard/WhiteboardLayer.tsx";
@@ -238,6 +239,7 @@ function Scene({ world, avatars, presence, send, children }: CompoundCanvasProps
       />
       <RoomPresence world={world} target={presence} />
       <JukeboxDriver world={world} grid={grid} />
+      <ReceptionDesk world={world} />
       <LiftDriver world={world} />
       <ClosedRooms world={world} visible={visibleRooms} />
       <Suspense fallback={null}>

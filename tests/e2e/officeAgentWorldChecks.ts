@@ -31,58 +31,8 @@ import {
   walkToLobby,
   wheelZoomTo,
 } from "./compoundProbes.ts";
+import { bodyOf } from "./officeAgentProbes.ts";
 import { recordToasts, toastsSeen } from "./probes.ts";
-
-interface SceneBody {
-  name: string;
-  caption: string;
-  mode: string;
-  appearance: string;
-  own: boolean;
-  canChat: boolean;
-  hidden: boolean;
-  moving: boolean;
-  x: number;
-  z: number;
-  bubbleKind: string;
-  bubbleText: string;
-  /** Where its chest is on screen. */
-  sx: number;
-  sy: number;
-}
-
-/** A body as this page draws it, or null when it is not in the scene (or out of sight). */
-function bodyOf(page: Page, agentId: string): Promise<SceneBody | null> {
-  return page.evaluate((id) => {
-    type V = { x: number; y: number; z: number; clone(): V; project(c: unknown): V };
-    type Obj = {
-      visible: boolean;
-      position: V;
-      userData: Record<string, unknown>;
-      getWorldPosition(v: V): V;
-    };
-    const r3f = (
-      window as unknown as {
-        __regulusR3F?: {
-          scene: { getObjectByName(n: string): Obj | undefined };
-          get(): { camera: unknown; gl: { domElement: HTMLCanvasElement } };
-        };
-      }
-    ).__regulusR3F;
-    const o = r3f?.scene.getObjectByName(`office-agent-${id}`);
-    if (!r3f || !o || !o.visible) return null;
-    const { camera, gl } = r3f.get();
-    const rect = gl.domElement.getBoundingClientRect();
-    const chest = o.getWorldPosition(o.position.clone());
-    chest.y = 1.05;
-    const p = chest.project(camera);
-    return {
-      ...(o.userData as unknown as Omit<SceneBody, "sx" | "sy">),
-      sx: rect.left + ((p.x + 1) / 2) * rect.width,
-      sy: rect.top + ((1 - p.y) / 2) * rect.height,
-    };
-  }, agentId);
-}
 
 const inRoom = (room: NavRoom, p: { x: number; z: number } | null) =>
   !!p && p.x >= room.x && p.x <= room.x + room.w && p.z >= room.z && p.z <= room.z + room.d;
@@ -141,7 +91,7 @@ export async function checkAgentsInTheWorld(owner: Page, member: Page, shots?: s
   if (dbPath) seed("add");
   const mine = await made({
     ...base,
-    name: `Moneypenny ${n}`,
+    name: `Quillon ${n}`,
     owner: "me",
     role: "assistant",
     appearance: "secretary",

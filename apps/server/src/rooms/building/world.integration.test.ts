@@ -22,7 +22,7 @@ import { closeDatabase, type Db, openDatabase, runMigrations, schema } from "../
 import { seedRoomAccess, seedRoomRepo } from "../../github/access/test-snapshot.ts";
 import { createOfficeServer, type OfficeServer } from "../../http/server.ts";
 import { createLogger } from "../../logging.ts";
-import { AgentWorld, type WorldAgent } from "../../pm/world/index.ts";
+import { AgentWorld, PmRounds, type WorldAgent } from "../../pm/world/index.ts";
 import { createDevHeaderAuth, DEV_USER_HEADER } from "../auth.ts";
 import { createRooms, type Rooms } from "../index.ts";
 
@@ -40,7 +40,7 @@ const COMPOUND: CompoundState = {
 const AGENTS: WorldAgent[] = [
   {
     id: "a-personal",
-    name: "Moneypenny",
+    name: "Quillon",
     ownerUserId: "u-ante",
     ownerName: "Ante",
     appearance: "secretary",
@@ -256,4 +256,92 @@ test("a body in a room is sent only to the people who may see into that room (#2
   await waitFor(() => !has(mia), "the body to leave the other person's state");
   await waitFor(() => ante.state.officeAgents.get("a-follower")?.operationId === ALPHA, "owner");
   expect(wire(mia)).not.toContain(ALPHA);
+});
+
+test("the office PM's round: in a room, its body reaches only the viewer whose access covers it (#60)", async () => {
+  const ante = await joinAs("u-ante", "Ante");
+  const mia = await joinAs("u-mia", "Mia");
+  // Rounds every two seconds, held back until the test has seen it at its desk. The PM was
+  // granted Alpha.
+  let released = false;
+  const rounds = new PmRounds({ henchmen: () => [], everyMs: 2_000 });
+  const world = new AgentWorld({
+    agents: () => [
+      {
+        id: "a-pm",
+        name: "Ledger",
+        ownerUserId: null,
+        ownerName: "",
+        appearance: "number_two",
+        status: "ready",
+        dismissed: false,
+        post: "reception",
+      },
+    ],
+    mayEnter: (_agentId, operationId) => operationId === ALPHA,
+    duty: (agent, context) => (released ? rounds.duty(agent, context) : null),
+  });
+  rooms.building.attachWorld(world);
+  const body = (room: BuildingRoom) => room.state.officeAgents?.get("a-pm");
+  const wire = (room: BuildingRoom) => JSON.stringify(room.state.toJSON());
+
+  // At reception both of them see it.
+  await waitFor(
+    () => body(mia)?.mode === "post" && body(ante)?.mode === "post",
+    "the PM at its post",
+  );
+  expect(mia.state.officeAgents.toJSON()).toEqual(ante.state.officeAgents.toJSON());
+  expect(body(mia)).toMatchObject({ post: "reception", doing: "at reception" });
+
+  released = true;
+  // On its round it walks into Alpha: Ante, who may enter Alpha, sees it at the boards there;
+  // Mia, whose GitHub access does not cover Alpha, has no body and no trace of the room.
+  await waitFor(() => body(ante)?.operationId === ALPHA, "the PM in Alpha for Ante", 6_000);
+  expect(body(ante)).toMatchObject({ mode: "route", levelId: ANTE_LEVEL });
+  expect(body(ante)?.doing).toMatch(/^checking the (issue|PR) board$/);
+  await waitFor(() => body(mia) === undefined, "the body to leave Mia's state");
+  await Bun.sleep(200);
+  expect(body(mia)).toBeUndefined();
+  expect(wire(mia)).not.toContain("a-pm");
+  expect(wire(mia)).not.toContain(ALPHA);
+  expect(wire(mia)).not.toContain("checking the");
+
+  // Sent back to its desk: Mia has it again, the same body Ante has.
+  world.setRoute("a-pm", null);
+  await waitFor(() => body(mia)?.operationId === LOBBY_OPERATION_ID, "the PM back for Mia");
+  await waitFor(() => body(ante)?.operationId === LOBBY_OPERATION_ID, "the PM back for Ante");
+  expect(body(mia)?.levelId).toBe(LOBBY_LEVEL_ID);
+}, 20_000);
+
+test("an owner who has not moved since joining has their agent beside them, not at 0,0 (#252)", async () => {
+  rooms.building.attachWorld(new AgentWorld({ agents: () => AGENTS, mayEnter: () => false }));
+  // Ante signs in and stands still: no `move` is ever sent.
+  const ante = await joinAs("u-ante", "Ante");
+  const mia = await joinAs("u-mia", "Mia");
+  const spawn = {
+    x: (LOBBY.gridX + LOBBY.width / 2) * COMPOUND.tileMetres,
+    z: (LOBBY.gridY + LOBBY.depth / 2) * COMPOUND.tileMetres,
+  };
+  // This session of theirs (earlier tests left others connected).
+  const me = (room: BuildingRoom) => room.state.humans.get(ante.sessionId);
+  // Everyone has them where their own client puts them: the middle of the lobby.
+  await waitFor(() => me(mia) !== undefined, "Ante in Mia's state");
+  for (const view of [ante, mia]) {
+    expect(me(view)?.position.x).toBe(spawn.x);
+    expect(me(view)?.position.z).toBe(spawn.z);
+  }
+  await waitFor(
+    () => mia.state.officeAgents?.get("a-personal")?.mode === "follow",
+    "the personal agent to follow",
+  );
+  const target = mia.state.officeAgents.get("a-personal")?.target;
+  expect(Math.hypot((target?.x ?? 0) - spawn.x, (target?.z ?? 0) - spawn.z)).toBeLessThan(2);
+  // Nowhere near the corner of the map.
+  expect(Math.hypot(target?.x ?? 0, target?.z ?? 0)).toBeGreaterThan(50);
+  // Their first move still wins.
+  ante.send("move", { x: spawn.x + 4, z: spawn.z + 2, heading: 0 });
+  await waitFor(() => {
+    const t = mia.state.officeAgents.get("a-personal")?.target;
+    return !!t && Math.hypot(t.x - (spawn.x + 4), t.z - (spawn.z + 2)) < 2;
+  }, "the agent to be sent after its owner");
 });

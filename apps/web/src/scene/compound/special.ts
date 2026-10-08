@@ -19,6 +19,7 @@ import {
   landingNook,
   liftSpot,
   type Rect,
+  receptionSpec,
 } from "@regulus/room-layout";
 import type { Vec3 } from "../lair/geometry/builder.ts";
 import { WALL_RELIEF } from "../lair/geometry/walls.ts";
@@ -102,10 +103,11 @@ function chair(piece: PieceId, x: number, z: number, facing: DoorSide): PiecePla
 
 function lobby(w: number, d: number): SpecialDressing {
   const size = { w, d };
+  const reception = receptionSpec(w, d);
   return {
     furniture: [
-      // Reception against the west wall, facing the room; the PM's home (M5).
-      { model: "reception_desk", rect: R(1.4, d / 2 - 3, 1.3, 5), facing: "east" },
+      // Reception against the west wall, facing the room; the office PM's post (#60).
+      { model: "reception_desk", rect: reception.desk, facing: "east" },
       { model: "console", rect: R(0.4, 1.2, 1.1, 2.4), facing: "east" },
       { model: "mainframe", rect: R(0.4, d - 3.4, 0.9, 2.2), facing: "east" },
       // Lounge in the east half: sofa, armchairs, a coffee table and a lamp.
@@ -124,7 +126,7 @@ function lobby(w: number, d: number): SpecialDressing {
       { model: "bench", rect: R(1.6, d - 1.1, 2.2, 0.6), facing: "north" },
     ],
     extras: [
-      chair("swivel_chair", 0.95, d / 2 - 0.5, "east"),
+      chair("swivel_chair", reception.chair.x, reception.chair.z, "east"),
       wallPiece("poster", "north", 3.5, 1.7, size),
       wallPiece("wall_clock", "north", w / 2 - 3.5, 2.3, size),
       // South of the lift, over the lounge.

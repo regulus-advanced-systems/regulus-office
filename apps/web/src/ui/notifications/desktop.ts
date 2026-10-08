@@ -38,7 +38,12 @@ export function notificationTitle(ev: NotifyEvent): string {
 }
 
 export function notificationBody(ev: NotifyEvent): string {
-  const lines = [ev.operationName ? `Operation: ${ev.operationName}` : "", ev.taskTitle];
+  const lines = [
+    // A reminder the office PM brings from its round (#60).
+    ev.via ? `${ev.via} stopped by on its round: it is still waiting for you.` : "",
+    ev.operationName ? `Operation: ${ev.operationName}` : "",
+    ev.taskTitle,
+  ];
   if (ev.prNumber > 0) lines.push(`Pull request #${ev.prNumber}`);
   return lines.filter(Boolean).join("\n");
 }

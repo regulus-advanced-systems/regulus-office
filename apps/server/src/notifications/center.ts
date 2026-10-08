@@ -97,6 +97,25 @@ function snapshotOf(view: HenchmanSnapshot): HenchmanSnapshot {
   };
 }
 
+/** A notice as one person's clients get it. */
+function personalPayload(n: HenchmanNotice, own: boolean): NotifyEvent {
+  return {
+    id: n.id,
+    event: n.event,
+    agentId: n.agentId,
+    operationId: n.operationId,
+    operationName: n.operationName.slice(0, 100),
+    henchmanName: n.henchmanName.slice(0, 120),
+    ownerName: n.ownerName.slice(0, 64),
+    provider: n.provider,
+    taskTitle: n.taskTitle,
+    prNumber: n.prNumber,
+    prUrl: n.prUrl,
+    own,
+    ts: n.ts,
+  };
+}
+
 export class NotificationCenter {
   personal: PersonalSink | undefined;
   readonly #o: Required<Omit<NotificationCenterOptions, "personal">>;
@@ -104,6 +123,8 @@ export class NotificationCenter {
   readonly #settling = new Map<string, () => void>();
   readonly #lastSent = new Map<string, number>();
   readonly #team = new Map<string, number[]>();
+  /** Henchmen whose owner an office agent has reminded during their current wait (#60). */
+  readonly #reminded = new Set<string>();
   #seq = 0;
 
   constructor(opts: NotificationCenterOptions) {
@@ -125,6 +146,8 @@ export class NotificationCenter {
   statusChanged(view: HenchmanSnapshot, previous: HenchmanSnapshot["status"]): void {
     const henchman = snapshotOf(view);
     this.#status.set(henchman.agentId, henchman.status);
+    // A new wait may be brought to its owner again.
+    if (henchman.status !== previous) this.#reminded.delete(henchman.agentId);
     if (ATTENTION_STATUSES.includes(henchman.status) || ATTENTION_STATUSES.includes(previous)) {
       this.pushAttention(henchman.ownerUserId);
     }
@@ -155,6 +178,32 @@ export class NotificationCenter {
     this.#settling.get(agentId)?.();
     this.#settling.delete(agentId);
     this.#status.delete(agentId);
+    this.#reminded.delete(agentId);
+  }
+
+  /**
+   * An office agent stands next to a henchman that waits for its owner (the
+   * office PM on its rounds, #60): the owner gets the "needs you" notice again,
+   * once per wait however many rounds pass, by the rules of every personal
+   * notice (their preferences, and only while they can see the room). Nothing
+   * goes to team channels. True when it was sent.
+   */
+  remind(view: HenchmanSnapshot, via: string): boolean {
+    const henchman = snapshotOf(view);
+    const event = eventForStatus(henchman.status);
+    if (event !== "needs_input" && event !== "needs_permission") return false;
+    if (this.#reminded.has(henchman.agentId)) return false;
+    const sink = this.personal;
+    const { directory } = this.#o;
+    if (!sink || !directory.prefs(henchman.ownerUserId).desktop[event]) return false;
+    if (!directory.canSee(henchman.ownerUserId, henchman.operationId)) return false;
+    this.#reminded.add(henchman.agentId);
+    const notice = this.#notice(henchman, event);
+    sink.sendToUser(henchman.ownerUserId, NOTIFY_EVENT_MESSAGE, {
+      ...personalPayload(notice, true),
+      via: via.slice(0, 40),
+    });
+    return true;
   }
 
   // ---- Tab badge -----------------------------------------------------------
@@ -210,21 +259,7 @@ export class NotificationCenter {
     const sink = this.personal;
     if (!sink) return;
     const { directory } = this.#o;
-    const payload = (own: boolean): NotifyEvent => ({
-      id: n.id,
-      event: n.event,
-      agentId: n.agentId,
-      operationId: n.operationId,
-      operationName: n.operationName.slice(0, 100),
-      henchmanName: n.henchmanName.slice(0, 120),
-      ownerName: n.ownerName.slice(0, 64),
-      provider: n.provider,
-      taskTitle: n.taskTitle,
-      prNumber: n.prNumber,
-      prUrl: n.prUrl,
-      own,
-      ts: n.ts,
-    });
+    const payload = (own: boolean) => personalPayload(n, own);
     if (
       directory.prefs(n.ownerUserId).desktop[n.event] &&
       directory.canSee(n.ownerUserId, n.operationId)

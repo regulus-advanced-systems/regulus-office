@@ -8,7 +8,8 @@
 # to a private or link-local address are refused with Claude Code's own error (#162). Payloads:
 #   SessionStart, UserPromptSubmit, PreToolUse(Edit), then (for a "[hold the edit]" prompt,
 #   once the spec creates $HOME/.fake-claude-ask) PermissionRequest(Edit), whose response is
-#   held by the office until someone answers the permission prompt.
+#   held by the office until someone answers the permission prompt (asked again when the
+#   office lets go of it unanswered).
 # On "allow" it makes the edit, commits it in its worktree (the cwd) and posts PostToolUse and
 # Stop. Then it idles so the tmux session stays alive across an office restart.
 # `claude auth status` (the office's login check, credentials/cli-status.ts): report a login
@@ -194,7 +195,16 @@ case "$prompt" in
   *) sleep 6 ;;
 esac
 echo "FAKE CLAUDE asking for permission"
-answer=$(hook "{$base,\"hook_event_name\":\"PermissionRequest\",\"tool_name\":\"Edit\",\"tool_input\":$edit}")
+# The office holds a request for two minutes and then lets go of it without an answer. Claude
+# Code then goes on waiting at its own prompt; the fake asks again, so a henchman nobody has
+# answered still waits (the office PM's rounds come by more than once, #60).
+asks=0
+answer=""
+while [ -z "$answer" ] && [ "$asks" -lt 8 ]; do
+  asks=$((asks + 1))
+  [ "$asks" -gt 1 ] && trace "no answer; asking again ($asks)"
+  answer=$(hook "{$base,\"hook_event_name\":\"PermissionRequest\",\"tool_name\":\"Edit\",\"tool_input\":$edit}")
+done
 if printf '%s' "$answer" | grep -q '"behavior" *: *"allow"'; then
   echo "FAKE CLAUDE allowed"
   printf 'hello from the fake agent\n' > "$file"

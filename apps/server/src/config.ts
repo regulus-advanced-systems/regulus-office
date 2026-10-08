@@ -8,6 +8,7 @@
  */
 import { join, resolve } from "node:path";
 import { inspect } from "node:util";
+import { PM_ROUND_EVERY_MS, PM_ROUND_MAX_MS, PM_ROUND_MIN_MS } from "@regulus/protocol";
 import { z } from "zod";
 import { type DeprecatedEnvUse, withRenamedEnv } from "./deprecated-env.ts";
 import {
@@ -158,6 +159,16 @@ export const envSchema = z.object({
     emptyToUndefined,
     z.coerce.number().int().min(30).max(3600).default(60),
   ),
+  // The office PM's rounds (#60): one every N seconds, at fixed times of the clock.
+  OFFICE_PM_ROUND_SECONDS: z.preprocess(
+    emptyToUndefined,
+    z.coerce
+      .number()
+      .int()
+      .min(PM_ROUND_MIN_MS / 1000)
+      .max(PM_ROUND_MAX_MS / 1000)
+      .default(PM_ROUND_EVERY_MS / 1000),
+  ),
   OFFICE_MASTER_KEY: z.preprocess(emptyToUndefined, masterKeySchema.optional()),
   OFFICE_PUBLIC_URL: z.preprocess(emptyToUndefined, z.url().optional()),
   OFFICE_LOG_LEVEL: z.preprocess(emptyToUndefined, z.enum(LOG_LEVELS).default("info")),
@@ -294,6 +305,11 @@ export interface OfficeConfig {
    * OFFICE_GITHUB_POLL_SECONDS (30..3600, default 60).
    */
   githubSync: { polling: boolean; pollIntervalMs: number };
+  /**
+   * Time between two rounds of the office PM through the rooms it was granted (#60):
+   * OFFICE_PM_ROUND_SECONDS (5..3600, default 900: four an hour, on the quarter).
+   */
+  pmRoundMs: number;
   /** Envelope-encryption root key (SPEC §8 rule 2). Absent means secrets cannot be stored. */
   masterKey: SecretValue<Uint8Array> | undefined;
   /** Externally reachable origin, used for links and OAuth callbacks. */
@@ -483,6 +499,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
       polling: e.OFFICE_GITHUB_POLLING,
       pollIntervalMs: e.OFFICE_GITHUB_POLL_SECONDS * 1000,
     },
+    pmRoundMs: e.OFFICE_PM_ROUND_SECONDS * 1000,
     masterKey: e.OFFICE_MASTER_KEY,
     publicUrl: e.OFFICE_PUBLIC_URL ?? `http://localhost:${e.OFFICE_PORT}`,
     logLevel: e.OFFICE_LOG_LEVEL,

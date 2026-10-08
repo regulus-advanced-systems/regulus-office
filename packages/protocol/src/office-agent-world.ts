@@ -24,10 +24,19 @@ import { OFFICE_AGENT_STATUSES, OFFICE_AGENTS_API_PATH } from "./office-agents.t
  * - `follow`: beside its owner.
  * - `wait`: its owner is somewhere it may not go; it waits at the door.
  * - `wander`: on its own (a shared agent, a dismissed one, one whose owner is away).
- * - `route`: on a scripted route (the office PM's patrol and visits, #60).
+ * - `route`: on a scripted route (the office PM's rounds, #60).
+ * - `post`: at its home post, or on its way back there (the office PM at reception, #60).
  */
-export const OFFICE_AGENT_BODY_MODES = ["follow", "wait", "wander", "route"] as const;
+export const OFFICE_AGENT_BODY_MODES = ["follow", "wait", "wander", "route", "post"] as const;
 export type OfficeAgentBodyMode = (typeof OFFICE_AGENT_BODY_MODES)[number];
+
+/**
+ * A home post (#60): where an agent stands when it has nothing else to do, and
+ * where people go to find it. Only the office PM has one, the reception desk
+ * in the lobby; walking up to the desk and pressing `E` opens its chat.
+ */
+export const OFFICE_AGENT_POSTS = ["none", "reception"] as const;
+export type OfficeAgentPost = (typeof OFFICE_AGENT_POSTS)[number];
 
 /** Longest "doing" line of a body: a few words on where it stands ("at the usage wall"). */
 export const OFFICE_AGENT_DOING_MAX = 48;
@@ -58,6 +67,8 @@ export const OfficeAgentBody = z.object({
   doing: z.string().max(OFFICE_AGENT_DOING_MAX),
   /** A personal agent its owner sent off; it wanders until recalled. */
   dismissed: z.boolean(),
+  /** Its home post; `none` for every agent but the office PM. */
+  post: z.enum(OFFICE_AGENT_POSTS),
 });
 export type OfficeAgentBody = z.infer<typeof OfficeAgentBody>;
 
@@ -68,6 +79,23 @@ export const OFFICE_AGENT_RUN_SPEED = 5.6;
 export const OFFICE_AGENT_RUN_ABOVE = 5;
 /** How far from its owner a following agent stops, metres. */
 export const OFFICE_AGENT_POLITE_DISTANCE = 1.4;
+
+// ---- The office PM's rounds (#60) -------------------------------------------------
+
+/**
+ * The office PM leaves reception for a round of the rooms it was granted at
+ * fixed times of the clock: every quarter of an hour by default
+ * (`OFFICE_PM_ROUND_SECONDS`). Movement and presence only.
+ */
+export const PM_ROUND_EVERY_MS = 15 * 60_000;
+/** The shortest time between rounds: for the tests, which cannot wait a quarter of an hour. */
+export const PM_ROUND_MIN_MS = 5_000;
+/**
+ * Rounds closer together than this have shorter stops in proportion (down to a
+ * quarter), so that a round still fits between two starts.
+ */
+export const PM_ROUND_FULL_STOPS_MS = 2 * 60_000;
+export const PM_ROUND_MAX_MS = 60 * 60_000;
 
 // ---- What an agent wants from one person -----------------------------------------
 
