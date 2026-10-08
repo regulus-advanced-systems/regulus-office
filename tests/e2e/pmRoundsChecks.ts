@@ -217,8 +217,13 @@ export async function checkPmRounds(owner: Page, member: Page, input: PmRoundsIn
       await goToLobbyLevel(owner);
       await walkToLobby(owner);
     }
-    // It stopped at the boards on the way (when the page drew it standing there).
-    expect([...words].filter((w) => !/^checking the (issue|PR) board$/.test(w))).toEqual([line]);
+    // Nothing else was over its head on the way (as far as the page drew it standing).
+    expect(
+      [...words].filter(
+        // It came up by the lift (#269) and stopped at the boards on the way.
+        (w) => !/^(checking the (issue|PR) board|stepping out of the lift)$/.test(w),
+      ),
+    ).toEqual([line]);
 
     // The next round stands by the same henchman again; the owner, still elsewhere, hears nothing new.
     await member.bringToFront();
