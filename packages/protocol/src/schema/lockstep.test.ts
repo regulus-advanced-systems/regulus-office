@@ -109,6 +109,7 @@ describe("Colyseus schema lockstep", () => {
     for (const map of [typed.humans, typed.operations, typed.closedRooms, typed.levels]) {
       map.forEach((item: Schema) => view.add(item));
     }
+    typed.officeAgents.forEach((body: Schema) => view.add(body));
     typed.usage.topHenchmen.forEach((row: Schema) => view.add(row));
     typed.chat.forEach((line: Schema) => view.add(line));
     const it = { offset: 0 };
@@ -128,6 +129,7 @@ describe("Colyseus schema lockstep", () => {
     const json = plain(decoded.toJSON());
     expect(json.humans).toEqual({});
     expect(json.operations).toEqual({});
+    expect(json.officeAgents).toEqual({});
     expect(json.closedRooms).toEqual({});
     expect(json.levels).toEqual({});
     expect(json.usage.topHenchmen ?? []).toEqual([]);
