@@ -13,6 +13,8 @@ const SHAPES = [
   /[A-Za-z0-9+/_-]{32,}={0,2}/g,
 ];
 const REASON_MAX = 200;
+const COLOURS = /\u001b\[[0-9;]*[A-Za-z]/g;
+const CONTROL = /[\u0000-\u001f\u007f]/g;
 
 export function redact(text: string, secrets: readonly string[]): string {
   let out = text;
@@ -24,18 +26,18 @@ export function redact(text: string, secrets: readonly string[]): string {
   return out;
 }
 
-/** One short phrase for how a gateway ended, e.g. `exit code 1: config.yaml: bad provider`. */
+/**
+ * One short phrase for how a gateway ended, e.g. `exit code 1: config.yaml: bad provider`.
+ * A gateway that was killed (by a signal: out of memory, or from outside) did
+ * not get to say why, so what it happened to print last is left out.
+ */
 export function describeExit(exit: HermesExit, secrets: readonly string[]): string {
-  const how = exit.code === null ? "it was killed" : `exit code ${exit.code}`;
+  if (exit.code === null || exit.code > 128) return "it was killed";
+  const how = `exit code ${exit.code}`;
   const last = redact(exit.tail, secrets)
     .split("\n")
-    // Control characters and terminal colours say nothing.
-    .map((line) =>
-      line
-        .replace(/\u001b\[[0-9;]*[A-Za-z]/g, "")
-        .replace(/[\u0000-\u001f\u007f]/g, " ")
-        .trim(),
-    )
+    // Terminal colours and control characters say nothing.
+    .map((line) => line.replace(COLOURS, "").replace(CONTROL, " ").trim())
     .filter(Boolean)
     .at(-1);
   if (!last) return how;

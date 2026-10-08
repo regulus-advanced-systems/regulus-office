@@ -115,6 +115,13 @@ async function setup(
   return { root, host, engine, events, of, log, started, said };
 }
 
+/** What the fake gateway keeps in its home, once it holds `needle` (it saves a moment after a turn). */
+async function kept(path: string, needle: string): Promise<string> {
+  const read = () => (existsSync(path) ? readFileSync(path, "utf8") : "");
+  await until(() => read().includes(needle));
+  return read();
+}
+
 async function until(condition: () => boolean, ms = 8000): Promise<void> {
   const deadline = Date.now() + ms;
   while (!condition()) {
@@ -252,9 +259,8 @@ describe("talking to it", () => {
       usage: { inputTokens: 10, outputTokens: 5, costUsd: 0 },
     });
     expect(of("usage")[0]?.dedupeKey).toMatch(/^hermes:agent-1:run_/);
-    await until(() => existsSync(join(host.home("agent-1"), "fake-sessions.json")));
     const sessions = JSON.parse(
-      readFileSync(join(host.home("agent-1"), "fake-sessions.json"), "utf8"),
+      await kept(join(host.home("agent-1"), "fake-sessions.json"), "Hermes heard: hello"),
     ) as Array<{ title?: string; messages: Array<{ system?: string }> }>;
     expect(sessions[0]?.title).toBe("Regulus Office: Number Two");
     expect(sessions[0]?.messages[0]?.system).toContain("Keep answers short.");
@@ -268,8 +274,10 @@ describe("talking to it", () => {
     await engine.idle();
     expect(of("message")[0]).toMatchObject({ userId: "sam", text: "Hermes heard: status?" });
     expect(of("usage")[0]).toMatchObject({ attributedTo: "office" });
-    await until(() => existsSync(join(host.home("agent-1"), "fake-sessions.json")));
-    const text = readFileSync(join(host.home("agent-1"), "fake-sessions.json"), "utf8");
+    const text = await kept(
+      join(host.home("agent-1"), "fake-sessions.json"),
+      "Hermes heard: status?",
+    );
     expect(text).toContain("one of the people of the office you work for");
     expect(text).not.toContain("the person you belong to");
   });
@@ -282,8 +290,7 @@ describe("looking after the process", () => {
     await engine.send("agent-1", message("before"));
     await engine.idle();
     const first = started();
-    await until(() => existsSync(join(host.home("agent-1"), "fake-sessions.json")));
-    await Bun.sleep(40);
+    await kept(join(host.home("agent-1"), "fake-sessions.json"), "Hermes heard: before");
 
     host.kill("agent-1");
     await until(() => of("status").some((s) => s.status === "error"));
