@@ -17,6 +17,7 @@
  */
 import {
   type CreateOfficeAgent,
+  defaultOfficeAgentAppearance,
   type HumanRequest,
   mayConfigureOfficeAgent,
   mayCreateOfficeAgent,
@@ -174,7 +175,7 @@ export class OfficeAgentService {
       model: input.model,
       effort: input.effort ?? null,
       profileId: input.profileId ?? null,
-      appearance: input.appearance,
+      appearance: input.appearance ?? defaultOfficeAgentAppearance(input.role),
       instructions: input.instructions,
       createdBy: actor.id,
     };

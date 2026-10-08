@@ -7,7 +7,7 @@ import { AgentWorld, STEP_MS, type WorldAgent } from "./world.ts";
 
 const agent = (over: Partial<WorldAgent>): WorldAgent => ({
   id: "a1",
-  name: "Moneypenny",
+  name: "Quillon",
   ownerUserId: "ante",
   ownerName: "Ante",
   appearance: "secretary",
@@ -274,7 +274,7 @@ describe("AgentWorld", () => {
   });
 
   test("two agents of one person stand in different places", () => {
-    const s = setup([agent({}), agent({ id: "a2", name: "Q" })]);
+    const s = setup([agent({}), agent({ id: "a2", name: "Tally" })]);
     person(s.state, "ante", { x: 60, z: 120 });
     s.run(STEP_MS);
     const a = s.body("a1")?.target;

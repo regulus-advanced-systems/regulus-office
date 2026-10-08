@@ -11,8 +11,11 @@
  * - `wander` (wander.ts, spots.ts): everyone else strolls between spots of
  *   the levels people are on, in the fixed rooms, the corridors and the
  *   project rooms it may enter;
- * - `route`: a scripted list of stops (`setRoute`), for the office PM's
- *   patrol and visits (#60). Stops in rooms it may not enter are skipped.
+ * - `route` (route.ts): a scripted list of stops (`setRoute`). Stops in rooms
+ *   it may not enter are skipped;
+ * - `post` (#60): an agent with a home post (the office PM at reception)
+ *   stands there instead of wandering, until its `duty` hands it a route (its
+ *   round, rounds.ts); when the route is over it walks back.
  *
  * A body never gives access: every project room is checked with `mayEnter`
  * (the office's operation access gate, through `AgentAccess`), again every
@@ -38,41 +41,25 @@ import {
   readLair,
   roomAt,
 } from "./geometry.ts";
+import { type Owner, readPeople, whereabouts } from "./people.ts";
+import { receptionPost } from "./rounds.ts";
+import {
+  loopRoute,
+  nextStop,
+  type Route,
+  type RouteStop,
+  type RouteVisit,
+  walkMs,
+} from "./route.ts";
 import { levelSpots, roomSpots, type Spot } from "./spots.ts";
+import type { AgentWorldDeps, WorldAgent } from "./types.ts";
 import { pickWander, unitHash } from "./wander.ts";
+
+export type { RouteStop } from "./route.ts";
+export type { AgentWorldDeps, WorldAgent } from "./types.ts";
 
 type State = InstanceType<typeof BuildingStateSchema>;
 type Body = InstanceType<typeof OfficeAgentBodySchema>;
-
-/** An office agent as the world needs it. */
-export interface WorldAgent {
-  id: string;
-  name: string;
-  /** Null: a shared agent. */
-  ownerUserId: string | null;
-  ownerName: string;
-  appearance: string;
-  status: OfficeAgentStatus;
-  dismissed: boolean;
-}
-
-export interface AgentWorldDeps {
-  /** Every office agent, oldest first. */
-  agents(): WorldAgent[];
-  /** May this agent be in this project room right now? Asked often; keep it a lookup. */
-  mayEnter(agentId: string, operationId: string): boolean;
-  random?: () => number;
-}
-
-/** One stop of a scripted route (#60). */
-export interface RouteStop extends Pose {
-  levelId: string;
-  /** A project room's operation id when the stop is inside one. */
-  operationId?: string;
-  doing?: string;
-  /** How long to stay, ms. */
-  pauseMs: number;
-}
 
 /** Bodies are stepped this often, and the agent list re-read this often, ms. */
 export const STEP_MS = 300;
@@ -89,12 +76,9 @@ interface Brain {
   anchor: { levelId: string; x: number; z: number } | null;
   /** The room or corridor of its spot (spots.ts `place`). */
   place: string;
-  route: { stops: readonly RouteStop[]; index: number } | null;
-}
-
-interface Owner extends Pose {
-  levelId: string;
-  joinedAt: number;
+  route: Route | null;
+  /** On a route: the henchman it is walking up to, and when it gets there. */
+  arrival: { at: number; visit: RouteVisit } | null;
 }
 
 export class AgentWorld {
@@ -121,11 +105,16 @@ export class AgentWorld {
     this.#access.clear();
   }
 
-  /** Put an agent on a scripted route, or (null) back to following or wandering. */
-  setRoute(agentId: string, stops: readonly RouteStop[] | null): void {
+  /**
+   * Put an agent on a scripted route: a list of stops walked round and round, or a
+   * `Route` that ends. Null: back to following, its post or wandering.
+   */
+  setRoute(agentId: string, route: readonly RouteStop[] | Route | null): void {
     const brain = this.#brains.get(agentId);
     if (!brain) return;
-    brain.route = stops && stops.length > 0 ? { stops, index: -1 } : null;
+    const stops = route && "next" in route ? route : route?.length ? loopRoute(route) : null;
+    brain.route = stops;
+    brain.arrival = null;
     brain.nextAt = 0;
   }
 
@@ -151,21 +140,7 @@ export class AgentWorld {
     if (!lobbyOf(lair.levels.get(LOBBY_LEVEL_ID))) return; // the layout is not published yet
     if (this.#dirty || now - this.#syncedAt >= SYNC_MS) this.#sync(state, lair, now);
 
-    const owners = new Map<string, Owner>();
-    const populated = new Set<string>();
-    state.humans.forEach((h) => {
-      populated.add(h.levelId);
-      const seen = owners.get(h.userId);
-      // Someone connected twice is where they joined last.
-      if (seen && seen.joinedAt > h.joinedAt) return;
-      owners.set(h.userId, {
-        x: h.position.x,
-        z: h.position.z,
-        heading: h.position.heading,
-        levelId: h.levelId,
-        joinedAt: h.joinedAt,
-      });
-    });
+    const { owners, populated } = readPeople(state);
 
     const slots = new Map<string, number>();
     for (const agent of this.#agents) {
@@ -174,8 +149,22 @@ export class AgentWorld {
       if (!body || !brain) continue;
       const may = (operationId: string) => this.#mayEnter(agent.id, operationId, now);
       const owner = agent.ownerUserId ? owners.get(agent.ownerUserId) : undefined;
+      if (brain.arrival && now >= brain.arrival.at) {
+        const { visit } = brain.arrival;
+        brain.arrival = null;
+        this.#deps.standingBy?.(
+          agent,
+          visit,
+          whereabouts(lair, body, owners.get(visit.ownerUserId)),
+        );
+      }
+      if (!brain.route && body.mode === "post" && now >= brain.nextAt) {
+        brain.route = this.#deps.duty?.(agent, { lair, mayEnter: may, now }) ?? null;
+      }
       if (brain.route) {
         this.#route(body, brain, lair, may, now);
+      } else if (this.#toPost(agent, body, brain, lair)) {
+        // At its post, or on its way back there.
       } else if (owner && agent.ownerUserId && !agent.dismissed && lair.levels.has(owner.levelId)) {
         const slot = slots.get(agent.ownerUserId) ?? 0;
         slots.set(agent.ownerUserId, slot + 1);
@@ -210,8 +199,11 @@ export class AgentWorld {
           anchor: null,
           place: home.place,
           route: null,
+          arrival: null,
         });
         this.#send(body, "wander", home, { hop: true, doing: home.doing });
+        // One with a post appears at it.
+        this.#toPost(agent, body, this.#brains.get(agent.id) as Brain, lair, true);
         if (!state.officeAgents.has(agent.id)) state.officeAgents.set(agent.id, body);
         this.#placed = true;
       }
@@ -222,6 +214,7 @@ export class AgentWorld {
       if (body.appearance !== agent.appearance) body.appearance = agent.appearance;
       if (body.status !== agent.status) body.status = agent.status;
       if (body.dismissed !== agent.dismissed) body.dismissed = agent.dismissed;
+      if (body.post !== (agent.post ?? "none")) body.post = agent.post ?? "none";
     }
   }
 
@@ -389,6 +382,21 @@ export class AgentWorld {
     return true;
   }
 
+  /** An agent with a post goes there and stays (#60). False for an agent without one. */
+  #toPost(agent: WorldAgent, body: Body, brain: Brain, lair: Lair, hop = false): boolean {
+    const post = agent.post === "reception" ? receptionPost(lair) : null;
+    if (!post) return false;
+    const t = body.target;
+    if (body.mode === "post" && body.levelId === post.levelId && t.x === post.x && t.z === post.z)
+      return true;
+    this.#send(body, "post", post, { hop, doing: "at reception" });
+    brain.anchor = null;
+    brain.place = LOBBY_OPERATION_ID;
+    // Not off again before it has had a moment at its desk.
+    brain.nextAt = 0;
+    return true;
+  }
+
   #route(
     body: Body,
     brain: Brain,
@@ -398,21 +406,21 @@ export class AgentWorld {
   ): void {
     const route = brain.route;
     if (!route || now < brain.nextAt) return;
-    // The next stop it may stand at; a route with none leaves it where it is.
-    for (let tried = 0; tried < route.stops.length; tried++) {
-      route.index = (route.index + 1) % route.stops.length;
-      const stop = route.stops[route.index] as RouteStop;
-      const level = lair.levels.get(stop.levelId);
-      if (!level) continue;
-      const room = roomAt(level, stop);
-      if (room?.kind === "project" && (!room.ready || !mayEnter(room.id))) continue;
-      const operationId = room?.kind === "project" ? room.id : LOBBY_OPERATION_ID;
-      const far = Math.hypot(stop.x - body.target.x, stop.z - body.target.z);
-      this.#send(body, "route", { ...stop, operationId }, { doing: stop.doing });
-      brain.place = room?.id ?? "";
-      brain.nextAt = now + (far / 3) * 1_600 + stop.pauseMs;
+    const next = nextStop(route, lair, mayEnter);
+    if (next === "over") {
+      brain.route = null;
       return;
     }
-    brain.nextAt = now + 5_000;
+    if (!next) {
+      // Nothing it may stand at right now: it stays where it is.
+      brain.nextAt = now + 5_000;
+      return;
+    }
+    const { stop } = next;
+    const walk = walkMs(lair, { levelId: body.levelId, x: body.target.x, z: body.target.z }, stop);
+    this.#send(body, "route", { ...stop, operationId: next.operationId }, { doing: stop.doing });
+    brain.place = next.room?.id ?? "";
+    brain.arrival = stop.visit ? { at: now + walk, visit: stop.visit } : null;
+    brain.nextAt = now + walk + stop.pauseMs;
   }
 }

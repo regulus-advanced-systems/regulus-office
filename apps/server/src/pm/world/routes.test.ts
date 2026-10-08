@@ -33,7 +33,7 @@ beforeAll(async () => {
   const base = { engine: "cli-session", provider: "claude-code", model: "sonnet" };
   const mine = await o.send(OFFICE_AGENTS_API_PATH, "POST", o.people.mia.cookie, {
     ...base,
-    name: "Moneypenny",
+    name: "Quillon",
     owner: "me",
     role: "assistant",
     appearance: "secretary",

@@ -56,6 +56,7 @@ import { operationIdsOfRepos } from "./operations/access.ts";
 import { createOperations, mountOperationRoutes } from "./operations/index.ts";
 import { createWallPictures } from "./pictures/index.ts";
 import { createOfficeAgents } from "./pm/index.ts";
+import { roundHenchmanOf } from "./pm/world/index.ts";
 import { mountProfileRoutes } from "./profile/routes.ts";
 import { allObservers, createTaskQueue } from "./queue/index.ts";
 import {
@@ -568,6 +569,14 @@ async function main(): Promise<void> {
     version,
     runner,
     usage: usage.tracker,
+    rounds: {
+      everyMs: config.pmRoundMs,
+      henchmen: () => agents.views().flatMap((view) => roundHenchmanOf(view) ?? []),
+      remind: (henchmanId, via) => {
+        const view = agents.view(henchmanId);
+        if (view) notifications.center.remind(view, via);
+      },
+    },
   });
   officeAgents.bind({
     queue: (operationId) => tasks.queue.snapshot(operationId),

@@ -40,7 +40,7 @@ const COMPOUND: CompoundState = {
 const AGENTS: WorldAgent[] = [
   {
     id: "a-personal",
-    name: "Moneypenny",
+    name: "Quillon",
     ownerUserId: "u-ante",
     ownerName: "Ante",
     appearance: "secretary",

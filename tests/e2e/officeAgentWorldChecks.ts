@@ -141,7 +141,7 @@ export async function checkAgentsInTheWorld(owner: Page, member: Page, shots?: s
   if (dbPath) seed("add");
   const mine = await made({
     ...base,
-    name: `Moneypenny ${n}`,
+    name: `Quillon ${n}`,
     owner: "me",
     role: "assistant",
     appearance: "secretary",
