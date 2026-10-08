@@ -97,6 +97,9 @@ export const AUDIT_ACTIONS = {
   /** A person set or replaced their agent's connection (#58); never the address or the token. */
   officeAgentConnectionSet: "office_agent.connection_set",
   officeAgentRequestAnswer: "office_agent.request_answer",
+  /** A personal agent's owner sent it off to wander, or called it back (#252). */
+  officeAgentDismiss: "office_agent.dismiss",
+  officeAgentRecall: "office_agent.recall",
   /** What an agent did through the office tools: every call, allowed or refused. */
   officeAgentToolCall: "office_agent.tool_call",
   officeAgentToolDenied: "office_agent.tool_denied",

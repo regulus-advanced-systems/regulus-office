@@ -59,6 +59,7 @@ import {
   type BuildingRoom,
   type BuildingRoomDeps,
   type BuildingState,
+  type BuildingWorld,
   type Human,
   MOVE_MAX_HZ,
   PATCH_RATE_MS,
@@ -170,11 +171,15 @@ export function createBuildingRoom(deps: BuildingRoomDeps): BuildingRoom {
 
   const restingAnimation = (human: Human): AvatarAnimation => (human.seatId ? "sit_idle" : "idle");
 
+  let world: BuildingWorld | undefined;
+
   const sweep = () => {
     if (!handle) return;
     blastDoor.tick(handle.state.blastDoor);
     deps.jukebox?.tick(handle.state.jukebox);
     const t = now();
+    // A body that changed room or level is shown to those who may see where it is now.
+    if (world?.tick(handle.state, t)) viewers.sync(handle);
     handle.state.humans.forEach((human, sessionId) => {
       const book = books.get(sessionId);
       if (!book) return;
@@ -423,6 +428,10 @@ export function createBuildingRoom(deps: BuildingRoomDeps): BuildingRoom {
         viewers.sync(handle);
       }
       chat.append(message).catch((err) => logger.error({ err }, "chat persistence failed"));
+    },
+
+    attachWorld(next) {
+      world = next;
     },
 
     setLobbyWhiteboard(version) {

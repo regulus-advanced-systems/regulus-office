@@ -28,6 +28,9 @@ const view = (row: Row): OfficeAgentMessage => ({
 });
 
 export class Conversations {
+  /** Called after every stored line with whose conversation it is in (#252: the bubble over the agent). */
+  onAppend: ((agentId: string, userId: string) => void) | undefined;
+
   constructor(
     private readonly db: Db,
     private readonly now: () => number = Date.now,
@@ -50,6 +53,7 @@ export class Conversations {
       })
       .returning()
       .get();
+    this.onAppend?.(agentId, userId);
     return view(row);
   }
 

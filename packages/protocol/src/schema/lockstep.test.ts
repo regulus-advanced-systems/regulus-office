@@ -12,6 +12,7 @@ import * as building from "../building-state.ts";
 import { WorldPos } from "../common.ts";
 import * as compound from "../compound.ts";
 import { buildingFixture, operationFixture } from "../fixtures.ts";
+import { OfficeAgentBody } from "../office-agent-world.ts";
 import * as operation from "../operation-state.ts";
 import * as schemas from "./index.ts";
 import { type SchemaClass, schemaFieldNames, schemaMetadata } from "./introspect.ts";
@@ -34,6 +35,7 @@ const pairs: Array<[string, z.ZodObject, SchemaClass]> = [
   ["CompoundState", compound.CompoundState, schemas.CompoundStateSchema],
   ["LevelState", compound.LevelState, schemas.LevelStateSchema],
   ["BlastDoorState", blastDoor.BlastDoorState, schemas.BlastDoorStateSchema],
+  ["OfficeAgentBody", OfficeAgentBody, schemas.OfficeAgentBodySchema],
   ["BuildingState", building.BuildingState, schemas.BuildingStateSchema],
   ["BubbleEmits", operation.BubbleEmits, schemas.BubbleEmitsSchema],
   ["AgentBubble", AgentBubble, schemas.AgentBubbleSchema],
@@ -107,6 +109,7 @@ describe("Colyseus schema lockstep", () => {
     for (const map of [typed.humans, typed.operations, typed.closedRooms, typed.levels]) {
       map.forEach((item: Schema) => view.add(item));
     }
+    typed.officeAgents.forEach((body: Schema) => view.add(body));
     typed.usage.topHenchmen.forEach((row: Schema) => view.add(row));
     typed.chat.forEach((line: Schema) => view.add(line));
     const it = { offset: 0 };
@@ -126,6 +129,7 @@ describe("Colyseus schema lockstep", () => {
     const json = plain(decoded.toJSON());
     expect(json.humans).toEqual({});
     expect(json.operations).toEqual({});
+    expect(json.officeAgents).toEqual({});
     expect(json.closedRooms).toEqual({});
     expect(json.levels).toEqual({});
     expect(json.usage.topHenchmen ?? []).toEqual([]);

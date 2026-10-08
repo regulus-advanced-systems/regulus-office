@@ -37,6 +37,9 @@ const view = (row: Row, agentName: string): HumanRequest => ({
 });
 
 export class HumanRequests {
+  /** Called when a person's open questions changed (#252: the bubble over the agent). */
+  onChange: ((userId: string) => void) | undefined;
+
   constructor(
     private readonly db: Db,
     private readonly now: () => number = Date.now,
@@ -80,6 +83,7 @@ export class HumanRequests {
       })
       .returning()
       .get();
+    this.onChange?.(input.forUserId);
     return this.get(row.id) ?? null;
   }
 
@@ -105,19 +109,22 @@ export class HumanRequests {
       .update(officeAgentRequests)
       .set({ status: "answered", answer, answeredAt: new Date(this.now()) })
       .where(and(eq(officeAgentRequests.id, id), eq(officeAgentRequests.status, "pending")))
-      .returning({ id: officeAgentRequests.id })
+      .returning({ id: officeAgentRequests.id, forUserId: officeAgentRequests.forUserId })
       .all();
+    for (const row of changed) this.onChange?.(row.forUserId);
     return changed.length > 0 ? this.get(id) : undefined;
   }
 
   /** The agent's open questions are void once it is stopped for good or deleted. */
   cancelFor(agentId: string): void {
-    this.db
+    const changed = this.db
       .update(officeAgentRequests)
       .set({ status: "cancelled" })
       .where(
         and(eq(officeAgentRequests.agentId, agentId), eq(officeAgentRequests.status, "pending")),
       )
-      .run();
+      .returning({ forUserId: officeAgentRequests.forUserId })
+      .all();
+    for (const row of changed) this.onChange?.(row.forUserId);
   }
 }
