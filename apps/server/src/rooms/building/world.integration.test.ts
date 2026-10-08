@@ -290,7 +290,7 @@ test("the office PM's round: in a room, its body reaches only the viewer whose a
     () => body(mia)?.mode === "post" && body(ante)?.mode === "post",
     "the PM at its post",
   );
-  expect(body(mia)?.toJSON()).toEqual(body(ante)?.toJSON() as object);
+  expect(mia.state.officeAgents.toJSON()).toEqual(ante.state.officeAgents.toJSON());
   expect(body(mia)).toMatchObject({ post: "reception", doing: "at reception" });
 
   released = true;

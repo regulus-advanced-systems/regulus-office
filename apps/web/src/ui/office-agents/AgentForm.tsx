@@ -8,9 +8,9 @@
 import {
   agentModelsFor,
   type CreateOfficeAgent,
-  DEFAULT_OFFICE_AGENT_APPEARANCE,
   DEFAULT_OFFICE_AGENT_PRESET,
   defaultAgentModel,
+  defaultOfficeAgentAppearance,
   engineBringsOwnModel,
   engineIsPersonalOnly,
   OFFICE_AGENT_LIMITS,
@@ -80,9 +80,10 @@ export function AgentForm(props: AgentFormProps) {
   const [preset, setPreset] = useState<OfficeAgentPreset>(
     agent?.preset ?? DEFAULT_OFFICE_AGENT_PRESET,
   );
-  const [appearance, setAppearance] = useState(
-    agent?.appearance ?? DEFAULT_OFFICE_AGENT_APPEARANCE,
-  );
+  // Until a look is picked, a new agent gets the default for its job: the PM suit for a
+  // project manager, the jumpsuit otherwise (#60).
+  const [pickedAppearance, setAppearance] = useState<string | undefined>(agent?.appearance);
+  const appearance = pickedAppearance ?? defaultOfficeAgentAppearance(role);
   // What the person picked; until they do, the agent's own choice or the first usable one.
   const [pickedKey, setPickedKey] = useState<string | undefined>(
     agent ? (agent.config?.profileId ?? "") : undefined,

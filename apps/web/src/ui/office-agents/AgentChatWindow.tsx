@@ -15,7 +15,7 @@ import {
   OFFICE_AGENT_ATTENTION_MESSAGE,
   type OfficeAgentBody,
 } from "@regulus/protocol";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getOfficeClient } from "../../net/index.ts";
 import { useBuildingStore } from "../../state/building.ts";
 import {
@@ -165,7 +165,15 @@ export function AgentChatWindowHost({ api: given }: { api?: OfficeAgentsApi }) {
   );
   const agentId = useAgentChatWindow((s) => s.agentId);
   const close = useAgentChatWindow((s) => s.close);
-  const body = useBuildingStore((s) => (agentId ? s.state?.officeAgents?.[agentId] : undefined));
+  const known = useAgentChatWindow((s) => s.known);
+  const live = useBuildingStore((s) => (agentId ? s.state?.officeAgents?.[agentId] : undefined));
+  // Its body can go out of this viewer's state while the window is open: the office PM walks
+  // its round into a room closed to them (#60). The conversation stays, with what was last seen.
+  const seen = useRef<OfficeAgentBody | null>(null);
+  if (live) seen.current = live;
+  const body = agentId
+    ? (live ?? (seen.current?.agentId === agentId ? seen.current : null) ?? known ?? undefined)
+    : undefined;
   const onNudge = useCallback<Nudges>(
     (type, listener) => getOfficeClient().onBuildingMessage(type, listener),
     [],
@@ -186,10 +194,22 @@ export function AgentChatWindowHost({ api: given }: { api?: OfficeAgentsApi }) {
     [],
   );
 
-  // Its agent was deleted, or it is not ours to talk to: nothing to show.
+  // It is not ours to talk to: nothing to show.
   useEffect(() => {
     if (agentId && (!body || !canChatWith(body, viewer))) close();
   }, [agentId, body, viewer, close]);
+  // Out of sight is not gone, but a deleted agent is: ask the office which it is.
+  const gone = agentId !== null && !live;
+  useEffect(() => {
+    if (!gone || !agentId) return;
+    let current = true;
+    void api.list().then((res) => {
+      if (current && res.ok && !res.data.agents.some((a) => a.id === agentId)) close();
+    });
+    return () => {
+      current = false;
+    };
+  }, [gone, agentId, api, close]);
 
   if (!agentId || !body || !viewer || !canChatWith(body, viewer)) return null;
   return (

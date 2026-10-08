@@ -136,14 +136,20 @@ export const useAgentAttention = create<AttentionStore>()((set) => ({
 export interface AgentChatWindowStore {
   /** The office agent whose chat is open as a window in the world. */
   agentId: string | null;
-  open: (agentId: string) => void;
+  /**
+   * What is known of it when its body is not in this viewer's state: the office PM asked
+   * for at the reception desk while its round has it in a room closed to them (#60).
+   */
+  known: OfficeAgentBody | null;
+  open: (agentId: string, known?: OfficeAgentBody) => void;
   close: () => void;
 }
 
 export const useAgentChatWindow = create<AgentChatWindowStore>()((set) => ({
   agentId: null,
-  open: (agentId) => set({ agentId }),
-  close: () => set({ agentId: null }),
+  known: null,
+  open: (agentId, known) => set({ agentId, known: known ?? null }),
+  close: () => set({ agentId: null, known: null }),
 }));
 
 /**

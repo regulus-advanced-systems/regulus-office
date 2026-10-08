@@ -107,6 +107,46 @@ describe("office agent form", () => {
     expect(f.calls.find((c) => c.method === "POST")?.body).not.toHaveProperty("profileId");
   });
 
+  test("a project manager wears the PM suit unless another look is picked (#60)", async () => {
+    const f = await show("member", {
+      "GET /api/office-agents": { body: response([]) },
+      "POST /api/office-agents": { status: 201, body: agent({ name: "Ledger" }) },
+    });
+    await click(button("New agent…") as HTMLButtonElement);
+    await settle();
+    // An assistant starts in the jumpsuit; the look follows the job until one is picked.
+    expect(radio("Standard").checked).toBe(true);
+    await choose(select("Job"), "pm");
+    expect(radio("Number two (PM suit)").checked).toBe(true);
+    await choose(select("Job"), "watchdog");
+    expect(radio("Standard").checked).toBe(true);
+    await choose(select("Job"), "pm");
+    await typeInto("Name", "Ledger");
+    await submit("New agent");
+    expect(f.calls.find((c) => c.method === "POST")?.body).toMatchObject({
+      role: "pm",
+      appearance: "number_two",
+    });
+  });
+
+  test("a look that was picked stays when the job changes", async () => {
+    const f = await show("member", {
+      "GET /api/office-agents": { body: response([]) },
+      "POST /api/office-agents": { status: 201, body: agent({ name: "Ledger" }) },
+    });
+    await click(button("New agent…") as HTMLButtonElement);
+    await settle();
+    await click(radio("Lab coat"));
+    await choose(select("Job"), "pm");
+    expect(radio("Lab coat").checked).toBe(true);
+    await typeInto("Name", "Ledger");
+    await submit("New agent");
+    expect(f.calls.find((c) => c.method === "POST")?.body).toMatchObject({
+      role: "pm",
+      appearance: "lab_coat",
+    });
+  });
+
   test("with nothing connected the form says so and links to Connect providers instead of failing later", async () => {
     await show("member", {
       "GET /api/office-agents": { body: response([]) },

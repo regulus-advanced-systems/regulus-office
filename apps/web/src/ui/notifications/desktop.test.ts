@@ -77,6 +77,15 @@ test("title and body", () => {
   );
 });
 
+test("a reminder from the office PM's round says who stopped by (#60)", () => {
+  const reminder = ev({ via: "Ledger" });
+  // The same title as the henchman's own notice: it is the same notice, brought again.
+  expect(notificationTitle(reminder)).toBe(notificationTitle(ev()));
+  expect(notificationBody(reminder)).toBe(
+    "Ledger stopped by on its round: it is still waiting for you.\nOperation: Web app\nFix the login page",
+  );
+});
+
 test("tab badge title", () => {
   expect(badgeTitle("Regulus Office", 2)).toBe("(2) Regulus Office");
   expect(badgeTitle("(2) Regulus Office", 3)).toBe("(3) Regulus Office");
