@@ -30,7 +30,12 @@ export function describeExit(exit: HermesExit, secrets: readonly string[]): stri
   const last = redact(exit.tail, secrets)
     .split("\n")
     // Control characters and terminal colours say nothing.
-    .map((line) => line.replace(/\u001b\[[0-9;]*[A-Za-z]/g, "").replace(/[\u0000-\u001f\u007f]/g, " ").trim())
+    .map((line) =>
+      line
+        .replace(/\u001b\[[0-9;]*[A-Za-z]/g, "")
+        .replace(/[\u0000-\u001f\u007f]/g, " ")
+        .trim(),
+    )
     .filter(Boolean)
     .at(-1);
   if (!last) return how;

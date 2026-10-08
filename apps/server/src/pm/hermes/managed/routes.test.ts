@@ -25,7 +25,13 @@ import {
   usageSamples,
 } from "../../../db/schema/index.ts";
 import { encryptSecret } from "../../../secrets/index.ts";
-import { type AgentsOffice, APOLLO, agentsOffice, BOREALIS, OFFICE_KEY } from "../../test-helpers.ts";
+import {
+  type AgentsOffice,
+  APOLLO,
+  agentsOffice,
+  BOREALIS,
+  OFFICE_KEY,
+} from "../../test-helpers.ts";
 import { ProcessHermesHost } from "./testing/process-host.ts";
 
 setDefaultTimeout(30_000);
@@ -111,7 +117,12 @@ const started = (agentId: string) => {
     env: Record<string, string>;
     config: string;
   };
-  for (const name of ["API_SERVER_KEY", "OFFICE_AGENT_TOKEN", "ANTHROPIC_API_KEY", "DEEPSEEK_API_KEY"]) {
+  for (const name of [
+    "API_SERVER_KEY",
+    "OFFICE_AGENT_TOKEN",
+    "ANTHROPIC_API_KEY",
+    "DEEPSEEK_API_KEY",
+  ]) {
     const value = start.env[name];
     if (value) handedOver.add(value);
   }
@@ -152,9 +163,19 @@ describe("a personal Hermes run by the office", () => {
     expect(login.body.error).toBe("hermes_key_required");
     expect(login.body.message).toContain("subscription login cannot be used");
 
-    const stolen = await call(A, "POST", o.people.mia.cookie, managed("Stolen", { profileId: keys.sam }));
+    const stolen = await call(
+      A,
+      "POST",
+      o.people.mia.cookie,
+      managed("Stolen", { profileId: keys.sam }),
+    );
     expect(stolen.status).toBe(400);
-    const viewer = await call(A, "POST", o.people.olga.cookie, managed("Fine", { profileId: keys.sam }));
+    const viewer = await call(
+      A,
+      "POST",
+      o.people.olga.cookie,
+      managed("Fine", { profileId: keys.sam }),
+    );
     expect(viewer.status).toBe(400);
     expect(host.launches).toHaveLength(0);
   });

@@ -23,11 +23,7 @@
  */
 import { posix } from "node:path";
 import { safeReason } from "../../../agents/manager/failure.ts";
-import {
-  checkUserId,
-  LABEL_PREFIX,
-  LABEL_ROLE,
-} from "../../../runners/docker/containers.ts";
+import { checkUserId, LABEL_PREFIX, LABEL_ROLE } from "../../../runners/docker/containers.ts";
 import { DockerApiError, type EngineClient } from "../../../runners/docker/engine.ts";
 import { isImageMissing, pullImage } from "../../../runners/docker/image.ts";
 import { startPiped } from "../../../runners/docker/interactive.ts";

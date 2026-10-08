@@ -221,10 +221,7 @@ export const envSchema = z.object({
   OFFICE_HERMES_IMAGE: z.preprocess(emptyToUndefined, str().optional()),
   OFFICE_HERMES_MEMORY: z.preprocess(emptyToUndefined, byteSize.optional()),
   OFFICE_HERMES_CPUS: z.preprocess(emptyToUndefined, z.coerce.number().positive().optional()),
-  OFFICE_HERMES_PIDS: z.preprocess(
-    emptyToUndefined,
-    z.coerce.number().int().positive().optional(),
-  ),
+  OFFICE_HERMES_PIDS: z.preprocess(emptyToUndefined, z.coerce.number().int().positive().optional()),
   // Per-agent sandboxes (SPEC §8, D18, #169); see SandboxConfig. Defaults: runners/sandbox.ts.
   OFFICE_SANDBOXES: bool(true),
   OFFICE_SANDBOX_MEMORY: z.preprocess(emptyToUndefined, byteSize.optional()),

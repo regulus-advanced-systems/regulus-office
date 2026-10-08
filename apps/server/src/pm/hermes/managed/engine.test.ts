@@ -297,7 +297,10 @@ describe("looking after the process", () => {
 
     await engine.send("agent-1", message("after", "m2"));
     await engine.idle();
-    expect(of("message").map((m) => m.text)).toEqual(["Hermes heard: before", "Hermes heard: after"]);
+    expect(of("message").map((m) => m.text)).toEqual([
+      "Hermes heard: before",
+      "Hermes heard: after",
+    ]);
     // Hermes kept the session in its home: nobody is told that a conversation was lost.
     expect(of("error")).toEqual([]);
     expect(host.launches).toHaveLength(2);
@@ -342,14 +345,22 @@ describe("looking after the process", () => {
       .filter((s) => s.status === "error")
       .map((s) => s.reason ?? "");
     expect(reasons[0]).toContain("Hermes stopped unexpectedly");
-    expect(reasons.some((r) => r.startsWith("Hermes did not start (exit code 9") && r.endsWith("Trying again."))).toBe(true);
+    expect(
+      reasons.some(
+        (r) => r.startsWith("Hermes did not start (exit code 9") && r.endsWith("Trying again."),
+      ),
+    ).toBe(true);
     expect(await engine.health("agent-1")).toEqual({
       ok: false,
       detail: "Hermes is being started again",
     });
     // Never "ready" while it is down.
     const lastError = of("status").findLastIndex((s) => s.status === "error");
-    expect(of("status").slice(lastError).every((s) => s.status === "error")).toBe(true);
+    expect(
+      of("status")
+        .slice(lastError)
+        .every((s) => s.status === "error"),
+    ).toBe(true);
 
     host.extraEnv = {};
     await until(() => of("status").at(-1)?.status === "ready");

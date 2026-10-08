@@ -116,7 +116,9 @@ describe.skipIf(!enabled)("the Hermes image, started as the office starts it", (
     expect(who.stdout).not.toContain(OFFICE_TOKEN);
 
     // Killed from inside, as a crash: the office learns of it.
-    await engine.exec(host.containerName(AGENT), { cmd: ["sh", "-c", "pkill -9 -f 'hermes' || kill -9 -1"] });
+    await engine.exec(host.containerName(AGENT), {
+      cmd: ["sh", "-c", "pkill -9 -f 'hermes' || kill -9 -1"],
+    });
     const exit = await Promise.race([first.exited, Bun.sleep(20_000).then(() => null)]);
     expect(exit).not.toBeNull();
 

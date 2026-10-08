@@ -7,7 +7,11 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { EngineClient } from "../../../runners/docker/engine.ts";
 import { type FakeContainer, FakeEngine } from "../../../runners/docker/testing/fake-engine.ts";
-import { DEFAULT_HERMES_LIMITS, DockerHermesHost, type DockerHermesSettings } from "./docker-host.ts";
+import {
+  DEFAULT_HERMES_LIMITS,
+  DockerHermesHost,
+  type DockerHermesSettings,
+} from "./docker-host.ts";
 import { HERMES_GATEWAY_COMMAND, HERMES_IMAGE_HOME } from "./from-config.ts";
 import { HermesHostError, type HermesLaunch } from "./host.ts";
 

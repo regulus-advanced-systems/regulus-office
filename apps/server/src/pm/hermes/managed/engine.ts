@@ -249,7 +249,8 @@ export class HermesManagedEngine implements OfficeAgentEngine {
     try {
       process = await this.options.host.launch(instance.launch);
     } catch (err) {
-      if (err instanceof HermesHostError) throw new EngineRefusal("hermes_unavailable", err.message);
+      if (err instanceof HermesHostError)
+        throw new EngineRefusal("hermes_unavailable", err.message);
       throw err;
     }
     if (instance.closed) {
@@ -320,7 +321,12 @@ export class HermesManagedEngine implements OfficeAgentEngine {
   #again(instance: Instance, reason: string): void {
     const agentId = instance.agent.id;
     instance.restarts += 1;
-    this.#events.emit({ type: "status", agentId, status: "error", reason: redact(reason, instance.secrets) });
+    this.#events.emit({
+      type: "status",
+      agentId,
+      status: "error",
+      reason: redact(reason, instance.secrets),
+    });
     const pause = Math.min(
       this.#backoffMaxMs,
       this.#backoffBaseMs * 2 ** Math.max(0, instance.restarts - 1),
@@ -338,7 +344,10 @@ export class HermesManagedEngine implements OfficeAgentEngine {
     } catch (err) {
       if (instance.closed) return;
       const why = err instanceof EngineRefusal ? err.message : "the office could not start Hermes";
-      this.options.logger.warn({ agentId, restarts: instance.restarts }, "managed hermes restart failed");
+      this.options.logger.warn(
+        { agentId, restarts: instance.restarts },
+        "managed hermes restart failed",
+      );
       return this.#again(instance, `${why.charAt(0).toUpperCase()}${why.slice(1)}. Trying again.`);
     }
     if (instance.closed) return;
