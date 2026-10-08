@@ -35,6 +35,8 @@ export interface RoutableChannel {
   kind: WebhookKind;
   chatId: string | null;
   operationIds: string[] | null;
+  /** Who set the channel up: it carries only rooms this person can see (#270). Null: nobody. */
+  createdBy: string | null;
   events: NotificationEvent[];
 }
 
@@ -129,15 +131,16 @@ export class ChannelStore {
 
   /** Enabled channels for routing (no secrets). */
   routable(): RoutableChannel[] {
-    return this.list()
-      .filter((c) => c.enabled)
-      .map(({ id, kind, chatId, operationIds, events }) => ({
-        id,
-        kind,
-        chatId,
-        operationIds,
-        events,
-      }));
+    return this.#db
+      .select()
+      .from(notificationChannels)
+      .orderBy(notificationChannels.createdAt)
+      .all()
+      .filter((row) => row.enabled)
+      .map((row) => {
+        const { id, kind, chatId, operationIds, events } = ChannelStore.view(row);
+        return { id, kind, chatId, operationIds, events, createdBy: row.createdBy };
+      });
   }
 
   create(input: CreateNotificationChannel, createdBy: string): NotificationChannelView {

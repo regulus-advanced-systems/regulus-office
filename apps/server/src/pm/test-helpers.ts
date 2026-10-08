@@ -3,8 +3,20 @@
  * sessions, four people, two operations, office agents on the fake engine,
  * and the tools bound to the real task queue and credential rules (a fake
  * spawner stands in for the AgentManager, enforcing its ownership rule).
+ *
+ * Rooms open with each person's own GitHub permission on the room's repo
+ * (#270), written straight into the access snapshot: Ada (admin) administers
+ * both repos, Mia may write to Apollo's, Sam administers Borealis's, and Olga
+ * (the office owner) has linked no GitHub account, so she sees no room.
  */
-import type { OfficeToolResult, QueueSettings, QueueTask } from "@regulus/protocol";
+import type {
+  OfficeToolResult,
+  OperationAccess,
+  QueueSettings,
+  QueueTask,
+  TopHenchmanUsage,
+  UsageSummary,
+} from "@regulus/protocol";
 import { eq } from "drizzle-orm";
 import { CredentialResolver, credentialProfileContext } from "../agents/manager/credentials.ts";
 import { AgentManagerError } from "../agents/manager/errors.ts";
@@ -16,10 +28,10 @@ import {
   auditLog,
   credentialProfiles,
   desks,
-  operationMembers,
   operationRepos,
   operations,
 } from "../db/schema/index.ts";
+import { seedRoomMember } from "../github/access/test-snapshot.ts";
 import { captureLogger, testKeyring } from "../notifications/testing.ts";
 import type { OperationActor } from "../operations/access.ts";
 import { TaskQueue } from "../queue/index.ts";
@@ -58,7 +70,7 @@ export async function agentsOffice(options: AgentsOfficeOptions = {}) {
   const sam = await office.signUp("Sam", "10.0.0.4");
   db.$client.run(`update user_profiles set role = 'admin' where user_id = '${ada.id}'`);
 
-  // Apollo: Mia may spawn. Borealis: Sam manages; Mia has nothing there.
+  // Apollo: Mia may spawn. Borealis: Sam manages; Mia has nothing there. Ada manages both.
   for (const [id, name] of [
     [APOLLO, "Apollo"],
     [BOREALIS, "Borealis"],
@@ -89,16 +101,33 @@ export async function agentsOffice(options: AgentsOfficeOptions = {}) {
       })
       .run();
   }
-  const setAccess = (operationId: string, userId: string, access: "view" | "spawn" | "manage") => {
-    db.delete(operationMembers).where(eq(operationMembers.userId, userId)).run();
-    db.insert(operationMembers).values({ operationId, userId, access }).run();
+  /** The person's GitHub permission on one room's repo changes; `null` takes the room away. */
+  const setRoomAccess = (operationId: string, userId: string, access: OperationAccess | null) =>
+    void seedRoomMember(db, userId, operationId, access);
+  /** The person has `access` to this room and to no other. */
+  const setAccess = (operationId: string, userId: string, access: OperationAccess) => {
+    for (const id of [APOLLO, BOREALIS]) setRoomAccess(id, userId, null);
+    setRoomAccess(operationId, userId, access);
   };
-  db.insert(operationMembers)
-    .values({ operationId: APOLLO, userId: mia.id, access: "spawn" })
-    .run();
-  db.insert(operationMembers)
-    .values({ operationId: BOREALIS, userId: sam.id, access: "manage" })
-    .run();
+  setRoomAccess(APOLLO, mia.id, "spawn");
+  setRoomAccess(BOREALIS, sam.id, "manage");
+  setRoomAccess(APOLLO, ada.id, "manage");
+  setRoomAccess(BOREALIS, ada.id, "manage");
+
+  /** The office usage port's answer: totals, and a leaderboard tests fill in (room per henchman). */
+  const leaderboard: Array<TopHenchmanUsage & { operationId: string }> = [];
+  const officeUsage = (): UsageSummary & { henchmanRooms: Record<string, string> } => ({
+    todayInputTokens: 0,
+    todayOutputTokens: 0,
+    todayCacheTokens: 0,
+    todayCostUsdEstimate: 0,
+    officeKeysCostUsdEstimate: 0,
+    activeHumans: 0,
+    topHenchmen: leaderboard.map(({ operationId: _room, ...row }) => row),
+    henchmanRooms: Object.fromEntries(leaderboard.map((row) => [row.agentId, row.operationId])),
+    dayStart: 0,
+    observedAt: 0,
+  });
 
   /** An office-wide API key for the provider (SPEC §8 rule 3); returns the profile id. */
   const addOfficeKey = (
@@ -198,7 +227,7 @@ export async function agentsOffice(options: AgentsOfficeOptions = {}) {
     queue: (operationId) => queue.snapshot(operationId),
     enqueue: (actor, input) => queue.enqueueTask(actor, input),
     myUsage: (userId) => ({ owner: userId }) as never,
-    officeUsage: () => ({ office: true }) as never,
+    officeUsage,
     postChat: (line) => void chat.push(line),
     spawn,
     stop,
@@ -253,6 +282,8 @@ export async function agentsOffice(options: AgentsOfficeOptions = {}) {
     queue,
     people: { olga, ada, mia, sam },
     setAccess,
+    setRoomAccess,
+    leaderboard,
     addOfficeKey,
     spawned,
     stopped,

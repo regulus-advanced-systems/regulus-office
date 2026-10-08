@@ -105,7 +105,13 @@ export function readQueue(call: ToolCall, input: OfficeToolInput<"read_queue">) 
 
 /** A personal agent reads its owner's own usage; a shared one the office totals everyone sees. */
 export function readUsage(call: ToolCall) {
-  if (call.agent.ownerUserId === null) return { scope: "office", usage: call.ports.officeUsage() };
+  if (call.agent.ownerUserId === null) {
+    // The leaderboard names henchmen: only those of rooms granted to the agent (#270).
+    const { henchmanRooms = {}, ...usage } = call.ports.officeUsage();
+    const open = new Set(call.access.operations(call.agent).map((o) => o.operationId));
+    const topHenchmen = usage.topHenchmen.filter((h) => open.has(henchmanRooms[h.agentId] ?? ""));
+    return { scope: "office", usage: { ...usage, topHenchmen } };
+  }
   const owner = call.access.owner(call.agent);
   if (!owner) throw new ToolError("forbidden", "this agent's owner is no longer in the office");
   return { scope: "owner", usage: call.ports.myUsage(owner.id) };

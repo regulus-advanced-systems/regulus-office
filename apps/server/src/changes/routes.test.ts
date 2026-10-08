@@ -10,14 +10,8 @@ import type { UserRole } from "@regulus/protocol";
 import { changesPath } from "@regulus/protocol";
 import { eq } from "drizzle-orm";
 import { type Office, startOffice } from "../auth/test-helpers.ts";
-import {
-  agents,
-  auditLog,
-  operationMembers,
-  operationRepos,
-  operations,
-  userProfiles,
-} from "../db/schema/index.ts";
+import { agents, auditLog, operationRepos, operations, userProfiles } from "../db/schema/index.ts";
+import { seedRoomMember } from "../github/access/test-snapshot.ts";
 import { createLogger } from "../logging.ts";
 import { ChangesHttpError } from "./paths.ts";
 import { mountChangesRoutes } from "./routes.ts";
@@ -121,13 +115,16 @@ beforeAll(async () => {
       workdir: "/tmp",
     })
     .run();
+  // Rooms open with each person's GitHub permission on the repo (#270): the office
+  // owner has it, the admin does not, and neither role gives anything by itself.
   for (const [u, access] of [
+    [officeOwner, "manage"],
     [henchmanOwner, "spawn"],
     [member, "spawn"],
     [viewer, "view"],
     [viewerOwner, "view"],
   ] as const) {
-    db.insert(operationMembers).values({ operationId: "f1", userId: u.id, access }).run();
+    seedRoomMember(db, u.id, "f1", access);
   }
   for (const [id, owner] of [
     ["a1", henchmanOwner],
@@ -165,7 +162,6 @@ describe("viewing", () => {
       [henchmanOwner, true],
       [member, false],
       [viewer, false],
-      [admin, false],
       [officeOwner, false],
     ] as const) {
       const res = await get(changesPath("a1"), u);
@@ -179,6 +175,8 @@ describe("viewing", () => {
 
   test("outside the operation the henchman does not exist; anonymous is 401", async () => {
     expect((await get(changesPath("a1"), outsider)).status).toBe(404);
+    // An office admin whose GitHub account cannot see the repo is outside too (#270).
+    expect((await get(changesPath("a1"), admin)).status).toBe(404);
     expect((await get(`${changesPath("a1", "file")}?path=a.txt`, outsider)).status).toBe(404);
     expect((await get(changesPath("nope"), henchmanOwner)).status).toBe(404);
     expect((await get(changesPath("a1"))).status).toBe(401);
@@ -207,10 +205,10 @@ describe("viewing", () => {
 });
 
 describe("writing (D12: the henchman's owner only)", () => {
-  test("office owner, admin, other members, viewers and a viewer who owns the henchman are refused", async () => {
+  test("office owner, other members, viewers and a viewer who owns the henchman are refused; an admin outside the repo sees nothing", async () => {
     for (const [u, agentId, status] of [
       [officeOwner, "a1", 403],
-      [admin, "a1", 403],
+      [admin, "a1", 404],
       [member, "a1", 403],
       [viewer, "a1", 403],
       [viewerOwner, "a2", 403],

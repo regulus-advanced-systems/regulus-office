@@ -2,13 +2,16 @@
  * Test fixture for the board panel routes (#36 tests only): a signed-in
  * office with one operation (repos `octo/hello`, covered by the office's org PAT,
  * and `octo/secret`, which only has its own stored repo PAT), people with each
- * operation access, the board cache seeded with issue #7 and PR #9, and a fake
+ * operation access through their own GitHub permission on the repos (#270; the
+ * office owner administers them, an office admin's account sees neither),
+ * the board cache seeded with issue #7 and PR #9, and a fake
  * GitHub that answers the board actions on 127.0.0.1 and records them.
  */
 import { randomBytes } from "node:crypto";
 import { type Office, startOffice } from "../auth/test-helpers.ts";
-import { operationMembers, operationRepos, operations } from "../db/schema/index.ts";
+import { operationRepos, operations } from "../db/schema/index.ts";
 import { createLogger } from "../logging.ts";
+import { seedGitHubLink, seedRoomMember } from "./access/test-snapshot.ts";
 import { createBoardGitHub } from "./board-actions.ts";
 import { BoardCache } from "./board-cache.ts";
 import { normalizeIssue, normalizePull } from "./board-normalize.ts";
@@ -129,6 +132,10 @@ export async function boardRoutesFixture() {
   const spawner = await office.signUp("Sam");
   const viewer = await office.signUp("Vic");
   const stranger = await office.signUp("Stan");
+  /** An office admin with a linked GitHub account that can see neither repo. */
+  const admin = await office.signUp("Ada");
+  office.db.$client.run(`update user_profiles set role = 'admin' where user_id = '${admin.id}'`);
+  seedGitHubLink(office.db, admin.id);
 
   const db = office.db;
   db.insert(operations)
@@ -181,12 +188,13 @@ export async function boardRoutesFixture() {
       .run();
   }
   for (const [user, access] of [
+    [owner, "manage"],
     [manager, "manage"],
     [spawner, "spawn"],
     [viewer, "view"],
   ] as const) {
     for (const operationId of [OPERATION, SECRET_OPERATION])
-      db.insert(operationMembers).values({ operationId, userId: user.id, access }).run();
+      seedRoomMember(db, user.id, operationId, access);
   }
 
   const cache = new BoardCache(db);
@@ -226,7 +234,7 @@ export async function boardRoutesFixture() {
     published,
     /** Merges reported to the merge gong (#43). */
     merged,
-    people: { owner, manager, spawner, viewer, stranger },
+    people: { owner, manager, spawner, viewer, stranger, admin },
     call,
     /** GitHub calls other than the connection's own repo listing. */
     boardCalls: () => gh.calls.filter((c) => c.path.startsWith("/repos/")),

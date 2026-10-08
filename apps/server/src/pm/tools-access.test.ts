@@ -149,6 +149,19 @@ describe("a personal agent has exactly its owner's rights", () => {
     expect(o.officeAgents.requests.pendingFor(o.people.mia.id).map((r) => r.id)).toEqual([
       requestId,
     ]);
+    // A question about a room is hers only while she can see the room (#270).
+    const aboutApollo = resultOf<{ requestId: string }>(
+      await o.tool(mias.token, "ask_human", { question: "Ship Apollo?", operationId: APOLLO }),
+    ).requestId;
+    const pending = () =>
+      o.officeAgents.service
+        .pendingRequests({ id: o.people.mia.id, role: "member" })
+        .map((r) => r.id);
+    expect(pending().sort()).toEqual([requestId, aboutApollo].sort());
+    o.setRoomAccess(APOLLO, o.people.mia.id, null);
+    expect(pending()).toEqual([requestId]);
+    o.setRoomAccess(APOLLO, o.people.mia.id, "spawn");
+    expect(pending().sort()).toEqual([requestId, aboutApollo].sort());
     // Another agent cannot read the question or its answer.
     expect((await o.tool(sams.token, "read_human_request", { requestId })).status).toBe(404);
     expect(
@@ -167,10 +180,7 @@ describe("a personal agent has exactly its owner's rights", () => {
     // Sam's agent: Mia's henchman is in a room it cannot see, so it does not exist for it.
     expect((await o.tool(sams.token, "stop_henchman", { henchmanId })).status).toBe(404);
     // Even with access to the room, only the henchman's owner may stop it.
-    o.db
-      .insert(operationMembers)
-      .values({ operationId: APOLLO, userId: o.people.sam.id, access: "manage" })
-      .run();
+    o.setRoomAccess(APOLLO, o.people.sam.id, "manage");
     expect(errorOf(await o.tool(sams.token, "stop_henchman", { henchmanId }))).toBe("forbidden");
     expect(o.stopped).toEqual([]);
     expect((await o.tool(mias.token, "stop_henchman", { henchmanId })).status).toBe(200);
@@ -204,16 +214,33 @@ describe("a personal agent has exactly its owner's rights", () => {
     o.db.$client.run(
       `update user_profiles set role = 'member' where user_id = '${o.people.mia.id}'`,
     );
-    // Removed from the room: it is gone for the agent too.
-    o.db.delete(operationMembers).where(eq(operationMembers.userId, o.people.mia.id)).run();
+    // Her GitHub account lost the repo: the room is gone for the agent too.
+    o.setRoomAccess(APOLLO, o.people.mia.id, null);
     expect(
       resultOf<{ operations: unknown[] }>(await o.tool(mias.token, "list_operations")).operations,
     ).toEqual([]);
     expect((await o.tool(mias.token, "read_queue", { operationId: APOLLO })).status).toBe(404);
     expect((await o.tool(mias.token, "enqueue_task", task)).status).toBe(404);
-    // Given access again: back at once. An archived room is closed to everyone.
+    // A member row opens nothing without GitHub access to the repo (#270).
+    const row = { operationId: APOLLO, userId: o.people.mia.id };
+    o.db
+      .insert(operationMembers)
+      .values({ ...row, access: "manage" })
+      .run();
+    expect((await o.tool(mias.token, "read_queue", { operationId: APOLLO })).status).toBe(404);
+    o.db.delete(operationMembers).where(eq(operationMembers.userId, o.people.mia.id)).run();
+    // Given access again: back at once.
     o.setAccess(APOLLO, o.people.mia.id, "manage");
     expect((await o.tool(mias.token, "enqueue_task", task)).status).toBe(200);
+    // A member row can only narrow what GitHub gives: reads stay, writes go.
+    o.db
+      .insert(operationMembers)
+      .values({ ...row, access: "view" })
+      .run();
+    expect((await o.tool(mias.token, "read_queue", { operationId: APOLLO })).status).toBe(200);
+    expect(errorOf(await o.tool(mias.token, "enqueue_task", task))).toBe("forbidden");
+    o.db.delete(operationMembers).where(eq(operationMembers.userId, o.people.mia.id)).run();
+    // An archived room is closed to everyone.
     o.db.update(operations).set({ archivedAt: new Date() }).where(eq(operations.id, APOLLO)).run();
     expect((await o.tool(mias.token, "read_queue", { operationId: APOLLO })).status).toBe(404);
     o.db.update(operations).set({ archivedAt: null }).where(eq(operations.id, APOLLO)).run();
@@ -246,7 +273,6 @@ describe("a shared agent has its grants and acts for people who asked", () => {
       profileId: "office:claude-code",
     });
     o.setAccess(APOLLO, o.people.mia.id, "spawn");
-    o.db.delete(operationMembers).where(eq(operationMembers.userId, o.people.sam.id)).run();
     o.setAccess(BOREALIS, o.people.sam.id, "manage");
   });
 

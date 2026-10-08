@@ -38,7 +38,11 @@ describe("services proxy, path mode", () => {
     teammate = await office.signUp("Teammate");
     outsider = await office.signUp("Outsider");
     admin = await office.signUp("Admin", "admin");
-    office.addOperation("f1", { [owner.id]: "spawn", [teammate.id]: "spawn" });
+    office.addOperation("f1", {
+      [owner.id]: "spawn",
+      [teammate.id]: "spawn",
+      [admin.id]: "manage",
+    });
     office.addOperation("f2", { [outsider.id]: "spawn" });
     office.addAgent("a1", "f1", owner.id);
     office.addAgent("a2", "f1", owner.id);
@@ -150,8 +154,11 @@ describe("services proxy, path mode", () => {
     expect((await get(prefix)).status).toBe(401);
     // An operation member who is not the owner: path mode is owner-only (same origin as the office).
     expect((await get(prefix, teammate.cookie)).status).toBe(403);
-    // Admins do not control other people's henchmen (D12).
+    // Admins do not control other people's henchmen (D12), even managing the room.
     expect((await get(prefix, admin.cookie)).status).toBe(403);
+    // An office admin whose GitHub account cannot see the repo has no room at all (#270).
+    const otherAdmin = await office.signUp("Ops", "admin");
+    expect((await get(prefix, otherAdmin.cookie)).status).toBe(404);
     // No access to the operation: the app does not exist for them.
     expect((await get(prefix, outsider.cookie)).status).toBe(404);
     // A port the henchman does not listen on, another henchman, the wrong operation.

@@ -21,8 +21,9 @@ import {
   type TerminalMode,
 } from "@regulus/protocol";
 import { henchmanFixture } from "@regulus/protocol/src/fixtures.ts";
-import { and, eq } from "drizzle-orm";
-import { operationMembers, operations } from "../db/schema/index.ts";
+import { eq } from "drizzle-orm";
+import { operations } from "../db/schema/index.ts";
+import { seedRoomMember } from "../github/access/test-snapshot.ts";
 import { hasTmux, LocalTmuxRunner } from "../runners/testing/local-tmux-runner.ts";
 import { bindRunnerOps, type TmuxSessionRef } from "../runners/types.ts";
 import { hasBunPty } from "./pipe.ts";
@@ -99,13 +100,9 @@ describe.skipIf(!hasTmux() || !hasBunPty())("live access: terminals, screens and
     return { operationId, agentId, member, session };
   };
 
+  /** Their GitHub account loses the repo, as a refresh would record it (#270). */
   const removeMember = (operationId: string, user: User) => {
-    office.db
-      .delete(operationMembers)
-      .where(
-        and(eq(operationMembers.operationId, operationId), eq(operationMembers.userId, user.id)),
-      )
-      .run();
+    seedRoomMember(office.db, user.id, operationId, null);
     return office.liveAccess.accessChanged({ userId: user.id, operationIds: [operationId] });
   };
 

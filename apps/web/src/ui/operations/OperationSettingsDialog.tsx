@@ -17,7 +17,7 @@ import { Button } from "../components/Button.tsx";
 import { Modal } from "../components/Modal.tsx";
 import { createOperationsApi, describeOperationError, type OperationsApi } from "./api.ts";
 import { OperationDangerZone } from "./OperationDangerZone.tsx";
-import { AddPeople, MemberList, OfficeManagersNote } from "./OperationMembers.tsx";
+import { AccessFromGitHubNote, AddPeople, MemberList } from "./OperationMembers.tsx";
 import {
   ACCESS_HINT,
   ACCESS_LABELS,
@@ -86,19 +86,19 @@ export function OperationSettingsBody({
   const change = (m: OperationMemberInfo, access: OperationAccess) =>
     void apply(
       [() => api.setMember(operationId, m.userId, access)],
-      `${m.displayName} now has ${ACCESS_LABELS[access]} access.`,
+      `${m.displayName} is now limited to ${ACCESS_LABELS[access]}.`,
       m.userId === meId,
     );
   const remove = (m: OperationMemberInfo) =>
     void apply(
       [() => api.removeMember(operationId, m.userId)],
-      `${m.displayName} no longer has access.`,
+      `The limit for ${m.displayName} is lifted.`,
       m.userId === meId,
     );
   const add = (picked: OfficeUserInfo[], access: OperationAccess) =>
     apply(
       picked.map((p) => () => api.setMember(operationId, p.userId, effectiveGrant(p.role, access))),
-      `Added ${picked.map((p) => p.displayName).join(", ")}.`,
+      `Limited ${picked.map((p) => p.displayName).join(", ")}.`,
       false,
     );
 
@@ -107,9 +107,9 @@ export function OperationSettingsBody({
       <p>
         Who can use <strong>{operation?.name ?? "this operation"}</strong>.
       </p>
+      <AccessFromGitHubNote />
       <p className="rg-field__hint">{ACCESS_HINT}</p>
-      <OfficeManagersNote people={people} />
-      <h2 className="rg-operation-settings__heading">People with access</h2>
+      <h2 className="rg-operation-settings__heading">Limits</h2>
       {members === null ? (
         !error && <p className="rg-muted">Loading…</p>
       ) : (
@@ -122,7 +122,7 @@ export function OperationSettingsBody({
           onRemove={remove}
         />
       )}
-      <h2 className="rg-operation-settings__heading">Add people</h2>
+      <h2 className="rg-operation-settings__heading">Limit someone</h2>
       {members !== null && <AddPeople people={people} members={members} busy={busy} onAdd={add} />}
       {error && <FormAlert>{error}</FormAlert>}
       <div role="status" aria-live="polite" className="rg-operation-settings__status">

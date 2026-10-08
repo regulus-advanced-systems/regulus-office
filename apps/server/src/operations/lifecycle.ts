@@ -29,7 +29,13 @@ import {
 } from "../db/schema/index.ts";
 import type { Logger } from "../logging.ts";
 import type { OperationDirRemover } from "../worktrees/operation-dirs.ts";
-import { isOfficeManager, type OperationActor } from "./access.ts";
+import {
+  accessibleArchivedOperations,
+  archivedOperationAccessFor,
+  isOfficeManager,
+  type OperationActor,
+  operationAccessFor,
+} from "./access.ts";
 import { operationDirName, sharesDir } from "./dirs.ts";
 import { operationInfo } from "./info.ts";
 
@@ -104,21 +110,40 @@ export class OperationLifecycle {
     return row;
   }
 
+  /**
+   * The operation, for an office owner or admin whose own GitHub account can
+   * see its repo (D27; #270). The office role is what lets them restore, clear
+   * or delete a room; it does not show them a room of a repo they cannot see,
+   * so that room is "not found" like any unknown id.
+   */
+  #managed(actor: OperationActor, operationId: string): OperationRow {
+    requireManager(actor);
+    const row = this.#row(operationId);
+    const access = row.archivedAt
+      ? archivedOperationAccessFor(this.#db, actor, operationId)
+      : operationAccessFor(this.#db, actor, operationId);
+    if (!access) throw notFound();
+    return row;
+  }
+
   /** Archived operations, newest first (Settings → Operations). */
   listArchived(actor: OperationActor): OperationInfo[] {
     requireManager(actor);
+    const visible = accessibleArchivedOperations(this.#db, actor);
     return this.#db
       .select()
       .from(operations)
       .where(isNotNull(operations.archivedAt))
       .all()
       .sort((a, b) => (b.archivedAt?.getTime() ?? 0) - (a.archivedAt?.getTime() ?? 0))
-      .map((row) => operationInfo(this.#db, row, "manage"));
+      .flatMap((row) => {
+        const access = visible.get(row.id);
+        return access ? [operationInfo(this.#db, row, access)] : [];
+      });
   }
 
   restore(actor: OperationActor, operationId: string): OperationInfo {
-    requireManager(actor);
-    const row = this.#row(operationId);
+    const row = this.#managed(actor, operationId);
     if (!row.archivedAt) throw new AuthHttpError(409, "operation_not_archived");
     if (this.#deleting.has(operationId)) throw new AuthHttpError(409, "operation_busy");
     this.#db.transaction((tx) => {
@@ -132,7 +157,8 @@ export class OperationLifecycle {
       });
     });
     this.#deps.onChange?.(operationId);
-    return operationInfo(this.#db, this.#row(operationId), "manage");
+    const access = operationAccessFor(this.#db, actor, operationId);
+    return operationInfo(this.#db, this.#row(operationId), access ?? "view");
   }
 
   /** "Send all home" before a delete: every henchman on the operation, branches kept. */
@@ -140,8 +166,7 @@ export class OperationLifecycle {
     actor: OperationActor,
     operationId: string,
   ): Promise<{ sentHome: number; failed: { agentId: string; reason: string }[] }> {
-    requireManager(actor);
-    this.#row(operationId);
+    this.#managed(actor, operationId);
     const henchmen = this.henchmen;
     if (!henchmen) throw new AuthHttpError(503, "henchmen_unavailable");
     let sentHome = 0;
@@ -159,8 +184,7 @@ export class OperationLifecycle {
   }
 
   async delete(actor: OperationActor, operationId: string, confirmName: string): Promise<string[]> {
-    requireManager(actor);
-    const row = this.#row(operationId);
+    const row = this.#managed(actor, operationId);
     if (confirmName.trim() !== row.name.trim()) {
       throw new AuthHttpError(400, "confirm_name_mismatch");
     }

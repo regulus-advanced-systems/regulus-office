@@ -26,7 +26,9 @@ import {
   seatKey,
 } from "@regulus/protocol";
 import { specialRoomSeats } from "@regulus/room-layout";
+import { eq } from "drizzle-orm";
 import { closeDatabase, type Db, openDatabase, runMigrations, schema } from "../../db/index.ts";
+import { seedRoomMember, seedRoomRepo } from "../../github/access/test-snapshot.ts";
 import { createOfficeServer, type OfficeServer } from "../../http/server.ts";
 import { createLogger } from "../../logging.ts";
 import { createDevHeaderAuth, DEV_USER_HEADER } from "../auth.ts";
@@ -65,6 +67,24 @@ const opened: BuildingRoom[] = [];
 
 const user = (userId: string, displayName: string, role = "member") =>
   JSON.stringify({ userId, displayName, role });
+
+/**
+ * A dev-header user who is also a row in `users`, so their GitHub access to the
+ * project room can be seeded (#270): `access` is what their account has on its repo.
+ */
+function person(
+  userId: string,
+  displayName: string,
+  role: string,
+  access: "view" | "spawn" | "manage" | null,
+): string {
+  db.insert(schema.users)
+    .values({ id: userId, name: displayName, email: `${userId}@example.com` })
+    .onConflictDoNothing()
+    .run();
+  seedRoomMember(db, userId, operationId, access);
+  return user(userId, displayName, role);
+}
 
 function client(devUser?: string): Client {
   return new Client(String(server.url).replace(/\/$/, ""), {
@@ -114,6 +134,8 @@ beforeAll(async () => {
     .returning();
   if (!operation) throw new Error("seed failed");
   operationId = operation.id;
+  // The project room has a repo, so it opens with GitHub access only (#270).
+  seedRoomRepo(db, operationId);
   // Seed more history than the replay window to prove the window is enforced.
   const store = new DrizzleChatStore(db);
   for (let n = 1; n <= CHAT_REPLAY + 10; n++) {
@@ -214,6 +236,7 @@ describe("BuildingRoom over the wire", () => {
     const bob = await joinAs(user("u-bob3", "Bob"));
     ada.send("chat", { text: "  hello office  " });
     await waitFor(() => bob.state.chat.at(-1)?.text === "hello office", "Bob receives chat");
+    // Lines in the state do not say which room they were written in (#270).
     expect(bob.state.chat.at(-1)).toMatchObject({
       userId: "u-ada3",
       displayName: "Ada",
@@ -236,8 +259,8 @@ describe("BuildingRoom over the wire", () => {
   });
 
   test("operations list the lobby and database operations; operation.go moves presence", async () => {
-    // Admins may enter every operation; members need operation_members access (#30).
-    const ada = await joinAs(user("u-ada4", "Ada", "admin"));
+    // A room opens with the person's own GitHub access to its repo (#270).
+    const ada = await joinAs(person("u-ada4", "Ada", "member", "spawn"));
     await waitFor(() => ada.state.operations.size === 2, "operations synced");
     expect(ada.state.operations.get(operationId)).toMatchObject({
       name: "Regulus",
@@ -260,6 +283,28 @@ describe("BuildingRoom over the wire", () => {
     const rejected = nextRejection(ada);
     ada.send("operation.go", { operationId: "nope" });
     expect((await rejected).reason).toBe("unknown operation nope");
+  });
+
+  test("an office admin without GitHub access gets the lobby only (#270)", async () => {
+    const inside = await joinAs(person("u-ada10", "Ada", "member", "view"));
+    const ops = await joinAs(person("u-ops10", "Ops", "admin", null));
+    await waitFor(() => inside.state.operations.size === 2, "the room for its member");
+    inside.send("operation.go", { operationId, mode: "teleport" });
+    await waitFor(
+      () => inside.state.humans.get(inside.sessionId)?.operationId === operationId,
+      "Ada in the room",
+    );
+    await waitFor(() => ops.state.humans.has(ops.sessionId), "own presence");
+    await Bun.sleep(100);
+    expect([...ops.state.operations.keys()]).toEqual([LOBBY_OPERATION_ID]);
+    expect(ops.state.closedRooms.size).toBe(0);
+    expect([...ops.state.levels.keys()].filter((id) => id !== LOBBY_LEVEL_ID)).toEqual([]);
+    // Nobody inside a room closed to them is shown, and the refusal names nothing.
+    expect(ops.state.humans.has(inside.sessionId)).toBe(false);
+    const rejected = nextRejection(ops);
+    ops.send("operation.go", { operationId, mode: "teleport" });
+    expect((await rejected).reason).toBe(`unknown operation ${operationId}`);
+    expect(ops.state.humans.get(ops.sessionId)?.operationId).toBe(LOBBY_OPERATION_ID);
   });
 
   test("emote and sit drive the animation state; a seat holds one human (#49)", async () => {
@@ -314,7 +359,6 @@ describe("BuildingRoom over the wire", () => {
   });
 
   test("doing is published; chat floods are refused (#49)", async () => {
-    // An admin: admins may enter every operation.
     const ada = await joinAs(user("u-ada9", "Ada", "admin"));
     const bob = await joinAs(user("u-bob9", "Bob"));
     await waitFor(() => bob.state.humans.has(ada.sessionId), "Ada visible");
@@ -416,9 +460,22 @@ describe("BuildingRoom over the wire", () => {
       rooms: new Map(),
       levels: [level(LOBBY_LEVEL_ID, "lobby", "", 0), level("lv-octo", "org", "octo", 1)],
     });
-    // An admin: admins may enter every operation.
-    const ada = await joinAs(user("u-ada9", "Ada", "admin"));
-    const bob = await joinAs(user("u-bob9", "Bob"));
+    // The project room is on octo's level; a level is reached through a room on it (#270).
+    db.insert(schema.levels)
+      .values({ id: "lv-octo", kind: "org", login: "octo", name: "octo", position: 1 })
+      .run();
+    const moveRoom = async (levelId: string) => {
+      db.update(schema.operations)
+        .set({ levelId })
+        .where(eq(schema.operations.id, operationId))
+        .run();
+      await rooms.refreshOperations();
+    };
+    await moveRoom("lv-octo");
+    const ada = await joinAs(person("u-ada9", "Ada", "member", "spawn"));
+    const bob = await joinAs(person("u-bob9", "Bob", "member", "view"));
+    // An office admin whose GitHub account sees no repo of octo's.
+    const ops = await joinAs(person("u-ops9", "Ops", "admin", null));
     await waitFor(() => bob.state.levels.size === 2, "levels published");
     expect(bob.state.levels.get("lv-octo")?.toJSON()).toMatchObject({
       levelId: "lv-octo",
@@ -431,6 +488,8 @@ describe("BuildingRoom over the wire", () => {
     const adaSeen = () => bob.state.humans.get(ada.sessionId);
     await waitFor(() => adaSeen() !== undefined, "Ada visible");
     expect(adaSeen()?.levelId).toBe(LOBBY_LEVEL_ID);
+    await waitFor(() => ops.state.humans.has(ada.sessionId), "Ada visible in the lobby");
+    expect([...ops.state.levels.keys()]).toEqual([LOBBY_LEVEL_ID]);
 
     // The lobby id is "in no project room": the level says where.
     ada.send("operation.go", { operationId: LOBBY_OPERATION_ID, levelId: "lv-octo" });
@@ -439,20 +498,26 @@ describe("BuildingRoom over the wire", () => {
     const unknown = nextRejection(ada);
     ada.send("operation.go", { operationId: LOBBY_OPERATION_ID, levelId: "lv-nope" });
     expect((await unknown).reason).toBe("unknown level lv-nope");
+    // A level the person cannot reach is not there for them, nor is anyone on it.
+    await waitFor(() => !ops.state.humans.has(ada.sessionId), "Ada out of Ops's sight");
+    const unreachable = nextRejection(ops);
+    ops.send("operation.go", { operationId: LOBBY_OPERATION_ID, levelId: "lv-octo" });
+    expect((await unreachable).reason).toBe("unknown level lv-octo");
 
     // A project room is on one level: going there moves the human to it, whatever was named.
-    ada.send("operation.go", { operationId, levelId: "lv-octo" });
+    ada.send("operation.go", { operationId: LOBBY_OPERATION_ID, levelId: LOBBY_LEVEL_ID });
+    await waitFor(() => adaSeen()?.levelId === LOBBY_LEVEL_ID, "Ada back in the lobby");
+    ada.send("operation.go", { operationId, levelId: LOBBY_LEVEL_ID });
     await waitFor(() => adaSeen()?.operationId === operationId, "Ada in the room");
     expect(adaSeen()?.levelId).toBe(bob.state.operations.get(operationId)?.levelId);
-    expect(adaSeen()?.levelId).toBe(HOLDING_LEVEL_ID);
+    expect(adaSeen()?.levelId).toBe("lv-octo");
     // Without a level, stepping out of the room stays on its level.
     ada.send("operation.go", { operationId: LOBBY_OPERATION_ID });
     await waitFor(() => adaSeen()?.operationId === LOBBY_OPERATION_ID, "Ada out of the room");
-    expect(adaSeen()?.levelId).toBe(HOLDING_LEVEL_ID);
+    expect(adaSeen()?.levelId).toBe("lv-octo");
 
-    // A level that is no longer shown: whoever was on it is in the lobby.
-    ada.send("operation.go", { operationId: LOBBY_OPERATION_ID, levelId: "lv-octo" });
-    await waitFor(() => adaSeen()?.levelId === "lv-octo", "Ada back on octo's level");
+    // A level that is no longer shown (its last room gone): whoever was on it is in the lobby.
+    await moveRoom(HOLDING_LEVEL_ID);
     rooms.building.setCompound({ state: COMPOUND, rooms: new Map() });
     await waitFor(() => bob.state.levels.size === 1, "one level left");
     await waitFor(() => adaSeen()?.levelId === LOBBY_LEVEL_ID, "Ada in the lobby");

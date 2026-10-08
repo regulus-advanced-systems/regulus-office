@@ -13,12 +13,14 @@
  * to private addresses as Claude Code does, so the hooks must work from a private address.
  * Every container and volume is labelled with a per-run prefix and removed by {@link cleanup}.
  */
+
 import { type ChildProcess, execFileSync, spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { createWriteStream, mkdirSync, readFileSync } from "node:fs";
 import { connect, createServer, type Server, type Socket } from "node:net";
 import { networkInterfaces, userInfo } from "node:os";
 import { join, resolve } from "node:path";
+import { E2E_GITHUB_CLIENT } from "./githubClient.ts";
 
 const ROOT = resolve(import.meta.dirname, "../..");
 const RUNNER_DIR = join(ROOT, "tests/e2e/runner");
@@ -180,6 +182,10 @@ export class AgentOffice {
       OFFICE_WORKTREES_DIR: this.worktreesDir,
       OFFICE_GITHUB_REMOTE_BASE: `file://${this.remotesDir}`,
       OFFICE_GITHUB_API_BASE: opts.githubApiBase,
+      // People link their accounts on the same fake GitHub (#270): rooms open with that access.
+      OFFICE_GITHUB_WEB_BASE: opts.githubApiBase,
+      GITHUB_CLIENT_ID: E2E_GITHUB_CLIENT.id,
+      GITHUB_CLIENT_SECRET: E2E_GITHUB_CLIENT.secret,
       OFFICE_LOG_LEVEL: process.env.OFFICE_LOG_LEVEL ?? "info",
       // A new room's build phase (#181), short so the flow walks in at once (#186).
       OFFICE_ROOM_BUILD_SECONDS: "1",

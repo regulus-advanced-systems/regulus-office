@@ -28,7 +28,11 @@ import { checkOrigin } from "../auth/origin.ts";
 import type { Db } from "../db/index.ts";
 import { readJsonBody } from "../http/body.ts";
 import { json, type RouteContext, type Router } from "../http/router.ts";
-import { isOfficeManager, type OperationActor } from "../operations/access.ts";
+import {
+  accessibleOperations,
+  isOfficeManager,
+  type OperationActor,
+} from "../operations/access.ts";
 import type { NotificationCenter } from "./center.ts";
 import { type ChannelStore, ChannelStoreError } from "./channels.ts";
 import type { NotificationDirectory } from "./directory.ts";
@@ -106,7 +110,30 @@ export function mountNotificationRoutes(router: Router, deps: NotificationRoutes
     const problem = validateSecret(kind, secret, policy);
     if (problem) throw new AuthHttpError(400, problem);
   };
-  const channelsResponse = () => json({ channels: channels.list(), canStore: channels.canStore });
+  /** A channel as this person may see it: room ids they cannot see are left out (#270). */
+  const shownTo = <T extends { operationIds: string[] | null }>(
+    actor: OperationActor,
+    view: T,
+  ): T => {
+    if (!view.operationIds) return view;
+    const open = accessibleOperations(db, actor);
+    return { ...view, operationIds: view.operationIds.filter((id) => open.has(id)) };
+  };
+  const channelsResponse = (actor: OperationActor) =>
+    json({
+      channels: channels.list().map((c) => shownTo(actor, c)),
+      canStore: channels.canStore,
+    });
+  /**
+   * A channel is pointed only at rooms the person setting it can see (D27;
+   * #270): any other id is refused like one that does not exist. Delivery
+   * checks the creator's access again for every event (center.ts).
+   */
+  const checkOperations = (actor: OperationActor, operationIds: string[] | null | undefined) => {
+    if (!operationIds) return;
+    const open = accessibleOperations(db, actor);
+    if (operationIds.some((id) => !open.has(id))) throw new AuthHttpError(400, "unknown_operation");
+  };
 
   router.get(
     NOTIFICATION_ATTENTION_API_PATH,
@@ -135,7 +162,7 @@ export function mountNotificationRoutes(router: Router, deps: NotificationRoutes
 
   router.get(
     NOTIFICATION_CHANNELS_API_PATH,
-    handle(() => channelsResponse(), { manager: true }),
+    handle((_ctx, actor) => channelsResponse(actor), { manager: true }),
   );
 
   router.post(
@@ -145,6 +172,7 @@ export function mountNotificationRoutes(router: Router, deps: NotificationRoutes
         const input = await readJsonBody(ctx.request, CreateNotificationChannel);
         if (!channels.canStore) throw new AuthHttpError(400, "master_key_required");
         checkSecret(input.kind, input.secret);
+        checkOperations(actor, input.operationIds);
         const view = channels.create(input, actor.id);
         audit(actor, "create", view.id, {
           kind: view.kind,
@@ -171,13 +199,20 @@ export function mountNotificationRoutes(router: Router, deps: NotificationRoutes
           if (!channels.canStore) throw new AuthHttpError(400, "master_key_required");
           checkSecret(existing.kind, patch.secret);
         }
+        checkOperations(actor, patch.operationIds);
+        // Rooms the editor cannot see were not shown to them: they stay as they are.
+        if (patch.operationIds && existing.operationIds) {
+          const open = accessibleOperations(db, actor);
+          const hidden = existing.operationIds.filter((op) => !open.has(op));
+          patch.operationIds = [...hidden, ...patch.operationIds];
+        }
         const view = channels.update(id, patch);
         const { secret, ...changed } = patch;
         audit(actor, "update", id, {
           fields: Object.keys(changed),
           secretReplaced: secret !== undefined,
         });
-        return json(view);
+        return json(shownTo(actor, view));
       },
       { write: true, manager: true },
     ),

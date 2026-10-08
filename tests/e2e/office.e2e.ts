@@ -61,6 +61,7 @@ import {
   cameraState,
   clickInScene,
   goToLevelOf,
+  goToLobbyLevel,
   navPose,
   navRooms,
   roomNamed,
@@ -70,9 +71,9 @@ import {
   wheelZoomTo,
 } from "./compoundProbes.ts";
 import { insideViewport, settledDialogLayout } from "./dialogLayout.ts";
-import { type FakeGitHub, startFakeGitHub } from "./fakeGitHub.ts";
 import { checkFirstPersonWindow } from "./fpvWindowChecks.ts";
 import { type GeniusLook, geniusOf } from "./geniusChecks.ts";
+import { loadBoards } from "./githubAccess.ts";
 import { ensureRemoteRepo } from "./gitRemote.ts";
 import { checkMergeGong } from "./gongChecks.ts";
 import { checkHermesConnection } from "./hermesChecks.ts";
@@ -551,31 +552,35 @@ test("the owner adds an operation in build mode: a refused spot, then placed, bu
   // The perf probe (#190): frame times in a room, report only (tests/e2e/perfProbe.ts).
   await reportFramePerf(ownerPage, "owner-in-apollo");
 
-  // The member has no access: no Apollo in quick travel, a shut door with its plaque, and
-  // nobody inside is drawn for them.
-  // Apollo is on the level of its repo's owner (#268); from the lobby level the member goes
-  // there with quick travel's level list.
+  // The member's GitHub account sees no repo on Apollo's level (#270, D26): to them there is
+  // no such level and no such room. Quick travel offers neither, the layout the server gives
+  // them has only the lobby level, and the owner inside Apollo is not drawn for them.
   expect((await navRooms(memberPage)).some((r) => r.name === "Apollo")).toBe(false);
-  expect(await goToLevelOf(memberPage, "Apollo")).toBe(true);
-  const member = (await navRooms(memberPage)).find((r) => r.name === "Apollo");
-  expect(member?.enterable).toBe(false);
+  expect(await goToLevelOf(memberPage, "Apollo")).toBe(false);
   await memberPage.bringToFront();
   await memberPage.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
   await memberPage.keyboard.press("f");
   const travel = memberPage.getByRole("dialog", { name: "Quick travel" });
-  await expect(
-    travel.getByRole("list", { name: "Levels" }).getByRole("button", { name: /^octo/ }),
-  ).toHaveAttribute("aria-current", "true");
+  await expect(travel.getByRole("list", { name: "Levels" })).toHaveCount(0);
   const listed = travel.getByRole("list", { name: "Rooms you can enter" });
   await expect(listed.getByRole("button", { name: /^Lobby/ })).toBeVisible();
   await expect(listed.getByRole("button", { name: /^Apollo/ })).toHaveCount(0);
   await memberPage.keyboard.press("Escape");
   await expect(travel).toHaveCount(0);
+  const layout = await (await memberPage.request.get("/api/compound")).text();
+  expect(layout).not.toContain("Apollo");
+  expect((JSON.parse(layout) as { levels: unknown[]; rooms: unknown[] }).levels).toHaveLength(1);
+  expect((JSON.parse(layout) as { rooms: unknown[] }).rooms).toEqual([]);
+  expect(await (await memberPage.request.get("/api/operations")).text()).not.toContain("Apollo");
   await expect.poll(() => remoteHumans(memberPage)).toHaveLength(0);
 
-  // Out again: the member sees the owner in the corridors and the lobby.
+  // Out of the room, the owner is still on a level the member cannot reach, so still not
+  // drawn; back on the shared lobby level the member sees them again.
   await ownerPage.bringToFront();
   await walkToLobby(ownerPage);
+  await memberPage.waitForTimeout(500);
+  expect(await remoteHumans(memberPage)).toHaveLength(0);
+  await goToLobbyLevel(ownerPage);
   await expect.poll(() => remoteHumans(memberPage)).toHaveLength(1);
 });
 
@@ -825,14 +830,12 @@ test("a card from the issue board carried to a free desk opens the spawn dialog 
     head: { ref: "office/oil", sha: "e2e8" },
     base: { ref: "trunk" },
   };
-  let gh: FakeGitHub | undefined;
+  let gh: { close(): Promise<void> } | undefined;
   try {
-    gh = await startFakeGitHub(
+    // The fake GitHub runs beside the office (#270); this step loads its org and boards into it.
+    gh = await loadBoards(
       { orgToken, repos: [{ owner: "octo", name: "hello", defaultBranch: "trunk" }] },
-      {
-        port: Number(process.env.E2E_GITHUB_PORT),
-        boards: { "octo/hello": { issues: [issue], pulls: [pull] } },
-      },
+      { "octo/hello": { issues: [issue], pulls: [pull] } },
     );
     await ownerPage.bringToFront();
     const origin = new URL(ownerPage.url()).origin;
@@ -895,10 +898,7 @@ test("a card from the issue board carried to a free desk opens the spawn dialog 
 test("a PR merged on the board rings the gong; henchmen cheer and sit back as they were (#43)", async () => {
   test.skip(!process.env.E2E_DATA_DIR, "needs the locally started server and its fake GitHub");
   await ensureApollo();
-  await checkMergeGong(ownerPage, {
-    githubPort: Number(process.env.E2E_GITHUB_PORT),
-    operation: "Apollo",
-  });
+  await checkMergeGong(ownerPage, { operation: "Apollo" });
 });
 
 test("the blast door opens for everyone, the owner walks out onto the dock, it shuts by itself (#188)", async () => {
@@ -915,12 +915,12 @@ test("wall pictures: uploaded, hung on a free wall, seen by the other browser, r
   test.skip(!process.env.E2E_DATA_DIR, "needs the locally started server (local git remotes)");
   test.setTimeout(240_000);
   await ensureApollo();
-  await checkWallPictures(ownerPage, memberPage, "Apollo");
+  await checkWallPictures(ownerPage, memberPage, "Apollo", "octo/hello");
 });
 
 test("access taken away while in a room: a plain message, no reconnect loop (#244)", async () => {
   test.skip(!process.env.E2E_DATA_DIR, "needs the locally started server (local git remotes)");
   test.setTimeout(240_000);
   await ensureApollo();
-  await checkAccessWithdrawn(ownerPage, memberPage, "Apollo");
+  await checkAccessWithdrawn(ownerPage, memberPage, "Apollo", "octo/hello");
 });

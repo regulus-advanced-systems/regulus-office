@@ -5,7 +5,9 @@
  */
 import { randomBytes } from "node:crypto";
 import { Writable } from "node:stream";
+import type { OperationAccess } from "@regulus/protocol";
 import { agents, desks, operationRepos, operations } from "../db/schema/index.ts";
+import { seedRoomMember } from "../github/access/test-snapshot.ts";
 import { createLogger } from "../logging.ts";
 import { testDb } from "../operations/test-helpers.ts";
 import type { MasterKeyring } from "../secrets/index.ts";
@@ -93,7 +95,12 @@ export function testKeyring(): MasterKeyring {
   return { current: 1, keys: { 1: randomBytes(32) } } as unknown as MasterKeyring;
 }
 
-/** Users, two operations with a repo each, and one henchman per operation. */
+/**
+ * Users, two operations with a repo each, and one henchman per operation.
+ * Rooms open with a person's own GitHub permission on the repo (#270): the
+ * office owner administers both repos, Mia may write to both, and the admin
+ * (Ada) and Sam can see neither until a test says so with `setAccess`.
+ */
 export function seededDb() {
   const { db, addUser } = testDb();
   const owner = addUser("Olga", "owner");
@@ -126,6 +133,13 @@ export function seededDb() {
       .run();
     db.insert(desks).values({ operationId: id, seatId: "seat-1" }).run();
   }
+  /** The person's GitHub permission on the room's repo changes; `null` takes the room away. */
+  const setAccess = (userId: string, operation: 1 | 2, access: OperationAccess | null) =>
+    void seedRoomMember(db, userId, `operation-${operation}`, access);
+  for (const operation of [1, 2] as const) {
+    setAccess(owner.id, operation, "manage");
+    setAccess(member.id, operation, "spawn");
+  }
   const addAgent = (
     id: string,
     operation: 1 | 2,
@@ -149,5 +163,5 @@ export function seededDb() {
         prNumber,
       })
       .run();
-  return { db, owner, admin, member, other, addAgent };
+  return { db, addUser, owner, admin, member, other, addAgent, setAccess };
 }

@@ -21,6 +21,7 @@ import type { OperationJoinOptions, RoomHandle, RoomTransport } from "./transpor
 
 const emptyBuilding = (): BuildingState => ({
   humans: {},
+  closedRooms: {},
   operations: {
     f1: {
       operationId: "f1",

@@ -1,4 +1,8 @@
-/** `GET /api/users` ACL over a real server: only operation managers list people; emails for admins only. */
+/**
+ * `GET /api/users` ACL over a real server: only operation managers list people;
+ * emails for admins only. A room is managed through one's own GitHub permission
+ * on its repo (#270); a member row alone manages nothing.
+ */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { randomBytes } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -8,6 +12,7 @@ import type { OfficeUsersResponse, OperationAccess, UserRole } from "@regulus/pr
 import { eq } from "drizzle-orm";
 import { type Office, startOffice } from "../auth/test-helpers.ts";
 import { operationMembers, userProfiles } from "../db/schema/index.ts";
+import { seedGitHubLink, seedRoomMember } from "../github/access/test-snapshot.ts";
 import { createLogger } from "../logging.ts";
 import { createOperations, mountOperationRoutes, type Operations } from "./index.ts";
 import { makeBareRepo } from "./test-helpers.ts";
@@ -28,11 +33,9 @@ let archivedId = "";
 
 const setRole = (who: Who, role: UserRole) =>
   office.db.update(userProfiles).set({ role }).where(eq(userProfiles.userId, who.id)).run();
+/** The person's GitHub account has the permission on the room's repo that gives `access`. */
 const grant = (operation: string, who: Who, access: OperationAccess) =>
-  office.db
-    .insert(operationMembers)
-    .values({ operationId: operation, userId: who.id, access })
-    .run();
+  seedRoomMember(office.db, who.id, operation, access);
 const list = (who?: Who) => office.request("/api/users", { cookie: who?.cookie });
 
 beforeAll(async () => {
@@ -56,22 +59,27 @@ beforeAll(async () => {
   setRole(viewer, "viewer");
 
   const actor = { id: owner.id, role: "owner" as const };
-  operationId = operations.service.create(actor, {
-    name: "Apollo",
-    tier: "small",
-    repos: [{ repo: "octo/hello" }],
-  }).operation.operationId;
-  archivedId = operations.service.create(actor, {
-    name: "Old",
-    tier: "small",
-    repos: [{ repo: "octo/hello" }],
-  }).operation.operationId;
+  seedGitHubLink(office.db, owner.id);
+  const create = (name: string) =>
+    operations.service.create(
+      actor,
+      { name, tier: "small", repos: [{ repo: "octo/hello" }] },
+      undefined,
+      "admin",
+    ).operation.operationId;
+  operationId = create("Apollo");
+  archivedId = create("Old");
   await operations.cloner.idle();
   grant(operationId, manager, "manage");
   grant(operationId, spawner, "spawn");
-  // A viewer's stored `manage` is capped at `view`, so it grants nothing here.
+  // A viewer who administers the repo on GitHub is still capped at `view`.
   grant(operationId, viewer, "manage");
   grant(archivedId, outsider, "manage");
+  // A `manage` member row on the live room, with no GitHub access to its repo: grants nothing.
+  office.db
+    .insert(operationMembers)
+    .values({ operationId, userId: outsider.id, access: "manage" })
+    .run();
   operations.service.archive(actor, archivedId);
 });
 
@@ -86,7 +94,7 @@ describe("GET /api/users", () => {
     expect((await list()).status).toBe(401);
   });
 
-  test("a viewer gets 403, even with a stored manage row", async () => {
+  test("a viewer gets 403, even as an admin of the repo on GitHub", async () => {
     const res = await list(viewer);
     expect(res.status).toBe(403);
     expect(await res.json()).toMatchObject({ error: "operation_manage_required" });
@@ -96,8 +104,12 @@ describe("GET /api/users", () => {
     expect((await list(spawner)).status).toBe(403);
   });
 
-  test("manage on an archived operation does not count", async () => {
+  test("manage on an archived operation does not count, nor does a member row without GitHub access", async () => {
     expect((await list(outsider)).status).toBe(403);
+    const room = await office.request(`/api/operations/${operationId}`, {
+      cookie: outsider.cookie,
+    });
+    expect(room.status).toBe(404);
   });
 
   test("an operation manager gets everyone by name and role, with no emails", async () => {
@@ -128,7 +140,7 @@ describe("GET /api/users", () => {
     }
   });
 
-  test("an operation manager grants, changes and revokes over the member routes", async () => {
+  test("an operation manager sets, changes and lifts a person's limit over the member routes", async () => {
     const path = `/api/operations/${operationId}/members/${outsider.id}`;
     const put = (access: OperationAccess) =>
       office.request(path, {

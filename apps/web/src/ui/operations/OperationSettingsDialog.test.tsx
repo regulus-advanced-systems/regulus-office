@@ -180,54 +180,58 @@ describe("operation settings panel", () => {
     if (!top) throw new Error("no top bar button");
     await click(top);
     await settle();
-    expect(dialog()?.textContent).toContain("People with access");
+    expect(dialog()?.textContent).toContain("Limits");
   });
 
-  test("grant, change and revoke", async () => {
+  test("limit, change and lift (#270: nothing here lets anyone in)", async () => {
     useOperationsStore.setState({ operations: [operationInfo("manage")] });
     const f = fakeServer([{ userId: "me", displayName: "Mia Manager", access: "manage" }]);
     await mount(<OperationSettingsDialogHost api={createOperationsApi({ fetch: f.fetch })} />);
     await openPanel();
-    expect(text()).toContain("Owners and admins can always manage every operation: Ada Owner.");
+    expect(text()).toContain("comes from each person's own access to its repo on GitHub");
+    expect(text()).toContain("That holds for office owners and admins too.");
+    expect(text()).not.toContain("Owners and admins can always manage every operation");
     expect(text()).toContain("Mia Manager (you)");
 
-    // Candidates: not owners/admins and not people already on the operation.
-    const picker = labelled("People to add");
+    // Candidates: everyone without a limit yet, the office owner included.
+    const picker = labelled("People to limit");
     expect(picker?.textContent).toContain("Ben Member");
     expect(picker?.textContent).toContain("Vic Viewer");
-    expect(picker?.textContent).not.toContain("Ada Owner");
+    expect(picker?.textContent).toContain("Ada Owner");
     expect(picker?.textContent).not.toContain("Mia Manager");
 
-    // Grant: tick Ben and Vic, choose Manage; Vic, an office viewer, is sent view.
-    for (const box of picker?.querySelectorAll("input[type=checkbox]") ?? []) await click(box);
-    await choose(labelled("Access for the people you add"), "manage");
-    await click(button("Add 2 people") as HTMLButtonElement);
+    // Limit: tick Ben and Vic, choose Manage; Vic, an office viewer, is sent view.
+    for (const label of picker?.querySelectorAll("label") ?? []) {
+      if (label.textContent?.includes("Ada Owner")) continue;
+      await click(label.querySelector("input") as HTMLInputElement);
+    }
+    await choose(labelled("Limit for the people you picked"), "manage");
+    await click(button("Limit 2 people") as HTMLButtonElement);
     await settle();
     const puts = f.calls.filter((c) => c.method === "PUT");
     expect(puts.map((c) => [c.path, c.body])).toEqual([
       [`/api/operations/${OPERATION_ID}/members/u2`, { access: "manage" }],
       [`/api/operations/${OPERATION_ID}/members/u3`, { access: "view" }],
     ]);
-    const list = labelled("People with access");
+    const list = labelled("People with a limit");
     expect(list?.textContent).toContain("Ben Member");
     expect(list?.textContent).toContain("Office viewer: can only watch");
-    expect(labelled("People to add")).toBeNull();
-    expect(text()).toContain("Everyone in the office can already use this operation.");
-    expect(text()).toContain("Added Ben Member, Vic Viewer.");
+    expect(labelled("People to limit")?.textContent).not.toContain("Ben Member");
+    expect(text()).toContain("Limited Ben Member, Vic Viewer.");
 
     // Change Ben to Spawn henchmen.
-    await choose(labelled("Access for Ben Member"), "spawn");
+    await choose(labelled("Limit for Ben Member"), "spawn");
     expect(f.calls.at(-3)).toMatchObject({ method: "PUT", body: { access: "spawn" } });
-    expect(labelled<HTMLSelectElement>("Access for Ben Member")?.value).toBe("spawn");
-    expect(text()).toContain("Ben Member now has Spawn henchmen access.");
+    expect(labelled<HTMLSelectElement>("Limit for Ben Member")?.value).toBe("spawn");
+    expect(text()).toContain("Ben Member is now limited to Spawn henchmen.");
 
-    // Revoke Ben.
-    await click(labelled("Remove Ben Member") as HTMLButtonElement);
+    // Lift Ben's limit.
+    await click(labelled("Lift the limit for Ben Member") as HTMLButtonElement);
     await settle();
     expect(f.calls.some((c) => c.method === "DELETE")).toBe(true);
-    expect(labelled("People with access")?.textContent).not.toContain("Ben Member");
-    expect(labelled("People to add")?.textContent).toContain("Ben Member");
-    expect(text()).toContain("Ben Member no longer has access.");
+    expect(labelled("People with a limit")?.textContent).not.toContain("Ben Member");
+    expect(labelled("People to limit")?.textContent).toContain("Ben Member");
+    expect(text()).toContain("The limit for Ben Member is lifted.");
   });
 
   test("a refused call is explained", async () => {
@@ -246,12 +250,12 @@ describe("operation settings panel", () => {
       l.textContent?.includes("Ben Member"),
     );
     await click(ben?.querySelector("input") as HTMLInputElement);
-    await click(button("Add 1 person") as HTMLButtonElement);
+    await click(button("Limit 1 person") as HTMLButtonElement);
     await settle();
     expect(text()).toContain("You need manage access to this operation");
   });
 
-  test("after a room is placed, Add people opens the new operation's settings", async () => {
+  test("after a room is placed, Who can enter opens the new operation's settings", async () => {
     signedInAs("owner");
     useOperationsStore.setState({ operations: [operationInfo("manage")] });
     const f = fakeServer([]);
@@ -263,7 +267,7 @@ describe("operation settings panel", () => {
       </>,
     );
     expect(text()).toContain("Operation set up");
-    await click(button("Add people…") as HTMLButtonElement);
+    await click(button("Who can enter…") as HTMLButtonElement);
     await settle();
     expect(useUiStore.getState().overlay).toBe(operationSettingsOverlay(OPERATION_ID));
     expect(text()).toContain("Who can use Hangar");

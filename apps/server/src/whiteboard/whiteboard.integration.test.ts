@@ -45,7 +45,13 @@ beforeAll(async () => {
   watcher = await office.signUp("Watcher", "member");
   outsider = await office.signUp("Outsider", "member");
   viewer = await office.signUp("Viewer", "viewer");
-  office.addOperation("op1", { [member.id]: "spawn", [watcher.id]: "view", [viewer.id]: "manage" });
+  // The office owner is on op1 through GitHub like the others, and not on op2 (#270).
+  office.addOperation("op1", {
+    [owner.id]: "manage",
+    [member.id]: "spawn",
+    [watcher.id]: "view",
+    [viewer.id]: "manage",
+  });
   office.addOperation("op2");
   office.addOperation("gone", { [member.id]: "spawn" });
   office.db
@@ -68,6 +74,7 @@ describe("upgrade", () => {
     ).toBe(403);
     // Same answer for "no access", "archived" and "no such operation": nothing is revealed.
     expect((await probe("op2", { cookie: member.cookie })).status).toBe(404);
+    expect((await probe("op2", { cookie: owner.cookie })).status).toBe(404);
     expect((await probe("op1", { cookie: outsider.cookie })).status).toBe(404);
     expect((await probe("gone", { cookie: member.cookie })).status).toBe(404);
     expect((await probe("nope", { cookie: owner.cookie })).status).toBe(404);

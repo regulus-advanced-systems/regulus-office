@@ -1,7 +1,7 @@
 /**
  * Who reaches which board (#45, D12, SPEC §8, §11): an operation's board with
  * the same check as its OperationRoom join (operations/access.ts: live
- * operation, membership or office owner/admin), read-only for `view` access
+ * operation, the person's own GitHub access to its repo), read-only for `view` access
  * and office viewers; the lobby board for every signed-in human, read-only
  * for viewers. Board ids are the operation id or `LOBBY_WHITEBOARD_ID`.
  */

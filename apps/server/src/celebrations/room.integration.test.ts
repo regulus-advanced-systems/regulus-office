@@ -16,6 +16,7 @@ import {
   ROOM_NAMES,
 } from "@regulus/protocol";
 import { closeDatabase, type Db, openDatabase, runMigrations, schema } from "../db/index.ts";
+import { seedRoomMember } from "../github/access/test-snapshot.ts";
 import { type AnyGitHubEvent, GitHubEventBus } from "../github/events.ts";
 import { createOfficeServer, type OfficeServer } from "../http/server.ts";
 import { createLogger } from "../logging.ts";
@@ -126,6 +127,10 @@ beforeAll(async () => {
   await Promise.all([a.cloned, b.cloned]);
   operation.apollo = { id: a.operation.operationId, repoId: a.operation.repos[0]?.repoId ?? "" };
   operation.borealis = { id: b.operation.operationId, repoId: b.operation.repos[0]?.repoId ?? "" };
+  // Olga enters both rooms with her own GitHub access to their repos (#270).
+  for (const { id } of [operation.apollo, operation.borealis]) {
+    seedRoomMember(db, owner.userId, id, "manage");
+  }
   const gong = createCelebrations({ db, operations: rooms.operations, logger });
   gong.followGitHub(bus);
   rooms.operations.setGong(gong);

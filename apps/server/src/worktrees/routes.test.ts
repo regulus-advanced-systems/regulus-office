@@ -1,4 +1,4 @@
-/** `POST /api/worktrees/prune`: owner/admin only, same-origin, audited. */
+/** `POST /api/worktrees/prune`: owner/admin only, same-origin, audited; answers counts, never paths (#270). */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { eq } from "drizzle-orm";
 import { type Office, startOffice } from "../auth/test-helpers.ts";
@@ -10,7 +10,11 @@ let office: Office;
 let owner: { id: string; cookie: string };
 let member: { id: string; cookie: string };
 let calls = 0;
-const result: PruneResult = { removed: ["/w/f/a1"], failed: [], repos: 2 };
+const result: PruneResult = {
+  removed: ["/w/apollo/u1/a1"],
+  failed: [{ path: "/w/secret-room/u2/a2", reason: "busy: /w/secret-room/u2/a2" }],
+  repos: 2,
+};
 
 beforeAll(async () => {
   office = startOffice();
@@ -48,7 +52,11 @@ describe("prune route", () => {
   test("owners prune and the action is audited", async () => {
     const res = await prune(owner.cookie);
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual(result);
+    // Counts only: a path names a room's directory, which the office role alone does not show.
+    const text = await res.text();
+    expect(JSON.parse(text)).toEqual({ removed: 1, failed: 1, repos: 2 });
+    expect(text).not.toContain("apollo");
+    expect(text).not.toContain("secret-room");
     expect(calls).toBe(1);
     const audit = office.db
       .select()
@@ -57,5 +65,6 @@ describe("prune route", () => {
       .all();
     expect(audit).toHaveLength(1);
     expect(audit[0]?.userId).toBe(owner.id);
+    expect(JSON.parse(audit[0]?.metaJson ?? "{}")).toEqual({ removed: 1, failed: 1, repos: 2 });
   });
 });

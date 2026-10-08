@@ -15,8 +15,13 @@
  */
 import type { OperationAccess, UserRole } from "@regulus/protocol";
 import { asc, isNull } from "drizzle-orm";
+import { AuthHttpError, forbidden } from "../auth/errors.ts";
 import { operations } from "../db/schema/index.ts";
-import { type OperationActor, operationAccessFor } from "../operations/access.ts";
+import {
+  accessibleOperations,
+  type OperationActor,
+  operationAccessFor,
+} from "../operations/access.ts";
 import type { OfficeAgentRow, OfficeAgentStore } from "./store.ts";
 
 export interface AgentPerson extends OperationActor {
@@ -37,6 +42,28 @@ export function lowerAccess(
 
 export const accessAtLeast = (access: OperationAccess | null, needed: OperationAccess): boolean =>
   access !== null && RANK[access] >= RANK[needed];
+
+/**
+ * The grants of a shared agent after `actor` sets `grants` (D27; #270). A
+ * person gives a shared agent only what they have themselves: a room they
+ * cannot see is "unknown" to them, and no more access than their own. Grants
+ * on rooms they cannot see were set by someone who can, and stay as they are.
+ */
+export function grantsAsSetBy(
+  store: OfficeAgentStore,
+  actor: OperationActor,
+  agentId: string,
+  grants: ReadonlyArray<{ operationId: string; access: OperationAccess }>,
+): Array<{ operationId: string; access: OperationAccess }> {
+  const mine = accessibleOperations(store.db, actor);
+  for (const grant of grants) {
+    const own = mine.get(grant.operationId);
+    if (!own) throw new AuthHttpError(400, "unknown_operation");
+    if (RANK[grant.access] > RANK[own]) throw forbidden("grant_exceeds_your_access");
+  }
+  const kept = store.grants(agentId).filter((g) => !mine.has(g.operationId));
+  return [...kept, ...grants];
+}
 
 export class AgentAccess {
   constructor(private readonly store: OfficeAgentStore) {}

@@ -53,6 +53,11 @@ export class Router {
     return this.add("POST", pattern, handler);
   }
 
+  /** Every mounted route, in mount order: the route table (the access walk, #270; diagnostics). */
+  get table(): ReadonlyArray<{ method: HttpMethod; pattern: string }> {
+    return this.#routes.map(({ method, pattern }) => ({ method, pattern }));
+  }
+
   /** Finds the first route whose method and pattern match. HEAD falls back to GET routes. */
   match(method: string, pathname: string): RouteMatch | undefined {
     const wanted = method.toUpperCase();

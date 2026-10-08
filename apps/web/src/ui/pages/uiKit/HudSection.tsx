@@ -61,6 +61,7 @@ function seedOperations() {
   const current = useBuildingStore.getState().state;
   useBuildingStore.getState().apply({
     humans: current?.humans ?? {},
+    closedRooms: current?.closedRooms ?? {},
     chat: current?.chat ?? [],
     jukebox: current?.jukebox ?? {
       ...IDLE_JUKEBOX,

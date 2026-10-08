@@ -28,6 +28,7 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { defineConfig, devices } from "@playwright/test";
+import { E2E_GITHUB_CLIENT } from "./tests/e2e/githubClient.ts";
 import { newRunId, officeRunnerPrefix } from "./tests/e2e/runnerCleanup.ts";
 
 const external = process.env.E2E_BASE_URL?.replace(/\/+$/, "");
@@ -93,38 +94,55 @@ export default defineConfig({
       ],
   webServer: noWebServer
     ? undefined
-    : {
-        command: "bun apps/server/src/index.ts",
-        url: `${baseURL}/healthz`,
-        reuseExistingServer: false,
-        timeout: 60_000,
-        stdout: "pipe",
-        stderr: "pipe",
-        env: {
-          NODE_ENV: "production",
-          OFFICE_HOST: "127.0.0.1",
-          OFFICE_PORT: String(port),
-          OFFICE_PUBLIC_URL: baseURL,
-          OFFICE_DATA_DIR: process.env.E2E_DATA_DIR ?? "",
-          // Operations clone from local bare repos the spec creates (no network in tests).
-          OFFICE_PROJECTS_DIR: join(process.env.E2E_DATA_DIR ?? "", "projects"),
-          // Humans' clones and worktrees stay in the throwaway dir too (deleting an operation removes them).
-          OFFICE_WORKTREES_DIR: join(process.env.E2E_DATA_DIR ?? "", "worktrees"),
-          OFFICE_GITHUB_REMOTE_BASE: `file://${join(process.env.E2E_DATA_DIR ?? "", "remotes")}`,
-          // Only reached once the board step connects a (fake) org token; see tests/e2e/fakeGitHub.ts.
-          OFFICE_GITHUB_API_BASE: `http://127.0.0.1:${githubPort}`,
-          // Docker runner backend (production's default) with a per-run prefix, on a socket
-          // nothing listens on: no runner is ever made, with or without a local runner image.
-          OFFICE_RUNNER_BACKEND: "docker",
-          OFFICE_DOCKER_RUNNER_PREFIX: runnerPrefix,
-          DOCKER_HOST: `unix://${join(process.env.E2E_DATA_DIR ?? "", "no-docker.sock")}`,
-          OFFICE_LOG_LEVEL: process.env.OFFICE_LOG_LEVEL ?? "warn",
-          // A new room's build phase (#181), short so tests see it finish.
-          OFFICE_ROOM_BUILD_SECONDS: "1",
-          // The blast door's open time (#188), short so the flow sees it shut by itself.
-          OFFICE_BLAST_DOOR_SECONDS: "30",
-          BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET ?? secret(),
-          OFFICE_MASTER_KEY: process.env.OFFICE_MASTER_KEY ?? secret(),
+    : [
+        // GitHub for the office's people (#270): they link accounts of this fake, and the
+        // office asks it what each of them can see (tests/e2e/fakeGitHub.ts).
+        {
+          command: "bun tests/e2e/fakeGitHubServer.ts",
+          url: `http://127.0.0.1:${githubPort}/__e2e/up`,
+          reuseExistingServer: false,
+          timeout: 30_000,
+          stdout: "pipe",
+          stderr: "pipe",
+          env: { E2E_GITHUB_PORT: String(githubPort) },
         },
-      },
+        {
+          command: "bun apps/server/src/index.ts",
+          url: `${baseURL}/healthz`,
+          reuseExistingServer: false,
+          timeout: 60_000,
+          stdout: "pipe",
+          stderr: "pipe",
+          env: {
+            NODE_ENV: "production",
+            OFFICE_HOST: "127.0.0.1",
+            OFFICE_PORT: String(port),
+            OFFICE_PUBLIC_URL: baseURL,
+            OFFICE_DATA_DIR: process.env.E2E_DATA_DIR ?? "",
+            // Operations clone from local bare repos the spec creates (no network in tests).
+            OFFICE_PROJECTS_DIR: join(process.env.E2E_DATA_DIR ?? "", "projects"),
+            // Humans' clones and worktrees stay in the throwaway dir too (deleting an operation removes them).
+            OFFICE_WORKTREES_DIR: join(process.env.E2E_DATA_DIR ?? "", "worktrees"),
+            OFFICE_GITHUB_REMOTE_BASE: `file://${join(process.env.E2E_DATA_DIR ?? "", "remotes")}`,
+            // Only reached once the board step connects a (fake) org token; see tests/e2e/fakeGitHub.ts.
+            OFFICE_GITHUB_API_BASE: `http://127.0.0.1:${githubPort}`,
+            // People link their GitHub accounts there too (#270): rooms open with that access.
+            OFFICE_GITHUB_WEB_BASE: `http://127.0.0.1:${githubPort}`,
+            GITHUB_CLIENT_ID: E2E_GITHUB_CLIENT.id,
+            GITHUB_CLIENT_SECRET: E2E_GITHUB_CLIENT.secret,
+            // Docker runner backend (production's default) with a per-run prefix, on a socket
+            // nothing listens on: no runner is ever made, with or without a local runner image.
+            OFFICE_RUNNER_BACKEND: "docker",
+            OFFICE_DOCKER_RUNNER_PREFIX: runnerPrefix,
+            DOCKER_HOST: `unix://${join(process.env.E2E_DATA_DIR ?? "", "no-docker.sock")}`,
+            OFFICE_LOG_LEVEL: process.env.OFFICE_LOG_LEVEL ?? "warn",
+            // A new room's build phase (#181), short so tests see it finish.
+            OFFICE_ROOM_BUILD_SECONDS: "1",
+            // The blast door's open time (#188), short so the flow sees it shut by itself.
+            OFFICE_BLAST_DOOR_SECONDS: "30",
+            BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET ?? secret(),
+            OFFICE_MASTER_KEY: process.env.OFFICE_MASTER_KEY ?? secret(),
+          },
+        },
+      ],
 });
