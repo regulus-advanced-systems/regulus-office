@@ -45,6 +45,7 @@ describe("connecting my existing Hermes", () => {
     expect(Array.from(runsAs.options).map((o) => o.textContent)).toEqual([
       "Claude Code session (runs here in the office)",
       "Connect my existing Hermes agent",
+      "Hermes, run by the office (not turned on in this office)",
     ]);
     await choose(runsAs, "hermes-external");
     // Plain help, and no provider or model to pick: Hermes brings its own.
@@ -123,7 +124,11 @@ describe("connecting my existing Hermes", () => {
     await choose(select("Runs as"), "hermes-external");
     expect(text()).toContain("Address of your Hermes");
     await choose(select("Belongs to"), "office");
-    expect(Array.from(select("Runs as").options).map((o) => o.value)).toEqual(["cli-session"]);
+    expect(
+      Array.from(select("Runs as").options)
+        .filter((o) => !o.disabled)
+        .map((o) => o.value),
+    ).toEqual(["cli-session"]);
     expect(text()).not.toContain("Address of your Hermes");
   });
 

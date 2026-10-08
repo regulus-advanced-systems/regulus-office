@@ -228,6 +228,11 @@ export const envSchema = z.object({
       .optional(),
   ),
   OFFICE_DOCKER_VOLUME_MAP: z.preprocess(emptyToUndefined, volumeMap.default([])),
+  // Hermes run by the office (#57); see HermesConfig. Unset image: the engine is off.
+  OFFICE_HERMES_IMAGE: z.preprocess(emptyToUndefined, str().optional()),
+  OFFICE_HERMES_MEMORY: z.preprocess(emptyToUndefined, byteSize.optional()),
+  OFFICE_HERMES_CPUS: z.preprocess(emptyToUndefined, z.coerce.number().positive().optional()),
+  OFFICE_HERMES_PIDS: z.preprocess(emptyToUndefined, z.coerce.number().int().positive().optional()),
   // Per-agent sandboxes (SPEC §8, D18, #169); see SandboxConfig. Defaults: runners/sandbox.ts.
   OFFICE_SANDBOXES: bool(true),
   OFFICE_SANDBOX_MEMORY: z.preprocess(emptyToUndefined, byteSize.optional()),
@@ -349,6 +354,20 @@ export interface OfficeConfig {
    * null when `OFFICE_SANDBOXES=false` (henchmen then run in their human's runner).
    */
   sandbox: SandboxConfig | null;
+  /** Hermes run by the office (#57); null when `OFFICE_HERMES_IMAGE` is not set. */
+  hermes: HermesConfig | null;
+}
+
+/**
+ * `OFFICE_HERMES_*`: the pinned Hermes image (hermes-runner/Dockerfile) the
+ * office starts one container per managed Hermes agent from, and that
+ * container's limits (defaults: 2 GiB, 1 CPU, 512 pids). Docker backend only.
+ */
+export interface HermesConfig {
+  image: string;
+  memoryBytes?: number;
+  cpus?: number;
+  pids?: number;
 }
 
 /**
@@ -446,6 +465,14 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
   }
   return {
     sandbox,
+    hermes: e.OFFICE_HERMES_IMAGE
+      ? {
+          image: e.OFFICE_HERMES_IMAGE,
+          memoryBytes: e.OFFICE_HERMES_MEMORY,
+          cpus: e.OFFICE_HERMES_CPUS,
+          pids: e.OFFICE_HERMES_PIDS,
+        }
+      : null,
     port: e.OFFICE_PORT,
     host: e.OFFICE_HOST,
     dataDir,

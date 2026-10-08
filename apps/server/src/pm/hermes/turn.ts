@@ -28,6 +28,23 @@ export interface TurnHost {
   saveState(): void;
   /** What the last contact showed about the gateway. */
   reachable(ok: boolean, detail: string): void;
+  /** What a finished turn used, when Hermes reported it. */
+  usage?(usage: HermesTurnUsage, runId: string): void;
+}
+
+/** Token counts of one turn, as Hermes reports them with `run.completed`. */
+export interface HermesTurnUsage {
+  inputTokens: number;
+  outputTokens: number;
+}
+
+function reportUsage(host: TurnHost, runId: string, raw: unknown): void {
+  if (!host.usage || raw === null || typeof raw !== "object") return;
+  const count = (value: unknown) =>
+    typeof value === "number" && Number.isFinite(value) && value > 0 ? Math.round(value) : 0;
+  const { input_tokens, output_tokens } = raw as Record<string, unknown>;
+  const usage = { inputTokens: count(input_tokens), outputTokens: count(output_tokens) };
+  if (runId && usage.inputTokens + usage.outputTokens > 0) host.usage(usage, runId);
 }
 
 const REPLY_MAX = 60_000;
@@ -86,6 +103,7 @@ function collect(outcome: Outcome, host: TurnHost, { event, data }: HermesStream
       outcome.terminal = event.slice(4) as Outcome["terminal"];
       outcome.sessionId = str(data.session_id) || outcome.sessionId;
       outcome.reason = clip(str(data.turn_exit_reason), 120);
+      reportUsage(host, outcome.runId, data.usage);
       return;
     case "run.queued":
       outcome.terminal = "queued";

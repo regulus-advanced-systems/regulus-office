@@ -51,6 +51,8 @@ export interface OfficeAgentRoutesDeps {
   hermes?: HermesAgentService;
   /** The agent's soul, memories and notes (#136; mind/routes.ts). */
   mind: MindService;
+  /** After an agent was removed: what lives outside the database goes too (a managed Hermes's home, #57). */
+  onRemoved?: (agentId: string) => Promise<void>;
 }
 
 const AGENT = `${OFFICE_AGENTS_API_PATH}/:id`;
@@ -145,6 +147,7 @@ export function mountOfficeAgentRoutes(router: Router, deps: OfficeAgentRoutesDe
     AGENT,
     handle(async (ctx, actor) => {
       await service.remove(actor, id(ctx));
+      await deps.onRemoved?.(id(ctx));
       return noContent();
     }, true),
   );

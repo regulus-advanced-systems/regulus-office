@@ -25,6 +25,8 @@ import type { OfficeAgentEngine } from "./engines/types.ts";
 import type { HermesClientOptions } from "./hermes/client.ts";
 import { HermesConnections } from "./hermes/connections.ts";
 import { type HermesEngineOptions, HermesExternalEngine } from "./hermes/engine.ts";
+import { HermesManagedEngine, type HermesManagedOptions } from "./hermes/managed/engine.ts";
+import type { ManagedHermesHost } from "./hermes/managed/host.ts";
 import { mountHermesRoutes } from "./hermes/routes.ts";
 import { HermesAgentService } from "./hermes/service.ts";
 import { mountMcp } from "./mcp.ts";
@@ -34,6 +36,7 @@ import { engineMind } from "./mind/port.ts";
 import { MindStore } from "./mind/store.ts";
 import { HumanRequests } from "./requests.ts";
 import { mountOfficeAgentRoutes } from "./routes.ts";
+import { runsOnOf } from "./runs-on.ts";
 import { AgentRuntime } from "./runtime.ts";
 import { OfficeAgentService } from "./service.ts";
 import { OfficeAgentStore } from "./store.ts";
@@ -77,6 +80,14 @@ export interface OfficeAgentsOptions {
     /** Time between two rounds, ms. */
     everyMs?: number;
   };
+  /**
+   * Where the office runs Hermes agents of its own (#57): given, the
+   * `hermes-managed` engine is offered. Absent: the office has no Hermes image.
+   */
+  managedHermes?: { host: ManagedHermesHost } & Pick<
+    HermesManagedOptions,
+    "startTimeoutMs" | "startPollMs" | "stableMs"
+  >;
   /** CLI override for the session engine (tests: the fake `claude`). */
   cliCommand?: string;
   now?: () => number;
@@ -155,6 +166,19 @@ export function createOfficeAgents(opts: OfficeAgentsOptions): OfficeAgents {
   const connections = new HermesConnections(db, opts.keyring);
   if (!runtime.engine("hermes-external")) {
     runtime.register(new HermesExternalEngine({ connections, logger, ...opts.hermes }));
+  }
+
+  // A Hermes the office runs itself (#57): the same conversation, on a gateway the office starts.
+  let managed: HermesManagedEngine | undefined;
+  if (opts.managedHermes && !runtime.engine("hermes-managed")) {
+    managed = new HermesManagedEngine({
+      ...opts.hermes,
+      ...opts.managedHermes,
+      credentials,
+      keyKind: (agent) => runsOnOf(db, agent, false).kind,
+      logger,
+    });
+    runtime.register(managed);
   }
 
   let bound: Partial<BoundPorts> = {};
@@ -283,12 +307,25 @@ export function createOfficeAgents(opts: OfficeAgentsOptions): OfficeAgents {
       mountMcp(router, { store, tokens, tools, version: opts.version });
       mountToolRoutes(router, { store, tokens, tools });
       mountHermesRoutes(router, { auth, hermes });
-      mountOfficeAgentRoutes(router, { auth, service, hermes, mind: mindService });
+      mountOfficeAgentRoutes(router, {
+        auth,
+        service,
+        hermes,
+        mind: mindService,
+        onRemoved: async (agentId) => {
+          await managed?.forget(agentId).catch(() => {
+            logger.warn({ agentId }, "could not remove what a managed Hermes left behind");
+          });
+        },
+      });
     },
     bind(next) {
       bound = { ...bound, ...next };
     },
-    boot: () => runtime.boot(),
+    boot: () => {
+      runtime.boot();
+      void managed?.reap();
+    },
     close: () => runtime.close(),
   };
 }

@@ -55,6 +55,7 @@ import { createNotifications } from "./notifications/setup.ts";
 import { operationIdsOfRepos } from "./operations/access.ts";
 import { createOperations, mountOperationRoutes } from "./operations/index.ts";
 import { createWallPictures } from "./pictures/index.ts";
+import { managedHermesFromConfig } from "./pm/hermes/managed/from-config.ts";
 import { createOfficeAgents } from "./pm/index.ts";
 import { roundHenchmanOf } from "./pm/world/index.ts";
 import { mountProfileRoutes } from "./profile/routes.ts";
@@ -577,6 +578,7 @@ async function main(): Promise<void> {
         if (view) notifications.center.remind(view, via);
       },
     },
+    managedHermes: managedHermesFromConfig(config, logger),
   });
   officeAgents.bind({
     queue: (operationId) => tasks.queue.snapshot(operationId),

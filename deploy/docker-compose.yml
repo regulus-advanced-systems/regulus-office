@@ -183,6 +183,17 @@ services:
     profiles: ["build-only"]
     command: ["true"]
 
+  # Not a service either: the image for "Hermes, run by the office" (#57, hermes-runner/Dockerfile),
+  # the official Hermes Agent image pinned by digest plus the runner uid. Build it with
+  # `docker compose --profile build-only build hermes-image`, then set OFFICE_HERMES_IMAGE in
+  # deploy/.env to the same name: the office starts one container per managed Hermes agent from it.
+  hermes-image:
+    build:
+      context: ../hermes-runner
+    image: ${OFFICE_HERMES_IMAGE:-regulus-office-hermes:0.21.5}
+    profiles: ["build-only"]
+    command: ["true"]
+
   caddy:
     image: caddy:2
     restart: unless-stopped
