@@ -151,3 +151,13 @@ export const HermesConnectionView = z.object({
   updatedAt: z.number().int().nonnegative().optional(),
 });
 export type HermesConnectionView = z.infer<typeof HermesConnectionView>;
+
+/**
+ * The kinds of key (office-agent-runs-on.ts) a Hermes run by the office can
+ * run on (#57): an Anthropic API key and a DeepSeek key. Never a subscription
+ * login. Other kinds Hermes has a provider for are not mapped yet.
+ */
+export const MANAGED_HERMES_KEY_KINDS = ["anthropic", "deepseek"] as const;
+export type ManagedHermesKeyKind = (typeof MANAGED_HERMES_KEY_KINDS)[number];
+export const managedHermesRunsOn = (kind: string): kind is ManagedHermesKeyKind =>
+  (MANAGED_HERMES_KEY_KINDS as readonly string[]).includes(kind);
