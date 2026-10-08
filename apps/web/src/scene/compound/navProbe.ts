@@ -14,6 +14,7 @@ import { useOperationStore } from "../../state/operation.ts";
 import { usePlayerStore } from "../../state/player.ts";
 import { terminalDeskAt } from "../laptops/focus.ts";
 import { seatByKey } from "../social/seats.ts";
+import { platePose } from "./closed.ts";
 import { roomArt } from "./interiors.ts";
 import { roomLayout } from "./layouts.ts";
 import { liftOf } from "./lift/spot.ts";
@@ -36,6 +37,8 @@ export interface NavProbe {
     name: string;
     kind: string;
     enterable: boolean;
+    /** Closed to this viewer (#269): a footprint with no name. */
+    closed: boolean;
     buildState: string;
     x: number;
     z: number;
@@ -63,6 +66,8 @@ export interface NavProbe {
   levelOf(roomName: string): { levelId: string; name: string } | null;
   /** The levels this viewer is shown, in lift order, as the lift's panel names them (#269). */
   levels(): Array<{ levelId: string; name: string; mark: string }>;
+  /** In front of a closed room's door or plate (#269), where `E` is answered "no entry". */
+  closedDoor(operationId: string): { x: number; z: number } | null;
   /** Where to stand to call the lift on the level being looked at (#269), compound metres. */
   lift(): { x: number; z: number } | null;
 }
@@ -110,6 +115,7 @@ export function createNavProbe(getWorld: () => CompoundWorld | null): NavProbe {
         name: r.name,
         kind: r.kind,
         enterable: r.enterable,
+        closed: r.closed,
         buildState: r.buildState,
         x: r.origin.x,
         z: r.origin.z,
@@ -158,6 +164,11 @@ export function createNavProbe(getWorld: () => CompoundWorld | null): NavProbe {
         const label = levelLabel(l, levels);
         return { levelId: l.levelId, name: label.title, mark: label.mark };
       });
+    },
+    closedDoor(operationId) {
+      const world = getWorld();
+      const room = world?.rooms.find((r) => r.id === operationId && r.closed);
+      return world && room ? platePose(room, world).stand : null;
     },
     lift() {
       const world = getWorld();

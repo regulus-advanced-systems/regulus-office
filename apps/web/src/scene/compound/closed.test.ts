@@ -309,7 +309,7 @@ describe("trying to go in", () => {
       ["error", "No entry", NO_ENTRY_MESSAGE],
       ["error", "No entry", NO_ENTRY_MESSAGE],
     ]);
-    expect(NO_ENTRY_MESSAGE).toStartWith("No entry.");
+    expect(NO_ENTRY_MESSAGE).toStartWith("You do not have access to this room.");
     // Someone who has not linked GitHub is told that instead: it is about them, not the room.
     expect(noEntryMessage("linked")).toBe(NO_ENTRY_MESSAGE);
     expect(noEntryMessage(undefined)).toBe(NO_ENTRY_MESSAGE);

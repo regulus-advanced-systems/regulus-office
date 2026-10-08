@@ -8,11 +8,10 @@ import { useLinkStore } from "../ui/access/linkPrompt.ts";
 import { useUiStore } from "./ui.ts";
 
 export const NO_ENTRY_MESSAGE =
-  "No entry. You do not have access to this room; ask whoever owns its repo on GitHub.";
+  "You do not have access to this room. Ask whoever owns its repo on GitHub.";
 
 /** For someone whose GitHub account is not linked (#270): every room is closed until it is. */
-export const NO_ENTRY_UNLINKED =
-  "No entry. Link your GitHub account (Settings, You) to enter your rooms.";
+export const NO_ENTRY_UNLINKED = "Link your GitHub account (Settings, You) to enter your rooms.";
 
 /** The sentence for this viewer: by their own link state, never by anything about the room. */
 export function noEntryMessage(state: string | undefined = useLinkStore.getState().status?.state) {

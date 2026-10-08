@@ -78,7 +78,7 @@ import { loadBoards } from "./githubAccess.ts";
 import { ensureRemoteRepo } from "./gitRemote.ts";
 import { checkMergeGong } from "./gongChecks.ts";
 import { checkJukebox } from "./jukeboxChecks.ts";
-import { checkLift } from "./liftChecks.ts";
+import { checkLift, checkOpenAndClosedRooms } from "./liftChecks.ts";
 import { loadOwnerGenius, type OfficeSession, openOffice, owner } from "./officeSession.ts";
 import { reportFramePerf } from "./perfProbe.ts";
 import { checkWallPictures } from "./pictureChecks.ts";
@@ -910,6 +910,16 @@ test("the lift: E opens its panel; the owner rides to Apollo's level, the member
   test.skip(!process.env.E2E_DATA_DIR, "needs the locally started server (local git remotes)");
   await ensureApollo();
   await checkLift(ownerPage, memberPage, owner.name);
+});
+
+test("a second person on a level: one room opens for them, the other is a sealed door that says nothing (#269)", async () => {
+  test.skip(!process.env.E2E_DATA_DIR, "needs the locally started server (local git remotes)");
+  // A second room is built, a page reloads and two people walk: more than one step's default.
+  test.setTimeout(300_000);
+  await ensureApollo();
+  ensureRemoteRepo(process.env.E2E_DATA_DIR ?? "", "octo", "forge");
+  await ensureOperation(ownerPage, "Vulcan", "octo/forge");
+  await checkOpenAndClosedRooms(ownerPage, memberPage, "Apollo", "octo/hello", "Vulcan");
 });
 
 test("the jukebox: E opens it, a queued track plays in both browsers at the same playhead (#47)", async () => {

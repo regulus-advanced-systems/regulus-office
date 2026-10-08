@@ -22,6 +22,8 @@ export interface NavRoom {
   name: string;
   kind: string;
   enterable: boolean;
+  /** Closed to this viewer (#269): a footprint with no name. */
+  closed: boolean;
   buildState: string;
   x: number;
   z: number;
@@ -43,6 +45,7 @@ interface Nav {
   levelOf(roomName: string): { levelId: string; name: string } | null;
   levels(): NavLevel[];
   lift(): { x: number; z: number } | null;
+  closedDoor(operationId: string): { x: number; z: number } | null;
 }
 
 /** A level as the lift's panel and quick travel name it (#269). */
@@ -118,6 +121,13 @@ export const navLevels = (page: Page): Promise<NavLevel[]> =>
 /** Where to stand to call the lift on the level the page is on. */
 export const liftSpot = (page: Page): Promise<{ x: number; z: number } | null> =>
   page.evaluate(`(${probe.toString()})().lift()`) as Promise<{ x: number; z: number } | null>;
+
+/** In front of a closed room's door, where `E` is answered "no entry" (#269). */
+export const closedDoorSpot = (page: Page, id: string): Promise<{ x: number; z: number } | null> =>
+  page.evaluate(`(${probe.toString()})().closedDoor(${JSON.stringify(id)})`) as Promise<{
+    x: number;
+    z: number;
+  } | null>;
 
 /**
  * Go to the level the room called `name` is on (#268, #269): a room is on the level of its
