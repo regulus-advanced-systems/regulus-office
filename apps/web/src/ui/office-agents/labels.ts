@@ -30,8 +30,9 @@ export const ENGINE_WORDS: Readonly<Record<OfficeAgentEngineKind, Words>> = {
     hint: "The office starts Claude Code for each message you send. Nothing to install.",
   },
   "hermes-managed": {
-    label: "Hermes (runs here in the office)",
-    hint: "The office starts and looks after a Hermes agent for you.",
+    label: "Hermes, run by the office (nothing to install)",
+    short: "Hermes, run by the office",
+    hint: "The office starts a Hermes agent of its own for this agent, keeps it running and gives it the office's tools. It runs on a pay-per-use key you pick below; a subscription login cannot be used for it.",
   },
   "hermes-external": {
     label: "Connect my existing Hermes agent",
@@ -43,6 +44,11 @@ export const ENGINE_WORDS: Readonly<Record<OfficeAgentEngineKind, Words>> = {
     hint: "The office starts and looks after an OpenClaw agent for you.",
   },
 };
+/** In "Runs as" where the office has no Hermes image: the option is there, greyed out, and says why. */
+export const MANAGED_HERMES_OFF = {
+  option: "Hermes, run by the office (not turned on in this office)",
+  hint: "Hermes run by the office is not turned on here. Whoever runs this office can turn it on: build the Hermes image and set OFFICE_HERMES_IMAGE (README, “Hermes run by the office”).",
+} as const;
 export const ENGINE_HELP =
   "The program that runs this agent. It decides which providers and models you can pick below.";
 /** On a card, without the explanation in brackets. */

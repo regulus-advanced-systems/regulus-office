@@ -7,6 +7,8 @@
  */
 import {
   agentModelsFor,
+  managedHermesRunsOn,
+  type OfficeAgentEngineKind,
   type OfficeAgentRunsOnResponse,
   type RunsOnChoice,
 } from "@regulus/protocol";
@@ -41,9 +43,24 @@ export function useRunsOn(api: OfficeAgentsApi): RunsOnState {
 export const keyOf = (choice: RunsOnChoice) => choice.profileId ?? "";
 
 /** What can really be used: a login known to be missing cannot. */
-export function usableChoices(state: RunsOnState, shared: boolean): RunsOnChoice[] {
+export function usableChoices(
+  state: RunsOnState,
+  shared: boolean,
+  engine?: OfficeAgentEngineKind,
+): RunsOnChoice[] {
+  return listedChoices(state, shared, engine).filter(
+    (c) => c.kind !== "login" || state.login !== false,
+  );
+}
+
+/** What "Runs on" lists: for a Hermes the office runs, only the keys Hermes can run on (#57). */
+function listedChoices(
+  state: RunsOnState,
+  shared: boolean,
+  engine?: OfficeAgentEngineKind,
+): RunsOnChoice[] {
   const all = (shared ? state.choices?.shared : state.choices?.personal) ?? [];
-  return all.filter((c) => c.kind !== "login" || state.login !== false);
+  return engine === "hermes-managed" ? all.filter((c) => managedHermesRunsOn(c.kind)) : all;
 }
 
 /** Shown as the model value when the person types their own. */
@@ -59,9 +76,12 @@ export function RunsOnPicker({
   customRef,
   customDefault,
   onConnect,
+  engine,
 }: {
   state: RunsOnState;
   shared: boolean;
+  /** The program picked under "Runs as": it decides what can be listed. */
+  engine?: OfficeAgentEngineKind;
   /** The chosen option ({@link keyOf}); undefined when nothing usable is connected. */
   value: RunsOnChoice | undefined;
   onChange: (key: string) => void;
@@ -74,7 +94,8 @@ export function RunsOnPicker({
   onConnect: () => void;
 }) {
   const ids = { runsOn: useId(), custom: useId(), model: useId() };
-  const all = (shared ? state.choices?.shared : state.choices?.personal) ?? [];
+  const all = listedChoices(state, shared, engine);
+  const hermes = engine === "hermes-managed";
   const loading = state.choices === null;
   const models = value ? agentModelsFor(value.kind) : [];
   return (
@@ -110,7 +131,9 @@ export function RunsOnPicker({
         <div className="rg-office-agent-form__missing" role="note">
           {shared
             ? "The office has no key of its own yet, so a shared agent has nothing to run on. Add one first (for example DeepSeek or an Anthropic API key), then come back."
-            : "You have not connected anything this agent can run on. Sign in to Claude or add a key (for example DeepSeek) first, then come back."}{" "}
+            : hermes
+              ? "You have no key a Hermes can run on. Add one first (for example DeepSeek or an Anthropic API key), then come back. A subscription login cannot be used for it."
+              : "You have not connected anything this agent can run on. Sign in to Claude or add a key (for example DeepSeek) first, then come back."}{" "}
           <button type="button" className="rg-spawn__link" onClick={onConnect}>
             Open Connect providers
           </button>

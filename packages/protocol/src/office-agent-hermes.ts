@@ -19,10 +19,13 @@ export const OFFICE_AGENT_HERMES_TEST_API_PATH = "/api/office-agents/hermes/test
 export const officeAgentHermesPath = (agentId: string) =>
   `/api/office-agents/${encodeURIComponent(agentId)}/hermes`;
 
-/** Engines that bring their own provider and model: the form asks for neither. */
+/**
+ * Engines that bring their own provider and model: the form asks for neither.
+ * A Hermes the office runs itself (`hermes-managed`, #57) is not one of them:
+ * it runs on a key picked in the form, as the session engine does.
+ */
 export const ENGINES_WITH_OWN_MODEL: readonly OfficeAgentEngineKind[] = [
   "hermes-external",
-  "hermes-managed",
   "openclaw",
 ];
 export const engineBringsOwnModel = (kind: OfficeAgentEngineKind) =>
