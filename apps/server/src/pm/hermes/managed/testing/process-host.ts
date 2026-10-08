@@ -63,9 +63,9 @@ export class ProcessHermesHost implements ManagedHermesHost {
     return child !== undefined && child.exitCode === null && child.signalCode === null;
   }
 
-  /** Kill the gateway as the kernel would (tests: a crash). */
-  kill(agentId: string): void {
-    this.#children.get(agentId)?.kill("SIGKILL");
+  /** Kill the gateway as the kernel would (tests: a crash); `SIGSTOP` makes it hang instead. */
+  kill(agentId: string, signal: NodeJS.Signals = "SIGKILL"): void {
+    this.#children.get(agentId)?.kill(signal);
   }
 
   async launch(spec: HermesLaunch): Promise<HermesProcess> {

@@ -38,6 +38,7 @@ import {
   type OfficeAgentEngine,
 } from "../../engines/types.ts";
 import { HermesClient, type HermesClientOptions } from "../client.ts";
+import type { HermesConnection } from "../connections.ts";
 import { type HermesEngineOptions, HermesExternalEngine } from "../engine.ts";
 import { type HermesKeyKind, hermesSetup, keyKindProblem } from "./config.ts";
 import {
@@ -73,6 +74,8 @@ interface Instance {
   office: EngineOffice;
   /** Made up by the office for this run; the gateway's `API_SERVER_KEY`. */
   key: Secret;
+  /** Where the conversation finds the gateway; the address follows every restart. */
+  connection: HermesConnection;
   launch: HermesLaunch;
   /** Every secret the gateway was handed, to cut out of what it prints. */
   secrets: readonly string[];
@@ -155,6 +158,7 @@ export class HermesManagedEngine implements OfficeAgentEngine {
       agent,
       office,
       key,
+      connection: { url: "", token: key },
       launch: {
         agentId: agent.id,
         env: { ...setup.env, [HERMES_ENV.enabled]: "true", [HERMES_ENV.key]: key.reveal() },
@@ -236,7 +240,7 @@ export class HermesManagedEngine implements OfficeAgentEngine {
     if (!instance?.process) {
       throw new EngineRefusal("hermes_not_running", "Hermes is not running");
     }
-    return { url: instance.process.url, token: instance.key };
+    return instance.connection;
   }
 
   /** Start the gateway and wait until it answers. Throws an {@link EngineRefusal} with the reason. */
@@ -253,6 +257,7 @@ export class HermesManagedEngine implements OfficeAgentEngine {
       throw new EngineRefusal("stopped", "the agent was stopped while Hermes was starting");
     }
     instance.process = process;
+    instance.connection.url = process.url;
     instance.launchedAt = Date.now();
     const ended = process.exited.then((exit) => ({ exit }));
     const client = new HermesClient({ url: process.url, token: instance.key }, this.options.client);

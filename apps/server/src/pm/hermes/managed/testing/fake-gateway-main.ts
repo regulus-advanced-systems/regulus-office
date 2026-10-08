@@ -80,7 +80,6 @@ setInterval(() => {
 if (!env.FAKE_HERMES_DEAF) {
   setTimeout(() => {
     gateway.up();
-    process.stderr.write("fake hermes: listening\n");
   }, Number(env.FAKE_HERMES_SLOW_MS ?? 0));
 }
 for (const signal of ["SIGTERM", "SIGINT"] as const) {
