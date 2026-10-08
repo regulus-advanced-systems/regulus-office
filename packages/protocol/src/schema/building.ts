@@ -223,6 +223,25 @@ export const BlastDoorStateSchema = schema(
   "BlastDoorState",
 );
 
+export const OfficeAgentBodySchema = schema(
+  {
+    agentId: t.string().default(""),
+    name: t.string().default(""),
+    ownerUserId: t.string().default(""),
+    ownerName: t.string().default(""),
+    appearance: t.string().default("standard"),
+    status: t.string().default("stopped"),
+    levelId: t.string().default("lobby"),
+    operationId: t.string().default(""),
+    mode: t.string().default("wander"),
+    target: WorldPosSchema,
+    hop: t.uint32().default(0),
+    doing: t.string().default(""),
+    dismissed: t.boolean().default(false),
+  },
+  "OfficeAgentBody",
+);
+
 export const BuildingStateSchema = schema(
   {
     // Per viewer (D26, D27; #270): each entry of these maps reaches only the
@@ -239,6 +258,8 @@ export const BuildingStateSchema = schema(
     levels: t.map(LevelStateSchema).view(),
     blastDoor: BlastDoorStateSchema,
     lobbyWhiteboardVersion: t.uint32().default(0),
+    // Per viewer (#252, #270): a body reaches only clients who may see the place it is in.
+    officeAgents: t.map(OfficeAgentBodySchema).view(),
   },
   "BuildingState",
 );

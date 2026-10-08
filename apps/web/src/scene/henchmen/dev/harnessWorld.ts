@@ -137,6 +137,7 @@ const QUIET: Omit<BuildingState, "compound" | "levels" | "operations" | "closedR
     pm: { ...buildingFixture.pm, enabled: false },
     blastDoor: { phase: "closed", openedAt: 0, closesAt: 0, openedBy: "", presses: 0 },
     lobbyWhiteboardVersion: 0,
+    officeAgents: {},
   };
 
 export interface HarnessLair {

@@ -21,6 +21,7 @@
  *     [--profiles gpu,uncapped,igpu,igpu-uncapped,software]
  *     [--views room,room30,overview,close,beach,lobby,landing,closed]
  *     [--quality auto|low|medium|high] [--seconds 6] [--json out.json]
+ *     [--agents 10]   office agents walking the Dev room as well (#252)
  */
 import { existsSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
@@ -40,7 +41,10 @@ const quality = arg("quality", "auto");
 const seconds = Number(arg("seconds", "6"));
 const jsonOut = arg("json", "");
 
-const BASE = "n=20&mode=working&rooms=12&humans=4&nearby=3&skins=mixed&stats";
+const agents = Number(arg("agents", "0"));
+const BASE = `n=20&mode=working&rooms=12&humans=4&nearby=3&skins=mixed&stats${
+  agents > 0 ? `&agents=${agents}` : ""
+}`;
 const VIEW: Record<string, string> = {
   room: "",
   // The Dev room 30 m out (the #190 default framing), for builds with another default.

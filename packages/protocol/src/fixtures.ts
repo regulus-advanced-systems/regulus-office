@@ -214,6 +214,23 @@ export const buildingFixture: BuildingState = {
     presses: 3,
   },
   lobbyWhiteboardVersion: 2,
+  officeAgents: {
+    oa1: {
+      agentId: "oa1",
+      name: "Moneypenny",
+      ownerUserId: "u1",
+      ownerName: "Ada",
+      appearance: "secretary",
+      status: "ready",
+      levelId: "lobby",
+      operationId: "lobby",
+      mode: "follow",
+      target: { x: 12.5, z: 30, heading: 1.57 },
+      hop: 1,
+      doing: "",
+      dismissed: false,
+    },
+  },
 };
 
 export const henchmanFixture: HenchmanState = {

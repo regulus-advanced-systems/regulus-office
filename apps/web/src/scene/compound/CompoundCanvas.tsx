@@ -34,6 +34,7 @@ import { JukeboxDriver } from "../jukebox/JukeboxDriver.tsx";
 import { CutawayDriver, LairKit } from "../lair/components/LairKit.tsx";
 import { LampLights } from "../lair/components/LampLights.tsx";
 import { MovementController } from "../movement/MovementController.tsx";
+import { OfficeAgentLayer } from "../officeAgents/OfficeAgentLayer.tsx";
 import { StatsOverlay } from "../perf/StatsOverlay.tsx";
 import { statsEnabled } from "../perf/stats.ts";
 import { LoungeTv } from "../tv/LoungeTv.tsx";
@@ -241,6 +242,7 @@ function Scene({ world, avatars, presence, send, children }: CompoundCanvasProps
       <ClosedRooms world={world} visible={visibleRooms} />
       <Suspense fallback={null}>
         <RoomLayers rooms={rooms} />
+        <OfficeAgentLayer grid={grid} world={world} />
         {lobbyUsage && lobby && visibleRooms.has(lobby.id) && (
           <group
             position={lobbyUsage.position}

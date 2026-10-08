@@ -55,6 +55,10 @@ export interface BuildingRoomDeps {
   screenShare?: ScreenShareRules;
 }
 
+export interface BuildingWorld {
+  tick(state: BuildingState, now: number): boolean;
+}
+
 export interface BuildingRoom extends RoomDefinition<BuildingState, BuildingJoinOptions> {
   /** Re-read operations and henchman counters from the source into room state. */
   refreshOperations(): Promise<void>;
@@ -76,6 +80,12 @@ export interface BuildingRoom extends RoomDefinition<BuildingState, BuildingJoin
   setLobbyWhiteboard(version: number): void;
   /** Whose connected session this is (media tokens, #48); null when it is not connected. */
   presence(sessionId: string): { userId: string } | null;
+  /**
+   * Office agents' bodies (#252): stepped in the sweep, they write `state.officeAgents`.
+   * `tick` answers true when a body appeared, left, or changed room or level, so the
+   * room shows it to the people who may see that place and to nobody else (viewers.ts).
+   */
+  attachWorld(world: BuildingWorld): void;
   /** A chat line from the office itself (an office agent's `post_chat` tool, #271). */
   postChat(line: { userId: string; displayName: string; operationId: string; text: string }): void;
 }

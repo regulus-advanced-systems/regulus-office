@@ -4,7 +4,7 @@
  * attach agents and the rest to the same process.
  */
 import { mkdir } from "node:fs/promises";
-import { LOBBY_WHITEBOARD_ID, ROOM_NAMES } from "@regulus/protocol";
+import { LOBBY_WHITEBOARD_ID, OFFICE_AGENT_ATTENTION_MESSAGE, ROOM_NAMES } from "@regulus/protocol";
 import { sql } from "drizzle-orm";
 import { createAgents } from "./agents/manager/boot.ts";
 import { mountEmergencyStopRoutes } from "./agents/manager/emergency-routes.ts";
@@ -580,6 +580,11 @@ async function main(): Promise<void> {
     officeToken: (owner, name) => github.connection.tokenFor(owner, name),
     github: createBoardGitHub({ apiBase: config.githubApiBase }),
   });
+  // Their bodies in the world (#252), and a nudge to a person's clients when one wants them.
+  rooms.building.attachWorld(officeAgents.world);
+  officeAgents.onAttention((userId) =>
+    rooms.building.sendToUser(userId, OFFICE_AGENT_ATTENTION_MESSAGE, {}),
+  );
   officeAgents.mount(server.router, auth);
   officeAgents.boot();
   // "Send all home" before deleting an operation (#150): branches are kept, GitHub is not touched.

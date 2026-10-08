@@ -24,6 +24,7 @@ import {
   GENIUS_SKINS,
   GENIUS_TRIMS,
 } from "./genius.ts";
+import { OfficeAgentBody } from "./office-agent-world.ts";
 
 /**
  * Henchman colour set and accessory, derived on the client (scene/henchmen); not
@@ -310,5 +311,11 @@ export const BuildingState = z.object({
   blastDoor: BlastDoorState,
   /** Snapshot version of the lobby's compound-wide whiteboard (#45); 0 until first drawn on. */
   lobbyWhiteboardVersion: Count,
+  /**
+   * Office agents' bodies by agent id (#252, office-agent-world.ts): where each
+   * is walking to. Each names its level, room and owner, so it can be left out
+   * for a viewer who may not see that place.
+   */
+  officeAgents: z.record(Id, OfficeAgentBody),
 });
 export type BuildingState = z.infer<typeof BuildingState>;

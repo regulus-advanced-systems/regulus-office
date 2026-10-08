@@ -8,7 +8,8 @@
  * near=1 (seat them at the desks nearest the player), reduced=1, activity=0 (hide activity bubbles), seats=all, skins=mixed, providers=all, zoom=<0..1 camera zoom>,
  * yaw=<degrees>, nearby=<0..3 nearby rooms with henchmen too>, locked=<room ids the viewer may
  * not enter>, building=<room ids still being built>, rooms=<project rooms, 4..12>,
- * humans=<humans on screen, the local player included>.
+ * humans=<humans on screen, the local player included>, agents=<office agents walking the Dev
+ * room, #252>.
  * Levels (#269): level=lobby|regulus|ante|holding (default regulus, where the Dev room is; the
  * lobby level with `at=` or `door=`), at=lift (stand at the level's lift), at=door:<room id>, closed=<room ids sent
  * as closed, or "none"; default vault,crypt on the "ante" level>, holding=1 (publish the holding
@@ -29,10 +30,12 @@ import { useCameraStore } from "../../../state/camera.ts";
 import { useCompoundStore, useCompoundWorldSync } from "../../../state/compound.ts";
 import { useLevelStore } from "../../../state/level.ts";
 import { LIFT_OVERLAY } from "../../../state/lift.ts";
+import { useAgentAttention } from "../../../state/officeAgents.ts";
 import { useOperationStore } from "../../../state/operation.ts";
 import { useOperationsStore } from "../../../state/operations.ts";
 import { usePlayerStore } from "../../../state/player.ts";
 import { useRoomsStore } from "../../../state/rooms.ts";
+import { useSessionStore } from "../../../state/session.ts";
 import { useUiStore } from "../../../state/ui.ts";
 import { useGlobalHotkeys } from "../../../ui/hotkeys/useHotkeys.ts";
 import {
@@ -55,6 +58,7 @@ import { dockPoint, type OutsideLayout, outsideLayout } from "../../compound/out
 import { type CompoundWorld, roomById, travelPose } from "../../compound/world.ts";
 import { useGongStore } from "../../gong/gongStore.ts";
 import { playGong } from "../../gong/gongSynth.ts";
+import { fakeBodies } from "../../officeAgents/dev/fakeBodies.ts";
 import { fakeHenchmen, harnessMode } from "./fakeHenchmen.ts";
 import {
   ANTE_LEVEL,
@@ -141,6 +145,7 @@ export function HenchmenHarness({ search }: { search: string }) {
   const building = params.get("building") ?? "";
   const roomCount = Math.min(12, Number(params.get("rooms") ?? 4));
   const humanCount = Math.max(1, Number(params.get("humans") ?? 1));
+  const agentCount = Math.max(0, Number(params.get("agents") ?? 0));
   const closedParam = params.get("closed");
   const closed = closedParam === null ? DEFAULT_CLOSED.join(",") : closedParam;
   const holding = params.get("holding") === "1";
@@ -183,7 +188,19 @@ export function HenchmenHarness({ search }: { search: string }) {
     <HarnessScene
       world={world}
       lair={lair}
-      params={{ n, mode, rate, allSeats, near, skins, providers, nearby, humanCount, search }}
+      params={{
+        n,
+        mode,
+        rate,
+        allSeats,
+        near,
+        skins,
+        providers,
+        nearby,
+        humanCount,
+        agentCount,
+        search,
+      }}
     />
   );
 }
@@ -198,6 +215,7 @@ interface SceneParams {
   providers: "all" | "two";
   nearby: number;
   humanCount: number;
+  agentCount: number;
   search: string;
 }
 
@@ -210,7 +228,19 @@ function HarnessScene({
   lair: ReturnType<typeof harnessLair>;
   params: SceneParams;
 }) {
-  const { n, mode, rate, allSeats, near, skins, providers, nearby, humanCount, search } = params;
+  const {
+    n,
+    mode,
+    rate,
+    allSeats,
+    near,
+    skins,
+    providers,
+    nearby,
+    humanCount,
+    agentCount,
+    search,
+  } = params;
   useGlobalHotkeys();
   useQuickTravelHotkey();
   const [tick, setTick] = useState(0);
@@ -286,15 +316,48 @@ function HarnessScene({
     }
     // Other humans (#190 perf gate: 4 humans on screen), walking round the Dev room.
     const dev = roomById(world, DEV);
-    if (humanCount > 1 && dev) {
+    if ((humanCount > 1 || agentCount > 0) && dev) {
+      const seconds = tick / Math.max(0.1, rate);
       const centre = { x: dev.origin.x + dev.size.w / 2, z: dev.origin.z + dev.size.d / 2 };
-      const humans = fakeHumans(humanCount, centre, tick / Math.max(0.1, rate));
+      const humans = fakeHumans(humanCount, centre, seconds);
+      // Office agents (#252) walking the Dev room; the first is the viewer's own, with an answer ready.
+      const officeAgents = Object.fromEntries(
+        Object.entries(
+          fakeBodies(
+            agentCount,
+            { x: dev.origin.x, z: dev.origin.z, w: dev.size.w, d: dev.size.d },
+            seconds,
+          ),
+        ).map(([id, body]) => [id, { ...body, levelId: REGULUS_LEVEL, operationId: DEV }]),
+      );
       useBuildingStore.setState({
-        state: { ...lair.state, humans },
+        state: { ...lair.state, humans, officeAgents },
         sessionId: "me",
       });
+      if (agentCount > 0) {
+        useSessionStore.setState({
+          user: { id: "me", displayName: "You", role: "owner" } as never,
+        });
+        useAgentAttention
+          .getState()
+          .set([{ agentId: "office-agent-1", unread: true, waiting: false }]);
+      }
     }
-  }, [tick, n, mode, allSeats, skins, providers, nearby, world, humanCount, lair, rate, near]);
+  }, [
+    tick,
+    n,
+    mode,
+    allSeats,
+    skins,
+    providers,
+    nearby,
+    world,
+    humanCount,
+    agentCount,
+    lair,
+    rate,
+    near,
+  ]);
 
   return (
     <div style={{ position: "fixed", inset: 0 }}>

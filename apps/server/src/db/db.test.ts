@@ -63,6 +63,7 @@ const EXTRA_TABLES = [
   "office_agent_grants",
   "office_agent_messages",
   "office_agent_requests",
+  "office_agent_reads",
   "office_agent_settings",
   "office_agent_connections",
   "office_agent_soul_versions",
