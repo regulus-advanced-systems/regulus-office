@@ -5,7 +5,7 @@ import {
   landingSpec,
   mainCorridor,
 } from "@regulus/room-layout";
-import { rowPlacement, testState, testWorld } from "../../scene/compound/testing.ts";
+import { closedRoomOf, rowPlacement, testState, testWorld } from "../../scene/compound/testing.ts";
 import { arrivalRoomOf, compoundWorld, lobbyOf } from "../../scene/compound/world.ts";
 import {
   arrowStep,
@@ -15,6 +15,7 @@ import {
   ghostAt,
   localCheck,
   newCorridorTiles,
+  placedRooms,
   placementOf,
   presetOf,
   rotateDoor,
@@ -125,6 +126,35 @@ describe("build mode rules", () => {
     const there = placementOf(war.rect, { w: 8, d: 8 }, "north");
     expect(localCheck(world, there).ok).toBe(false);
     expect(localCheck(below, there).ok).toBe(true);
+    expect(suggestSpot(below, { w: 8, d: 8 })).not.toBeNull();
+  });
+
+  test("a closed room's spot is taken, and all the ghost says is that it is a closed room (#269)", () => {
+    const level = testState(
+      [
+        { id: "apollo", name: "Apollo", placement: rowPlacement(4) },
+        { id: "vault", name: "Top secret", placement: rowPlacement(16) },
+      ],
+      48,
+      { levelId: "lv-a", landing: true },
+    );
+    const { vault, ...operations } = level.operations;
+    if (!vault) throw new Error("no vault");
+    const below = compoundWorld(
+      { compound: level.compound, operations, closedRooms: [closedRoomOf(vault)] },
+      new Set(["apollo"]),
+      "lv-a",
+    );
+    if (!below) throw new Error("no world");
+    expect(placedRooms(below).map((r) => r.id)).toEqual(["apollo", "vault"]);
+    const onVault = rowPlacement(16);
+    const check = localCheck(below, onVault);
+    expect(check).toMatchObject({ ok: false, reason: "overlap", conflicts: ["vault"] });
+    expect(describeRefusal(below, check.reason, check.conflicts)).toBe(
+      "It overlaps a closed room.",
+    );
+    // Right beside it is too close, as beside any room.
+    expect(localCheck(below, rowPlacement(25)).reason).toBe("too_close");
     expect(suggestSpot(below, { w: 8, d: 8 })).not.toBeNull();
   });
 
