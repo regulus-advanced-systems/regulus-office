@@ -76,6 +76,7 @@ import { type GeniusLook, geniusOf } from "./geniusChecks.ts";
 import { loadBoards } from "./githubAccess.ts";
 import { ensureRemoteRepo } from "./gitRemote.ts";
 import { checkMergeGong } from "./gongChecks.ts";
+import { checkHermesConnection } from "./hermesChecks.ts";
 import { checkJukebox } from "./jukeboxChecks.ts";
 import { loadOwnerGenius, type OfficeSession, openOffice, owner } from "./officeSession.ts";
 import { reportFramePerf } from "./perfProbe.ts";
@@ -667,6 +668,10 @@ test("Settings: tabs by keyboard, and a skin rule picked from the thumbnail gall
 
 test("Settings → Agents: an agent is created and changed in plain words, with a model and an appearance (#280)", async () => {
   await checkAgentForm(ownerPage, process.env.E2E_AGENT_FORM_SHOTS);
+});
+
+test("Settings → Agents: the owner connects their existing Hermes, and a gateway that is away is said plainly (#58)", async () => {
+  await checkHermesConnection(ownerPage, process.env.E2E_HERMES_SHOTS);
 });
 
 test("Settings → Agents: who an agent is, what it remembers and its notes; a personal agent's stay private (#136)", async () => {

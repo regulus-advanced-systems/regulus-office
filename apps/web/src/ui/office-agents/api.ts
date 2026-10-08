@@ -6,11 +6,15 @@
 import {
   type CreateMindEntry,
   type CreateOfficeAgent,
+  type HermesConnectionInput,
+  type HermesConnectionTest,
+  HermesConnectionTestResult,
   HumanRequest,
   HumanRequestsResponse,
   MindEntriesResponse,
   MindEntry,
   type MindEntryKind,
+  OFFICE_AGENT_HERMES_TEST_API_PATH,
   OFFICE_AGENT_REQUESTS_API_PATH,
   OFFICE_AGENT_RUNS_ON_API_PATH,
   OFFICE_AGENT_SETTINGS_API_PATH,
@@ -24,6 +28,7 @@ import {
   OfficeAgentsResponse,
   OfficeAgentTokenCreated,
   OfficeAgentView,
+  officeAgentHermesPath,
   officeAgentMindPaths,
   PROVIDER_LOGINS_API_PATH,
   ProviderLoginStatusResponse,
@@ -100,6 +105,12 @@ export function createOfficeAgentsApi(options: { fetch?: typeof fetch } = {}) {
       ),
     saveSettings: (settings: OfficeAgentSettings) =>
       call("PUT", OFFICE_AGENT_SETTINGS_API_PATH, OfficeAgentSettings, settings),
+    /** Try an address and token, or an agent's stored connection to its owner's Hermes (#58). */
+    testHermes: (input: HermesConnectionTest) =>
+      call("POST", OFFICE_AGENT_HERMES_TEST_API_PATH, HermesConnectionTestResult, input),
+    /** Replace an agent's connection. The office never sends a stored one back. */
+    setHermes: (id: string, input: HermesConnectionInput) =>
+      call("PUT", officeAgentHermesPath(id), OfficeAgentView, input),
     // Its soul, memories and notes (#136): only for those who may read them.
     soul: (id: string) => call("GET", officeAgentMindPaths(id).soul, OfficeAgentSoul),
     saveSoul: (id: string, content: string, baseVersion: number) =>
@@ -151,6 +162,19 @@ const ERRORS: Record<string, string> = {
     "A shared agent runs on one of the office's own keys only. An owner or admin adds one under Connect providers.",
   too_many_tokens: "This agent has as many access codes as it can have. Remove one first.",
   already_answered: "That question was already answered.",
+  personal_only: "Your own Hermes can only be a personal agent: choose Me under Belongs to.",
+  hermes_connection_required: "Enter the address and the access token of your Hermes.",
+  hermes_not_connected:
+    "This agent has no connection to a Hermes yet. Enter its address and access token on its card.",
+  hermes_connection_unreadable:
+    "The stored connection cannot be read any more. Enter the address and the access token again.",
+  hermes_unreachable:
+    "Your Hermes cannot be reached. Check that its gateway is running and that the office's server can reach its address.",
+  hermes_bad_token:
+    "Your Hermes refused the access token. Enter the current one (its API_SERVER_KEY) on the agent's card.",
+  master_key_missing:
+    "This office cannot keep a connection safely yet: its OFFICE_MASTER_KEY is not set. Ask whoever runs the office.",
+  too_many_tests: "That was a lot of tries. Wait a minute and test again.",
   soul_changed:
     "Someone saved a newer version while you were writing. Copy your text, reload, and add it again.",
   title_taken: "Another note already has that title.",

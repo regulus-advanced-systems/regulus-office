@@ -8,6 +8,8 @@
  */
 import {
   agentModelLabel,
+  engineBringsOwnModel,
+  type HermesConnectionInput,
   mayEmergencyStopOfficeAgent,
   type OfficeAgentTokenCreated,
   type OfficeAgentView,
@@ -24,6 +26,7 @@ import { AgentMind } from "./AgentMind.tsx";
 import { AppearanceThumb } from "./AppearancePicker.tsx";
 import type { OfficeAgentsApi } from "./api.ts";
 import { useChatRequest } from "./chatRequest.ts";
+import { HermesConnectionSection } from "./HermesConnection.tsx";
 import {
   ago,
   costWords,
@@ -43,6 +46,8 @@ export interface AgentCardActions extends AgentAccessActions {
   /** Resolves true when the change was saved. */
   update(patch: UpdateOfficeAgent): Promise<boolean>;
   connect(): void;
+  /** Replace the connection to the owner's Hermes (#58). Resolves true when it was stored. */
+  setHermes(input: HermesConnectionInput): Promise<boolean>;
 }
 
 export function AgentCard({
@@ -106,8 +111,14 @@ export function AgentCard({
           </div>
           <div className="rg-office-agent__facts" data-testid="agent-runs-on">
             <span>Runs as: {engineName(agent.engine)}</span>
-            <span>Runs on: {runsOnSummary(agent.runsOn)}</span>
-            <span>Model: {agentModelLabel(kind, agent.model)}</span>
+            {engineBringsOwnModel(agent.engine) ? (
+              <span>Provider and model: its own</span>
+            ) : (
+              <>
+                <span>Runs on: {runsOnSummary(agent.runsOn)}</span>
+                <span>Model: {agentModelLabel(kind, agent.model)}</span>
+              </>
+            )}
             {cost && (
               <span title="An estimate from the usage tracker, last 30 days">
                 Cost, last 30 days: {cost}
@@ -177,6 +188,14 @@ export function AgentCard({
       )}
       {chatting && agent.canTalk && (
         <AgentChat api={api} agentId={agent.id} agentName={agent.name} />
+      )}
+      {agent.config && agent.engine === "hermes-external" && (
+        <HermesConnectionSection
+          api={api}
+          agent={agent}
+          busy={busy}
+          onReplace={actions.setHermes}
+        />
       )}
       {agent.config && (
         <AgentMind api={api} agent={agent} now={now} onSoulSaved={actions.refresh} />
