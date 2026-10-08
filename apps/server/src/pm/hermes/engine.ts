@@ -37,7 +37,7 @@ import {
 import { HermesClient, type HermesClientOptions, HermesError } from "./client.ts";
 import type { HermesConnection, HermesConnections } from "./connections.ts";
 import { officeSystemMessage, readSessionState, type SessionState } from "./session-state.ts";
-import { runTurn, type TurnHost } from "./turn.ts";
+import { type HermesTurnUsage, runTurn, type TurnHost } from "./turn.ts";
 
 export interface HermesEngineOptions {
   connections: Pick<HermesConnections, "resolve">;
@@ -50,6 +50,12 @@ export interface HermesEngineOptions {
   backoffMaxMs?: number;
   /** How often a message Hermes has not taken yet is offered before giving up. */
   sendAttempts?: number;
+  /** The engine this conversation runs for; the managed engine (#57) reuses it as its own kind. */
+  kind?: OfficeAgentEngineKind;
+  /** True: a shared agent may run on it (a Hermes the office runs itself, #57). */
+  shared?: boolean;
+  /** Told what a finished turn used, when Hermes says so (#57: a managed Hermes runs on office keys). */
+  onUsage?: (agent: EngineAgent, usage: HermesTurnUsage, runId: string) => void;
 }
 
 interface Run {
@@ -96,7 +102,7 @@ export function describeHermesFailure(err: unknown): { code: string; message: st
 }
 
 export class HermesExternalEngine implements OfficeAgentEngine {
-  readonly kind: OfficeAgentEngineKind = "hermes-external";
+  readonly kind: OfficeAgentEngineKind;
   readonly #events = new EngineEvents();
   readonly #runs = new Map<string, Run>();
   readonly #healthIntervalMs: number;
@@ -105,6 +111,7 @@ export class HermesExternalEngine implements OfficeAgentEngine {
   readonly #sendAttempts: number;
 
   constructor(private readonly options: HermesEngineOptions) {
+    this.kind = options.kind ?? "hermes-external";
     this.#healthIntervalMs = options.healthIntervalMs ?? 30_000;
     this.#backoffBaseMs = options.backoffBaseMs ?? 1_000;
     this.#backoffMaxMs = options.backoffMaxMs ?? 60_000;
@@ -112,7 +119,7 @@ export class HermesExternalEngine implements OfficeAgentEngine {
   }
 
   check(agent: EngineAgent): void {
-    if (agent.ownerUserId === null) {
+    if (agent.ownerUserId === null && !this.options.shared) {
       throw new EngineRefusal(
         "personal_only",
         "an existing Hermes belongs to one person: it can only be a personal agent",
@@ -197,6 +204,14 @@ export class HermesExternalEngine implements OfficeAgentEngine {
     return this.#events.on(listener);
   }
 
+  /** Probe now instead of at the next interval (#57: the office has just restarted the gateway). */
+  async recheck(agentId: string): Promise<EngineHealth> {
+    const run = this.#runs.get(agentId);
+    if (!run) return { ok: false, detail: "not started" };
+    await this.#probe(run);
+    return run.health;
+  }
+
   /** Resolves once every message handed over so far was dealt with (tests). */
   async idle(): Promise<void> {
     for (;;) {
@@ -223,6 +238,7 @@ export class HermesExternalEngine implements OfficeAgentEngine {
       sessionTitle: `Regulus Office: ${run.agent.name}`,
       emit: (event) => this.#emit(event),
       saveState: () => this.#emit({ type: "state", agentId, state: { ...run.state } }),
+      usage: (usage, runId) => this.options.onUsage?.(run.agent, usage, runId),
       reachable: (ok, detail) => this.#setHealth(run, ok, detail),
     };
   }

@@ -48,9 +48,14 @@ export function officeSystemMessage(
   message: EngineMessage,
   soul: string,
 ): string {
+  const shared = agent.ownerUserId === null;
   const lines = [
-    `This message reaches you through the Regulus Office, a shared virtual office where you are present as "${agent.name}". It is from ${message.fromName}, the person you belong to. Your reply is shown to them there.`,
-    'If an MCP server named "office" is configured, its tools act in that office with exactly this person\'s rights.',
+    `This message reaches you through the Regulus Office, a shared virtual office where you are present as "${agent.name}". It is from ${message.fromName}${
+      shared ? ", one of the people of the office you work for" : ", the person you belong to"
+    }. Your reply is shown to them there.`,
+    shared
+      ? 'If an MCP server named "office" is configured, its tools act in that office with the rights the office gave you, whoever is asking.'
+      : 'If an MCP server named "office" is configured, its tools act in that office with exactly this person\'s rights.',
   ];
   // The soul is the instructions' successor; an engine started without one still has the row's text.
   const document = (soul || agent.instructions).trim();
