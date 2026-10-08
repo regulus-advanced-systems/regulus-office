@@ -19,10 +19,13 @@ export const OFFICE_AGENT_HERMES_TEST_API_PATH = "/api/office-agents/hermes/test
 export const officeAgentHermesPath = (agentId: string) =>
   `/api/office-agents/${encodeURIComponent(agentId)}/hermes`;
 
-/** Engines that bring their own provider and model: the form asks for neither. */
+/**
+ * Engines that bring their own provider and model: the form asks for neither.
+ * A Hermes the office runs itself (`hermes-managed`, #57) is not one of them:
+ * it runs on a key picked in the form, as the session engine does.
+ */
 export const ENGINES_WITH_OWN_MODEL: readonly OfficeAgentEngineKind[] = [
   "hermes-external",
-  "hermes-managed",
   "openclaw",
 ];
 export const engineBringsOwnModel = (kind: OfficeAgentEngineKind) =>
@@ -148,3 +151,13 @@ export const HermesConnectionView = z.object({
   updatedAt: z.number().int().nonnegative().optional(),
 });
 export type HermesConnectionView = z.infer<typeof HermesConnectionView>;
+
+/**
+ * The kinds of key (office-agent-runs-on.ts) a Hermes run by the office can
+ * run on (#57): an Anthropic API key and a DeepSeek key. Never a subscription
+ * login. Other kinds Hermes has a provider for are not mapped yet.
+ */
+export const MANAGED_HERMES_KEY_KINDS = ["anthropic", "deepseek"] as const;
+export type ManagedHermesKeyKind = (typeof MANAGED_HERMES_KEY_KINDS)[number];
+export const managedHermesRunsOn = (kind: string): kind is ManagedHermesKeyKind =>
+  (MANAGED_HERMES_KEY_KINDS as readonly string[]).includes(kind);
