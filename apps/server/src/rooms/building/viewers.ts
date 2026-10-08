@@ -3,7 +3,7 @@
  * same BuildingRoom, but nobody receives anything about a room their own
  * GitHub access does not cover.
  *
- * How: the state's `humans`, `operations`, `closedRooms`, `levels`, `chat` and
+ * How: the state's `humans`, `officeAgents`, `operations`, `closedRooms`, `levels`, `chat` and
  * `usage.topHenchmen` are per-viewer collections (Colyseus `.view()` with one
  * `StateView` per client). An entry is encoded for a client only while that
  * client was shown it, and a client that was shown nothing gets none of them,
@@ -16,6 +16,9 @@
  * - `levels`: the lobby level and the levels with a room they may enter.
  * - `humans`: themselves, and people on a level they reach who are not
  *   inside a room that is closed to them.
+ * - `officeAgents` (#252): office agents' bodies, by the same rule as people: on a
+ *   level they reach and not inside a room that is closed to them. A personal
+ *   agent that follows its owner into such a room is gone for them until it is out.
  * - `usage.topHenchmen`: henchmen of rooms they may enter.
  * - `chat`: lines written in the lobby or a corridor, and lines written
  *   inside a room they may enter (the same rule search applies to chat).
@@ -89,6 +92,10 @@ export function createViewers(deps: ViewersDeps) {
     state.humans.forEach((human, sessionId) => {
       present.add(human);
       if (sessionId === client.sessionId || seesHuman(view, human)) wanted.add(human);
+    });
+    state.officeAgents.forEach((body) => {
+      present.add(body);
+      if (seesHuman(view, body)) wanted.add(body);
     });
     state.chat.forEach((line) => {
       present.add(line);

@@ -29,6 +29,7 @@ import { MediaHost } from "./media/MediaHost.tsx";
 import { MediaStrip } from "./media/MediaStrip.tsx";
 import { MeetingHost } from "./meetings/MeetingHost.tsx";
 import { NotificationsHost } from "./notifications/NotificationsHost.tsx";
+import { AgentChatWindowHost } from "./office-agents/AgentChatWindow.tsx";
 import { AddOperationDialogHost } from "./operations/AddOperationDialog.tsx";
 import { OperationSettingsDialogHost } from "./operations/OperationSettingsDialog.tsx";
 import { PictureDock } from "./pictures/PicturesHost.tsx";
@@ -137,6 +138,7 @@ export function Hud() {
       <MediaHost />
       <WhiteboardHost />
       <NotificationsHost />
+      <AgentChatWindowHost />
       <EmoteWheel />
       <Toaster />
     </div>

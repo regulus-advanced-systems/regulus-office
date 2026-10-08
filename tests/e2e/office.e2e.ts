@@ -78,6 +78,7 @@ import { ensureRemoteRepo } from "./gitRemote.ts";
 import { checkMergeGong } from "./gongChecks.ts";
 import { checkHermesConnection } from "./hermesChecks.ts";
 import { checkJukebox } from "./jukeboxChecks.ts";
+import { checkAgentsInTheWorld } from "./officeAgentWorldChecks.ts";
 import { loadOwnerGenius, type OfficeSession, openOffice, owner } from "./officeSession.ts";
 import { reportFramePerf } from "./perfProbe.ts";
 import { checkWallPictures } from "./pictureChecks.ts";
@@ -668,6 +669,12 @@ test("Settings: tabs by keyboard, and a skin rule picked from the thumbnail gall
 
 test("Settings → Agents: an agent is created and changed in plain words, with a model and an appearance (#280)", async () => {
   await checkAgentForm(ownerPage, process.env.E2E_AGENT_FORM_SHOTS);
+});
+
+test("office agents in the world: a personal one follows its owner and only they can talk to it; a shared one wanders and both can (#252)", async () => {
+  test.setTimeout(420_000);
+  if (process.env.E2E_DATA_DIR) await ensureApollo();
+  await checkAgentsInTheWorld(ownerPage, memberPage, process.env.E2E_AGENT_WORLD_SHOTS);
 });
 
 test("Settings → Agents: the owner connects their existing Hermes, and a gateway that is away is said plainly (#58)", async () => {

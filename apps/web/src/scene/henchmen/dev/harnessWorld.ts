@@ -103,6 +103,9 @@ export function harnessBuilding(total: number, humans: Record<string, HumanPrese
     compound: state.compound,
     operations: state.operations,
     humans,
+    // The scene's jukebox driver reads this as soon as there is a building state.
+    jukebox: { playing: false, queue: [], volume: 0, startedAtServerMs: 0, pausedAtMs: 0 },
+    officeAgents: {},
   } as unknown as BuildingState;
 }
 

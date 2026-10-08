@@ -26,6 +26,7 @@ export const agent = (over: Partial<OfficeAgentView>): OfficeAgentView => ({
   model: "sonnet",
   runsOn: { kind: "login", officeKey: false },
   appearance: "standard",
+  dismissed: false,
   status: "ready",
   lastActivityAt: NOW - 5 * 60_000,
   createdAt: NOW - 86_400_000,

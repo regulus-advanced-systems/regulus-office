@@ -132,6 +132,8 @@ export function OfficeAgentsSection({
             actions={{
               start: () => void run(() => api.start(agent.id)),
               stop: () => void run(() => api.stop(agent.id)),
+              dismiss: () => void run(() => api.dismiss(agent.id)),
+              recall: () => void run(() => api.recall(agent.id)),
               remove: () => void run(() => api.remove(agent.id)),
               refresh: () => void load(),
               update: async (patch) => (await run(() => api.update(agent.id, patch))) !== undefined,

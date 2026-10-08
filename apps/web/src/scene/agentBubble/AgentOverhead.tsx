@@ -62,6 +62,11 @@ export interface AgentOverheadProps {
   field?: OverheadField;
   /** The agent is the viewer's own: its name tag shows at any distance. */
   own?: boolean;
+  /**
+   * For an agent that walks (#252): where it stands now, in the field's frame, read every
+   * frame; `position` is then relative to whatever moves it. Omit for an agent that stays put.
+   */
+  anchor?: { readonly x: number; readonly z: number };
 }
 
 const GAP = 0.25;
@@ -82,6 +87,7 @@ export function AgentOverhead({
   onOpen,
   field,
   own = false,
+  anchor,
 }: AgentOverheadProps) {
   const tag = useMemo(() => (name ? nameTagTextureFor(name) : null), [name]);
   const kind = bubble && bubble.kind !== "none" ? bubble.kind : null;
@@ -129,7 +135,7 @@ export function AgentOverhead({
       distance: !field
         ? 0
         : field.viewer
-          ? Math.hypot(x - field.viewer.x, z - field.viewer.z)
+          ? Math.hypot((anchor?.x ?? x) - field.viewer.x, (anchor?.z ?? z) - field.viewer.z)
           : Infinity,
       hovered: !!field && (field.hoveredId === id || field.focusedId === id),
       own,

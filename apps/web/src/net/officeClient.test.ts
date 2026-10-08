@@ -66,6 +66,7 @@ const emptyBuilding = (): BuildingState => ({
   levels: {},
   blastDoor: BLAST_DOOR_CLOSED,
   lobbyWhiteboardVersion: 0,
+  officeAgents: {},
 });
 
 const emptyOperation = (operationId: string): OperationState => ({
