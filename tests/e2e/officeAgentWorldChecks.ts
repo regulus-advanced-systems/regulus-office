@@ -9,7 +9,8 @@
  * - the owner presses `E` next to it: its chat opens as a window in the world; Dismiss
  *   sends it wandering for both browsers and Recall brings it back;
  * - the shared agent wanders, and both the owner and the member open its chat by clicking it;
- * - the owner walks into a project room on another level: the agent comes too.
+ * - the owner walks into a project room on another level: the agent comes too, and the
+ *   member, whose GitHub access does not cover that room, is not sent its body meanwhile.
  *
  * No message is sent (this office has no runner): turns are covered with the fake engine in
  * apps/server/src/pm. Bodies are read through the scene probe (`window.__regulusR3F`,
@@ -364,8 +365,20 @@ export async function checkAgentsInTheWorld(owner: Page, member: Page, shots?: s
           { timeout: 30_000 },
         )
         .toBe(true);
+      // The member's GitHub access does not cover Apollo: while the agent is in there, their
+      // browser is not sent its body at all (per-viewer state, #270), and gets it back after.
+      const theirs = (await (await member.request.get("/api/operations")).json()) as {
+        operations: Array<{ name: string }>;
+      };
+      const memberSeesApollo = theirs.operations.some((o) => o.name === "Apollo");
+      if (!memberSeesApollo) {
+        await expect.poll(() => bodyOf(member, mine.id), { timeout: 15_000 }).toBeNull();
+      }
       await goToLobbyLevel(owner);
       await walkToLobby(owner);
+      await expect
+        .poll(async () => (await bodyOf(member, mine.id))?.name, { timeout: 30_000 })
+        .toBe(mine.name);
     }
   } finally {
     // Leave nothing behind, so the step can run again.
