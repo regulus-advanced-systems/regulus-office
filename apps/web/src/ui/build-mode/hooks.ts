@@ -8,7 +8,7 @@
 import { useEffect, useMemo } from "react";
 import { cameraView, useCameraStore } from "../../state/camera.ts";
 import { useCompoundStore } from "../../state/compound.ts";
-import { useLevelStore } from "../../state/level.ts";
+import { DRAFT_LEVEL_ID, useLevelStore } from "../../state/level.ts";
 import { travelTo } from "../../state/travel.ts";
 import { isEditableTarget } from "../hotkeys/registry.ts";
 import type { CompoundApi } from "./api.ts";
@@ -36,7 +36,9 @@ export function useGhostCheck(api: CompoundApi): void {
       const placement = st.placement();
       const skip = st.intent?.kind === "move" ? st.intent.operationId : undefined;
       // A new room is checked against the grid of the level being looked at (#268).
-      const levelId = skip ? undefined : useLevelStore.getState().levelId;
+      // A level that is not made yet (#269) has no id: the server checks its empty grid.
+      const viewed = useLevelStore.getState().levelId;
+      const levelId = skip || viewed === DRAFT_LEVEL_ID ? undefined : viewed;
       void api.check(placement, skip, levelId).then((res) => {
         if (!res.ok) return;
         const check: ServerCheck = {

@@ -34,6 +34,7 @@ import {
   type Lair,
   type LairLevel,
   lairKey,
+  liftArrival,
   lobbyOf,
   readLair,
   roomAt,
@@ -256,37 +257,61 @@ export class AgentWorld {
 
   /**
    * The one place a body is sent somewhere. `hop` places it there at once
-   * instead of walking: its first appearance and every change of level.
+   * instead of walking (its first appearance). A change of level never goes
+   * straight to `to`: the body steps out of the lift on the new level's
+   * landing (#269) and the answer is true, so the caller sends it on from
+   * there, on foot, at its next step.
    */
   #send(
     body: Body,
     mode: OfficeAgentBodyMode,
     to: Pose & { levelId: string; operationId: string },
     options: { hop?: boolean; doing?: string } = {},
-  ): void {
-    if (body.levelId !== to.levelId) this.#travelToLevel(body, to.levelId);
-    else if (options.hop) body.hop += 1;
+  ): boolean {
+    let target: Pose = to;
+    let operationId = to.operationId;
+    let doing = options.doing ?? "";
+    let byLift = false;
+    if (body.levelId !== to.levelId) {
+      const arrival = options.hop ? null : this.#travelToLevel(body, to.levelId);
+      if (arrival) {
+        target = arrival;
+        operationId = LOBBY_OPERATION_ID;
+        doing = "stepping out of the lift";
+        byLift = true;
+      } else {
+        body.levelId = to.levelId;
+        body.hop += 1;
+        this.#placed = true;
+      }
+    } else if (options.hop) body.hop += 1;
     if (body.mode !== mode) body.mode = mode;
-    if (body.operationId !== to.operationId) {
-      body.operationId = to.operationId;
+    if (body.operationId !== operationId) {
+      body.operationId = operationId;
       this.#placed = true;
     }
-    const doing = (options.doing ?? "").slice(0, OFFICE_AGENT_DOING_MAX);
+    doing = doing.slice(0, OFFICE_AGENT_DOING_MAX);
     if (body.doing !== doing) body.doing = doing;
     const t = body.target;
-    if (t.x !== to.x) t.x = to.x;
-    if (t.z !== to.z) t.z = to.z;
-    if (t.heading !== to.heading) t.heading = to.heading;
+    if (t.x !== target.x) t.x = target.x;
+    if (t.z !== target.z) t.z = target.z;
+    if (t.heading !== target.heading) t.heading = target.heading;
+    return byLift;
   }
 
   /**
-   * A body changes level. Today it is placed on the new level at once; when the
-   * lift exists (#269) this is where it walks to the lift and rides it.
+   * A body changes level: it is placed by the lift on the new level's landing
+   * (the lobby on the lobby level), where people who ride the lift step out
+   * (#269). No ride is played for it. The pose it appears at, or null when
+   * that level has no landing to arrive on.
    */
-  #travelToLevel(body: Body, levelId: string): void {
+  #travelToLevel(body: Body, levelId: string): Pose | null {
+    const arrival = liftArrival(this.#lair?.levels.get(levelId), unitHash(body.agentId));
+    if (!arrival) return null;
     body.levelId = levelId;
     body.hop += 1;
     this.#placed = true;
+    return arrival;
   }
 
   #follow(
@@ -312,14 +337,15 @@ export class AgentWorld {
       slot,
       mayEnter,
     });
-    this.#send(
+    const byLift = this.#send(
       body,
       plan.mode,
       { ...plan.target, levelId: level.levelId, operationId: plan.operationId },
       { doing: plan.doing },
     );
-    brain.anchor = { levelId: owner.levelId, x: owner.x, z: owner.z };
-    brain.place = room?.id ?? "";
+    // Just out of the lift: no anchor yet, so the next step walks it on to its owner.
+    brain.anchor = byLift ? null : { levelId: owner.levelId, x: owner.x, z: owner.z };
+    brain.place = byLift ? "" : (room?.id ?? "");
     brain.nextAt = 0;
   }
 
@@ -354,7 +380,12 @@ export class AgentWorld {
       brain.nextAt = now + 5_000;
       return;
     }
-    this.#send(body, "wander", pick.spot, { doing: pick.spot.doing });
+    if (this.#send(body, "wander", pick.spot, { doing: pick.spot.doing })) {
+      // Out of the lift on another level: look round, then wander on from the landing.
+      brain.place = "";
+      brain.nextAt = now + 2_500;
+      return;
+    }
     brain.place = pick.spot.place;
     brain.nextAt = now + pick.after;
   }
@@ -408,7 +439,13 @@ export class AgentWorld {
       if (room?.kind === "project" && (!room.ready || !mayEnter(room.id))) continue;
       const operationId = room?.kind === "project" ? room.id : LOBBY_OPERATION_ID;
       const far = Math.hypot(stop.x - body.target.x, stop.z - body.target.z);
-      this.#send(body, "route", { ...stop, operationId }, { doing: stop.doing });
+      if (this.#send(body, "route", { ...stop, operationId }, { doing: stop.doing })) {
+        // Out of the lift on the stop's level: walk to this same stop next.
+        route.index = (route.index - 1 + route.stops.length) % route.stops.length;
+        brain.place = "";
+        brain.nextAt = now + 2_000;
+        return;
+      }
       brain.place = room?.id ?? "";
       brain.nextAt = now + (far / 3) * 1_600 + stop.pauseMs;
       return;

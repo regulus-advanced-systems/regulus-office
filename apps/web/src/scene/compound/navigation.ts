@@ -23,7 +23,13 @@ import {
 import { WALL_THICKNESS } from "../lair/dimensions.ts";
 import { type RoomArt, roomArt } from "./interiors.ts";
 import { type OutsideLayout, outsideLayout, outsideObstacles } from "./outside/layout.ts";
-import { type CompoundWorld, isOpenRoom, lobbyOf, roomCentre, type WorldRoom } from "./world.ts";
+import {
+  arrivalRoomOf,
+  type CompoundWorld,
+  isOpenRoom,
+  roomCentre,
+  type WorldRoom,
+} from "./world.ts";
 
 /** Fine cells, like the old per-operation grids (#15), while the grid stays small enough. */
 export const FINE_CELL = 0.25;
@@ -112,9 +118,12 @@ export function closedDoors(world: CompoundWorld): Set<string> {
 /** Everything that decides the grid; the grid is rebuilt only when this changes. */
 export function navKey(world: CompoundWorld): string {
   return [
+    world.levelId,
     world.version,
     ...world.rooms.map((r) =>
-      [r.id, r.enterable ? 1 : 0, r.buildState, r.deskCount, r.decorStyle].join(":"),
+      [r.id, r.enterable ? 1 : 0, r.closed ? 1 : 0, r.buildState, r.deskCount, r.decorStyle].join(
+        ":",
+      ),
     ),
   ].join("|");
 }
@@ -142,9 +151,12 @@ export function compoundNavGrid(world: CompoundWorld, state: CompoundNavState = 
   });
 }
 
-/** Where a new player appears: the middle of the lobby, facing its door to the corridors. */
+/**
+ * Where a new player appears: the middle of the lobby (of a level's landing
+ * when the scene starts on another level), facing its door to the corridors.
+ */
 export function lobbySpawn(world: CompoundWorld): Pose {
-  const lobby = lobbyOf(world);
+  const lobby = arrivalRoomOf(world);
   if (!lobby) return { x: 0, z: 0, heading: 0 };
   const c = roomCentre(lobby);
   return { x: c.x, z: c.z, heading: HEADING[lobby.doorSide] };

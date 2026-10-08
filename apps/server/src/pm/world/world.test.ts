@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { LOBBY_LEVEL_ID, LOBBY_OPERATION_ID } from "@regulus/protocol";
+import { liftSpotIn } from "@regulus/room-layout";
 import { rng } from "@regulus/room-layout/src/compound/test-support.ts";
 import { centreOf, corridorAt, inRect, type LairRoom, readLair, roomAt } from "./geometry.ts";
 import { ACME, APOLLO, BOREALIS, lairState, person, type TestState } from "./test-lair.ts";
@@ -135,18 +136,84 @@ describe("AgentWorld", () => {
     s.run(STEP_MS);
     const body = s.body("a1");
     expect(body?.levelId).toBe(ACME);
-    // Placed on the new level, not walked across the old one.
+    // Placed on the new level, not walked across the old one: it steps out of the lift on
+    // that level's landing (#269), wherever its owner went.
+    expect(body?.hop).toBe(hops + 1);
+    const landing = s.room(ACME, "landing");
+    expect(landing.kind).toBe("landing");
+    expect(inRect(landing.rect, body?.target ?? { x: 0, z: 0 })).toBe(true);
+    const lift = liftSpotIn(landing.tiles);
+    const fromLift = Math.hypot(
+      (body?.target.x ?? 0) - lift.stand.x,
+      (body?.target.z ?? 0) - lift.stand.z,
+    );
+    expect(fromLift).toBeGreaterThan(0.5);
+    expect(fromLift).toBeLessThan(2);
+    // Not inside the shaft's housing.
+    expect(inRect(lift.rect, body?.target ?? { x: 0, z: 0 })).toBe(false);
+    expect(body?.operationId).toBe(LOBBY_OPERATION_ID);
+    expect(body?.doing).toBe("stepping out of the lift");
+    // Then it walks (no second hop) to its owner's side, into the room they may both enter.
+    s.run(STEP_MS);
     expect(body?.hop).toBe(hops + 1);
     expect(body?.mode).toBe("follow");
     expect(body?.operationId).toBe(APOLLO);
     expect(inRect(apollo.rect, body?.target ?? { x: 0, z: 0 })).toBe(true);
+    // Back up with its owner: by the lobby's lift, the same shaft.
+    person(s.state, "ante", { x: 60, z: 120 });
+    s.run(STEP_MS);
+    expect(body?.levelId).toBe(LOBBY_LEVEL_ID);
+    expect(body?.hop).toBe(hops + 2);
+    expect(
+      inRect(s.room(LOBBY_LEVEL_ID, LOBBY_OPERATION_ID).rect, body?.target ?? { x: 0, z: 0 }),
+    ).toBe(true);
+    expect(
+      Math.hypot((body?.target.x ?? 0) - lift.stand.x, (body?.target.z ?? 0) - lift.stand.z),
+    ).toBeLessThan(2);
+  });
+
+  test("a level other than the lobby level has a landing and none of the lobby's rooms to wander (#269)", () => {
+    const s = setup([agent({ id: "s1", ownerUserId: null, ownerName: "" })], { s1: [APOLLO] });
+    expect(s.lair.levels.get(ACME)?.rooms.map((r) => r.kind)).toEqual([
+      "landing",
+      "project",
+      "project",
+    ]);
+    // Somebody is on Acme's level only: the shared agent wanders there.
+    person(s.state, "sam", { x: 60, z: 120, levelId: ACME });
+    const lobbyLevel = s.lair.levels.get(LOBBY_LEVEL_ID);
+    const fixed = (lobbyLevel?.rooms ?? []).filter(
+      (r) => r.kind === "conference" || r.kind === "break_room",
+    );
+    expect(fixed).toHaveLength(2);
+    const doings = new Set<string>();
+    let onAcme = 0;
+    for (let i = 0; i < 120; i++) {
+      s.run(3_000);
+      const body = s.body("s1");
+      if (!body || body.levelId !== ACME) continue;
+      onAcme++;
+      doings.add(body.doing);
+      const level = s.lair.levels.get(ACME);
+      const room = roomAt(level, body.target);
+      // In the landing, in Apollo, or in a corridor; never where the lobby level has its
+      // war room or break room (solid rock down here), nor in the room it may not enter.
+      expect(room ? room.id : corridorAt(level, body.target) ? "corridor" : "rock").toMatch(
+        /^(landing|op-apollo|corridor)$/,
+      );
+      for (const r of fixed) expect(inRect(r.rect, body.target)).toBe(false);
+    }
+    expect(onAcme).toBeGreaterThan(20);
+    expect([...doings].some((d) => /landing|by the lift/.test(d))).toBe(true);
+    expect([...doings].join("|")).not.toMatch(/war room|break room|lobby|snacks/);
   });
 
   test("it waits outside a room it may not enter, and comes in once it may", () => {
     const s = setup([agent({})], { a1: [APOLLO] });
     const borealis = s.room(ACME, BOREALIS);
     person(s.state, "ante", { ...centreOf(borealis.rect), levelId: ACME });
-    s.run(STEP_MS);
+    // One step out of the lift on that level, the next to the door.
+    s.run(2 * STEP_MS);
     const body = s.body("a1");
     expect(body?.mode).toBe("wait");
     expect(body?.operationId).toBe(LOBBY_OPERATION_ID);
@@ -300,7 +367,8 @@ describe("AgentWorld", () => {
       seen.add(s.body("pm")?.doing ?? "");
       expect(s.body("pm")?.mode).toBe("route");
     }
-    expect([...seen]).toEqual(["visiting Apollo"]);
+    // It came down by the lift first (#269), then kept to the stop it may stand at.
+    expect([...seen].sort()).toEqual(["stepping out of the lift", "visiting Apollo"]);
     s.world.setRoute("pm", null);
     s.run(STEP_MS);
     expect(s.body("pm")?.mode).toBe("wander");

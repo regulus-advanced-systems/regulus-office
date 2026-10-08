@@ -9,13 +9,15 @@
  */
 import { useBuildingStore } from "../../state/building.ts";
 import { cameraView, useCameraStore } from "../../state/camera.ts";
-import { useLevelStore } from "../../state/level.ts";
+import { levelLabel, levelLabelOf, levelList, useLevelStore } from "../../state/level.ts";
 import { useOperationStore } from "../../state/operation.ts";
 import { usePlayerStore } from "../../state/player.ts";
 import { terminalDeskAt } from "../laptops/focus.ts";
 import { seatByKey } from "../social/seats.ts";
+import { platePose } from "./closed.ts";
 import { roomArt } from "./interiors.ts";
 import { roomLayout } from "./layouts.ts";
+import { liftOf } from "./lift/spot.ts";
 import { type CompoundWorld, roomAt, roomById } from "./world.ts";
 
 export interface NavProbe {
@@ -35,6 +37,8 @@ export interface NavProbe {
     name: string;
     kind: string;
     enterable: boolean;
+    /** Closed to this viewer (#269): a footprint with no name. */
+    closed: boolean;
     buildState: string;
     x: number;
     z: number;
@@ -55,8 +59,17 @@ export interface NavProbe {
   camera(): { yaw: number; wantYaw: number; zoom: number; wantZoom: number; distance: number };
   /** The level being looked at (#268); `rooms()` lists that level's rooms only. */
   level(): string;
-  /** The level the room called `roomName` is on, with the level's name; null when unknown. */
+  /**
+   * The level the room called `roomName` is on, with the level's name as the lift and quick
+   * travel show it; null when unknown.
+   */
   levelOf(roomName: string): { levelId: string; name: string } | null;
+  /** The levels this viewer is shown, in lift order, as the lift's panel names them (#269). */
+  levels(): Array<{ levelId: string; name: string; mark: string }>;
+  /** In front of a closed room's door or plate (#269), where `E` is answered "no entry". */
+  closedDoor(operationId: string): { x: number; z: number } | null;
+  /** Where to stand to call the lift on the level being looked at (#269), compound metres. */
+  lift(): { x: number; z: number } | null;
 }
 
 declare global {
@@ -102,6 +115,7 @@ export function createNavProbe(getWorld: () => CompoundWorld | null): NavProbe {
         name: r.name,
         kind: r.kind,
         enterable: r.enterable,
+        closed: r.closed,
         buildState: r.buildState,
         x: r.origin.x,
         z: r.origin.z,
@@ -141,8 +155,25 @@ export function createNavProbe(getWorld: () => CompoundWorld | null): NavProbe {
     levelOf(roomName) {
       const state = useBuildingStore.getState().state;
       const room = Object.values(state?.operations ?? {}).find((f) => f.name === roomName);
-      const level = room ? state?.levels?.[room.levelId] : undefined;
-      return level ? { levelId: level.levelId, name: level.name } : null;
+      const label = room ? levelLabelOf(state ?? null, room.levelId) : null;
+      return room && label ? { levelId: room.levelId, name: label.title } : null;
+    },
+    levels() {
+      const levels = levelList(useBuildingStore.getState().state);
+      return levels.map((l) => {
+        const label = levelLabel(l, levels);
+        return { levelId: l.levelId, name: label.title, mark: label.mark };
+      });
+    },
+    closedDoor(operationId) {
+      const world = getWorld();
+      const room = world?.rooms.find((r) => r.id === operationId && r.closed);
+      return world && room ? platePose(room, world).stand : null;
+    },
+    lift() {
+      const world = getWorld();
+      const lift = world ? liftOf(world) : null;
+      return lift ? { x: lift.stand.x, z: lift.stand.z } : null;
     },
     terminalDesk() {
       const world = getWorld();

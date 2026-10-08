@@ -591,6 +591,87 @@ describe("OfficeClient", () => {
     expect(client.status).toBe("connected");
   });
 
+  test("the room one is in leaving the building state tells the same thing, whichever comes first (#269)", async () => {
+    const told: AccessNotice = {
+      kind: "revoked",
+      operationId: "f1",
+      message: "You no longer have access to this room.",
+    };
+    const lose = (transport: FakeTransport) =>
+      transport.building.patch((s) => {
+        delete s.operations.f1;
+      });
+
+    // The state first (the level vanished; the scene will leave the room by itself), then the close.
+    {
+      const notices: AccessNotice[] = [];
+      const { transport, client } = setup({ onAccess: (n) => notices.push(n) });
+      await client.connect();
+      await client.goToOperation("f1");
+      lose(transport);
+      expect(notices).toEqual([told]);
+      transport.operation.serverClose(ACCESS_CLOSE_CODES.revoked, "access revoked");
+      await flush();
+      expect(notices).toEqual([told]);
+    }
+    // The state first, and the scene has already left the room when the close would come: still told.
+    {
+      const notices: AccessNotice[] = [];
+      const { transport, client } = setup({ onAccess: (n) => notices.push(n) });
+      await client.connect();
+      await client.goToOperation("f1");
+      lose(transport);
+      await client.setRooms(null, []);
+      await flush();
+      expect(notices).toEqual([told]);
+    }
+    // The close first, then the state: told once.
+    {
+      const notices: AccessNotice[] = [];
+      const { transport, client } = setup({ onAccess: (n) => notices.push(n) });
+      await client.connect();
+      await client.goToOperation("f1");
+      transport.operation.serverClose(ACCESS_CLOSE_CODES.revoked, "access revoked");
+      await flush();
+      lose(transport);
+      expect(notices).toEqual([told]);
+    }
+  });
+
+  test("a room one is not in leaving the state goes quietly; a room that came back and is lost again is news", async () => {
+    const notices: AccessNotice[] = [];
+    const { transport, client } = setup({ onAccess: (n) => notices.push(n) });
+    await client.connect();
+    const entry = structuredClone(transport.building.snapshot().operations.f1);
+    if (!entry) throw new Error("no f1");
+    // In the lobby: the room vanishing says nothing.
+    transport.building.patch((s) => {
+      delete s.operations.f1;
+    });
+    expect(notices).toEqual([]);
+    transport.building.patch((s) => {
+      s.operations.f1 = entry;
+    });
+    await client.goToOperation("f1");
+    transport.building.patch((s) => {
+      delete s.operations.f1;
+    });
+    expect(notices).toHaveLength(1);
+    // Other changes to the state do not repeat it.
+    transport.building.patch((s) => {
+      s.lobbyWhiteboardVersion += 1;
+    });
+    expect(notices).toHaveLength(1);
+    // Given back and taken away again while they stand in it: told again.
+    transport.building.patch((s) => {
+      s.operations.f1 = entry;
+    });
+    transport.building.patch((s) => {
+      delete s.operations.f1;
+    });
+    expect(notices).toHaveLength(2);
+  });
+
   test("a nearby room closed with `revoked` goes quietly", async () => {
     const notices: AccessNotice[] = [];
     const { transport, client } = setup({ onAccess: (n) => notices.push(n) });

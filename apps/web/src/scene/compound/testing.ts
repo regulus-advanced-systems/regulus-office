@@ -4,6 +4,7 @@
  */
 
 import {
+  type ClosedRoom,
   DEFAULT_ROOM_SETTINGS,
   type DecorStyle,
   LOBBY_OPERATION_ID,
@@ -15,6 +16,7 @@ import {
   compoundStateOf,
   computeCompoundLayout,
   defaultCompoundSpec,
+  landingSpec,
   roomSummaryPlacement,
 } from "@regulus/room-layout";
 import { type CompoundWorld, compoundWorld } from "./world.ts";
@@ -30,8 +32,16 @@ export interface TestRoom {
   waiting?: number;
 }
 
-export function testState(rooms: readonly TestRoom[], size = 48) {
-  const spec = defaultCompoundSpec(size);
+export interface TestLevel {
+  /** The level the rooms are on (default: the lobby level, as before levels). */
+  levelId?: string;
+  /** A level other than the lobby level: the lift landing as its only fixed room (#269). */
+  landing?: boolean;
+}
+
+export function testState(rooms: readonly TestRoom[], size = 48, level: TestLevel = {}) {
+  const levelId = level.levelId ?? "lobby";
+  const spec = level.landing ? landingSpec(defaultCompoundSpec(size)) : defaultCompoundSpec(size);
   const layout = computeCompoundLayout(
     spec,
     rooms.map((r) => ({ id: r.id, placement: r.placement })),
@@ -57,7 +67,7 @@ export function testState(rooms: readonly TestRoom[], size = 48) {
     const laid = layout.rooms.find((l) => l.id === r.id);
     operations[r.id] = {
       operationId: r.id,
-      levelId: "lobby",
+      levelId,
       name: r.name ?? r.id,
       slug: r.id,
       index: i + 1,
@@ -74,6 +84,27 @@ export function testState(rooms: readonly TestRoom[], size = 48) {
     };
   });
   return { compound: compoundStateOf(layout), operations };
+}
+
+/**
+ * A room as the server sends it when this viewer may not enter it (protocol
+ * `ClosedRoom`, #270): id, level, footprint and door, `closed: true`. With
+ * `door` false the door fields are off the footprint, as for an unplaced
+ * room: the scene then draws solid rock.
+ */
+export function closedRoomOf(room: OperationSummary, door = true): ClosedRoom {
+  return {
+    operationId: room.operationId,
+    levelId: room.levelId,
+    gridX: room.gridX,
+    gridY: room.gridY,
+    width: room.width,
+    depth: room.depth,
+    doorSide: room.doorSide,
+    doorX: door ? room.doorX : -1,
+    doorY: door ? room.doorY : -1,
+    closed: true,
+  };
 }
 
 /** The client world of a test compound; `enterable` defaults to every room. */

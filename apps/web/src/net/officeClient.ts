@@ -75,6 +75,9 @@ export class OfficeClient {
   private readonly schedule: Scheduler;
   private readonly random: () => number;
   private readonly onAccess: (notice: AccessNotice) => void;
+  /** Rooms in the last building state, and rooms the person was told closed to them. */
+  private listedRooms: ReadonlySet<string> = new Set();
+  private readonly toldClosed = new Set<string>();
 
   private building: RoomHandle<BuildingState> | null = null;
   private readonly operations: OperationLinks;
@@ -135,7 +138,7 @@ export class OfficeClient {
       onAccessClosed: (operationId, kind) => {
         // A changed access rejoins by itself; only a withdrawn one needs words.
         if (kind === "changed" || operationId !== this.operations.primary) return;
-        this.onAccess({ kind, operationId, message: accessCloseMessage(kind, "room") });
+        this.tellRoomClosed(operationId, kind);
       },
     });
   }
@@ -301,10 +304,15 @@ export class OfficeClient {
     const building = this.stores.building.getState();
     const connection = this.stores.connection.getState();
     building.setSessionId(handle.sessionId);
-    building.apply(handle.snapshot());
+    const first = handle.snapshot();
+    this.listedRooms = new Set(Object.keys(first.operations));
+    building.apply(first);
     connection.set({ status: "connected", attempt: 0, lastError: null });
     this.buildingSubs = [
-      handle.onState((state) => building.apply(state)),
+      handle.onState((state) => {
+        this.noticeLostRoom(state);
+        building.apply(state);
+      }),
       handle.onDrop((code, reason) =>
         connection.set({ status: "reconnecting", lastError: reason ?? `dropped (${code})` }),
       ),
@@ -316,7 +324,35 @@ export class OfficeClient {
     for (const type of this.buildingListeners.keys()) this.subscribeBuildingMessage(handle, type);
   }
 
+  /**
+   * The room the player is in is no longer in their building state: their
+   * access to it was withdrawn (or the room is gone), and with levels (D26)
+   * the whole level may vanish with it. The server also closes the room's own
+   * connection with `revoked`, but the scene leaves a room that is no longer
+   * on the map by itself, and whichever of the two came first used to decide
+   * whether the person was told. Both now lead to {@link tellRoomClosed}.
+   */
+  private noticeLostRoom(state: BuildingState): void {
+    const here = this.operations.primary;
+    const listed = new Set(Object.keys(state.operations));
+    if (here && this.listedRooms.has(here) && !listed.has(here))
+      this.tellRoomClosed(here, "revoked");
+    // Back on the map: a later loss is news again.
+    for (const id of this.toldClosed) if (listed.has(id)) this.toldClosed.delete(id);
+    this.listedRooms = listed;
+  }
+
+  /** Tell the person, once per room, that the room they were in closed to them. */
+  private tellRoomClosed(operationId: string, kind: "revoked" | "signedOut"): void {
+    if (kind === "revoked") {
+      if (this.toldClosed.has(operationId)) return;
+      this.toldClosed.add(operationId);
+    }
+    this.onAccess({ kind, operationId, message: accessCloseMessage(kind, "room") });
+  }
+
   private unbindBuilding() {
+    this.listedRooms = new Set();
     for (const off of this.buildingSubs) off();
     this.buildingSubs = [];
     for (const off of this.buildingMessageSubs.values()) off();

@@ -10,7 +10,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { getOfficeClient } from "../../net/index.ts";
 import { cameraView } from "../../state/camera.ts";
 import { useConnectionStore } from "../../state/connection.ts";
-import { useLevelStore } from "../../state/level.ts";
+import { DRAFT_LEVEL_ID, useLevelStore } from "../../state/level.ts";
 import { usePlayerStore } from "../../state/player.ts";
 import type { CorridorChunk } from "./corridors.ts";
 import type { Bounds, PlacedRoom } from "./placed.ts";
@@ -101,7 +101,10 @@ export function RoomPresence({
   );
   // The building hears which level we are on, at once and after every switch (#268).
   useEffect(() => {
-    const tell = (levelId: string) => (target ?? getOfficeClient()).setLevel?.(levelId);
+    // The draft of a level about to be made (#269) is this client's only: nothing to tell.
+    const tell = (levelId: string) => {
+      if (levelId !== DRAFT_LEVEL_ID) (target ?? getOfficeClient()).setLevel?.(levelId);
+    };
     tell(useLevelStore.getState().levelId);
     return useLevelStore.subscribe((s, prev) => {
       if (s.levelId === prev.levelId) return;

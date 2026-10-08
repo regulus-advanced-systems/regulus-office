@@ -11,7 +11,9 @@
  * Each level has its own grid of rooms (#268; SPEC D26): a placement is only
  * ever checked against the rooms of its own level, and the layout (corridors)
  * is computed and published per level. The grid's size and the lobby's
- * footprint are the same on every level.
+ * footprint are the same on every level; the lobby level has the lobby, the
+ * war room, the break room and the blast door, every other level has the lift
+ * landing on the lobby's footprint and nothing else fixed (#269, {@link specOn}).
  */
 
 import {
@@ -29,6 +31,7 @@ import {
   compoundStateOf,
   computeCompoundLayout,
   findPlacement,
+  landingSpec,
   legacyRoomSize,
   roomSummaryPlacement,
   rowSlot,
@@ -93,6 +96,11 @@ export interface CompoundServiceDeps {
 const requireManager = (actor: OperationActor) => {
   if (!isOfficeManager(actor.role)) throw forbidden("owner_or_admin_required");
 };
+
+/** The grid rules of one level: the stored spec on the lobby level, a landing level's elsewhere. */
+export function specOn(spec: CompoundSpec, levelId: string): CompoundSpec {
+  return levelId === LOBBY_LEVEL_ID ? spec : landingSpec(spec);
+}
 
 const placed = (rooms: readonly RoomRow[]) =>
   rooms.flatMap((r) => (r.placement ? [{ id: r.id, placement: r.placement }] : []));
@@ -173,7 +181,7 @@ export class CompoundService implements RoomPlacer {
     let lobbyState: CompoundSnapshot["state"] | undefined;
     for (const level of shownLevels(this.#db)) {
       const layout: CompoundLayout = computeCompoundLayout(
-        spec,
+        specOn(spec, level.id),
         placed(roomsOnLevel(rooms, level.id)),
       );
       const state = compoundStateOf(layout);
@@ -259,8 +267,9 @@ export class CompoundService implements RoomPlacer {
   /**
    * Build-mode ghost: would `placement` be valid on a level's grid? Moving a
    * room (`operationId`): its own level, ignoring the room itself. A new room:
-   * `levelId`, or the lobby level's grid, which has no project rooms and so
-   * equals the grid of a level that does not exist yet.
+   * `levelId`; without one (or with the lobby level, which never has project
+   * rooms) it is the empty grid of a level that does not exist yet, with its
+   * lift landing.
    */
   check(
     actor: OperationActor,
@@ -281,9 +290,12 @@ export class CompoundService implements RoomPlacer {
         : undefined;
     const named = levelId !== undefined && view.levels.has(levelId) ? levelId : undefined;
     const level = moving?.levelId ?? named ?? LOBBY_LEVEL_ID;
+    // A new room is never on the lobby level: without a level it is the empty grid of a
+    // level that does not exist yet, with its lift landing (#269).
+    const onLevel = level === LOBBY_LEVEL_ID && !moving ? [] : roomsOnLevel(rooms, level);
     const result = checkPlacement(
-      this.#spec(),
-      placed(roomsOnLevel(rooms, level)),
+      moving ? specOn(this.#spec(), level) : landingSpec(this.#spec()),
+      placed(onLevel),
       moving?.id ?? "new",
       placement,
     );
@@ -301,7 +313,7 @@ export class CompoundService implements RoomPlacer {
     levelId: string,
   ): NewRoomColumns {
     requireManager(actor);
-    const spec = this.#spec(tx);
+    const spec = specOn(this.#spec(tx), levelId);
     const others = placed(roomsOnLevel(liveRooms(tx), levelId));
     let placement: RoomPlacement;
     if (requested) {
@@ -344,10 +356,10 @@ export class CompoundService implements RoomPlacer {
     }
     this.#db.transaction(
       (tx) => {
-        const spec = this.#spec(tx);
         const rooms = liveRooms(tx);
         const room = rooms.find((r) => r.id === operationId);
         if (!room) throw new AuthHttpError(404, "operation_not_found");
+        const spec = specOn(this.#spec(tx), room.levelId);
         const running = henchmenOn(tx, operationId).filter((r) => r.running);
         if (running.length > 0) {
           throw new AuthHttpError(409, "room_has_running_henchmen", { henchmen: running });

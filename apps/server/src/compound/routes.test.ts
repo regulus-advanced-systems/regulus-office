@@ -204,11 +204,12 @@ describe("compound routes", () => {
       await (await send("POST", "/api/compound/check", admin, { placement: spot(4, 4) })).json(),
     );
     expect(ok).toEqual({ ok: true, conflicts: [] });
+    // A new room is on a repo owner's level: its lift landing stands where the lobby is (#269).
     const lobby = await send("POST", "/api/compound/check", admin, { placement: spot(28, 56) });
     expect(PlacementCheckResponse.parse(await lobby.json())).toEqual({
       ok: false,
       reason: "overlap",
-      conflicts: ["lobby"],
+      conflicts: ["landing"],
     });
     const bad = await send("POST", "/api/compound/check", admin, {
       placement: spot(4, 4, { width: 3 }),

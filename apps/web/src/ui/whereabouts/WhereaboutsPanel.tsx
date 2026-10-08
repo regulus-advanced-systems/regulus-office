@@ -11,7 +11,12 @@ import { useBuildingStore } from "../../state/building.ts";
 import { useCompoundStore } from "../../state/compound.ts";
 import { walkToTeammate } from "../../state/walkToTeammate.ts";
 import { Panel } from "../Panel.tsx";
-import { rowsKey, type WhereaboutsRow, whereaboutsRows } from "./whereabouts.ts";
+import {
+  BEHIND_CLOSED_DOOR,
+  rowsKey,
+  type WhereaboutsRow,
+  whereaboutsRows,
+} from "./whereabouts.ts";
 import "./whereabouts.css";
 
 /** What the status line says after a click. */
@@ -20,7 +25,9 @@ function walkNotice(row: WhereaboutsRow, result: ReturnType<typeof walkToTeammat
     case "walking":
       return `Walking to ${row.name}.`;
     case "door":
-      return `${row.name} is in ${row.place.label}, which you may not enter: walking to its door.`;
+      return row.place.label === BEHIND_CLOSED_DOOR
+        ? `${row.name} is behind a closed door: walking to it.`
+        : `${row.name} is in ${row.place.label}, which you may not enter: walking to its door.`;
     case "here":
       return `You are already next to ${row.name}.`;
     case "unreachable":

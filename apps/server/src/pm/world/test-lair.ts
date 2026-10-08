@@ -1,6 +1,6 @@
 /**
  * A small lair for the world tests (#252): the lobby level with its fixed
- * rooms, and one organisation's level with two project rooms, Apollo and
+ * rooms, and one organisation's level with its lift landing and two project rooms, Apollo and
  * Borealis, as a real `BuildingState`. Only imported by tests.
  */
 import {
@@ -15,6 +15,7 @@ import {
   compoundStateOf,
   computeCompoundLayout,
   defaultCompoundSpec,
+  landingSpec,
   roomSummaryPlacement,
 } from "@regulus/room-layout";
 import { applyCompoundState, applyLevels } from "../../compound/room-state.ts";
@@ -34,7 +35,8 @@ export function lairState(): TestState {
   const state = new BuildingStateSchema();
   const spec = defaultCompoundSpec();
   const lobbyLayout = computeCompoundLayout(spec, []);
-  const acmeLayout = computeCompoundLayout(spec, ROOMS);
+  // A level other than the lobby level has the lift landing as its only fixed room (#269).
+  const acmeLayout = computeCompoundLayout(landingSpec(spec), ROOMS);
   const lobby = compoundStateOf(lobbyLayout);
   applyCompoundState(state.compound, lobby);
   applyLevels(state.levels, {

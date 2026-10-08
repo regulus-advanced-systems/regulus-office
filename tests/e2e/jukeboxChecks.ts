@@ -10,7 +10,7 @@
  * useJukeboxPlayback.ts, published with `?stats`).
  */
 import { expect, type Page, test } from "@playwright/test";
-import { navPose, waitStill, walkTo } from "./compoundProbes.ts";
+import { goToLobbyLevel, navPose, waitStill, walkTo } from "./compoundProbes.ts";
 
 /** Two browsers' players may differ by at most this much (ms) on a loaded CI machine. */
 export const PLAYHEAD_TOLERANCE_MS = 150;
@@ -64,6 +64,8 @@ const standOf = async (page: Page) => {
 };
 
 export async function walkUpToJukebox(page: Page): Promise<void> {
+  // The jukebox is in the lobby, on the lobby level (#269).
+  await goToLobbyLevel(page);
   const stand = await standOf(page);
   await expect(async () => {
     const pose = await navPose(page);

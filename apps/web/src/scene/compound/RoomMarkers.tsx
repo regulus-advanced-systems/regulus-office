@@ -1,8 +1,9 @@
 /**
  * What a room shows from the corridor (#186, SPEC §9.1): a plaque over the
- * door with its name and henchman counts (every project room, so locked doors
- * still say what is behind them), and a rock cap over rooms this viewer may
- * not enter, so the 3/4 camera never looks into them. One plaque mesh per
+ * door with its name and henchman counts (every project room this viewer
+ * knows by name, so locked doors still say what is behind them; a closed
+ * room, #269, has ClosedRooms' neutral plate instead), and a rock cap over
+ * rooms this viewer may not enter, so the 3/4 camera never looks into them. One plaque mesh per
  * visible room, one instanced draw for all caps.
  */
 import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
@@ -74,7 +75,8 @@ export function RoomSigns({
   world: CompoundWorld;
   visible: ReadonlySet<string>;
 }) {
-  const rooms = world.rooms.filter((r) => r.kind === "project" && visible.has(r.id));
+  // A closed room has no name to show: its plate is ClosedRooms' (#269).
+  const rooms = world.rooms.filter((r) => r.kind === "project" && !r.closed && visible.has(r.id));
   return (
     <group name="room-signs">
       {rooms.map((r) => (
