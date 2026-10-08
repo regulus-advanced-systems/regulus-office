@@ -39,7 +39,7 @@ const view = (over: Partial<OfficeAgentView>): OfficeAgentView => ({
   preset: "coordinator",
   provider: "claude-code",
   model: "sonnet",
-  runsOn: { kind: "key", officeKey: true },
+  runsOn: { kind: "anthropic", officeKey: true },
   appearance: "number_two",
   dismissed: false,
   status: "stopped",

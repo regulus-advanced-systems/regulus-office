@@ -312,3 +312,36 @@ test("the office PM's round: in a room, its body reaches only the viewer whose a
   await waitFor(() => body(ante)?.operationId === LOBBY_OPERATION_ID, "the PM back for Ante");
   expect(body(mia)?.levelId).toBe(LOBBY_LEVEL_ID);
 }, 20_000);
+
+test("an owner who has not moved since joining has their agent beside them, not at 0,0 (#252)", async () => {
+  rooms.building.attachWorld(new AgentWorld({ agents: () => AGENTS, mayEnter: () => false }));
+  // Ante signs in and stands still: no `move` is ever sent.
+  const ante = await joinAs("u-ante", "Ante");
+  const mia = await joinAs("u-mia", "Mia");
+  const spawn = {
+    x: (LOBBY.gridX + LOBBY.width / 2) * COMPOUND.tileMetres,
+    z: (LOBBY.gridY + LOBBY.depth / 2) * COMPOUND.tileMetres,
+  };
+  // This session of theirs (earlier tests left others connected).
+  const me = (room: BuildingRoom) => room.state.humans.get(ante.sessionId);
+  // Everyone has them where their own client puts them: the middle of the lobby.
+  await waitFor(() => me(mia) !== undefined, "Ante in Mia's state");
+  for (const view of [ante, mia]) {
+    expect(me(view)?.position.x).toBe(spawn.x);
+    expect(me(view)?.position.z).toBe(spawn.z);
+  }
+  await waitFor(
+    () => mia.state.officeAgents?.get("a-personal")?.mode === "follow",
+    "the personal agent to follow",
+  );
+  const target = mia.state.officeAgents.get("a-personal")?.target;
+  expect(Math.hypot((target?.x ?? 0) - spawn.x, (target?.z ?? 0) - spawn.z)).toBeLessThan(2);
+  // Nowhere near the corner of the map.
+  expect(Math.hypot(target?.x ?? 0, target?.z ?? 0)).toBeGreaterThan(50);
+  // Their first move still wins.
+  ante.send("move", { x: spawn.x + 4, z: spawn.z + 2, heading: 0 });
+  await waitFor(() => {
+    const t = mia.state.officeAgents.get("a-personal")?.target;
+    return !!t && Math.hypot(t.x - (spawn.x + 4), t.z - (spawn.z + 2)) < 2;
+  }, "the agent to be sent after its owner");
+});
