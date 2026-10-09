@@ -38,16 +38,18 @@ import {
 import type { z } from "zod";
 import { AUDIT_ACTIONS, type AuditAction, writeAudit } from "../auth/audit.ts";
 import { AuthHttpError, forbidden } from "../auth/errors.ts";
-import { isOfficeManager, type OperationActor, operationAccessFor } from "../operations/access.ts";
+import { isOfficeManager, type OperationActor } from "../operations/access.ts";
 import { grantsAsSetBy } from "./access.ts";
 import type { Conversations } from "./conversations.ts";
 import type { AgentCredentials } from "./engines/credentials.ts";
 import { EngineRefusal } from "./engines/types.ts";
+import { answerRequest, pendingRequestsFor } from "./human-answers.ts";
 import { checkMessageRate } from "./message-rate.ts";
 import type { MindService } from "./mind/people.ts";
 import type { HumanRequests } from "./requests.ts";
 import { runsOnChoices } from "./runs-on.ts";
 import type { AgentRuntime } from "./runtime.ts";
+import type { RoomScopes } from "./scope.ts";
 import type { OfficeAgentRow, OfficeAgentStore } from "./store.ts";
 import type { OfficeAgentTokens } from "./tokens.ts";
 import { agentView, type ViewExtras } from "./view.ts";
@@ -62,6 +64,7 @@ export interface OfficeAgentServiceDeps extends ViewExtras {
   conversations: Conversations;
   requests: HumanRequests;
   credentials: AgentCredentials;
+  scopes: RoomScopes;
   /** The soul's own writer: the instructions are its text (#136). */
   minds: Pick<MindService, "checkText" | "saveSoul">;
   now?: () => number;
@@ -291,7 +294,7 @@ export class OfficeAgentService {
 
   mintToken(actor: OperationActor, id: string, label: string): OfficeAgentTokenCreated {
     const row = this.#configurable(actor, id);
-    const minted = this.deps.tokens.mint(row.id, "api", label);
+    const minted = this.deps.tokens.mint(row.id, "api", label, actor.id);
     if (!minted) throw conflict("too_many_tokens");
     this.#audit(actor, AUDIT_ACTIONS.officeAgentTokenCreate, row.id, { tokenId: minted.id, label });
     return minted;
@@ -376,32 +379,13 @@ export class OfficeAgentService {
     }
   }
 
-  // ---- "Ask a human" --------------------------------------------------------------
+  // ---- "Ask a human" (human-answers.ts) ---------------------------------------------
 
-  /** The actor's own pending questions, about rooms they can still see (#270). */
   pendingRequests(actor: OperationActor): HumanRequest[] {
-    const { db } = this.deps.store;
-    return this.deps.requests
-      .pendingFor(actor.id)
-      .filter((r) => !r.operationId || operationAccessFor(db, actor, r.operationId) !== null);
+    return pendingRequestsFor(this.deps, actor);
   }
 
-  async answer(actor: OperationActor, requestId: string, answer: string): Promise<HumanRequest> {
-    const { requests, store, runtime } = this.deps;
-    const request = requests.get(requestId);
-    // Someone else's question is indistinguishable from a missing one.
-    if (!request || request.forUserId !== actor.id) throw notFound();
-    const answered = requests.answer(requestId, answer);
-    if (!answered) throw conflict("already_answered");
-    this.#audit(actor, AUDIT_ACTIONS.officeAgentRequestAnswer, request.agentId, { requestId });
-    // The answer also reaches the agent as the person's next message, which opens their turn.
-    const row = store.get(request.agentId);
-    const person = store.person(actor.id);
-    // Only for someone who may talk to it: a viewer's answer is recorded, not delivered as a message.
-    if (row && person && mayTalkToOfficeAgent(actor, row)) {
-      const text = `[Answer to your question "${request.question.slice(0, 200)}" (request ${request.id})]\n${answer}`;
-      await runtime.deliver(row, person, text).catch(() => {});
-    }
-    return answered;
+  answer(actor: OperationActor, requestId: string, answer: string): Promise<HumanRequest> {
+    return answerRequest(this.deps, actor, requestId, answer);
   }
 }

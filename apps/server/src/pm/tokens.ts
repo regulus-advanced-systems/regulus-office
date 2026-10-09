@@ -8,7 +8,9 @@
  * exactly one agent, so it can never act as another.
  *
  * - `api` tokens are minted by whoever may configure the agent (for an
- *   external engine such as a Hermes gateway) and live until revoked;
+ *   external engine such as a Hermes gateway) and live until revoked. The
+ *   office keeps who minted each: a shared agent called with one reads only
+ *   what that person may read themselves (#301, tools/asking.ts);
  * - `session` tokens are minted by the office for one engine run and revoked
  *   when the agent stops.
  */
@@ -42,21 +44,31 @@ export class OfficeAgentTokens {
   ) {}
 
   /** Null when the agent already holds the most `api` tokens it may. */
-  mint(agentId: string, kind: OfficeAgentTokenKind, label: string): MintedToken | null {
+  mint(
+    agentId: string,
+    kind: OfficeAgentTokenKind,
+    label: string,
+    mintedBy: string | null = null,
+  ): MintedToken | null {
     if (kind === "api" && this.list(agentId).length >= OFFICE_AGENT_LIMITS.tokensPerAgent) {
       return null;
     }
     const token = `${OFFICE_AGENT_TOKEN_PREFIX}${randomBytes(32).toString("base64url")}`;
     const row = this.db
       .insert(officeAgentTokens)
-      .values({ agentId, kind, label, tokenHash: hashToken(token) })
+      .values({ agentId, kind, label, tokenHash: hashToken(token), mintedBy })
       .returning({ id: officeAgentTokens.id })
       .get();
     return { id: row.id, label, token };
   }
 
   /** The agent a presented token belongs to, or null. Malformed input never reaches the database. */
-  verify(presented: string): { agentId: string; tokenId: string } | null {
+  verify(presented: string): {
+    agentId: string;
+    tokenId: string;
+    kind: OfficeAgentTokenKind;
+    mintedBy: string | null;
+  } | null {
     if (!TOKEN.test(presented)) return null;
     const row = this.db
       .select()
@@ -72,7 +84,7 @@ export class OfficeAgentTokens {
         .where(eq(officeAgentTokens.id, row.id))
         .run();
     }
-    return { agentId: row.agentId, tokenId: row.id };
+    return { agentId: row.agentId, tokenId: row.id, kind: row.kind, mintedBy: row.mintedBy };
   }
 
   /** The agent's `api` tokens, without any secret material. */

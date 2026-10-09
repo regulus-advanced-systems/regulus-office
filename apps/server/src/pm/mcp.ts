@@ -23,6 +23,7 @@ import { readJsonValue } from "../http/body.ts";
 import { json, type Router } from "../http/router.ts";
 import type { OfficeAgentRow, OfficeAgentStore } from "./store.ts";
 import { bearerOf, type OfficeAgentTokens } from "./tokens.ts";
+import type { ToolCaller } from "./tools/asking.ts";
 import type { OfficeTools } from "./tools/call.ts";
 
 /** Newest first; a client asking for another version gets the newest. */
@@ -34,12 +35,21 @@ export interface AgentAuthDeps {
   tokens: OfficeAgentTokens;
 }
 
-/** The agent a request's bearer token belongs to, or null. */
-export function agentFromRequest(deps: AgentAuthDeps, request: Request): OfficeAgentRow | null {
+/** The agent a request's bearer token belongs to and how the token came to be, or null. */
+export function callerFromRequest(
+  deps: AgentAuthDeps,
+  request: Request,
+): { agent: OfficeAgentRow; caller: ToolCaller } | null {
   const token = bearerOf(request);
   if (!token) return null;
   const found = deps.tokens.verify(token);
-  return found ? (deps.store.get(found.agentId) ?? null) : null;
+  const agent = found ? deps.store.get(found.agentId) : undefined;
+  return found && agent ? { agent, caller: { kind: found.kind, mintedBy: found.mintedBy } } : null;
+}
+
+/** The agent a request's bearer token belongs to, or null. */
+export function agentFromRequest(deps: AgentAuthDeps, request: Request): OfficeAgentRow | null {
+  return callerFromRequest(deps, request)?.agent ?? null;
 }
 
 export const unauthorizedAgent = () =>
@@ -81,7 +91,10 @@ function toolResult(result: OfficeToolResult) {
 }
 
 export function mountMcp(router: Router, deps: McpDeps): void {
-  const handle = async (agent: OfficeAgentRow, message: unknown): Promise<RpcResponse | null> => {
+  const handle = async (
+    { agent, caller }: { agent: OfficeAgentRow; caller: ToolCaller },
+    message: unknown,
+  ): Promise<RpcResponse | null> => {
     if (!isObject(message) || message.jsonrpc !== "2.0") {
       return rpcError(null, -32600, "invalid request");
     }
@@ -121,7 +134,13 @@ export function mountMcp(router: Router, deps: McpDeps): void {
         if (!isObject(params) || typeof params.name !== "string") {
           return rpcError(id, -32602, "tools/call needs a tool name");
         }
-        const result = await deps.tools.call(agent, params.name, params.arguments ?? {}, "mcp");
+        const result = await deps.tools.call(
+          agent,
+          params.name,
+          params.arguments ?? {},
+          "mcp",
+          caller,
+        );
         // An unknown tool is a protocol error (MCP spec, "Error handling"); it is audited all the same.
         if (!result.ok && result.error === "unknown_tool") {
           return rpcError(id, -32602, `unknown tool: ${params.name.slice(0, 80)}`);
@@ -134,7 +153,7 @@ export function mountMcp(router: Router, deps: McpDeps): void {
   };
 
   router.post(OFFICE_MCP_PATH, async (ctx) => {
-    const agent = agentFromRequest(deps, ctx.request);
+    const agent = callerFromRequest(deps, ctx.request);
     if (!agent) return unauthorizedAgent();
     let body: unknown;
     try {

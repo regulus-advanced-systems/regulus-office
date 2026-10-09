@@ -16,7 +16,12 @@ import {
 import { AuthHttpError } from "../auth/errors.ts";
 import { readJsonValue } from "../http/body.ts";
 import { json, type Router } from "../http/router.ts";
-import { type AgentAuthDeps, agentFromRequest, unauthorizedAgent } from "./mcp.ts";
+import {
+  type AgentAuthDeps,
+  agentFromRequest,
+  callerFromRequest,
+  unauthorizedAgent,
+} from "./mcp.ts";
 import type { OfficeTools } from "./tools/call.ts";
 
 const STATUS: Readonly<Record<OfficeToolError, number>> = {
@@ -47,8 +52,9 @@ export function mountToolRoutes(router: Router, deps: AgentAuthDeps & { tools: O
   });
 
   router.post(`${OFFICE_AGENT_TOOLS_API_PATH}/:name`, async (ctx) => {
-    const agent = agentFromRequest(deps, ctx.request);
-    if (!agent) return unauthorizedAgent();
+    const found = callerFromRequest(deps, ctx.request);
+    if (!found) return unauthorizedAgent();
+    const { agent, caller } = found;
     let input: unknown;
     try {
       input = await readJsonValue(ctx.request, { maxBytes: 256 * 1024 });
@@ -56,7 +62,7 @@ export function mountToolRoutes(router: Router, deps: AgentAuthDeps & { tools: O
       if (err instanceof AuthHttpError) return err.toResponse();
       throw err;
     }
-    const result = await deps.tools.call(agent, ctx.params.name ?? "", input, "rest");
+    const result = await deps.tools.call(agent, ctx.params.name ?? "", input, "rest", caller);
     return json(result, { status: statusOfToolResult(result) });
   });
 }

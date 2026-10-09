@@ -138,6 +138,14 @@ export class CliSessionEngine implements OfficeAgentEngine {
     run.tail = run.tail.then(() => this.#turn(run, message)).catch(() => {});
   }
 
+  forgetConversation(agentId: string, userId: string): void {
+    const run = this.#runs.get(agentId);
+    if (!run || run.sessions[userId] === undefined) return;
+    // The next turn starts a new Claude session; the old one is never resumed.
+    delete run.sessions[userId];
+    this.#events.emit({ type: "state", agentId, state: { sessions: { ...run.sessions } } });
+  }
+
   async health(agentId: string): Promise<EngineHealth> {
     const run = this.#runs.get(agentId);
     if (!run) return { ok: false, detail: "not started" };
@@ -162,6 +170,8 @@ export class CliSessionEngine implements OfficeAgentEngine {
       if (!run.stopped) this.#events.emit(event);
     };
     emit({ type: "status", agentId: agent.id, status: "busy" });
+    // From here until the turn is over, the office answers this agent's tool calls for this person (#301).
+    emit({ type: "turn", agentId: agent.id, userId: message.userId });
     try {
       const reply = await this.#runTurn(run, message);
       run.lastError = null;
@@ -178,6 +188,8 @@ export class CliSessionEngine implements OfficeAgentEngine {
       }
       emit({ type: "error", agentId: agent.id, userId: message.userId, message: text });
     }
+    // Not through `emit`: a turn that was stopped is over as well.
+    this.#events.emit({ type: "turn", agentId: agent.id, userId: null });
     emit({ type: "status", agentId: agent.id, status: "ready" });
   }
 
@@ -199,7 +211,8 @@ export class CliSessionEngine implements OfficeAgentEngine {
       sessionId,
       resume: known !== undefined,
       // The soul is the one it was started with; what it remembers is read from the office now.
-      memory: office.mind.digest(),
+      // A shared agent's: only what this person may see (#301).
+      memory: office.mind.digest(message.userId),
       prompt: `[From ${message.fromName}, user id ${message.userId}]\n${message.text}`,
       command: this.opts.command,
     });

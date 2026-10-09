@@ -91,6 +91,17 @@ export class Conversations {
       .map((r) => r.ts.getTime());
   }
 
+  /** Everyone whose last message to the agent has no answer yet. */
+  waitingPeople(agentId: string): string[] {
+    const since = new Date(this.now() - TURN_MAX_AGE_MS);
+    const people = this.db
+      .selectDistinct({ userId: officeAgentMessages.userId })
+      .from(officeAgentMessages)
+      .where(and(eq(officeAgentMessages.agentId, agentId), gte(officeAgentMessages.ts, since)))
+      .all();
+    return people.map((p) => p.userId).filter((userId) => this.waiting(agentId, userId));
+  }
+
   /** The person's last message to the agent has no answer yet (system lines do not count). */
   waiting(agentId: string, userId: string): boolean {
     const last = this.db

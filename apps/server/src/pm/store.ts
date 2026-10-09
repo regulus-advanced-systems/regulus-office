@@ -2,6 +2,10 @@
  * Office agent rows, the operations a shared agent was granted, and the
  * office's caps (#271). No authorisation here: service.ts and access.ts decide
  * who may call what.
+ *
+ * An agent's `instructions` (its soul as it is now) are encrypted in the row
+ * (#301, mind/seal.ts): rows leave this store with the text opened, and
+ * nothing but this store and mind/store.ts writes that column.
  */
 import {
   DEFAULT_OFFICE_AGENT_SETTINGS,
@@ -19,9 +23,19 @@ import {
   operations,
   userProfiles,
 } from "../db/schema/index.ts";
+import { type MindCipher, PLAIN, SealedUnreadable } from "./mind/seal.ts";
 
-export type OfficeAgentRow = typeof officeAgents.$inferSelect;
-export type NewOfficeAgentRow = Omit<typeof officeAgents.$inferInsert, "nameKey">;
+type StoredAgent = typeof officeAgents.$inferSelect;
+/** An agent with its `instructions` opened. */
+export type OfficeAgentRow = Omit<StoredAgent, "instructionsSealed">;
+export type NewOfficeAgentRow = Omit<
+  typeof officeAgents.$inferInsert,
+  "nameKey" | "instructionsSealed"
+>;
+/** What `update` may change: the soul has its own writer (mind/store.ts). */
+export type OfficeAgentPatch = Partial<
+  Omit<typeof officeAgents.$inferInsert, "instructions" | "instructionsSealed" | "id">
+>;
 
 const SETTINGS_ID = "office";
 
@@ -32,14 +46,55 @@ export class OfficeAgentStore {
   constructor(
     readonly db: Db,
     private readonly now: () => number = Date.now,
+    private readonly cipher: MindCipher = PLAIN,
   ) {}
 
+  /**
+   * A row whose document cannot be opened (the master key is missing or is
+   * another one) still lists, with an empty document: its card, its body and
+   * its removal must keep working. It cannot be started (`soulUnreadable`),
+   * and reading the document says why (mind/mind.ts).
+   */
+  #open = (row: StoredAgent): OfficeAgentRow => {
+    const { instructionsSealed: sealed, ...rest } = row;
+    try {
+      const instructions = this.cipher.open(row.id, { text: row.instructions, sealed });
+      return { ...rest, instructions };
+    } catch (err) {
+      if (!(err instanceof SealedUnreadable)) throw err;
+      return { ...rest, instructions: "" };
+    }
+  };
+
+  /** True when the agent's document is encrypted under a key the office does not have. */
+  soulUnreadable(id: string): boolean {
+    const row = this.db
+      .select({ text: officeAgents.instructions, sealed: officeAgents.instructionsSealed })
+      .from(officeAgents)
+      .where(eq(officeAgents.id, id))
+      .get();
+    if (!row) return false;
+    try {
+      this.cipher.open(id, row);
+      return false;
+    } catch (err) {
+      if (err instanceof SealedUnreadable) return true;
+      throw err;
+    }
+  }
+
   list(): OfficeAgentRow[] {
-    return this.db.select().from(officeAgents).orderBy(asc(officeAgents.createdAt)).all();
+    return this.db
+      .select()
+      .from(officeAgents)
+      .orderBy(asc(officeAgents.createdAt))
+      .all()
+      .map(this.#open);
   }
 
   get(id: string): OfficeAgentRow | undefined {
-    return this.db.select().from(officeAgents).where(eq(officeAgents.id, id)).get();
+    const row = this.db.select().from(officeAgents).where(eq(officeAgents.id, id)).get();
+    return row ? this.#open(row) : undefined;
   }
 
   nameTaken(name: string): boolean {
@@ -62,7 +117,8 @@ export class OfficeAgentStore {
           ? isNull(officeAgents.ownerUserId)
           : eq(officeAgents.ownerUserId, ownerUserId),
       )
-      .all();
+      .all()
+      .map(this.#open);
   }
 
   countOwnedBy(ownerUserId: string): number {
@@ -75,15 +131,31 @@ export class OfficeAgentStore {
   }
 
   insert(db: DbOrTx, row: NewOfficeAgentRow): OfficeAgentRow {
-    return db
+    // The id is chosen here: the soul's envelope is bound to it.
+    const id = row.id ?? crypto.randomUUID();
+    const soul = this.cipher.seal(id, row.instructions ?? "");
+    const stored = db
       .insert(officeAgents)
-      .values({ ...row, nameKey: nameKeyOf(row.name) })
+      .values({
+        ...row,
+        id,
+        instructions: soul.text,
+        instructionsSealed: soul.sealed,
+        nameKey: nameKeyOf(row.name),
+      })
       .returning()
       .get();
+    return this.#open(stored);
   }
 
-  update(id: string, patch: Partial<typeof officeAgents.$inferInsert>): OfficeAgentRow | undefined {
-    return this.db.update(officeAgents).set(patch).where(eq(officeAgents.id, id)).returning().get();
+  update(id: string, patch: OfficeAgentPatch): OfficeAgentRow | undefined {
+    const row = this.db
+      .update(officeAgents)
+      .set(patch)
+      .where(eq(officeAgents.id, id))
+      .returning()
+      .get();
+    return row ? this.#open(row) : undefined;
   }
 
   setStatus(id: string, status: OfficeAgentStatus, reason: string | null = null): void {

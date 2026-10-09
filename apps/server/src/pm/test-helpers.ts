@@ -40,6 +40,7 @@ import { encryptSecret } from "../secrets/index.ts";
 import { UsageTracker } from "../usage/index.ts";
 import { FakeEngine, type FakeEngineOptions } from "./engines/fake.ts";
 import { createOfficeAgents, type OfficeAgentsOptions } from "./setup.ts";
+import { statusOfToolResult } from "./tool-routes.ts";
 
 export const OFFICE_KEY = "sk-ant-api03-FAKE-office-agent-key-0123456789";
 export const APOLLO = "op-apollo";
@@ -266,6 +267,17 @@ export async function agentsOffice(options: AgentsOfficeOptions = {}) {
     });
     return { status: res.status, body: (await res.json()) as OfficeToolResult };
   };
+  /**
+   * Call an office tool as the agent's own engine does, with the token of its
+   * run. For a shared agent nobody stands behind such a call but the people
+   * waiting for its answer (#301); with nobody waiting it has its grants.
+   */
+  const engineTool = async (agentId: string, name: string, input: unknown = {}) => {
+    const agent = officeAgents.store.get(agentId);
+    if (!agent) throw new Error("no such agent");
+    const body = await officeAgents.tools.call(agent, name, input, "rest");
+    return { status: statusOfToolResult(body), body };
+  };
   const audits = (action?: string) =>
     db
       .select()
@@ -293,6 +305,7 @@ export async function agentsOffice(options: AgentsOfficeOptions = {}) {
     comments,
     send,
     tool,
+    engineTool,
     audits,
     async stop() {
       await queue.close();

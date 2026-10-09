@@ -178,6 +178,14 @@ describe("bodies and the office's access gate", () => {
   const step = (state: ReturnType<typeof lairState>, from: number) => {
     for (let t = from; t < from + 4_000; t += 100) o.officeAgents.world.tick(state, t);
   };
+  const start = (id: string, cookie: string) =>
+    post(`${OFFICE_AGENTS_API_PATH}/${id}/start`, cookie);
+
+  // Only a started agent has a body (#301; stopped-bodies.test.ts).
+  beforeAll(async () => {
+    expect((await start(hermes.id, o.people.mia.cookie)).status).toBe(200);
+    expect((await start(shared.id, o.people.olga.cookie)).status).toBe(200);
+  });
 
   test("a personal agent goes where its owner may and waits at the door elsewhere", () => {
     const state = lairState();
@@ -257,6 +265,7 @@ describe("bodies and the office's access gate", () => {
     expect(res.status).toBe(201);
     const mine = (await res.json()) as OfficeAgentView;
     expect(mine.appearance).toBe("number_two");
+    expect((await start(mine.id, sam.cookie)).status).toBe(200);
     const state = lairState();
     person(state, sam.id, { x: 60, z: 120 });
     const quarter = 15 * 60_000;

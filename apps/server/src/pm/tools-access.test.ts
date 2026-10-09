@@ -377,20 +377,38 @@ describe("a shared agent has its grants and acts for people who asked", () => {
     );
     const hidden = { question: "About Borealis", userId: o.people.mia.id, operationId: BOREALIS };
     expect(errorOf(await o.tool(pm.token, "ask_human", hidden))).toBe("forbidden");
-    const asked = await o.tool(pm.token, "ask_human", { ...hidden, userId: o.people.sam.id });
+    // The token is Ada's access code, and the calls above read Apollo's board with it: what the
+    // agent asks from here on may be about Apollo, so Sam, who cannot see Apollo, is not asked
+    // either (#301; the rule and its other paths are in asker-limits.test.ts).
+    const toSam = { ...hidden, userId: o.people.sam.id };
+    expect(errorOf(await o.tool(pm.token, "ask_human", toSam))).toBe("forbidden");
+    expect(o.officeAgents.requests.pendingFor(o.people.sam.id)).toEqual([]);
+    o.setRoomAccess(APOLLO, o.people.sam.id, "view");
+    const asked = await o.tool(pm.token, "ask_human", toSam);
     expect(asked.status).toBe(200);
     expect(o.officeAgents.requests.pendingFor(o.people.sam.id)).toEqual([
       expect.objectContaining({ agentName: "Number Two", operationId: BOREALIS }),
     ]);
-    expect((await o.tool(pm.token, "post_chat", { text: "Standup in five." })).status).toBe(200);
+    o.setRoomAccess(APOLLO, o.people.sam.id, null);
+    // The lobby's chat is read by everyone, and not everyone can see those rooms.
+    const lines = o.chat.length;
+    expect(errorOf(await o.tool(pm.token, "post_chat", { text: "Standup in five." }))).toBe(
+      "forbidden",
+    );
+    expect(o.chat).toHaveLength(lines);
+    expect((await o.tool(pm.token, "post_chat", { text: "x", operationId: APOLLO })).status).toBe(
+      404,
+    );
+    // On its own, with no room granted, there is no room it could be talking about.
+    await o.send(`${A}/${pm.agent.id}/grants`, "PUT", o.people.ada.cookie, { grants: [] });
+    expect(
+      (await o.engineTool(pm.agent.id, "post_chat", { text: "Standup in five." })).status,
+    ).toBe(200);
     expect(o.chat.at(-1)).toEqual({
       userId: `office-agent:${pm.agent.id}`,
       displayName: "Number Two",
       operationId: "",
       text: "Standup in five.",
     });
-    expect((await o.tool(pm.token, "post_chat", { text: "x", operationId: APOLLO })).status).toBe(
-      404,
-    );
   });
 });

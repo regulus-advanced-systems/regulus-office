@@ -13,7 +13,8 @@
  * Prompts: "SLEEP" hangs (timeout test), "FAIL" reports an error, "QUEUE
  * <operation> <repo> <user>" calls `enqueue_task` on behalf of that user,
  * "REMEMBER <text>" calls `memory_save` and "RECALL <words>" `memory_search`
- * (#136). The system prompt is read from `--append-system-prompt-file`.
+ * (#136), "BOARD <operation>" calls `read_board` (#301). The system prompt is
+ * read from `--append-system-prompt-file`.
  */
 import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -93,6 +94,9 @@ if (queue) {
   });
 }
 
+let board: unknown;
+const readBoard = /BOARD (\S+)/.exec(prompt);
+if (readBoard) board = await callTool("read_board", { operationId: readBoard[1] });
 let remembered: unknown;
 const remember = /REMEMBER (.+)/.exec(prompt);
 if (remember) remembered = await callTool("memory_save", { text: remember[1], source: "fake CLI" });
@@ -126,6 +130,7 @@ out({
     systemPrompt,
     // The soul and the memories are private: they must not be on argv (#136).
     systemPromptOnArgv: argv.includes("--append-system-prompt"),
+    board,
     remembered,
     recalled,
     tools: listed.tools?.map((t) => t.name) ?? [],

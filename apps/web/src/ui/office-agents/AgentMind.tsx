@@ -41,11 +41,14 @@ export function AgentMind({
   api,
   agent,
   now,
+  operations = [],
   onSoulSaved,
 }: {
   api: OfficeAgentsApi;
   agent: OfficeAgentView;
   now: number;
+  /** The rooms the viewer can see, to name the rooms an entry is about (#301). */
+  operations?: ReadonlyArray<{ operationId: string; name: string }>;
   onSoulSaved(): void;
 }) {
   const shared = agent.owner.kind === "office";
@@ -68,10 +71,20 @@ export function AgentMind({
         )}
       </Part>
       <Part label={MEMORY_WORDS.label} hint={MEMORY_WORDS.hint}>
-        {() => <MindEntries api={api} agentId={agent.id} kind="memory" now={now} />}
+        {() => (
+          <MindEntries
+            api={api}
+            agentId={agent.id}
+            kind="memory"
+            now={now}
+            operations={operations}
+          />
+        )}
       </Part>
       <Part label={NOTE_WORDS.label} hint={NOTE_WORDS.hint}>
-        {() => <MindEntries api={api} agentId={agent.id} kind="note" now={now} />}
+        {() => (
+          <MindEntries api={api} agentId={agent.id} kind="note" now={now} operations={operations} />
+        )}
       </Part>
     </section>
   );

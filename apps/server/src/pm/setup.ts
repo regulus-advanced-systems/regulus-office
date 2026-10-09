@@ -33,11 +33,14 @@ import { mountMcp } from "./mcp.ts";
 import { AgentMind } from "./mind/mind.ts";
 import { MindService } from "./mind/people.ts";
 import { engineMind } from "./mind/port.ts";
+import { MindCipher } from "./mind/seal.ts";
+import { countUnreadable, countUnsealed, sealExisting } from "./mind/seal-existing.ts";
 import { MindStore } from "./mind/store.ts";
 import { HumanRequests } from "./requests.ts";
 import { mountOfficeAgentRoutes } from "./routes.ts";
 import { runsOnOf } from "./runs-on.ts";
 import { AgentRuntime } from "./runtime.ts";
+import { RoomScopes } from "./scope.ts";
 import { OfficeAgentService } from "./service.ts";
 import { OfficeAgentStore } from "./store.ts";
 import { OfficeAgentTokens } from "./tokens.ts";
@@ -134,17 +137,34 @@ export function createOfficeAgents(opts: OfficeAgentsOptions): OfficeAgents {
   const { db } = opts;
   const now = opts.now ?? Date.now;
   const logger = opts.logger.child({ module: "office-agents" });
-  const store = new OfficeAgentStore(db, now);
+  // Souls, memories and notes are encrypted in the database under the master key (#301).
+  const cipher = new MindCipher(opts.keyring);
+  const store = new OfficeAgentStore(db, now, cipher);
   const tokens = new OfficeAgentTokens(db, now);
   const conversations = new Conversations(db, now);
   const requests = new HumanRequests(db, now);
   const credentials = new AgentCredentials(db, opts.keyring);
-  const mind = new AgentMind(new MindStore(db, now));
+  const mind = new AgentMind(new MindStore(db, now, cipher));
+  // What a shared agent may pass on to whom (#301).
+  const scopes = new RoomScopes(db);
   const runtime = new AgentRuntime({
     store,
     tokens,
     conversations,
-    mind: (agentId) => engineMind(db, mind, agentId),
+    mind: (agentId) =>
+      engineMind(
+        db,
+        mind,
+        agentId,
+        store.get(agentId)?.ownerUserId === null
+          ? {
+              scopes,
+              person: (userId) => store.person(userId),
+              grants: () => store.grants(agentId).map((g) => g.operationId),
+            }
+          : undefined,
+      ),
+    scopes,
     officeUrl: opts.officeUrl.replace(/\/+$/, ""),
     usage: opts.usage,
     logger,
@@ -222,10 +242,20 @@ export function createOfficeAgents(opts: OfficeAgentsOptions): OfficeAgents {
       (bound.stop ?? unavailable("stopping henchmen"))(actor, henchmanId),
   };
   const tools = new OfficeTools(
-    { store, access: new AgentAccess(store), conversations, requests, mind, ports, now },
+    {
+      store,
+      access: new AgentAccess(store),
+      conversations,
+      requests,
+      mind,
+      scopes,
+      turnOf: (agentId) => runtime.turnOf(agentId),
+      ports,
+      now,
+    },
     logger,
   );
-  const mindService = new MindService({ store, mind, runtime });
+  const mindService = new MindService({ store, mind, scopes, runtime });
   const service = new OfficeAgentService({
     store,
     tokens,
@@ -233,6 +263,7 @@ export function createOfficeAgents(opts: OfficeAgentsOptions): OfficeAgents {
     conversations,
     requests,
     credentials,
+    scopes,
     hermes: connections,
     minds: mindService,
     now,
@@ -254,18 +285,22 @@ export function createOfficeAgents(opts: OfficeAgentsOptions): OfficeAgents {
     everyMs: opts.rounds?.everyMs,
   });
   const world = new AgentWorld({
+    // A stopped agent has no body (#301): it is left out, and is back within a sync once started.
     agents: () =>
-      store.list().map((row) => ({
-        id: row.id,
-        name: row.name,
-        ownerUserId: row.ownerUserId,
-        ownerName: row.ownerUserId ? (store.person(row.ownerUserId)?.displayName ?? "") : "",
-        appearance: row.appearance,
-        status: row.status,
-        dismissed: row.ownerUserId !== null && row.dismissed,
-        // A personal PM is a companion: it follows its owner and does no rounds.
-        post: row.ownerUserId === null && row.role === "pm" ? "reception" : "none",
-      })),
+      store
+        .list()
+        .filter((row) => row.status !== "stopped")
+        .map((row) => ({
+          id: row.id,
+          name: row.name,
+          ownerUserId: row.ownerUserId,
+          ownerName: row.ownerUserId ? (store.person(row.ownerUserId)?.displayName ?? "") : "",
+          appearance: row.appearance,
+          status: row.status,
+          dismissed: row.ownerUserId !== null && row.dismissed,
+          // A personal PM is a companion: it follows its owner and does no rounds.
+          post: row.ownerUserId === null && row.role === "pm" ? "reception" : "none",
+        })),
     mayEnter: (agentId, operationId) => {
       const row = store.get(agentId);
       return row !== undefined && access.operation(row, operationId) !== null;
@@ -276,12 +311,45 @@ export function createOfficeAgents(opts: OfficeAgentsOptions): OfficeAgents {
       if (owner === "elsewhere") opts.rounds?.remind(visit.henchmanId, agent.name);
     },
   });
+  /** The data step of migration 0028: encrypt what is still plain text, or say that it cannot be. */
+  const sealAtBoot = () => {
+    const unreadable = countUnreadable(db, cipher);
+    if (unreadable > 0) {
+      logger.error(
+        { agents: unreadable },
+        "office agents' documents are encrypted under a key this office does not have: check OFFICE_MASTER_KEY (and OFFICE_MASTER_KEY_PREVIOUS after a rotation); those agents cannot be started or read until it is right",
+      );
+    }
+    if (!cipher.on) {
+      const plain = countUnsealed(db);
+      if (plain.souls + plain.versions + plain.entries > 0) {
+        logger.warn(
+          plain,
+          "OFFICE_MASTER_KEY is not set: office agents' documents, memories and notes are stored as plain text and show in backups",
+        );
+      }
+      return;
+    }
+    const sealed = sealExisting(db, cipher);
+    if (sealed.souls + sealed.versions + sealed.entries > 0) {
+      logger.info(sealed, "encrypted office agents' documents, memories and notes at rest");
+      if (sealed.scrubbed === false) {
+        logger.warn(
+          "the database file could not be rebuilt after encrypting: old pages may still hold plain text until the next VACUUM",
+        );
+      }
+    }
+  };
   let notify: (userId: string) => void = () => {};
   conversations.onAppend = (_agentId, userId) => notify(userId);
   requests.onChange = (userId) => notify(userId);
   const worldService = new AgentWorldService({
     store,
-    attention: new AgentAttention(db, conversations, requests, now),
+    // A question about a room the person can no longer see is not shown over the agent (#301).
+    attention: new AgentAttention(db, conversations, requests, now, (userId, requestId) => {
+      const person = store.person(userId);
+      return person !== undefined && scopes.canSeeAll(person, requests.roomsOf(requestId));
+    }),
     view: (actor, row) => service.view(actor, row),
     changed: () => world.refresh(),
     notify: (userId) => notify(userId),
@@ -323,6 +391,7 @@ export function createOfficeAgents(opts: OfficeAgentsOptions): OfficeAgents {
       bound = { ...bound, ...next };
     },
     boot: () => {
+      sealAtBoot();
       runtime.boot();
       void managed?.reap();
     },

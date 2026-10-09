@@ -80,6 +80,9 @@ export async function checkPmRounds(owner: Page, member: Page, input: PmRoundsIn
   const pm = (await created.json()) as { id: string; name: string; appearance: string };
   // No look was chosen: a project manager wears the PM suit.
   expect(pm.appearance).toBe("number_two");
+  // A stopped agent has no body (#301): it is started, as its first message would.
+  const started = await owner.request.post(`/api/office-agents/${pm.id}/start`, { headers });
+  expect(started.status(), await started.text()).toBe(200);
 
   try {
     const operations = (await (await owner.request.get("/api/operations")).json()) as {

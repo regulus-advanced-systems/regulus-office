@@ -10,7 +10,6 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import {
   OFFICE_AGENTS_API_PATH,
   type OfficeAgentsResponse,
-  type OfficeAgentTokenCreated,
   type OfficeAgentView,
   type UsageSummary,
 } from "@regulus/protocol";
@@ -18,7 +17,6 @@ import { type AgentsOffice, APOLLO, agentsOffice, BOREALIS } from "./test-helper
 
 let o: AgentsOffice;
 let pm: OfficeAgentView;
-let token: string;
 const A = OFFICE_AGENTS_API_PATH;
 
 type Grant = { operationId: string; access: "view" | "spawn" | "manage" };
@@ -31,9 +29,14 @@ const grantsSeenBy = async (cookie: string) => {
   const list = (await (await o.send(A, "GET", cookie)).json()) as OfficeAgentsResponse;
   return list.agents.find((a) => a.id === pm.id)?.config?.grants;
 };
+/**
+ * What the agent itself reaches, asked as its own engine with nobody waiting
+ * for it. (An access code an admin minted reads only what that admin can see,
+ * #301: asker-limits.test.ts.)
+ */
 const openTo = async () =>
   (
-    (await o.tool(token, "list_operations")).body as unknown as {
+    (await o.engineTool(pm.id, "list_operations")).body as unknown as {
       result: { operations: Array<{ id: string; access: string }> };
     }
   ).result.operations.map((x) => [x.id, x.access]);
@@ -52,8 +55,6 @@ beforeAll(async () => {
   });
   if (made.status !== 201) throw new Error(`create failed: ${await made.text()}`);
   pm = (await made.json()) as OfficeAgentView;
-  const minted = await o.send(`${A}/${pm.id}/tokens`, "POST", o.people.ada.cookie, { label: "t" });
-  token = ((await minted.json()) as OfficeAgentTokenCreated).token;
   // Ada's GitHub account may write to Apollo's repo and cannot see Borealis's.
   o.setAccess(APOLLO, o.people.ada.id, "spawn");
 });
@@ -125,8 +126,8 @@ describe("granting rooms to a shared agent", () => {
     expect(cleared.body.config?.grants).toEqual([]);
     expect(JSON.stringify(cleared.body)).not.toContain(BOREALIS);
     expect(await openTo()).toEqual([[BOREALIS, "manage"]]);
-    expect((await o.tool(token, "read_board", { operationId: BOREALIS })).status).toBe(200);
-    expect((await o.tool(token, "read_board", { operationId: APOLLO })).status).toBe(404);
+    expect((await o.engineTool(pm.id, "read_board", { operationId: BOREALIS })).status).toBe(200);
+    expect((await o.engineTool(pm.id, "read_board", { operationId: APOLLO })).status).toBe(404);
     // Once Ada's GitHub account loses Apollo too, she sees no grant and can set none.
     o.setRoomAccess(APOLLO, o.people.ada.id, null);
     expect(await grantsSeenBy(o.people.ada.cookie)).toEqual([]);
@@ -147,7 +148,7 @@ describe("the usage leaderboard a shared agent reads", () => {
     tokens,
   });
   const readUsage = async () => {
-    const res = await o.tool(token, "read_usage");
+    const res = await o.engineTool(pm.id, "read_usage");
     expect(res.status).toBe(200);
     const { result } = res.body as unknown as { result: { scope: string; usage: UsageSummary } };
     return { result, text: JSON.stringify(res.body) };

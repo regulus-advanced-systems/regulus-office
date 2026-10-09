@@ -7,6 +7,11 @@
  * admission as that person: the queue and the AgentManager check operation
  * access and the credential profile again. A shared agent's henchmen always
  * run on the office key (SPEC §8 rule 3, D2).
+ *
+ * What a shared agent passes on to somebody else (#301): a question or a chat
+ * line is written from a conversation that may have read rooms (asking.ts,
+ * `scopeOf`), so it goes only where every reader can see all of those rooms.
+ * The refusal says that and nothing about which room.
  */
 import { mayWriteBoard, type OfficeToolInput } from "@regulus/protocol";
 import { and, eq, gte } from "drizzle-orm";
@@ -16,9 +21,9 @@ import { AUDIT_ACTIONS, writeAudit } from "../../auth/audit.ts";
 import { agents, auditLog, operationRepos } from "../../db/schema/index.ts";
 import { officeCommentBody } from "../../github/board-actions.ts";
 import { GitHubApiError } from "../../github/pulls.ts";
-import { operationAccessFor } from "../../operations/access.ts";
 import { QueueError } from "../../queue/index.ts";
 import { localDayStart } from "../../usage/summary.ts";
+import { roomAccess, saw, scopeOf } from "./asking.ts";
 import { actingPerson, requireOperation, type ToolCall, ToolError } from "./context.ts";
 
 const shared = (call: ToolCall) => call.agent.ownerUserId === null;
@@ -61,13 +66,16 @@ export function askHuman(call: ToolCall, input: OfficeToolInput<"ask_human">) {
     if (!call.store.person(input.userId)) throw new ToolError("not_found", "no such person");
     forUserId = input.userId;
   }
-  if (input.operationId) {
-    requireOperation(call, input.operationId, "view");
-    // The question must not show a person an operation they cannot see (D27).
-    const person = call.store.person(forUserId);
-    if (!person || !operationAccessFor(call.store.db, person, input.operationId)) {
-      throw new ToolError("forbidden", "that person cannot see this operation");
-    }
+  if (input.operationId) requireOperation(call, input.operationId, "view");
+  // The question must not show a person a room they cannot see (D27): the one it
+  // names, and every room the conversation it comes from has read (#301).
+  const rooms = [...new Set([...scopeOf(call), ...(input.operationId ? [input.operationId] : [])])];
+  const person = call.store.person(forUserId);
+  if (!person || !call.scopes.canSeeAll(person, rooms)) {
+    throw new ToolError(
+      "forbidden",
+      "that person cannot be asked this: it may concern a room they cannot see",
+    );
   }
   const request = call.requests.create({
     agentId: agent.id,
@@ -75,6 +83,7 @@ export function askHuman(call: ToolCall, input: OfficeToolInput<"ask_human">) {
     question: input.question,
     options: input.options ?? [],
     operationId: input.operationId,
+    rooms,
   });
   if (!request) {
     throw new ToolError("cap_reached", "you already have too many open questions for that person");
@@ -98,6 +107,7 @@ export function enqueueTask(call: ToolCall, input: OfficeToolInput<"enqueue_task
       effort: input.effort,
       profileId: henchmanProfile(call, input.provider, input.profileId),
     });
+    saw(call, input.operationId);
     return { taskId: task.id, queuedFor: person.id };
   } catch (err) {
     if (err instanceof QueueError) {
@@ -114,7 +124,7 @@ export function enqueueTask(call: ToolCall, input: OfficeToolInput<"enqueue_task
 }
 
 export async function commentOnCard(call: ToolCall, input: OfficeToolInput<"comment_on_card">) {
-  const access = call.access.operation(call.agent, input.operationId);
+  const access = roomAccess(call, input.operationId);
   if (!access) throw new ToolError("not_found", "no such operation");
   // The same rule as the board panel: commenting with the office credential needs `manage`.
   if (!mayWriteBoard(access)) {
@@ -143,6 +153,7 @@ export async function commentOnCard(call: ToolCall, input: OfficeToolInput<"comm
       },
       officeCommentBody(input.body, signature),
     );
+    saw(call, input.operationId);
     return { commentId: comment.id, url: comment.url };
   } catch (err) {
     if (err instanceof ToolError) throw err;
@@ -162,6 +173,13 @@ const chatTimes = new Map<string, number[]>();
 
 export function postChat(call: ToolCall, input: OfficeToolInput<"post_chat">) {
   if (input.operationId) requireOperation(call, input.operationId, "view");
+  // A room's chat is read by everyone who can enter it, the lobby's by everyone.
+  if (shared(call) && !call.scopes.audienceCanSeeAll(input.operationId ?? null, scopeOf(call))) {
+    throw new ToolError(
+      "forbidden",
+      "this cannot be posted there: it may concern a room that not everyone reading there can see",
+    );
+  }
   const now = call.now();
   const recent = (chatTimes.get(call.agent.id) ?? []).filter((t) => now - t < 60_000);
   if (recent.length >= CHAT_PER_MINUTE) {
@@ -226,6 +244,7 @@ export async function spawnHenchman(call: ToolCall, input: OfficeToolInput<"spaw
       targetId: call.agent.id,
       meta: { henchmanId: agentId, operationId: input.operationId, provider: input.provider },
     });
+    saw(call, input.operationId);
     return { henchmanId: agentId, spawnedFor: person.id };
   } catch (err) {
     return fromManager(err);
@@ -244,7 +263,7 @@ export async function stopHenchman(call: ToolCall, input: OfficeToolInput<"stop_
     .where(eq(agents.id, input.henchmanId))
     .get();
   // A henchman in an operation the agent cannot see is like one that does not exist.
-  if (!henchman || !call.access.operation(call.agent, henchman.operationId, person)) {
+  if (!henchman || !roomAccess(call, henchman.operationId, person)) {
     throw new ToolError("not_found", "no such henchman");
   }
   try {

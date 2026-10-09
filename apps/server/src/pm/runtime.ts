@@ -23,6 +23,7 @@ import {
   EngineRefusal,
   type OfficeAgentEngine,
 } from "./engines/types.ts";
+import type { RoomScopes } from "./scope.ts";
 import type { OfficeAgentRow, OfficeAgentStore } from "./store.ts";
 import type { OfficeAgentTokens } from "./tokens.ts";
 
@@ -34,6 +35,8 @@ export interface AgentRuntimeDeps {
   conversations: Conversations;
   /** The agent's own soul, memories and notes, from the office's copy (#136). */
   mind: (agentId: string) => EngineMind;
+  /** The rooms a shared agent's conversations have read (#301). */
+  scopes?: RoomScopes;
   /** Base URL of the office as engines reach it (no trailing slash). */
   officeUrl: string;
   usage?: UsageRecorder;
@@ -58,6 +61,8 @@ export class AgentRuntime {
   /** Agents started in this process. */
   readonly #running = new Set<string>();
   readonly #starting = new Map<string, Promise<void>>();
+  /** The person whose message each agent is working on, as its engine reported it (#301). */
+  readonly #turns = new Map<string, string>();
 
   constructor(private readonly deps: AgentRuntimeDeps) {}
 
@@ -78,6 +83,15 @@ export class AgentRuntime {
 
   isRunning(agentId: string): boolean {
     return this.#running.has(agentId);
+  }
+
+  /**
+   * The person whose message the agent is working on right now, when its
+   * engine reports turns (#301): the office answers a shared agent's tool
+   * calls for that person. Undefined between turns.
+   */
+  turnOf(agentId: string): string | undefined {
+    return this.#turns.get(agentId);
   }
 
   engineAgent(row: OfficeAgentRow): EngineAgent {
@@ -119,6 +133,13 @@ export class AgentRuntime {
       throw new EngineRefusal("engine_unavailable", `the ${row.engine} engine is not available`);
     }
     const { store, tokens } = this.deps;
+    // Never with an empty document in place of one that could not be decrypted (#301).
+    if (store.soulUnreadable(row.id)) {
+      throw new EngineRefusal(
+        "unreadable",
+        "who this agent is cannot be read: OFFICE_MASTER_KEY is missing or is not the key it was encrypted with",
+      );
+    }
     store.setStatus(row.id, "starting");
     tokens.revokeSessions(row.id);
     const minted = tokens.mint(row.id, "session", "engine run");
@@ -146,6 +167,7 @@ export class AgentRuntime {
   async stop(agentId: string, engineKind: OfficeAgentEngineKind, reason?: string): Promise<void> {
     await this.#starting.get(agentId)?.catch(() => {});
     this.#running.delete(agentId);
+    this.#turns.delete(agentId);
     this.deps.tokens.revokeSessions(agentId);
     try {
       await this.#engines.get(engineKind)?.stop(agentId);
@@ -173,6 +195,7 @@ export class AgentRuntime {
       if (!this.#running.has(row.id)) await this.start(row);
       const engine = this.#engines.get(row.engine);
       if (!engine) throw new EngineRefusal("engine_unavailable", "the engine is not available");
+      this.#dropStaleContext(row, engine, person.id);
       await engine.send(row.id, {
         id: message.id,
         userId: person.id,
@@ -204,6 +227,11 @@ export class AgentRuntime {
     if (!row || row.engine !== kind) return;
     try {
       switch (event.type) {
+        case "turn": {
+          if (event.userId === null) this.#turns.delete(row.id);
+          else this.#turns.set(row.id, event.userId);
+          return;
+        }
         case "message": {
           if (!this.#mayAddress(row, event.userId)) return;
           conversations.append(row.id, event.userId, "agent", event.text);
@@ -252,6 +280,26 @@ export class AgentRuntime {
     } catch (err) {
       logger.error({ agentId: row.id, err: String(err).slice(0, 300) }, "engine event failed");
     }
+  }
+
+  /**
+   * A shared agent's conversation with this person has read a room the person
+   * can no longer see (#301): the engine's session with them is dropped, so
+   * the agent answers their next message with nothing of it in mind.
+   */
+  #dropStaleContext(row: OfficeAgentRow, engine: OfficeAgentEngine, userId: string): void {
+    const { scopes, store, logger } = this.deps;
+    if (!scopes || row.ownerUserId !== null) return;
+    const seen = scopes.seen(row.id, userId);
+    const person = store.person(userId);
+    if (seen.length === 0 || (person && scopes.canSeeAll(person, seen))) return;
+    if (!engine.forgetConversation) {
+      // The record stays, so what leaves this conversation is still scoped to those rooms.
+      logger.warn({ agentId: row.id }, "the engine cannot start a conversation over");
+      return;
+    }
+    engine.forgetConversation(row.id, userId);
+    scopes.forget(row.id, userId);
   }
 
   /** A personal agent speaks only to its owner; a shared one to people who exist. */

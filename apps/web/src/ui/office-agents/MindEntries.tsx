@@ -35,12 +35,22 @@ export function MindEntries({
   agentId,
   kind,
   now,
+  operations = [],
 }: {
   api: OfficeAgentsApi;
   agentId: string;
   kind: MindEntryKind;
   now: number;
+  /** The rooms the viewer can see: an entry they are shown is only ever about some of these (#301). */
+  operations?: ReadonlyArray<{ operationId: string; name: string }>;
 }) {
+  /** "About: Apollo, Borealis" for a shared agent's entry that is about rooms. */
+  const about = (entry: MindEntry) => {
+    const names = (entry.rooms ?? []).flatMap(
+      (id) => operations.find((op) => op.operationId === id)?.name ?? [],
+    );
+    return names.length > 0 ? ` · about: ${names.join(", ")}` : "";
+  };
   const searchId = useId();
   const words = WORDS[kind];
   const [query, setQuery] = useState("");
@@ -186,7 +196,8 @@ export function MindEntries({
                 <div className="rg-agent-mind__text">{entry.text}</div>
                 <div className="rg-muted">
                   {entry.by === "agent" ? "Saved by the agent" : "Written by a person"}
-                  {entry.source ? ` · from: ${entry.source}` : ""} · {ago(entry.updatedAt, now)}
+                  {entry.source ? ` · from: ${entry.source}` : ""}
+                  {about(entry)} · {ago(entry.updatedAt, now)}
                 </div>
               </div>
               <div className="rg-office-agent__actions">

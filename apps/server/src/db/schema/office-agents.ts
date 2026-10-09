@@ -53,6 +53,10 @@ export const officeAgents = sqliteTable(
      * Written only together with a row in `office_agent_soul_versions`.
      */
     instructions: text("instructions").notNull().default(""),
+    /** True: `instructions` is an envelope under `OFFICE_MASTER_KEY` (#301; pm/mind/seal.ts). */
+    instructionsSealed: integer("instructions_sealed", { mode: "boolean" })
+      .notNull()
+      .default(false),
     status: enumText("status", OFFICE_AGENT_STATUSES).notNull().default("stopped"),
     statusReason: text("status_reason"),
     /**
@@ -85,6 +89,11 @@ export const officeAgentTokens = sqliteTable(
     /** `api`: minted by whoever configures the agent; `session`: minted by the office for an engine run. */
     kind: text("kind", { enum: ["api", "session"] }).notNull(),
     label: text("label").notNull().default(""),
+    /**
+     * `api` tokens: the person who minted it. A shared agent called with it reads
+     * only what that person may (#301); null (minted before, or the person is gone): no room.
+     */
+    mintedBy: text("minted_by").references(() => users.id, { onDelete: "set null" }),
     lastUsedAt: timestampMs("last_used_at"),
     ...timestamps(),
   },
@@ -194,6 +203,8 @@ export const officeAgentRequests = sqliteTable(
     question: text("question").notNull(),
     optionsJson: jsonText("options_json").notNull().default("[]"),
     operationId: text("operation_id").references(() => operations.id, { onDelete: "set null" }),
+    /** The rooms a shared agent's question may be about (#301): JSON array of operation ids. */
+    roomScope: jsonText("room_scope").notNull().default("[]"),
     status: enumText("status", HUMAN_REQUEST_STATUSES).notNull().default("pending"),
     answer: text("answer"),
     answeredAt: timestampMs("answered_at"),
@@ -230,6 +241,8 @@ export const officeAgentSoulVersions = sqliteTable(
     /** 1, 2, 3, ... per agent; never reused. */
     version: integer("version").notNull(),
     content: text("content").notNull(),
+    /** True: `content` is an envelope under `OFFICE_MASTER_KEY` (#301). */
+    sealed: integer("sealed", { mode: "boolean" }).notNull().default(false),
     kind: enumText("kind", SOUL_VERSION_KINDS).notNull(),
     /** For a revert: the version whose text this one brought back. */
     revertOf: integer("revert_of"),
@@ -265,6 +278,18 @@ export const officeAgentMemories = sqliteTable(
     /** Where a memory came from, in the agent's words. */
     source: text("source").notNull().default(""),
     writtenBy: enumText("written_by", MIND_AUTHORS).notNull(),
+    /**
+     * True (#301): `text` is one envelope under `OFFICE_MASTER_KEY` over the
+     * JSON `{ title, text, source }`, and `title`, `titleKey` and `source` are empty.
+     */
+    sealed: integer("sealed", { mode: "boolean" }).notNull().default(false),
+    /**
+     * The rooms this entry may be about (#301): JSON array of operation ids. A
+     * shared agent's entry reaches a person only if they can see every one of
+     * them. Ids, not names; an id is kept when its room is deleted, so the
+     * entry stays closed.
+     */
+    roomScope: jsonText("room_scope").notNull().default("[]"),
     ...timestamps(),
   },
   (t) => [
@@ -272,4 +297,26 @@ export const officeAgentMemories = sqliteTable(
     check("office_agent_memories_kind_check", inEnum("kind", MIND_ENTRY_KINDS)),
     check("office_agent_memories_written_by_check", inEnum("written_by", MIND_AUTHORS)),
   ],
+);
+
+/**
+ * The rooms a shared agent has read while answering one person (#301): what
+ * may be in the context of its conversation with them. Whatever the agent
+ * writes down or passes on from that conversation carries these rooms as its
+ * scope. `operationId` is not a foreign key: a deleted room stays in the scope.
+ */
+export const officeAgentRoomReads = sqliteTable(
+  "office_agent_room_reads",
+  {
+    id: id(),
+    agentId: text("agent_id")
+      .notNull()
+      .references(() => officeAgents.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    operationId: text("operation_id").notNull(),
+    ...timestamps(),
+  },
+  (t) => [uniqueIndex("office_agent_room_reads_unique").on(t.agentId, t.userId, t.operationId)],
 );

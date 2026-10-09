@@ -6,7 +6,11 @@
  *   admin gets `403 not_your_agent` on every read and write here, and
  *   nothing else in the office hands them the text (see the PR for the list
  *   of paths); anyone else gets `404`, as for an agent that does not exist;
- * - a shared agent's: office owners and admins.
+ * - a shared agent's: office owners and admins, and of its memories and
+ *   notes only those about rooms the reader can see themselves (#301). A
+ *   shared agent's entries carry the rooms they may be about; one about a
+ *   room that is closed to the reader is not listed, not counted, and answers
+ *   `404` by id, like one that does not exist. The office role opens nothing.
  *
  * Every change is audited with who, which version or entry and how big it
  * was (lines added and removed, characters). The audit never holds the text,
@@ -26,6 +30,7 @@ import { AUDIT_ACTIONS, type AuditAction, writeAudit } from "../../auth/audit.ts
 import { AuthHttpError, forbidden } from "../../auth/errors.ts";
 import type { OperationActor } from "../../operations/access.ts";
 import type { AgentRuntime } from "../runtime.ts";
+import type { RoomScopes, Visible } from "../scope.ts";
 import type { OfficeAgentRow, OfficeAgentStore } from "../store.ts";
 import { type AgentMind, assertNoSecret, MindError, type SoulSaved } from "./mind.ts";
 
@@ -36,6 +41,7 @@ const STATUS: Readonly<Record<MindError["code"], number>> = {
   soul_changed: 409,
   too_large: 400,
   title_taken: 409,
+  unreadable: 503,
 };
 
 /** A refusal from the mind as an HTTP error; the message never quotes the text. */
@@ -48,6 +54,7 @@ export function mindHttpError(err: unknown): unknown {
 export interface MindServiceDeps {
   store: OfficeAgentStore;
   mind: AgentMind;
+  scopes: RoomScopes;
   runtime: Pick<AgentRuntime, "isRunning" | "stop">;
 }
 
@@ -62,6 +69,11 @@ export class MindService {
       throw forbidden(row.ownerUserId === null ? "owner_or_admin_required" : "not_your_agent");
     }
     return row;
+  }
+
+  /** What of a shared agent's memories and notes the actor may be shown (#301). */
+  #visible(actor: OperationActor, row: OfficeAgentRow): Visible {
+    return row.ownerUserId === null ? this.deps.scopes.visibleTo([actor]) : undefined;
   }
 
   #audit(actor: OperationActor, action: AuditAction, row: OfficeAgentRow, meta: object): void {
@@ -91,7 +103,7 @@ export class MindService {
 
   versions(actor: OperationActor, agentId: string): SoulVersionSummary[] {
     const row = this.#readable(actor, agentId);
-    return this.deps.mind.versions(row.id);
+    return this.#try(() => this.deps.mind.versions(row.id));
   }
 
   version(actor: OperationActor, agentId: string, version: number): SoulVersion {
@@ -165,24 +177,35 @@ export class MindService {
     query?: string,
   ): MindEntriesResponse {
     const row = this.#readable(actor, agentId);
-    return this.deps.mind.list(row.id, kind, { query: query || undefined });
+    return this.#try(() =>
+      this.deps.mind.list(row.id, kind, {
+        query: query || undefined,
+        visible: this.#visible(actor, row),
+      }),
+    );
   }
 
   addEntry(
     actor: OperationActor,
     agentId: string,
     input:
-      | { kind: "memory"; text: string; source?: string }
-      | { kind: "note"; title: string; text: string },
+      | { kind: "memory"; text: string; source?: string; rooms?: string[] }
+      | { kind: "note"; title: string; text: string; rooms?: string[] },
   ): MindEntry {
     const row = this.#readable(actor, agentId);
+    // The rooms a hand-written entry is about: a shared agent's only, and only rooms the writer sees.
+    const rooms = row.ownerUserId === null ? (input.rooms ?? []) : [];
+    if (!this.deps.scopes.canSeeAll(actor, rooms)) {
+      throw new AuthHttpError(400, "unknown_operation");
+    }
+    const visible = this.#visible(actor, row);
     const entry = this.#try(() => {
-      if (input.kind === "memory") return this.deps.mind.addMemory(row.id, input, "person");
+      if (input.kind === "memory") return this.deps.mind.addMemory(row.id, input, "person", rooms);
       // In Settings a note is added, not overwritten: a taken title is said so.
       try {
-        this.deps.mind.note(row.id, input.title);
+        this.deps.mind.note(row.id, input.title, visible);
       } catch {
-        return this.deps.mind.writeNote(row.id, input, "person").entry;
+        return this.deps.mind.writeNote(row.id, input, "person", { rooms, visible }).entry;
       }
       throw new MindError("title_taken", "another note already has that title");
     });
@@ -202,7 +225,9 @@ export class MindService {
     patch: { title?: string; text?: string },
   ): MindEntry {
     const row = this.#readable(actor, agentId);
-    const entry = this.#try(() => this.deps.mind.update(row.id, entryId, patch));
+    const entry = this.#try(() =>
+      this.deps.mind.update(row.id, entryId, patch, this.#visible(actor, row)),
+    );
     this.#audit(actor, AUDIT_ACTIONS.officeAgentMemoryWrite, row, {
       entryId: entry.id,
       kind: entry.kind,
@@ -214,7 +239,7 @@ export class MindService {
 
   removeEntry(actor: OperationActor, agentId: string, entryId: string): void {
     const row = this.#readable(actor, agentId);
-    const gone = this.#try(() => this.deps.mind.remove(row.id, entryId));
+    const gone = this.#try(() => this.deps.mind.remove(row.id, entryId, this.#visible(actor, row)));
     this.#audit(actor, AUDIT_ACTIONS.officeAgentMemoryDelete, row, {
       entryId: gone.id,
       kind: gone.kind,

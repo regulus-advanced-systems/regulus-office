@@ -68,6 +68,7 @@ const EXTRA_TABLES = [
   "office_agent_connections",
   "office_agent_soul_versions",
   "office_agent_memories",
+  "office_agent_room_reads",
   "github_user_links",
   "github_repo_permissions",
   "github_org_memberships",

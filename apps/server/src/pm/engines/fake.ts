@@ -34,6 +34,8 @@ export class FakeEngine implements OfficeAgentEngine {
   readonly started = new Map<string, { agent: EngineAgent; office: EngineOffice }>();
   readonly sent: Array<{ agentId: string; message: EngineMessage }> = [];
   readonly stopped: string[] = [];
+  /** Conversations the office asked it to drop (#301). */
+  readonly forgotten: Array<{ agentId: string; userId: string }> = [];
   readonly #events = new EngineEvents();
   readonly #pending = new Set<Promise<void>>();
 
@@ -83,6 +85,10 @@ export class FakeEngine implements OfficeAgentEngine {
     })();
     this.#pending.add(work);
     void work.finally(() => this.#pending.delete(work));
+  }
+
+  forgetConversation(agentId: string, userId: string): void {
+    this.forgotten.push({ agentId, userId });
   }
 
   async health(agentId: string): Promise<EngineHealth> {

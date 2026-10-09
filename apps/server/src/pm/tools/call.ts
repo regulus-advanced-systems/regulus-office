@@ -5,7 +5,10 @@
  *
  * Order of checks: the tool exists; the agent's preset includes it; the
  * input is valid; then the tool's own checks (operation access as the owner
- * or by grant, acting person, caps). Every call writes one audit row:
+ * or by grant, acting person, caps). A shared agent's call is answered for
+ * somebody (asking.ts, #301): who that is, is decided here, before the tool
+ * runs, from how the call was authenticated and whose message the agent is
+ * working on, never from what the agent says. Every call writes one audit row:
  * `office_agent.tool_call` when it ran (also when it then failed), or
  * `office_agent.tool_denied` when it was refused. The row names the tool, the
  * transport, the operation and the person acted for; never the arguments'
@@ -26,6 +29,7 @@ import { z } from "zod";
 import { AUDIT_ACTIONS, writeAudit } from "../../auth/audit.ts";
 import type { Logger } from "../../logging.ts";
 import type { OfficeAgentRow } from "../store.ts";
+import { askingOf, ENGINE_CALLER, type ToolCaller } from "./asking.ts";
 import { type ToolCall, type ToolDeps, ToolError } from "./context.ts";
 import * as memory from "./memory.ts";
 import * as read from "./read.ts";
@@ -107,8 +111,14 @@ export class OfficeTools {
     name: string,
     rawInput: unknown,
     via: ToolTransport,
+    caller: ToolCaller = ENGINE_CALLER,
   ): Promise<OfficeToolResult> {
-    const call: ToolCall = { ...this.deps, agent };
+    const call: ToolCall = {
+      ...this.deps,
+      agent,
+      asking: askingOf(this.deps, agent, caller),
+      saw: new Set(),
+    };
     const raw =
       rawInput !== null && typeof rawInput === "object" && !Array.isArray(rawInput)
         ? (rawInput as Record<string, unknown>)
@@ -129,6 +139,12 @@ export class OfficeTools {
     }
     const denied = !result.ok && DENIALS.has(result.error);
     try {
+      // What the call handed the agent is in its conversation with these people from now on.
+      if (result.ok) {
+        for (const person of call.asking.people) {
+          this.deps.scopes.sawRooms(agent.id, person.id, call.saw);
+        }
+      }
       writeAudit(this.deps.store.db, {
         // Whose rights were used: the owner of a personal agent, or the person a shared one acted for.
         userId: call.actedFor ?? agent.ownerUserId,

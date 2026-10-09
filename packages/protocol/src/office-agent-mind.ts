@@ -15,7 +15,9 @@
  * enforces it on every path):
  * - a **personal** agent's soul, memories and notes: only the person it
  *   belongs to. Office owners and admins cannot read them at all;
- * - a **shared** agent's: office owners and admins.
+ * - a **shared** agent's: office owners and admins, and of its memories and
+ *   notes only those about rooms they can see themselves (#301): an entry
+ *   about a room closed to the reader is not listed, counted or found.
  * The agent itself reaches its own through the office tools with its token.
  *
  * None of them may hold a secret: text that looks like a key is refused.
@@ -114,6 +116,12 @@ export const MindEntry = z.object({
   text: z.string(),
   source: z.string().optional(),
   by: z.enum(MIND_AUTHORS),
+  /**
+   * A shared agent's entry (#301): the rooms (operation ids) it may be about.
+   * It is shown only to people who can see every one of them, so a reader
+   * who gets the entry can also see these rooms. Left out when it has none.
+   */
+  rooms: z.array(Id).optional(),
   createdAt: TimestampMs,
   updatedAt: TimestampMs,
 });
@@ -138,9 +146,20 @@ export const NoteText = z.string().max(OFFICE_AGENT_MIND_LIMITS.noteTextMax);
 export const MindSource = z.string().trim().max(OFFICE_AGENT_MIND_LIMITS.sourceMax);
 export const MindQuery = z.string().trim().max(OFFICE_AGENT_MIND_LIMITS.queryMax);
 
+/**
+ * The rooms an entry written by hand is about (#301): shared agents only, and
+ * only rooms the writer can see themselves. Left out: about no room.
+ */
+export const MindRooms = z.array(Id).max(50).optional();
+
 export const CreateMindEntry = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("memory"), text: MemoryText, source: MindSource.optional() }),
-  z.object({ kind: z.literal("note"), title: NoteTitle, text: NoteText }),
+  z.object({
+    kind: z.literal("memory"),
+    text: MemoryText,
+    source: MindSource.optional(),
+    rooms: MindRooms,
+  }),
+  z.object({ kind: z.literal("note"), title: NoteTitle, text: NoteText, rooms: MindRooms }),
 ]);
 export type CreateMindEntry = z.input<typeof CreateMindEntry>;
 

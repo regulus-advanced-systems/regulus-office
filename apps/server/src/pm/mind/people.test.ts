@@ -274,9 +274,11 @@ describe("the soul's history", () => {
       version: 4,
       revertOf: 1,
     });
-    expect(
-      o.db.select().from(officeAgents).where(eq(officeAgents.id, hermes.id)).get()?.instructions,
-    ).toBe(SOUL);
+    // The agent's row holds it too, encrypted (#301): the store opens it, the column does not show it.
+    expect(o.officeAgents.store.get(hermes.id)?.instructions).toBe(SOUL);
+    const stored = o.db.select().from(officeAgents).where(eq(officeAgents.id, hermes.id)).get();
+    expect(stored?.instructionsSealed).toBe(true);
+    expect(stored?.instructions).not.toContain("SOULCANARY");
   });
 
   test("a running agent is stopped by a new soul and starts with it at the next message", async () => {
@@ -321,6 +323,13 @@ describe("the soul's history", () => {
     const backfill = sql.split("--> statement-breakpoint").at(-1) ?? "";
     expect(backfill).toContain("INSERT INTO `office_agent_soul_versions`");
     o.db.delete(officeAgentSoulVersions).run();
+    // As the row was when 0025 ran: plain text (0028 and its encryption came later).
+    const before = o.officeAgents.store.get(hermes.id)?.instructions ?? "";
+    o.db
+      .update(officeAgents)
+      .set({ instructions: before, instructionsSealed: false })
+      .where(eq(officeAgents.id, hermes.id))
+      .run();
     o.db.$client.run(backfill);
     const imported = o.officeAgents.mind.versions(hermes.id);
     expect(imported).toMatchObject([{ version: 1, kind: "imported", added: 2, removed: 0 }]);

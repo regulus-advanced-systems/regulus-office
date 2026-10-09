@@ -21,7 +21,9 @@ import { type AgentAccess, type AgentPerson, accessAtLeast } from "../access.ts"
 import type { Conversations } from "../conversations.ts";
 import type { AgentMind } from "../mind/mind.ts";
 import type { HumanRequests } from "../requests.ts";
+import type { RoomScopes } from "../scope.ts";
 import type { OfficeAgentRow, OfficeAgentStore } from "../store.ts";
+import { type Asking, roomAccess } from "./asking.ts";
 
 /** A refusal or failure with a message that is safe to hand to the agent. */
 export class ToolError extends Error {
@@ -66,6 +68,10 @@ export interface ToolDeps {
   requests: HumanRequests;
   /** The agent's soul, memories and notes (#136). */
   mind: AgentMind;
+  /** What rooms a conversation has read, and who may be shown what (#301). */
+  scopes: RoomScopes;
+  /** The person whose message a shared agent is working on, when its engine said so (#301). */
+  turnOf: (agentId: string) => string | undefined;
   ports: OfficePorts;
   now: () => number;
 }
@@ -73,6 +79,10 @@ export interface ToolDeps {
 /** One call's context. `actedFor` is set once a person's rights were used. */
 export interface ToolCall extends ToolDeps {
   agent: OfficeAgentRow;
+  /** Who a shared agent's call is answered for (#301, asking.ts). */
+  asking: Asking;
+  /** The rooms this call handed the agent something of. */
+  saw: Set<string>;
   actedFor?: string;
   /** Extra facts for the call's audit row: ids, kinds and sizes. Never text. */
   auditMeta?: Record<string, string | number | boolean>;
@@ -84,7 +94,8 @@ export interface ToolCall extends ToolDeps {
  * - Personal agent: its owner, always; naming anyone else is refused.
  * - Shared agent: the person named in `onBehalfOf`, and only while that
  *   person is waiting for the agent's answer (an open turn in their
- *   conversation), so the agent cannot borrow someone's rights unasked.
+ *   conversation), so the agent cannot borrow someone's rights unasked. While
+ *   it works on one person's message it acts for that person only (#301).
  */
 export function actingPerson(call: ToolCall, onBehalfOf: string | undefined): AgentPerson {
   const { agent } = call;
@@ -103,6 +114,12 @@ export function actingPerson(call: ToolCall, onBehalfOf: string | undefined): Ag
       "a shared agent does this for a person: pass onBehalfOf with the id of the person who asked",
     );
   }
+  if (call.asking.turn !== undefined && call.asking.turn !== onBehalfOf) {
+    throw new ToolError(
+      "not_waiting",
+      "you are answering someone else right now, so you cannot act for that person",
+    );
+  }
   const person = call.store.person(onBehalfOf);
   if (!person || !call.conversations.waiting(agent.id, onBehalfOf)) {
     throw new ToolError(
@@ -115,17 +132,17 @@ export function actingPerson(call: ToolCall, onBehalfOf: string | undefined): Ag
 }
 
 /**
- * The agent's access to an operation, at least `needed`. An operation it
- * cannot see answers like one that does not exist.
+ * The call's access to an operation, at least `needed`. An operation the
+ * agent cannot see, or the person it is answering cannot see (#301), answers
+ * like one that does not exist: the same words, nothing of the room.
  */
 export function requireOperation(
   call: ToolCall,
   operationId: string,
   needed: OperationAccess,
-  forPerson?: OperationActor,
+  forPerson?: AgentPerson,
 ): OperationAccess {
-  const shared = call.agent.ownerUserId === null;
-  const access = call.access.operation(call.agent, operationId, shared ? forPerson : undefined);
+  const access = roomAccess(call, operationId, forPerson);
   if (!access) throw new ToolError("not_found", "no such operation");
   if (!accessAtLeast(access, needed)) {
     throw new ToolError("forbidden", `this needs ${needed} access to the operation`);
