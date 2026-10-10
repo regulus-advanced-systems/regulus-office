@@ -134,4 +134,10 @@ export async function checkReturnWhereYouLeft(
     await owner.request.delete(`/api/office-agents/${agent.id}`, { headers });
   }
   await walkToLobby(owner);
+  // Both pages were loaded anew here. A first gesture again, as `openOffice` gives every page:
+  // a browser plays sound only after one, and the jukebox step comes next.
+  for (const page of [member, owner]) {
+    await page.bringToFront();
+    await page.getByRole("navigation", { name: "Rooms" }).getByRole("heading").click();
+  }
 }

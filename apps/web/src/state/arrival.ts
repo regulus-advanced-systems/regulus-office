@@ -54,7 +54,8 @@ export function arrivalPose(world: CompoundWorld, grid: NavGrid, spawn: Pose): P
   const self = arrivingSelf();
   if (!self || (self.levelId || LOBBY_LEVEL_ID) !== world.levelId) return spawn;
   const { x, z, heading } = self.position;
-  if (Math.hypot(x - spawn.x, z - spawn.z) < SAME_SPOT) return { ...spawn, heading };
+  if (Math.hypot(x - spawn.x, z - spawn.z) < SAME_SPOT)
+    return heading === spawn.heading ? spawn : { ...spawn, heading };
   const at = nearestWalkable(grid, { x, z });
   return at ? { x: at.x, z: at.z, heading } : spawn;
 }

@@ -122,7 +122,8 @@ function Scene({ world, avatars, presence, send, children }: CompoundCanvasProps
   const grid = useMemo(() => compoundNavGrid(world, { blastDoorOpen: doorOpen }), [key, doorOpen]);
   useDoorwayGuard(grid);
   // The first spawn is where the building has us (#262: back where we left); later ones the lobby's.
-  const spawn = useMemo(() => arrivalPose(world, grid, lobbySpawn(world)), [world, grid]);
+  const usual = useMemo(() => lobbySpawn(world), [world]);
+  const spawn = useMemo(() => arrivalPose(world, grid, usual), [world, grid, usual]);
   // The clickable ground runs past the beach strip to the end of the dock.
   const groundD = (world.depth + outsideRows(world)) * world.tileMetres;
   const plane = useMemo(() => ({ x: 0, z: 0, w: extent.w, d: groundD }), [extent.w, groundD]);
