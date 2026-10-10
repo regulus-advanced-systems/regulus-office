@@ -146,10 +146,13 @@ export async function checkLinkedTask(
   }
   if (screenshotDir) await theirs.screenshot({ path: `${screenshotDir}/queue-panel-member.png` });
   await member.keyboard.press("Escape");
+  await expect(theirs).toHaveCount(0);
 
+  // Both go back to the lobby for the next step. The member leaves first and loses the repo
+  // afterwards: taken away while they stand in the room, the level closes under them while
+  // they are travelling (that case has its own step, accessChecks.ts).
+  await walkToLobby(member);
   await setRepoPermission(officeGitHubUrl(), MEMBER_GITHUB, rooms.firstRepo, "none");
   await checkGitHubNow(member);
-  // The room closes for the member where they stand; both go back to the lobby for the next step.
-  await walkToLobby(member);
   await walkToLobby(owner);
 }
