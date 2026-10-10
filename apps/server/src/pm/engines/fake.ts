@@ -27,6 +27,8 @@ export interface FakeEngineOptions {
   ) => string | null | Promise<string | null>;
   /** Refuse to start (for the failure path). */
   failStart?: string;
+  /** How long a stop takes, ms (a real engine waits for the turn it kills). */
+  stopMs?: number;
 }
 
 export class FakeEngine implements OfficeAgentEngine {
@@ -34,6 +36,8 @@ export class FakeEngine implements OfficeAgentEngine {
   readonly started = new Map<string, { agent: EngineAgent; office: EngineOffice }>();
   readonly sent: Array<{ agentId: string; message: EngineMessage }> = [];
   readonly stopped: string[] = [];
+  /** Conversations the office asked it to drop (#301). */
+  readonly forgotten: Array<{ agentId: string; userId: string }> = [];
   readonly #events = new EngineEvents();
   readonly #pending = new Set<Promise<void>>();
 
@@ -54,6 +58,7 @@ export class FakeEngine implements OfficeAgentEngine {
   }
 
   async stop(agentId: string): Promise<void> {
+    if (this.options.stopMs) await new Promise((done) => setTimeout(done, this.options.stopMs));
     this.stopped.push(agentId);
     this.started.delete(agentId);
   }
@@ -83,6 +88,10 @@ export class FakeEngine implements OfficeAgentEngine {
     })();
     this.#pending.add(work);
     void work.finally(() => this.#pending.delete(work));
+  }
+
+  forgetConversation(agentId: string, userId: string): void {
+    this.forgotten.push({ agentId, userId });
   }
 
   async health(agentId: string): Promise<EngineHealth> {

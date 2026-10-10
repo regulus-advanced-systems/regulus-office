@@ -13,6 +13,14 @@
  * Who may *read* is not decided here: people.ts (people) and tools/memory.ts
  * (the agent itself, only its own) do that. Nothing in this module logs or
  * returns text in an error.
+ *
+ * Rooms (#301): a memory or note carries the rooms it may be about, and a
+ * reader that brings a `Visible` filter (../scope.ts) is given only entries it
+ * may see. An entry the reader may not see behaves like one that is not
+ * there: not listed, not counted, not found by id or title. So a note's
+ * title is unique among the notes its writer can see (a note they cannot see
+ * may have the same one), and the caps count what the writer can see. Behind
+ * that is a hard cap on rows, which fails like any other storage failure.
  */
 import {
   diffStat,
@@ -26,7 +34,10 @@ import {
   type SoulVersionSummary,
 } from "@regulus/protocol";
 import { findSecretLike, type SecretLikeKind } from "../../secrets/redact.ts";
-import { entryView, type MindStore, type SoulVersionRow } from "./store.ts";
+import type { Visible } from "../scope.ts";
+import { type Digest, digestOf } from "./digest.ts";
+import { SealedUnreadable } from "./seal.ts";
+import { entryView, type MemoryRow, type MindStore, type SoulVersionRow } from "./store.ts";
 
 export type MindErrorCode =
   | "secret_rejected"
@@ -34,7 +45,8 @@ export type MindErrorCode =
   | "not_found"
   | "soul_changed"
   | "too_large"
-  | "title_taken";
+  | "title_taken"
+  | "unreadable";
 
 /** A refusal whose message is safe to show to the person or the agent: it never quotes the text. */
 export class MindError extends Error {
@@ -86,9 +98,20 @@ export interface SoulSaved {
   removed: number;
 }
 
-const DIGEST_MEMORY_CHARS = 4000;
-const DIGEST_NOTES = 30;
-const day = (ms: number) => new Date(ms).toISOString().slice(0, 10);
+const shown = (visible: Visible, row: MemoryRow) => !visible || visible(row.rooms);
+/** Rows of one kind an agent may hold at most, whoever can see them, as a multiple of the cap. */
+const HARD_CAP_FACTOR = 4;
+const union = (a: readonly string[], b: readonly string[]) => [...new Set([...a, ...b])].sort();
+
+/** A row that cannot be decrypted as a refusal with fixed words, instead of a crash. */
+function readable<T>(fn: () => T): T {
+  try {
+    return fn();
+  } catch (err) {
+    if (err instanceof SealedUnreadable) throw new MindError("unreadable", err.message);
+    throw err;
+  }
+}
 
 export class AgentMind {
   constructor(private readonly store: MindStore) {}
@@ -96,9 +119,9 @@ export class AgentMind {
   // ---- Soul ----------------------------------------------------------------------
 
   soul(agentId: string): OfficeAgentSoul {
-    const content = this.store.currentSoul(agentId);
+    const content = readable(() => this.store.currentSoul(agentId));
     if (content === undefined) throw new MindError("not_found", "no such agent");
-    const latest = this.store.latestVersion(agentId);
+    const latest = readable(() => this.store.latestVersion(agentId));
     return {
       agentId,
       version: latest?.version ?? 0,
@@ -145,11 +168,11 @@ export class AgentMind {
   }
 
   versions(agentId: string): SoulVersionSummary[] {
-    return this.store.versions(agentId).map(summary);
+    return readable(() => this.store.versions(agentId)).map(summary);
   }
 
   version(agentId: string, version: number): SoulVersion {
-    const row = this.store.version(agentId, version);
+    const row = readable(() => this.store.version(agentId, version));
     if (!row) throw new MindError("not_found", "no such version");
     return { ...summary(row), content: row.content };
   }
@@ -162,54 +185,126 @@ export class AgentMind {
 
   // ---- Memories and notes ----------------------------------------------------------
 
-  list(agentId: string, kind: MindEntryKind, opts: { query?: string; limit?: number } = {}) {
-    const all = this.store.entries(agentId, kind).map(entryView);
+  #entries(agentId: string, kind: MindEntryKind | undefined, visible: Visible): MemoryRow[] {
+    return readable(() => this.store.entries(agentId, kind)).filter((row) => shown(visible, row));
+  }
+
+  list(
+    agentId: string,
+    kind: MindEntryKind,
+    opts: { query?: string; limit?: number; visible?: Visible } = {},
+  ) {
+    const all = this.#entries(agentId, kind, opts.visible).map(entryView);
     const found = opts.query ? all.filter(matcher(opts.query)) : all;
     return {
       entries: found.slice(0, opts.limit ?? LIMITS.pageMax),
+      // Of what the reader may see: an entry closed to them is not counted either.
       total: all.length,
       max: kind === "memory" ? LIMITS.memoriesMax : LIMITS.notesMax,
     };
   }
 
-  /** Memories and notes that hold every word of the query, most recently changed first. */
-  search(agentId: string, query: string, limit = 20): MindEntry[] {
-    return this.store.entries(agentId).map(entryView).filter(matcher(query)).slice(0, limit);
+  /**
+   * Memories and notes that hold every word of the query, most recently
+   * changed first. The text is encrypted in the database (#301), so the
+   * agent's entries are opened here and matched in memory: one agent has at
+   * most `memoriesMax` + `notesMax` of them.
+   */
+  search(agentId: string, query: string, limit = 20, visible?: Visible): MindEntry[] {
+    return this.#entries(agentId, undefined, visible)
+      .map(entryView)
+      .filter(matcher(query))
+      .slice(0, limit);
   }
 
-  entry(agentId: string, entryId: string): MindEntry {
-    const row = this.store.entry(agentId, entryId);
-    if (!row) throw new MindError("not_found", "no such memory or note");
-    return entryView(row);
+  /** Refuse a new entry when the writer already sees as many as one agent may have. */
+  #room(agentId: string, kind: MindEntryKind, visible: Visible): void {
+    const max = kind === "memory" ? LIMITS.memoriesMax : LIMITS.notesMax;
+    const seen = this.store.scopes(agentId, kind).filter((rooms) => !visible || visible(rooms));
+    if (seen.length >= max) {
+      throw new MindError(
+        "cap_reached",
+        kind === "memory"
+          ? `there are already ${max} memories; forget some before saving more`
+          : `there are already ${max} notes; delete some before writing more`,
+      );
+    }
+    // Entries the writer cannot see do not count above; this keeps the table bounded all the
+    // same, and says nothing a failing disk would not say.
+    if (this.store.total(agentId, kind) >= max * HARD_CAP_FACTOR) {
+      throw new Error("office agent mind store is full");
+    }
   }
 
-  addMemory(agentId: string, input: { text: string; source?: string }, by: MindAuthor): MindEntry {
+  /**
+   * The note a title means for a reader. Several notes can have one title
+   * (each about rooms the others' readers cannot all see), so among those the
+   * reader can see: first one that was written for them (in their own
+   * conversation with the agent, or by their hand), then the one about the
+   * most rooms (the one fewest people share), then the most recently changed.
+   * So a note someone else left with the same title, visible to everyone,
+   * never stands in for the reader's own.
+   */
+  #noteByTitle(
+    agentId: string,
+    title: string,
+    visible: Visible,
+    forUser?: string,
+  ): MemoryRow | undefined {
+    const seen = readable(() => this.store.notesByTitle(agentId, title)).filter((row) =>
+      shown(visible, row),
+    );
+    const own = (row: MemoryRow) => Number(forUser !== undefined && row.forUserId === forUser);
+    // (A stable sort: notes that tie stay most recently changed first.)
+    return seen.sort((a, b) => own(b) - own(a) || b.rooms.length - a.rooms.length)[0];
+  }
+
+  #row(agentId: string, entryId: string, visible: Visible): MemoryRow {
+    const row = readable(() => this.store.entry(agentId, entryId));
+    if (!row || !shown(visible, row)) throw new MindError("not_found", "no such memory or note");
+    return row;
+  }
+
+  entry(agentId: string, entryId: string, visible?: Visible): MindEntry {
+    return entryView(this.#row(agentId, entryId, visible));
+  }
+
+  addMemory(
+    agentId: string,
+    input: { text: string; source?: string },
+    by: MindAuthor,
+    rooms: readonly string[] = [],
+    visible?: Visible,
+    forUser?: string,
+  ): MindEntry {
     const text = clean(input.text).trim();
     const source = input.source ? clean(input.source).trim() : undefined;
     assertNoSecret("That memory", `${text}\n${source ?? ""}`);
-    if (this.store.count(agentId, "memory") >= LIMITS.memoriesMax) {
-      throw new MindError(
-        "cap_reached",
-        `there are already ${LIMITS.memoriesMax} memories; forget some before saving more`,
-      );
-    }
-    return entryView(this.store.insert(agentId, { kind: "memory", text, source, by }));
+    this.#room(agentId, "memory", visible);
+    return entryView(
+      this.store.insert(agentId, { kind: "memory", text, source, by, rooms, forUserId: forUser }),
+    );
   }
 
-  note(agentId: string, title: string): MindEntry {
-    const row = this.store.noteByTitle(agentId, title);
+  note(agentId: string, title: string, visible?: Visible, forUser?: string): MindEntry {
+    const row = this.#noteByTitle(agentId, title, visible, forUser);
     if (!row) throw new MindError("not_found", "no note with that title");
     return entryView(row);
   }
 
-  /** Create the note with this title, or replace (or add to) the one that has it. */
+  /**
+   * Create the note with this title, or replace (or add to) the one that has
+   * it. A note that is changed keeps the rooms it had and takes the new ones.
+   */
   writeNote(
     agentId: string,
     input: { title: string; text: string; append?: boolean },
     by: MindAuthor,
+    opts: { rooms?: readonly string[]; visible?: Visible; forUser?: string } = {},
   ): { entry: MindEntry; created: boolean } {
     const title = input.title.trim();
-    const existing = this.store.noteByTitle(agentId, title);
+    // Among the notes the writer can see: one they cannot see may have this title as well.
+    const existing = this.#noteByTitle(agentId, title, opts.visible, opts.forUser);
     const added = clean(input.text);
     const text = existing && input.append ? `${existing.text.trimEnd()}\n${added}` : added;
     if (text.length > LIMITS.noteTextMax) {
@@ -217,26 +312,31 @@ export class AgentMind {
     }
     assertNoSecret("That note", `${title}\n${text}`);
     if (existing) {
-      const row = this.store.update(agentId, existing.id, { text });
+      const rooms = union(existing.rooms, opts.rooms ?? []);
+      const row = this.store.update(agentId, existing.id, { text, rooms });
       if (!row) throw new MindError("not_found", "no note with that title");
       return { entry: entryView(row), created: false };
     }
-    if (this.store.count(agentId, "note") >= LIMITS.notesMax) {
-      throw new MindError(
-        "cap_reached",
-        `there are already ${LIMITS.notesMax} notes; delete some before writing more`,
-      );
-    }
-    return {
-      entry: entryView(this.store.insert(agentId, { kind: "note", title, text, by })),
-      created: true,
-    };
+    this.#room(agentId, "note", opts.visible);
+    const row = this.store.insert(agentId, {
+      kind: "note",
+      title,
+      text,
+      by,
+      rooms: opts.rooms,
+      forUserId: opts.forUser,
+    });
+    return { entry: entryView(row), created: true };
   }
 
-  /** A person corrects an entry: a memory's text, or a note's title and text. */
-  update(agentId: string, entryId: string, patch: { title?: string; text?: string }): MindEntry {
-    const row = this.store.entry(agentId, entryId);
-    if (!row) throw new MindError("not_found", "no such memory or note");
+  /** A person corrects an entry: a memory's text, or a note's title and text. Its rooms stay. */
+  update(
+    agentId: string,
+    entryId: string,
+    patch: { title?: string; text?: string },
+    visible?: Visible,
+  ): MindEntry {
+    const row = this.#row(agentId, entryId, visible);
     const text = patch.text === undefined ? undefined : clean(patch.text);
     const max = row.kind === "memory" ? LIMITS.memoryTextMax : LIMITS.noteTextMax;
     if (text !== undefined && (text.length > max || (row.kind === "memory" && !text.trim()))) {
@@ -244,8 +344,10 @@ export class AgentMind {
     }
     const title = row.kind === "note" ? patch.title?.trim() : undefined;
     if (title !== undefined) {
-      const other = this.store.noteByTitle(agentId, title);
-      if (other && other.id !== row.id) {
+      const other = readable(() => this.store.notesByTitle(agentId, title)).find(
+        (note) => note.id !== row.id && shown(visible, note),
+      );
+      if (other) {
         throw new MindError("title_taken", "another note already has that title");
       }
     }
@@ -259,47 +361,24 @@ export class AgentMind {
   }
 
   /** The removed entry, so the caller can audit its kind and size. */
-  remove(agentId: string, entryId: string): MindEntry {
-    const entry = this.entry(agentId, entryId);
+  remove(agentId: string, entryId: string, visible?: Visible): MindEntry {
+    const entry = this.entry(agentId, entryId, visible);
     this.store.delete(agentId, entryId);
     return entry;
   }
 
   // ---- For engines -----------------------------------------------------------------
 
-  /**
-   * What the agent remembers as one block of text, for engines that have no
-   * memory of their own (the CLI session engine puts it in the system
-   * prompt): the newest memories up to a budget, and the titles of its notes.
-   * Empty when there is nothing.
-   */
-  digest(agentId: string): string {
-    const memories = this.store.entries(agentId, "memory").map(entryView);
-    const notes = this.store.entries(agentId, "note").map(entryView);
-    const parts: string[] = [];
-    if (memories.length > 0) {
-      const lines: string[] = [];
-      let used = 0;
-      for (const m of memories) {
-        const line = `- [${day(m.updatedAt)}] ${m.text.replace(/\s+/g, " ")}${m.source ? ` (from: ${m.source})` : ""}`;
-        if (used + line.length > DIGEST_MEMORY_CHARS && lines.length > 0) break;
-        lines.push(line);
-        used += line.length;
-      }
-      const rest = memories.length - lines.length;
-      parts.push(
-        `What you remember (saved with memory_save, newest first${rest > 0 ? `; ${rest} older ones are not shown, find them with memory_search` : ""}):\n${lines.join("\n")}`,
-      );
-    }
-    if (notes.length > 0) {
-      const titles = notes
-        .slice(0, DIGEST_NOTES)
-        .map((n) => `- ${n.title} (changed ${day(n.updatedAt)})`);
-      parts.push(
-        `Your notes (read one with note_read${notes.length > titles.length ? `; ${notes.length - titles.length} more with note_list` : ""}):\n${titles.join("\n")}`,
-      );
-    }
-    return parts.join("\n\n");
+  /** What the agent remembers as text, of what the reader may see, and the rooms that text may be about. */
+  recall(agentId: string, visible?: Visible): Digest {
+    return digestOf(
+      this.#entries(agentId, "memory", visible).map(entryView),
+      this.#entries(agentId, "note", visible).map(entryView),
+    );
+  }
+
+  digest(agentId: string, visible?: Visible): string {
+    return this.recall(agentId, visible).text;
   }
 }
 

@@ -40,6 +40,7 @@ import { encryptSecret } from "../secrets/index.ts";
 import { UsageTracker } from "../usage/index.ts";
 import { FakeEngine, type FakeEngineOptions } from "./engines/fake.ts";
 import { createOfficeAgents, type OfficeAgentsOptions } from "./setup.ts";
+import { statusOfToolResult } from "./tool-routes.ts";
 
 export const OFFICE_KEY = "sk-ant-api03-FAKE-office-agent-key-0123456789";
 export const APOLLO = "op-apollo";
@@ -266,6 +267,41 @@ export async function agentsOffice(options: AgentsOfficeOptions = {}) {
     });
     return { status: res.status, body: (await res.json()) as OfficeToolResult };
   };
+  /**
+   * A turn of this person's conversation with the agent (#301): their message,
+   * and the token the office mints for that turn, with which `fn` calls tools
+   * as the agent would. The token is gone when `fn` returns.
+   */
+  const inTurn = async <T>(
+    agentId: string,
+    person: { id: string; cookie: string },
+    fn: (call: (name: string, input?: unknown) => ReturnType<typeof tool>) => Promise<T>,
+  ): Promise<T> => {
+    const sent = await send(`/api/office-agents/${agentId}/messages`, "POST", person.cookie, {
+      text: "status?",
+    });
+    if (sent.status !== 202) throw new Error(`message not taken: ${sent.status}`);
+    const minted =
+      officeAgents.runtime.engine("cli-session") === fake
+        ? fake.started.get(agentId)?.office.turn?.(person.id)
+        : undefined;
+    if (!minted) throw new Error("the agent is not on the fake engine");
+    try {
+      return await fn((name, input = {}) => tool(minted.token.reveal(), name, input));
+    } finally {
+      minted.end();
+    }
+  };
+  /**
+   * Call an office tool with no credential of a turn or a person, as an engine
+   * run would outside any turn. A shared agent is refused everything that way (#301).
+   */
+  const engineTool = async (agentId: string, name: string, input: unknown = {}) => {
+    const agent = officeAgents.store.get(agentId);
+    if (!agent) throw new Error("no such agent");
+    const body = await officeAgents.tools.call(agent, name, input, "rest");
+    return { status: statusOfToolResult(body), body };
+  };
   const audits = (action?: string) =>
     db
       .select()
@@ -293,6 +329,8 @@ export async function agentsOffice(options: AgentsOfficeOptions = {}) {
     comments,
     send,
     tool,
+    inTurn,
+    engineTool,
     audits,
     async stop() {
       await queue.close();

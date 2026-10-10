@@ -2,16 +2,22 @@
  * The read tools (#271). Every one that names an operation goes through
  * `requireOperation`; nothing here returns credentials, plan limits of other
  * people, or permission request details.
+ *
+ * A shared agent reads a room only when the person it is answering can see
+ * it too (#301, asking.ts), and every room a call hands it something of is
+ * noted (`saw`) as part of that conversation.
  */
 import type { OfficeToolInput } from "@regulus/protocol";
 import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import { agents, operationRepos, operations, userProfiles } from "../../db/schema/index.ts";
+import { openRooms, saw, visibleIn } from "./asking.ts";
 import { requireOperation, type ToolCall, ToolError } from "./context.ts";
 
 export function listOperations(call: ToolCall) {
-  const open = call.access.operations(call.agent);
+  const open = openRooms(call);
   if (open.length === 0) return { operations: [] };
   const ids = open.map((o) => o.operationId);
+  saw(call, ...ids);
   const db = call.store.db;
   const rows = db
     .select({ id: operations.id, name: operations.name, slug: operations.slug })
@@ -56,6 +62,7 @@ export function listOperations(call: ToolCall) {
 
 export function listHenchmen(call: ToolCall, input: OfficeToolInput<"list_henchmen">) {
   requireOperation(call, input.operationId, "view");
+  saw(call, input.operationId);
   const rows = call.store.db
     .select({
       id: agents.id,
@@ -95,21 +102,25 @@ export function listHenchmen(call: ToolCall, input: OfficeToolInput<"list_henchm
 
 export function readBoard(call: ToolCall, input: OfficeToolInput<"read_board">) {
   requireOperation(call, input.operationId, "view");
+  saw(call, input.operationId);
   return call.ports.board(input.operationId);
 }
 
 export function readQueue(call: ToolCall, input: OfficeToolInput<"read_queue">) {
   requireOperation(call, input.operationId, "view");
+  saw(call, input.operationId);
   return call.ports.queue(input.operationId);
 }
 
 /** A personal agent reads its owner's own usage; a shared one the office totals everyone sees. */
 export function readUsage(call: ToolCall) {
   if (call.agent.ownerUserId === null) {
-    // The leaderboard names henchmen: only those of rooms granted to the agent (#270).
+    // The leaderboard names henchmen: only those of rooms granted to the agent (#270)
+    // that the person it is answering can see as well (#301).
     const { henchmanRooms = {}, ...usage } = call.ports.officeUsage();
-    const open = new Set(call.access.operations(call.agent).map((o) => o.operationId));
+    const open = new Set(openRooms(call).map((o) => o.operationId));
     const topHenchmen = usage.topHenchmen.filter((h) => open.has(henchmanRooms[h.agentId] ?? ""));
+    saw(call, ...topHenchmen.map((h) => henchmanRooms[h.agentId] ?? "").filter(Boolean));
     return { scope: "office", usage: { ...usage, topHenchmen } };
   }
   const owner = call.access.owner(call.agent);
@@ -119,10 +130,15 @@ export function readUsage(call: ToolCall) {
 
 export function readHumanRequest(call: ToolCall, input: OfficeToolInput<"read_human_request">) {
   const request = call.requests.get(input.requestId);
-  // Another agent's question is indistinguishable from a missing one.
+  // Another agent's question is indistinguishable from a missing one, and so is one
+  // about a room the person the agent is answering now cannot see (#301).
   if (!request || request.agentId !== call.agent.id) {
     throw new ToolError("not_found", "no such request");
   }
+  const rooms = call.requests.roomsOf(request.id);
+  const visible = visibleIn(call);
+  if (visible && !visible(rooms)) throw new ToolError("not_found", "no such request");
+  saw(call, ...rooms);
   return {
     id: request.id,
     status: request.status,

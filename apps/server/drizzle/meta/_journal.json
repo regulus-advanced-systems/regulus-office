@@ -197,6 +197,13 @@
       "when": 1791470315383,
       "tag": "0027_office_agent_world",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "6",
+      "when": 1791617882237,
+      "tag": "0028_office_agent_room_limits",
+      "breakpoints": true
     }
   ]
 }

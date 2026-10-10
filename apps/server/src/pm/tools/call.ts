@@ -5,7 +5,10 @@
  *
  * Order of checks: the tool exists; the agent's preset includes it; the
  * input is valid; then the tool's own checks (operation access as the owner
- * or by grant, acting person, caps). Every call writes one audit row:
+ * or by grant, acting person, caps). A shared agent's call is answered for
+ * somebody (asking.ts, #301): who that is, is decided here, before the tool
+ * runs, from how the call was authenticated and whose message the agent is
+ * working on, never from what the agent says. Every call writes one audit row:
  * `office_agent.tool_call` when it ran (also when it then failed), or
  * `office_agent.tool_denied` when it was refused. The row names the tool, the
  * transport, the operation and the person acted for; never the arguments'
@@ -20,12 +23,14 @@ import {
   type OfficeToolSpec,
   officeToolSpec,
   presetAllows,
+  REACH_REFUSAL,
   toolsForPreset,
 } from "@regulus/protocol";
 import { z } from "zod";
 import { AUDIT_ACTIONS, writeAudit } from "../../auth/audit.ts";
 import type { Logger } from "../../logging.ts";
 import type { OfficeAgentRow } from "../store.ts";
+import { askingOf, ENGINE_CALLER, mayReach, roomAccess, type ToolCaller } from "./asking.ts";
 import { type ToolCall, type ToolDeps, ToolError } from "./context.ts";
 import * as memory from "./memory.ts";
 import * as read from "./read.ts";
@@ -60,6 +65,46 @@ const HANDLERS: { [N in OfficeToolName]: Handler<N> } = {
   note_read: memory.noteRead,
   note_list: (call) => memory.noteList(call),
   note_delete: memory.noteDelete,
+};
+
+/**
+ * Where what a tool is given ends up (#301). Every tool is listed, so a new
+ * one does not compile until someone has decided this for it:
+ *
+ * - `nothing`: it hands the agent something, or changes something without
+ *   carrying any text of the agent's to other people;
+ * - `mind`: the agent's own memories and notes, which carry rooms (memory.ts);
+ * - `person`: text for one named person (`ask_human` checks that person);
+ * - `room`: text that everyone who can enter the operation it names reads (a
+ *   chat line, a comment on a card, a task's title and prompt, a henchman's
+ *   prompt), or everyone at all when it names none. Checked here, before the
+ *   tool runs, so no handler can leave it out: a shared agent's call is
+ *   refused unless every one of those readers can see every room its
+ *   conversation has read.
+ */
+export type ToolReach = "nothing" | "mind" | "person" | "room";
+export const TOOL_REACH: { readonly [N in OfficeToolName]: ToolReach } = {
+  list_operations: "nothing",
+  list_henchmen: "nothing",
+  read_board: "nothing",
+  read_queue: "nothing",
+  read_usage: "nothing",
+  read_human_request: "nothing",
+  stop_henchman: "nothing",
+  soul_read: "nothing",
+  memory_list: "nothing",
+  memory_search: "nothing",
+  memory_forget: "nothing",
+  note_read: "nothing",
+  note_list: "nothing",
+  note_delete: "nothing",
+  memory_save: "mind",
+  note_write: "mind",
+  ask_human: "person",
+  post_chat: "room",
+  comment_on_card: "room",
+  enqueue_task: "room",
+  spawn_henchman: "room",
 };
 
 /** Refusals (the agent asked for something it may not do), as opposed to failures. */
@@ -107,8 +152,14 @@ export class OfficeTools {
     name: string,
     rawInput: unknown,
     via: ToolTransport,
+    caller: ToolCaller = ENGINE_CALLER,
   ): Promise<OfficeToolResult> {
-    const call: ToolCall = { ...this.deps, agent };
+    const call: ToolCall = {
+      ...this.deps,
+      agent,
+      asking: askingOf(this.deps, agent, caller),
+      saw: new Set(),
+    };
     const raw =
       rawInput !== null && typeof rawInput === "object" && !Array.isArray(rawInput)
         ? (rawInput as Record<string, unknown>)
@@ -129,6 +180,10 @@ export class OfficeTools {
     }
     const denied = !result.ok && DENIALS.has(result.error);
     try {
+      // What the call handed the agent is in its conversation with this person from now on.
+      if (result.ok && call.asking.person) {
+        this.deps.scopes.sawRooms(agent.id, call.asking.person.id, call.saw);
+      }
       writeAudit(this.deps.store.db, {
         // Whose rights were used: the owner of a personal agent, or the person a shared one acted for.
         userId: call.actedFor ?? agent.ownerUserId,
@@ -160,6 +215,13 @@ export class OfficeTools {
   async #run(call: ToolCall, name: string, rawInput: unknown): Promise<unknown> {
     const spec = officeToolSpec(name);
     if (!spec) throw new ToolError("unknown_tool", "no such tool");
+    if (call.asking.none) {
+      // A shared agent outside a turn, or with a code nobody stands behind: nothing at all.
+      throw new ToolError(
+        "forbidden",
+        "a shared agent acts only while it is answering someone; this call is not part of an answer",
+      );
+    }
     if (!presetAllows(call.agent.preset, spec.name)) {
       throw new ToolError(
         "preset_forbids",
@@ -171,6 +233,16 @@ export class OfficeTools {
       // Field paths only: zod messages could quote the input.
       const fields = [...new Set(parsed.error.issues.map((i) => i.path.join(".") || "input"))];
       throw new ToolError("invalid_input", `invalid input: ${fields.join(", ")}`);
+    }
+    if (TOOL_REACH[spec.name] === "room") {
+      const target = (parsed.data as { operationId?: string }).operationId ?? null;
+      // A room closed to this call is the tool's own "no such operation"; only one it could
+      // write to is asked who reads there.
+      if ((target === null || roomAccess(call, target) !== null) && !mayReach(call, target)) {
+        // The person is told too, in their chat, whatever the agent makes of it.
+        if (call.asking.turn) this.deps.conversations.noticeReach(call.agent.id, call.asking.turn);
+        throw new ToolError("forbidden", REACH_REFUSAL);
+      }
     }
     const handler = HANDLERS[spec.name] as (call: ToolCall, input: unknown) => unknown;
     return await handler(call, parsed.data);

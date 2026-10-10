@@ -11,6 +11,7 @@
  *   DELETE /api/office-agents/:id/tokens/:tokenId
  *   POST   /api/office-agents/:id/start | /stop
  *   GET    /api/office-agents/:id/conversation      the caller's own conversation with it
+ *   POST   /api/office-agents/:id/conversation/start-over   begin it again (#301)
  *   POST   /api/office-agents/:id/messages          say something to it
  *   GET    /api/office-agents/requests              the caller's pending "ask a human" questions
  *   POST   /api/office-agents/requests/:id/answer
@@ -189,6 +190,10 @@ export function mountOfficeAgentRoutes(router: Router, deps: OfficeAgentRoutesDe
   router.get(
     `${AGENT}/conversation`,
     handle((ctx, actor) => json(service.conversation(actor, id(ctx)))),
+  );
+  router.post(
+    `${AGENT}/conversation/start-over`,
+    handle((ctx, actor) => json(service.startOver(actor, id(ctx))), true),
   );
   router.post(
     `${AGENT}/messages`,

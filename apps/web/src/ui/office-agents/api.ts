@@ -98,6 +98,9 @@ export function createOfficeAgentsApi(options: { fetch?: typeof fetch } = {}) {
     start: (id: string) => call("POST", `${agent(id)}/start`, OfficeAgentView),
     stop: (id: string) => call("POST", `${agent(id)}/stop`, OfficeAgentView),
     conversation: (id: string) => call("GET", `${agent(id)}/conversation`, OfficeAgentConversation),
+    /** Begin the caller's conversation with it again (#301). */
+    startOver: (id: string) =>
+      call("POST", `${agent(id)}/conversation/start-over`, OfficeAgentConversation),
     send: (id: string, text: string) =>
       call("POST", `${agent(id)}/messages`, OfficeAgentMessage, { text }),
     /** A personal agent's owner sends it off to wander, or calls it back to their side (#252). */
@@ -176,7 +179,8 @@ const ERRORS: Record<string, string> = {
   shared_agents_wander:
     "A shared agent roams the lair on its own; only a personal agent can be dismissed.",
   already_answered: "That question was already answered.",
-  personal_only: "Your own Hermes can only be a personal agent: choose Me under Belongs to.",
+  personal_only:
+    "Hermes can only be a personal agent for now: choose Me under Belongs to, or run the shared agent as a Claude Code session.",
   hermes_connection_required: "Enter the address and the access token of your Hermes.",
   hermes_not_connected:
     "This agent has no connection to a Hermes yet. Enter its address and access token on its card.",

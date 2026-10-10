@@ -71,10 +71,18 @@ export interface EngineMemory {
 export interface EngineMind {
   /** The soul as it is now. */
   soul(): string;
-  /** Every memory and note, most recently changed first. */
-  entries(kind?: "memory" | "note"): EngineMemory[];
-  /** The newest memories and the note titles as one block of text; empty when there are none. */
-  digest(): string;
+  /**
+   * Every memory and note, most recently changed first. A shared agent's are
+   * given for one person (#301): only those about rooms `forUserId` can see
+   * themselves, and without a person only those about no room at all.
+   */
+  entries(kind?: "memory" | "note", forUserId?: string): EngineMemory[];
+  /**
+   * The newest memories and the note titles as one block of text; empty when
+   * there are none. For a shared agent: of what `forUserId`, the person whose
+   * message it is about to answer, may see (as `entries`).
+   */
+  digest(forUserId?: string): string;
   /** Store something the agent learned. Throws an {@link EngineRefusal} when it is refused. */
   remember(text: string, source?: string): EngineMemory;
   /** Remove a memory; false when it was not there. */
@@ -91,6 +99,20 @@ export interface EngineOffice {
   token: Secret;
   /** The agent's own soul, memories and notes, from the office's copy (#136). */
   mind: EngineMind;
+  /**
+   * A token for one turn of one person's conversation (#301): what the agent
+   * does with it is answered for that person, within their own access. The
+   * engine hands it to the agent for that turn only and calls `end` when the
+   * turn is over, whichever way it ended; after that the token is refused.
+   * An engine that cannot give each turn its own credential uses `token`,
+   * with which a shared agent can do nothing.
+   */
+  turn?(userId: string): EngineTurn;
+}
+
+export interface EngineTurn {
+  token: Secret;
+  end(): void;
 }
 
 /** An agent that remembers nothing, for tests that start an engine by hand. */
@@ -166,6 +188,13 @@ export interface OfficeAgentEngine {
   stop(agentId: string): Promise<void>;
   /** Hand over a message. Replies and failures arrive as events. */
   send(agentId: string, message: EngineMessage): Promise<void>;
+  /**
+   * Drop what the engine keeps of the agent's conversation with one person
+   * (its session), so their next message starts with nothing of the earlier
+   * ones (#301: that person lost a room the conversation had read). The
+   * history people see is the office's and stays.
+   */
+  forgetConversation?(agentId: string, userId: string): void;
   health(agentId: string): Promise<EngineHealth>;
   /** Subscribe to the engine's events for every agent it runs. */
   onEvent(listener: (event: EngineEvent) => void): () => void;

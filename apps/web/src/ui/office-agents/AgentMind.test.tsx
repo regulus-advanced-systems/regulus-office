@@ -244,7 +244,7 @@ describe("who it is, what it remembers, notes", () => {
     expect(
       card("Number Two").querySelector('[data-testid="agent-mind-privacy"]')?.textContent,
     ).toBe(
-      "Office owners and admins can read and change this. Anyone who talks to this agent may be told what is in it.",
+      "Office owners and admins can read and change this; of what it remembers and its notes, only what is about rooms they can see themselves. The agent tells a person only what is about rooms that person can see.",
     );
     await click(button("New agent") as HTMLButtonElement);
     await settle();

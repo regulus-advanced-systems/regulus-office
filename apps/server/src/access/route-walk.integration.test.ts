@@ -166,6 +166,8 @@ const OFFICE_ROUTES: Record<string, string> = {
   "POST /api/office-agents/:id/recall": "office agents: a personal agent's owner only (D32)",
   "POST /api/office-agents/:id/seen": "office agents: the caller's own conversation",
   "GET /api/office-agents/:id/conversation": "office agents: the caller's own conversation",
+  "POST /api/office-agents/:id/conversation/start-over":
+    "office agents: the caller's own conversation",
   "POST /api/office-agents/:id/messages": "office agents: the caller's own conversation",
   "GET /api/credential-profiles": "the caller's own provider profiles",
   "GET /api/credential-profiles/manage": "office provider keys",

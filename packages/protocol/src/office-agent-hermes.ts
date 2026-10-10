@@ -30,8 +30,17 @@ export const ENGINES_WITH_OWN_MODEL: readonly OfficeAgentEngineKind[] = [
 ];
 export const engineBringsOwnModel = (kind: OfficeAgentEngineKind) =>
   ENGINES_WITH_OWN_MODEL.includes(kind);
-/** Engines only a person can own: the connection is that person's credential. */
-export const engineIsPersonalOnly = (kind: OfficeAgentEngineKind) => kind === "hermes-external";
+/**
+ * Engines only a person can own. A person's own Hermes: the connection is that
+ * person's credential. A Hermes the office runs, for now (#301): Hermes keeps
+ * a memory of its own across everyone it talks to, and a shared agent may tell
+ * a person only what that person can see.
+ */
+export const engineIsPersonalOnly = (kind: OfficeAgentEngineKind) =>
+  kind === "hermes-external" || kind === "hermes-managed";
+/** Said where a shared agent cannot be given such an engine. */
+export const SHARED_HERMES_NOTE =
+  "Hermes is not offered for a shared agent for now: it keeps its own memory across everyone it talks to, and a shared agent may tell a person only what that person can see.";
 /** What is stored as the model of an agent whose engine brings its own. */
 export const OWN_MODEL_PLACEHOLDER = "hermes";
 

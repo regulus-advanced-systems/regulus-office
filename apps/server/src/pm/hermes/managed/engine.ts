@@ -89,6 +89,10 @@ interface Instance {
   closed: boolean;
 }
 
+/** Why a shared agent is not run on the office's Hermes; shown in the form and on the card. */
+export const SHARED_HERMES_REFUSAL =
+  "a shared agent cannot run on Hermes for now (#310): Hermes keeps its own memory across everyone it talks to, and a shared agent may tell a person only what that person can see. Run it as a Claude Code session, or make it a personal agent";
+
 export class HermesManagedEngine implements OfficeAgentEngine {
   readonly kind: OfficeAgentEngineKind = "hermes-managed";
   readonly #events = new EngineEvents();
@@ -132,6 +136,9 @@ export class HermesManagedEngine implements OfficeAgentEngine {
   }
 
   check(agent: EngineAgent): void {
+    // A Hermes keeps a memory of its own, across everyone it talks to, that the office neither
+    // sees nor can keep apart by person (#301). Until it can, it is nobody's but its owner's.
+    if (agent.ownerUserId === null) throw new EngineRefusal("personal_only", SHARED_HERMES_REFUSAL);
     if (agent.profileId === null) {
       throw new EngineRefusal(
         "hermes_key_required",

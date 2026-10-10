@@ -7,6 +7,7 @@ import { type HumanRequest, OFFICE_AGENT_LIMITS } from "@regulus/protocol";
 import { and, asc, eq } from "drizzle-orm";
 import type { Db } from "../db/index.ts";
 import { officeAgentRequests, officeAgents } from "../db/schema/index.ts";
+import { roomsJson, roomsOf } from "./mind/store.ts";
 
 /** Unanswered questions one agent may have open for one person. */
 export const MAX_PENDING_PER_PERSON = 5;
@@ -59,6 +60,8 @@ export class HumanRequests {
     question: string;
     options: readonly string[];
     operationId?: string;
+    /** The rooms the question may be about (#301): the one it names and those its conversation read. */
+    rooms?: readonly string[];
   }): HumanRequest | null {
     const open = this.db
       .select({ id: officeAgentRequests.id })
@@ -80,6 +83,7 @@ export class HumanRequests {
         question: input.question.slice(0, OFFICE_AGENT_LIMITS.questionMax),
         optionsJson: JSON.stringify(input.options),
         operationId: input.operationId ?? null,
+        roomScope: roomsJson(input.rooms ?? (input.operationId ? [input.operationId] : [])),
       })
       .returning()
       .get();
@@ -90,6 +94,20 @@ export class HumanRequests {
   get(id: string): HumanRequest | undefined {
     const found = this.#select().where(eq(officeAgentRequests.id, id)).get();
     return found ? view(found.row, found.agentName) : undefined;
+  }
+
+  /** The rooms a question may be about (#301); empty for one that is gone. */
+  roomsOf(id: string): string[] {
+    const row = this.db
+      .select({
+        scope: officeAgentRequests.roomScope,
+        operationId: officeAgentRequests.operationId,
+      })
+      .from(officeAgentRequests)
+      .where(eq(officeAgentRequests.id, id))
+      .get();
+    if (!row) return [];
+    return [...new Set([...roomsOf(row.scope), ...(row.operationId ? [row.operationId] : [])])];
   }
 
   /** The person's unanswered questions, oldest first. */

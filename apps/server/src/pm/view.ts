@@ -45,6 +45,7 @@ export function agentView(
     runsOn: runsOnOf(store.db, row, canConfigure),
     appearance: row.appearance,
     dismissed: row.ownerUserId !== null && row.dismissed,
+    ...(row.stoppedByPerson ? { stoppedByPerson: true } : {}),
     status: row.status,
     ...(row.statusReason ? { statusReason: row.statusReason } : {}),
     ...(row.lastActivityAt ? { lastActivityAt: row.lastActivityAt.getTime() } : {}),

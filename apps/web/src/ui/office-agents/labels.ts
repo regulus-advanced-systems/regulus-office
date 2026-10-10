@@ -144,10 +144,10 @@ export const NOTE_WORDS = {
   label: "Notes",
   hint: "Longer pages the agent keeps: a journal, a draft, a list of decisions.",
 } as const;
-/** Who can read them: said on the card, so nobody has to guess. */
+/** Who can read them: said on the card, so nobody has to guess (D20; rooms: #301). */
 export const mindPrivacy = (shared: boolean) =>
   shared
-    ? "Office owners and admins can read and change this. Anyone who talks to this agent may be told what is in it."
+    ? "Office owners and admins can read and change this; of what it remembers and its notes, only what is about rooms they can see themselves. The agent tells a person only what is about rooms that person can see."
     : "Private: only you can read and change this. Office owners and admins cannot.";
 
 /** "$1.24", or "under $0.01" for a first few messages; null when it has cost nothing yet. */

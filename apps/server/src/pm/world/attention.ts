@@ -17,6 +17,8 @@ export class AgentAttention {
     private readonly conversations: Conversations,
     private readonly requests: HumanRequests,
     private readonly now: () => number = Date.now,
+    /** May this person still be shown this question (the rooms it is about, #301)? */
+    private readonly mayShow: (userId: string, requestId: string) => boolean = () => true,
   ) {}
 
   /** The person has read their conversation with the agent up to now. */
@@ -53,7 +55,8 @@ export class AgentAttention {
     }
     const questions = new Map<string, string>();
     for (const request of this.requests.pendingFor(userId)) {
-      if (!questions.has(request.agentId)) questions.set(request.agentId, request.question);
+      if (questions.has(request.agentId) || !this.mayShow(userId, request.id)) continue;
+      questions.set(request.agentId, request.question);
     }
     const out: OfficeAgentAttentionEntry[] = [];
     for (const agentId of agentIds) {

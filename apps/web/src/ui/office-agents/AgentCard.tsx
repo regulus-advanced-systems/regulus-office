@@ -110,7 +110,12 @@ export function AgentCard({
             <span>Job: {ROLE_WORDS[agent.role].label}</span>
             <span>May: {PRESET_WORDS[agent.preset].label}</span>
             <span>Looks: {officeAgentAppearanceLabel(agent.appearance)}</span>
-            {!shared && <span>{agent.dismissed ? "Roaming the lair" : "Follows its owner"}</span>}
+            {/* An agent a person stopped has no body in the lair (#301). */}
+            {agent.stoppedByPerson ? (
+              <span>Not in the lair: it was stopped</span>
+            ) : (
+              !shared && <span>{agent.dismissed ? "Roaming the lair" : "Follows its owner"}</span>
+            )}
             <span>Last active {ago(agent.lastActivityAt, now)}</span>
           </div>
           <div className="rg-office-agent__facts" data-testid="agent-runs-on">
@@ -216,7 +221,13 @@ export function AgentCard({
         />
       )}
       {agent.config && (
-        <AgentMind api={api} agent={agent} now={now} onSoulSaved={actions.refresh} />
+        <AgentMind
+          api={api}
+          agent={agent}
+          now={now}
+          operations={operations}
+          onSoulSaved={actions.refresh}
+        />
       )}
       {agent.config && (
         <AgentAccess

@@ -8,6 +8,7 @@
  */
 import { Secret } from "@regulus/agent-adapters";
 import {
+  CONVERSATION_RESTARTED_LINE,
   OFFICE_AGENT_TOOLS_API_PATH,
   OFFICE_MCP_PATH,
   type OfficeAgentEngineKind,
@@ -21,8 +22,10 @@ import {
   type EngineEvent,
   type EngineMind,
   EngineRefusal,
+  type EngineTurn,
   type OfficeAgentEngine,
 } from "./engines/types.ts";
+import type { RoomScopes } from "./scope.ts";
 import type { OfficeAgentRow, OfficeAgentStore } from "./store.ts";
 import type { OfficeAgentTokens } from "./tokens.ts";
 
@@ -34,6 +37,8 @@ export interface AgentRuntimeDeps {
   conversations: Conversations;
   /** The agent's own soul, memories and notes, from the office's copy (#136). */
   mind: (agentId: string) => EngineMind;
+  /** The rooms a shared agent's conversations have read (#301). */
+  scopes?: RoomScopes;
   /** Base URL of the office as engines reach it (no trailing slash). */
   officeUrl: string;
   usage?: UsageRecorder;
@@ -58,6 +63,8 @@ export class AgentRuntime {
   /** Agents started in this process. */
   readonly #running = new Set<string>();
   readonly #starting = new Map<string, Promise<void>>();
+  /** Stops in flight: a start waits for the stop before it, so the two never cross (#301). */
+  readonly #stopping = new Map<string, Promise<void>>();
 
   constructor(private readonly deps: AgentRuntimeDeps) {}
 
@@ -98,10 +105,38 @@ export class AgentRuntime {
     };
   }
 
-  /** After a restart: nothing runs, and no engine run holds a token. */
+  /**
+   * After a restart: nothing runs, no engine run holds a token, and whoever was
+   * still waiting for an answer is told that it will not come (#301).
+   */
   boot(): void {
     this.deps.store.resetStatuses();
     this.deps.tokens.revokeAllSessions();
+    this.deps.conversations.closeOpenTurns();
+  }
+
+  /**
+   * One person's conversation with the agent begins again (#301): the engine's
+   * session with them is dropped (and what it kept of it, where the engine can),
+   * and with it the record of rooms that conversation had read. The lines the
+   * person sees stay, under a line that says so.
+   */
+  startOver(row: OfficeAgentRow, userId: string): void {
+    const { store, scopes, conversations } = this.deps;
+    const engine = this.#engines.get(row.engine);
+    if (this.#running.has(row.id) && engine?.forgetConversation) {
+      engine.forgetConversation(row.id, userId);
+    } else {
+      // Not running: the session its next start would continue is taken out of what is kept.
+      const state = stateOf(row.engineState);
+      const sessions = state.sessions;
+      if (sessions && typeof sessions === "object" && userId in sessions) {
+        const { [userId]: _dropped, ...rest } = sessions as Record<string, unknown>;
+        store.update(row.id, { engineState: JSON.stringify({ ...state, sessions: rest }) });
+      }
+    }
+    scopes?.forget(row.id, userId);
+    conversations.append(row.id, userId, "system", CONVERSATION_RESTARTED_LINE);
   }
 
   /** Start the agent on its engine with a fresh session token. Throws {@link EngineRefusal}. */
@@ -118,8 +153,20 @@ export class AgentRuntime {
     if (!engine) {
       throw new EngineRefusal("engine_unavailable", `the ${row.engine} engine is not available`);
     }
+    // A stop that is still going finishes first: it must not take this run's tokens or status.
+    await this.#stopping.get(row.id);
     const { store, tokens } = this.deps;
+    // Never with an empty document in place of one that could not be decrypted (#301).
+    if (store.soulUnreadable(row.id)) {
+      throw new EngineRefusal(
+        "unreadable",
+        "who this agent is cannot be read: OFFICE_MASTER_KEY is missing or is not the key it was encrypted with",
+      );
+    }
     store.setStatus(row.id, "starting");
+    // Started again (by a person, or by its first message): whoever stopped it is overruled
+    // (#301). Not from `row`: it may have been read before the stop that this start waited for.
+    store.update(row.id, { stoppedByPerson: false });
     tokens.revokeSessions(row.id);
     const minted = tokens.mint(row.id, "session", "engine run");
     if (!minted) throw new Error("session token not minted");
@@ -129,6 +176,7 @@ export class AgentRuntime {
         toolsUrl: `${this.deps.officeUrl}${OFFICE_AGENT_TOOLS_API_PATH}`,
         token: Secret.of(minted.token),
         mind: this.deps.mind(row.id),
+        turn: (userId) => this.#turn(row.id, userId),
       });
     } catch (err) {
       tokens.revokeSessions(row.id);
@@ -143,8 +191,39 @@ export class AgentRuntime {
     if (store.get(row.id)?.status === "starting") store.setStatus(row.id, "ready");
   }
 
-  async stop(agentId: string, engineKind: OfficeAgentEngineKind, reason?: string): Promise<void> {
-    await this.#starting.get(agentId)?.catch(() => {});
+  /** A token for one turn of one person's conversation; `end` revokes it (#301, engines/types.ts). */
+  #turn(agentId: string, userId: string): EngineTurn {
+    const minted = this.deps.tokens.mint(agentId, "turn", "turn", null, userId);
+    if (!minted) throw new Error("turn token not minted");
+    return {
+      token: Secret.of(minted.token),
+      end: () => void this.deps.tokens.revoke(agentId, minted.id),
+    };
+  }
+
+  stop(agentId: string, engineKind: OfficeAgentEngineKind, reason?: string): Promise<void> {
+    // Only a start that began before this stop is waited for; one that comes after waits for us.
+    const starting = this.#starting.get(agentId);
+    // From this moment it is not running: a message that arrives while it stops starts it anew
+    // (after the stop) instead of being handed to the run that is going away.
+    if (!starting) this.#running.delete(agentId);
+    const before = this.#stopping.get(agentId) ?? Promise.resolve();
+    const run = before
+      .then(() => this.#stop(agentId, engineKind, reason, starting))
+      .finally(() => {
+        if (this.#stopping.get(agentId) === run) this.#stopping.delete(agentId);
+      });
+    this.#stopping.set(agentId, run);
+    return run;
+  }
+
+  async #stop(
+    agentId: string,
+    engineKind: OfficeAgentEngineKind,
+    reason: string | undefined,
+    starting: Promise<void> | undefined,
+  ): Promise<void> {
+    await starting?.catch(() => {});
     this.#running.delete(agentId);
     this.deps.tokens.revokeSessions(agentId);
     try {
@@ -173,6 +252,7 @@ export class AgentRuntime {
       if (!this.#running.has(row.id)) await this.start(row);
       const engine = this.#engines.get(row.engine);
       if (!engine) throw new EngineRefusal("engine_unavailable", "the engine is not available");
+      this.#dropStaleContext(row, engine, person.id);
       await engine.send(row.id, {
         id: message.id,
         userId: person.id,
@@ -252,6 +332,26 @@ export class AgentRuntime {
     } catch (err) {
       logger.error({ agentId: row.id, err: String(err).slice(0, 300) }, "engine event failed");
     }
+  }
+
+  /**
+   * A shared agent's conversation with this person has read a room the person
+   * can no longer see (#301): the engine's session with them is dropped, so
+   * the agent answers their next message with nothing of it in mind.
+   */
+  #dropStaleContext(row: OfficeAgentRow, engine: OfficeAgentEngine, userId: string): void {
+    const { scopes, store, logger } = this.deps;
+    if (!scopes || row.ownerUserId !== null) return;
+    const seen = scopes.seen(row.id, userId);
+    const person = store.person(userId);
+    if (seen.length === 0 || (person && scopes.canSeeAll(person, seen))) return;
+    if (!engine.forgetConversation) {
+      // The record stays, so what leaves this conversation is still scoped to those rooms.
+      logger.warn({ agentId: row.id }, "the engine cannot start a conversation over");
+      return;
+    }
+    engine.forgetConversation(row.id, userId);
+    scopes.forget(row.id, userId);
   }
 
   /** A personal agent speaks only to its owner; a shared one to people who exist. */

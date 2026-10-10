@@ -21,6 +21,7 @@ import {
   type OfficeAgentRole,
   type OfficeAgentView,
   OWN_MODEL_PLACEHOLDER,
+  SHARED_HERMES_NOTE,
   type UpdateOfficeAgent,
 } from "@regulus/protocol";
 import { useId, useRef, useState } from "react";
@@ -76,7 +77,7 @@ export function AgentForm(props: AgentFormProps) {
   const [owner, setOwner] = useState<"me" | "office">(
     agent?.owner.kind === "office" ? "office" : "me",
   );
-  // A person's own Hermes can only be that person's agent: not offered for a shared one.
+  // Hermes (a person's own, or one the office runs) is not offered for a shared agent (#301).
   const engines = (agent ? [agent.engine] : props.engines).filter(
     (kind) => agent !== undefined || owner === "me" || !engineIsPersonalOnly(kind),
   );
@@ -251,6 +252,11 @@ export function AgentForm(props: AgentFormProps) {
         {agent ? " It cannot be changed afterwards." : ""}
       </div>
       {hermesOff && <div className="rg-field__hint">{MANAGED_HERMES_OFF.hint}</div>}
+      {!agent && shared && props.engines.some(engineIsPersonalOnly) && (
+        <div className="rg-field__hint" data-testid="shared-hermes-note">
+          {SHARED_HERMES_NOTE}
+        </div>
+      )}
       {picksModel ? (
         <RunsOnPicker
           state={runsOn}
