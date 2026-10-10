@@ -11,6 +11,7 @@ import {
   HermesConnectionTestResult,
   HumanRequest,
   HumanRequestsResponse,
+  KioskBrief,
   MindEntriesResponse,
   MindEntry,
   type MindEntryKind,
@@ -30,15 +31,20 @@ import {
   OfficeAgentsResponse,
   OfficeAgentTokenCreated,
   OfficeAgentView,
+  officeAgentBriefPath,
   officeAgentDismissPath,
   officeAgentHermesPath,
   officeAgentMindPaths,
+  officeAgentProposalPath,
+  officeAgentProposalsPath,
   officeAgentRecallPath,
   officeAgentSeenPath,
   PROVIDER_LOGINS_API_PATH,
   ProviderLoginStatusResponse,
   SoulVersion,
   SoulVersionsResponse,
+  TaskProposalConfirmed,
+  TaskProposalsResponse,
   type UpdateMindEntry,
   type UpdateOfficeAgent,
 } from "@regulus/protocol";
@@ -108,6 +114,14 @@ export function createOfficeAgentsApi(options: { fetch?: typeof fetch } = {}) {
     recall: (id: string) => call("POST", officeAgentRecallPath(id), OfficeAgentView),
     /** The caller has read their conversation with it: its "answer ready" bubble clears. */
     seen: (id: string) => call("POST", officeAgentSeenPath(id), NO_CONTENT),
+    /** What a board helper says about its board (#56); only for people who see its room. */
+    brief: (id: string) => call("GET", officeAgentBriefPath(id), KioskBrief),
+    /** What a board helper proposes to queue for the caller; queued only when they confirm (#56). */
+    proposals: (id: string) => call("GET", officeAgentProposalsPath(id), TaskProposalsResponse),
+    confirmProposal: (id: string, proposalId: string) =>
+      call("POST", officeAgentProposalPath(id, proposalId, "confirm"), TaskProposalConfirmed, {}),
+    dismissProposal: (id: string, proposalId: string) =>
+      call("POST", officeAgentProposalPath(id, proposalId, "dismiss"), NO_CONTENT, {}),
     /** What the caller's agents want from them: questions, unread replies, answers owed. */
     attention: () => call("GET", OFFICE_AGENT_ATTENTION_API_PATH, OfficeAgentAttention),
     requests: () => call("GET", OFFICE_AGENT_REQUESTS_API_PATH, HumanRequestsResponse),
@@ -169,6 +183,22 @@ const ERRORS: Record<string, string> = {
   owner_or_admin_required: "Only office owners and admins can do that.",
   viewers_cannot: "Viewers cannot create agents or talk to shared ones.",
   name_taken: "Another agent already has that name. Names are permanent and unique.",
+  proposal_closed: "That proposal was already queued or dropped.",
+  proposal_expired: "That proposal is too old. Ask the helper again.",
+  proposal_no_longer_allowed:
+    "That can no longer be queued here: your access to the room, or the helper's, has changed.",
+  kiosk_board_taken:
+    "That board already has a helper. Pick another board, or delete the one there.",
+  kiosk_placement_required: "A board helper needs a room and a board to stand at.",
+  kiosk_placement_unexpected: "Only a board helper has a room and a board.",
+  kiosk_shared_only:
+    "A board helper serves everyone in its room: choose The office under Belongs to.",
+  kiosk_engine:
+    "A board helper runs as a Claude Code session in the office: the only way an agent has no tools but the office's.",
+  kiosk_job_fixed:
+    "A board helper's job is for life, and no other agent can become one: delete it and place a new one instead.",
+  kiosk_one_room: "A board helper works in its own room only, and never as a manager of it.",
+  unknown_operation: "That room does not exist, or you cannot see it.",
   pm_exists: "There is already a project manager here: the office has one, and so can each person.",
   personal_agent_cap: "You have as many personal agents as the office allows.",
   engine_unavailable: "This office cannot run an agent that way yet. Pick another under Runs as.",

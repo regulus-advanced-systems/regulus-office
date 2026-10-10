@@ -81,6 +81,7 @@ import { ensureRemoteRepo } from "./gitRemote.ts";
 import { checkMergeGong } from "./gongChecks.ts";
 import { checkHermesConnection } from "./hermesChecks.ts";
 import { checkJukebox } from "./jukeboxChecks.ts";
+import { checkBoardHelpers } from "./kioskChecks.ts";
 import { checkLift, checkOpenAndClosedRooms } from "./liftChecks.ts";
 import { checkLinkedTask } from "./linkedTaskChecks.ts";
 import { checkAgentsInTheWorld } from "./officeAgentWorldChecks.ts";
@@ -693,6 +694,12 @@ test("office agents in the world: a personal one follows its owner and only they
   test.setTimeout(420_000);
   if (process.env.E2E_DATA_DIR) await ensureApollo();
   await checkAgentsInTheWorld(ownerPage, memberPage, process.env.E2E_AGENT_WORLD_SHOTS);
+});
+
+test("board helpers stand at their boards, brief whoever may see the room, and do not exist for anyone else (#56)", async () => {
+  test.setTimeout(300_000);
+  if (process.env.E2E_DATA_DIR) await ensureApollo();
+  await checkBoardHelpers(ownerPage, memberPage, process.env.E2E_KIOSK_SHOTS);
 });
 
 test("Settings → Agents: the owner connects their existing Hermes, and a gateway that is away is said plainly (#58)", async () => {

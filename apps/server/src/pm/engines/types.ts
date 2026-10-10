@@ -13,6 +13,7 @@
  */
 import type { Secret } from "@regulus/agent-adapters";
 import type {
+  KioskBoard,
   OfficeAgentEngineKind,
   OfficeAgentPreset,
   OfficeAgentRole,
@@ -38,6 +39,8 @@ export interface EngineAgent {
   instructions: string;
   /** What the engine reported with its last `state` event. */
   state: Record<string, unknown>;
+  /** A board helper's room and board (#56); absent for every other agent. */
+  kiosk?: { operationId: string; board: KioskBoard };
 }
 
 /** A memory or a note as the office keeps it. */

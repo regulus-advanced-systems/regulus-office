@@ -117,6 +117,9 @@ export const AUDIT_ACTIONS = {
   officeAgentMemoryDelete: "office_agent.memory_delete",
   /** An office owner/admin removed someone else's personal agent with everything it held. */
   officeAgentAdminRemove: "office_agent.admin_remove",
+  /** A person queued, or dropped, the task a board helper proposed to them (#56). Ids only. */
+  officeAgentProposalConfirm: "office_agent.proposal_confirm",
+  officeAgentProposalDismiss: "office_agent.proposal_dismiss",
 } as const;
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];
 

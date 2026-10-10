@@ -4,6 +4,8 @@
  * only what is really connected: the owner's own login and keys for a personal
  * agent, the office's own keys for a shared one (SPEC §8: never a person's
  * login). The name, who it belongs to and what it runs as never change.
+ * A board helper (#56) also says where it stands (KioskFields.tsx); that job
+ * is only offered for a new shared agent and is for life.
  */
 import {
   agentModelsFor,
@@ -13,6 +15,7 @@ import {
   defaultOfficeAgentAppearance,
   engineBringsOwnModel,
   engineIsPersonalOnly,
+  LOBBY_OPERATION_ID,
   OFFICE_AGENT_LIMITS,
   OFFICE_AGENT_PRESETS,
   OFFICE_AGENT_ROLES,
@@ -29,9 +32,11 @@ import { Button } from "../components/Button.tsx";
 import { AppearancePicker } from "./AppearancePicker.tsx";
 import type { OfficeAgentsApi } from "./api.ts";
 import { HermesFields, readHermesFields, useHermesFieldRefs } from "./HermesConnection.tsx";
+import { type KioskChoice, KioskFields } from "./KioskFields.tsx";
 import {
   ENGINE_HELP,
   ENGINE_WORDS,
+  KIOSK_WORDS,
   MANAGED_HERMES_OFF,
   PRESET_WORDS,
   ROLE_WORDS,
@@ -45,6 +50,8 @@ type Common = {
   onCancel: () => void;
   /** Open "Connect providers" (when nothing usable is connected). */
   onConnect: () => void;
+  /** The rooms this person sees: where a board helper can be placed (#56). */
+  rooms?: ReadonlyArray<{ operationId: string; name: string }>;
 };
 export type AgentFormProps = Common &
   (
@@ -77,14 +84,26 @@ export function AgentForm(props: AgentFormProps) {
   const [owner, setOwner] = useState<"me" | "office">(
     agent?.owner.kind === "office" ? "office" : "me",
   );
+  const [role, setRole] = useState<OfficeAgentRole>(agent?.role ?? "assistant");
+  // A board helper is a new shared agent, on the engine that has no tools of its own (#56).
+  const helper = !agent && role === "kiosk" && owner === "office";
+  const rooms = (props.rooms ?? []).filter((r) => r.operationId !== LOBBY_OPERATION_ID);
+  const [pickedKiosk, setKiosk] = useState<KioskChoice | undefined>(undefined);
+  const kiosk: KioskChoice | undefined = helper
+    ? (pickedKiosk ?? { operationId: rooms[0]?.operationId ?? "", board: "issues", viaPm: true })
+    : undefined;
+  const roles = OFFICE_AGENT_ROLES.filter((r) =>
+    agent ? (r === "kiosk") === (agent.role === "kiosk") : r !== "kiosk" || owner === "office",
+  );
   // Hermes (a person's own, or one the office runs) is not offered for a shared agent (#301).
   const engines = (agent ? [agent.engine] : props.engines).filter(
-    (kind) => agent !== undefined || owner === "me" || !engineIsPersonalOnly(kind),
+    (kind) =>
+      agent !== undefined ||
+      (helper ? kind === "cli-session" : owner === "me" || !engineIsPersonalOnly(kind)),
   );
   const [pickedEngine, setEngine] = useState<OfficeAgentEngineKind | undefined>(undefined);
   const engine =
     pickedEngine && engines.includes(pickedEngine) ? pickedEngine : (engines[0] ?? "cli-session");
-  const [role, setRole] = useState<OfficeAgentRole>(agent?.role ?? "assistant");
   const [preset, setPreset] = useState<OfficeAgentPreset>(
     agent?.preset ?? DEFAULT_OFFICE_AGENT_PRESET,
   );
@@ -115,7 +134,7 @@ export function AgentForm(props: AgentFormProps) {
         : OTHER_MODEL;
   const picksModel = !engineBringsOwnModel(engine);
   const connects = !agent && engine === "hermes-external";
-  const blocked = picksModel && !chosen;
+  const blocked = (picksModel && !chosen) || (helper && !kiosk?.operationId);
 
   const submit = () => {
     const name = nameRef.current?.value.trim() ?? "";
@@ -140,7 +159,16 @@ export function AgentForm(props: AgentFormProps) {
       else props.onSave(patch);
       return;
     }
-    const base = { name, owner, engine, role, preset, appearance, instructions };
+    const base = {
+      name,
+      owner,
+      engine,
+      role,
+      preset,
+      appearance,
+      instructions,
+      ...(kiosk ? { kiosk } : {}),
+    };
     if (connects) {
       const hermes = readHermesFields(hermesRefs);
       if (!hermes.ok) {
@@ -204,6 +232,8 @@ export function AgentForm(props: AgentFormProps) {
             disabled={agent !== undefined}
             onChange={(e) => {
               setOwner(e.currentTarget.value as "me" | "office");
+              // Only the office has board helpers.
+              if (e.currentTarget.value === "me" && role === "kiosk") setRole("assistant");
               setPickedKey(undefined);
               setPickedModel(undefined);
             }}
@@ -294,13 +324,17 @@ export function AgentForm(props: AgentFormProps) {
         value={role}
         onChange={(e) => setRole(e.currentTarget.value as OfficeAgentRole)}
       >
-        {OFFICE_AGENT_ROLES.map((r) => (
+        {roles.map((r) => (
           <option key={r} value={r}>
             {ROLE_WORDS[r].label}
           </option>
         ))}
       </select>
-      <div className="rg-field__hint">{ROLE_WORDS[role].hint}</div>
+      <div className="rg-field__hint">
+        {ROLE_WORDS[role].hint}
+        {agent?.role === "kiosk" ? ` ${KIOSK_WORDS.jobFixed}` : ""}
+      </div>
+      {kiosk && <KioskFields rooms={rooms} value={kiosk} onChange={setKiosk} />}
       <label className="rg-field__label" htmlFor={ids.preset}>
         What it may do
       </label>
@@ -317,10 +351,12 @@ export function AgentForm(props: AgentFormProps) {
         ))}
       </select>
       <div className="rg-field__hint">
-        {PRESET_WORDS[preset].hint}{" "}
-        {shared
-          ? "A shared agent sees no operation until you let it into one (on its card, after creating it)."
-          : "A personal agent can never do more than its owner."}
+        {role === "kiosk" ? KIOSK_WORDS.presets[preset] : PRESET_WORDS[preset].hint}{" "}
+        {role === "kiosk"
+          ? "It is let into its own room, and no other, when it is placed."
+          : shared
+            ? "A shared agent sees no operation until you let it into one (on its card, after creating it)."
+            : "A personal agent can never do more than its owner."}
       </div>
       <AppearancePicker value={appearance} onChange={setAppearance} />
       {/* Changing it later, with its history, is on the agent's card (#136). */}

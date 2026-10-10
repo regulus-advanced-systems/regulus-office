@@ -33,6 +33,7 @@ import {
 } from "./enums.ts";
 import { CHARACTER_FORM_IDS, CHARACTER_FORM_LABELS, isCharacterFormId } from "./forms.ts";
 import { HermesConnectionInput, HermesConnectionView } from "./office-agent-hermes.ts";
+import { KioskPlacement, KioskPlacementView } from "./office-agent-kiosk.ts";
 import { OfficeAgentRunsOn } from "./office-agent-runs-on.ts";
 import {
   DEFAULT_SKIN_ID,
@@ -79,9 +80,15 @@ export const OFFICE_AGENT_APPEARANCES: readonly string[] = CHARACTER_FORM_IDS;
 export const DEFAULT_OFFICE_AGENT_APPEARANCE: string = DEFAULT_SKIN_ID;
 /** The office PM's suit: what a "Project manager" wears when no look was chosen (#60). */
 export const PM_OFFICE_AGENT_APPEARANCE: string = "number_two";
+/** A board helper's coat: what a "Board helper" wears when no look was chosen (#56). */
+export const KIOSK_OFFICE_AGENT_APPEARANCE: string = "lab_coat";
 /** The look an agent of this job gets when none was chosen. */
 export const defaultOfficeAgentAppearance = (role: OfficeAgentRole): string =>
-  role === "pm" ? PM_OFFICE_AGENT_APPEARANCE : DEFAULT_OFFICE_AGENT_APPEARANCE;
+  role === "pm"
+    ? PM_OFFICE_AGENT_APPEARANCE
+    : role === "kiosk"
+      ? KIOSK_OFFICE_AGENT_APPEARANCE
+      : DEFAULT_OFFICE_AGENT_APPEARANCE;
 export const isOfficeAgentAppearance = (value: unknown): value is string =>
   typeof value === "string" && OFFICE_AGENT_APPEARANCES.includes(value);
 
@@ -166,6 +173,8 @@ export const OfficeAgentView = z.object({
    * configuration changed): that one keeps its body.
    */
   stoppedByPerson: z.boolean().optional(),
+  /** A board helper's room and board (#56); absent for every other agent. */
+  kiosk: KioskPlacementView.optional(),
   status: z.enum(OFFICE_AGENT_STATUSES),
   statusReason: z.string().optional(),
   lastActivityAt: TimestampMs.optional(),
@@ -236,6 +245,8 @@ export const CreateOfficeAgent = z.object({
   instructions: Instructions.default(""),
   /** Required for `hermes-external`: where the person's Hermes is and its access token. */
   hermes: HermesConnectionInput.optional(),
+  /** Required for the `kiosk` job and only for it: the room and the board it stands at (#56). */
+  kiosk: KioskPlacement.optional(),
 });
 export type CreateOfficeAgent = z.input<typeof CreateOfficeAgent>;
 
@@ -253,6 +264,23 @@ export const UpdateOfficeAgent = z
   .partial()
   .refine((v) => Object.keys(v).length > 0, { message: "nothing to change" });
 export type UpdateOfficeAgent = z.input<typeof UpdateOfficeAgent>;
+
+/** `GET`: what a board helper tells the caller about its board (#56). People who see its room only. */
+export const officeAgentBriefPath = (agentId: string) =>
+  `${OFFICE_AGENTS_API_PATH}/${encodeURIComponent(agentId)}/brief`;
+
+/**
+ * A helper's task proposals for the caller (#56): `GET` lists the open ones;
+ * `POST .../:proposalId/confirm` queues one as the caller, `POST .../dismiss` drops it.
+ * Only ever the caller's own, and only called by a person's browser.
+ */
+export const officeAgentProposalsPath = (agentId: string) =>
+  `${OFFICE_AGENTS_API_PATH}/${encodeURIComponent(agentId)}/proposals`;
+export const officeAgentProposalPath = (
+  agentId: string,
+  proposalId: string,
+  action: "confirm" | "dismiss",
+) => `${officeAgentProposalsPath(agentId)}/${encodeURIComponent(proposalId)}/${action}`;
 
 export const SetOfficeAgentGrants = z.object({ grants: z.array(OfficeAgentGrant).max(200) });
 

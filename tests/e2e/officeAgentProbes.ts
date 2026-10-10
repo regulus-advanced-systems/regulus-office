@@ -9,6 +9,10 @@ export interface SceneBody {
   name: string;
   caption: string;
   mode: string;
+  /** Its home post: `none`, `reception`, or a board helper's board (#56). */
+  post: string;
+  /** How big it is drawn: 1, or smaller for a board helper. */
+  scale: number;
   appearance: string;
   own: boolean;
   canChat: boolean;

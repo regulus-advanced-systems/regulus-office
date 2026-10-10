@@ -19,6 +19,7 @@ import type { OperationActor } from "../../operations/access.ts";
 import type { EnqueueInput } from "../../queue/index.ts";
 import { type AgentAccess, type AgentPerson, accessAtLeast } from "../access.ts";
 import type { Conversations } from "../conversations.ts";
+import type { TaskProposals } from "../kiosk/proposals.ts";
 import type { AgentMind } from "../mind/mind.ts";
 import type { HumanRequests } from "../requests.ts";
 import type { RoomScopes } from "../scope.ts";
@@ -70,6 +71,8 @@ export interface ToolDeps {
   mind: AgentMind;
   /** What rooms a conversation has read, and who may be shown what (#301). */
   scopes: RoomScopes;
+  /** What board helpers propose to people instead of queueing it themselves (#56). */
+  proposals: TaskProposals;
   ports: OfficePorts;
   now: () => number;
 }

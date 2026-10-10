@@ -111,6 +111,8 @@ const notFound = () => new AuthHttpError(404, "operation_not_found");
 
 export class OperationService {
   readonly #deps: OperationServiceDeps;
+  /** Late-bound: told after a room was archived (board helpers in it are stopped, #56). */
+  onArchived: ((operationId: string) => void) | undefined;
 
   constructor(deps: OperationServiceDeps) {
     this.#deps = deps;
@@ -350,6 +352,7 @@ export class OperationService {
       });
     });
     this.#deps.onChange?.(operationId);
+    this.onArchived?.(operationId);
   }
 
   members(actor: OperationActor, operationId: string): OperationMemberInfo[] {

@@ -44,6 +44,13 @@ export interface OperationHenchmen {
   sendHome(actor: OperationActor, agentId: string): Promise<void>;
 }
 
+/** Things placed in a room that are stopped when it is archived and removed when it is deleted. */
+export interface OperationResidents {
+  roomArchived(operationId: string): Promise<void>;
+  /** Called before the room's row is deleted. */
+  roomDeleted(operationId: string): Promise<void>;
+}
+
 export interface OperationLifecycleDeps {
   db: Db;
   logger: Logger;
@@ -94,6 +101,8 @@ export class OperationLifecycle {
   readonly #deps: OperationLifecycleDeps;
   /** Late-bound: the AgentManager is created after the operations. */
   henchmen: OperationHenchmen | undefined;
+  /** Late-bound: what lives in a room besides henchmen and goes with it (board helpers, #56). */
+  residents: OperationResidents | undefined;
   readonly #deleting = new Set<string>();
 
   constructor(deps: OperationLifecycleDeps) {
@@ -256,6 +265,8 @@ export class OperationLifecycle {
       throw new AuthHttpError(500, "operation_files_not_removed");
     }
 
+    // Board helpers go with their room: stopped and removed, so no card is left behind (#56).
+    await this.residents?.roomDeleted(operationId);
     this.#db.transaction((tx) => {
       tx.delete(chatMessages).where(eq(chatMessages.operationId, operationId)).run();
       // Cascades: repos, members, desks, agents (+ events, services), tasks, decor, whiteboards.

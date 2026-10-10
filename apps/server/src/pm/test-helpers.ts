@@ -67,9 +67,13 @@ export async function agentsOffice(options: AgentsOfficeOptions = {}) {
 
   // People: Olga owns the office, Ada is an admin, Mia and Sam are members.
   const olga = await office.signUp("Olga", "10.0.0.1");
-  const ada = await office.signUp("Ada", "10.0.0.2");
-  const mia = await office.signUp("Mia", "10.0.0.3");
-  const sam = await office.signUp("Sam", "10.0.0.4");
+  // The first account is the owner; the others sign up side by side (hashing a password is
+  // the slow part of this fixture, and it must not eat a test's time on a busy machine).
+  const [ada, mia, sam] = await Promise.all([
+    office.signUp("Ada", "10.0.0.2"),
+    office.signUp("Mia", "10.0.0.3"),
+    office.signUp("Sam", "10.0.0.4"),
+  ]);
   db.$client.run(`update user_profiles set role = 'admin' where user_id = '${ada.id}'`);
 
   // Apollo: Mia may spawn. Borealis: Sam manages; Mia has nothing there. Ada manages both.

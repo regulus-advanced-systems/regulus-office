@@ -6,6 +6,7 @@
  * bound here to the real queue, boards, usage, chat and AgentManager once
  * they exist (`bind`). Until then a tool that needs one answers `unavailable`.
  */
+import { KIOSK_BOARD_POST } from "@regulus/protocol";
 import { and, eq } from "drizzle-orm";
 import type { OfficeAuth } from "../auth/auth.ts";
 import type { Db } from "../db/index.ts";
@@ -29,6 +30,10 @@ import { HermesManagedEngine, type HermesManagedOptions } from "./hermes/managed
 import type { ManagedHermesHost } from "./hermes/managed/host.ts";
 import { mountHermesRoutes } from "./hermes/routes.ts";
 import { HermesAgentService } from "./hermes/service.ts";
+import { kioskShape, kiosksByAgent } from "./kiosk/placements.ts";
+import { mountProposalRoutes, ProposalService, TaskProposals } from "./kiosk/proposals.ts";
+import { KioskRooms } from "./kiosk/rooms.ts";
+import { KioskService, mountKioskRoutes } from "./kiosk/service.ts";
 import { mountMcp } from "./mcp.ts";
 import { AgentMind } from "./mind/mind.ts";
 import { MindService } from "./mind/people.ts";
@@ -37,7 +42,7 @@ import { MindCipher } from "./mind/seal.ts";
 import { sealAtStart } from "./mind/seal-existing.ts";
 import { MindStore } from "./mind/store.ts";
 import { HumanRequests } from "./requests.ts";
-import { mountOfficeAgentRoutes } from "./routes.ts";
+import { mountOfficeAgentRoutes, personHandler } from "./routes.ts";
 import { runsOnOf } from "./runs-on.ts";
 import { AgentRuntime } from "./runtime.ts";
 import { RoomScopes } from "./scope.ts";
@@ -54,6 +59,7 @@ import {
   mountAgentWorldRoutes,
   PmRounds,
   type RoundHenchman,
+  type WorldAgent,
 } from "./world/index.ts";
 
 export interface OfficeAgentsOptions {
@@ -116,6 +122,8 @@ export interface OfficeAgents {
   /** Tell one person's clients that what their agents want from them changed (#252). */
   onAttention(notify: (userId: string) => void): void;
   hermes: HermesAgentService;
+  /** Board helpers follow their room: stopped when it is archived, removed when it is deleted (#56). */
+  kioskRooms: KioskRooms;
   /** Souls, memories and notes (#136). */
   mind: AgentMind;
   mount(
@@ -151,6 +159,7 @@ export function createOfficeAgents(opts: OfficeAgentsOptions): OfficeAgents {
   const mind = new AgentMind(new MindStore(db, now, cipher));
   // What a shared agent may pass on to whom (#301).
   const scopes = new RoomScopes(db);
+  const proposals = new TaskProposals(db, now);
   const runtime = new AgentRuntime({
     store,
     tokens,
@@ -171,6 +180,7 @@ export function createOfficeAgents(opts: OfficeAgentsOptions): OfficeAgents {
     scopes,
     officeUrl: opts.officeUrl.replace(/\/+$/, ""),
     usage: opts.usage,
+    shape: kioskShape(store),
     logger,
     now,
   });
@@ -253,11 +263,15 @@ export function createOfficeAgents(opts: OfficeAgentsOptions): OfficeAgents {
       requests,
       mind,
       scopes,
+      proposals,
       ports,
       now,
     },
     logger,
   );
+  // Late-bound: the world it tells is made further down.
+  let worldChanged = () => {};
+  const kioskRooms = new KioskRooms({ store, runtime, logger, changed: () => worldChanged() });
   const mindService = new MindService({ store, mind, scopes, runtime });
   const service = new OfficeAgentService({
     store,
@@ -269,6 +283,8 @@ export function createOfficeAgents(opts: OfficeAgentsOptions): OfficeAgents {
     scopes,
     hermes: connections,
     minds: mindService,
+    pmChanged: () => kioskRooms.pmChanged(),
+    startedOver: (agentId, userId) => void proposals.dropOpen(agentId, userId),
     now,
   });
   const hermes = new HermesAgentService({
@@ -287,25 +303,46 @@ export function createOfficeAgents(opts: OfficeAgentsOptions): OfficeAgents {
     henchmen: () => opts.rounds?.henchmen() ?? [],
     everyMs: opts.rounds?.everyMs,
   });
+  const kiosk = new KioskService({ store, access, ports, now });
+  const proposalService = new ProposalService({
+    store,
+    access,
+    proposals,
+    conversations,
+    scopes,
+    ports,
+  });
   const world = new AgentWorld({
-    // An agent a person stopped has no body (#301): it is left out, and is back within a sync
-    // once started. One that merely is not running (the office restarted, its document was
-    // saved) keeps its body: the PM is at reception and walks its rounds all the same.
-    agents: () =>
-      store
-        .list()
-        .filter((row) => !row.stoppedByPerson)
-        .map((row) => ({
-          id: row.id,
-          name: row.name,
-          ownerUserId: row.ownerUserId,
-          ownerName: row.ownerUserId ? (store.person(row.ownerUserId)?.displayName ?? "") : "",
-          appearance: row.appearance,
-          status: row.status,
-          dismissed: row.ownerUserId !== null && row.dismissed,
-          // A personal PM is a companion: it follows its owner and does no rounds.
-          post: row.ownerUserId === null && row.role === "pm" ? "reception" : "none",
-        })),
+    agents: () => {
+      const kiosks = kiosksByAgent(db);
+      return store.list().flatMap((row) => {
+        const placement = kiosks.get(row.id);
+        // An agent a person stopped has no body (#301): it is left out, and is back within a
+        // sync once started. One that merely is not running (the office restarted, its
+        // document was saved) keeps its body: the PM is at reception all the same.
+        if (row.stoppedByPerson) return [];
+        // A board helper without a board has no body (#56).
+        if (row.role === "kiosk" && !placement) return [];
+        return [
+          {
+            id: row.id,
+            name: row.name,
+            ownerUserId: row.ownerUserId,
+            ownerName: row.ownerUserId ? (store.person(row.ownerUserId)?.displayName ?? "") : "",
+            appearance: row.appearance,
+            status: row.status,
+            dismissed: row.ownerUserId !== null && row.dismissed,
+            // A personal PM is a companion: it follows its owner and does no rounds.
+            post: placement
+              ? KIOSK_BOARD_POST[placement.board]
+              : row.ownerUserId === null && row.role === "pm"
+                ? "reception"
+                : "none",
+            ...(placement ? { postRoom: placement.operationId } : {}),
+          } satisfies WorldAgent,
+        ];
+      });
+    },
     mayEnter: (agentId, operationId) => {
       const row = store.get(agentId);
       return row !== undefined && access.operation(row, operationId) !== null;
@@ -316,7 +353,9 @@ export function createOfficeAgents(opts: OfficeAgentsOptions): OfficeAgents {
       if (owner === "elsewhere") opts.rounds?.remind(visit.henchmanId, agent.name);
     },
   });
+  worldChanged = () => world.refresh();
   let notify: (userId: string) => void = () => {};
+  proposals.onChange = (userId) => notify(userId);
   conversations.onAppend = (_agentId, userId) => notify(userId);
   requests.onChange = (userId) => notify(userId);
   const worldService = new AgentWorldService({
@@ -344,10 +383,13 @@ export function createOfficeAgents(opts: OfficeAgentsOptions): OfficeAgents {
       notify = fn;
     },
     hermes,
+    kioskRooms,
     mind,
     mount(router, auth) {
       // Before the agent routes: `/attention` is not an agent id.
       mountAgentWorldRoutes(router, { auth, service: worldService });
+      mountKioskRoutes(router, personHandler(auth), kiosk);
+      mountProposalRoutes(router, personHandler(auth), proposalService);
       mountMcp(router, { store, tokens, tools, version: opts.version });
       mountToolRoutes(router, { store, tokens, tools });
       mountHermesRoutes(router, { auth, hermes });
@@ -375,6 +417,8 @@ export function createOfficeAgents(opts: OfficeAgentsOptions): OfficeAgents {
           store.setStatus(row.id, "error", SHARED_HERMES_STOPPED);
         }
       }
+      kioskRooms.sweep();
+      proposals.prune();
       void managed?.reap();
     },
     close: () => runtime.close(),
