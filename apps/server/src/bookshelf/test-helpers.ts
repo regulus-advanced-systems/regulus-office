@@ -16,6 +16,7 @@ import type { RepoCheckout } from "../github/repo-access.ts";
 import { createLogger } from "../logging.ts";
 import { testDb } from "../operations/test-helpers.ts";
 import { makePng } from "../pictures/test-helpers.ts";
+import { type GitStream, streamGit } from "./git-tree.ts";
 import { Bookshelf } from "./service.ts";
 
 export const BRANCH = "trunk";
@@ -134,11 +135,14 @@ export function startShelfOffice() {
   let now = 1_000_000;
   /** What the office's fetch of the mirror does in this test (nothing, by default). */
   const fetching = { run: async (_repo: RepoCheckout): Promise<void> => undefined };
+  /** Git for searches in this test (the real one, by default). */
+  const searching: { stream?: GitStream } = {};
   const bookshelf = new Bookshelf({
     db,
     repos,
     logger: createLogger({ level: "silent" }),
     refreshWaitMs: TEST_REFRESH_WAIT_MS,
+    stream: (...args) => (searching.stream ?? streamGit)(...args),
     refresh: (repo) => {
       refreshed.push(repo.repoId);
       return fetching.run(repo);
@@ -154,6 +158,7 @@ export function startShelfOffice() {
     bookshelf,
     refreshed,
     fetching,
+    searching,
     addRoom,
     person,
     advance: (ms: number) => {

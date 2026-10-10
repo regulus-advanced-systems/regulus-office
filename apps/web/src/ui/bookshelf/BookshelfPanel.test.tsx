@@ -16,7 +16,7 @@ import { WHITEBOARD_OVERLAY } from "../whiteboard/whiteboardStore.ts";
 import { createSlugger, findAnchor, headingSlug } from "./anchors.ts";
 import type { BookshelfApi, ShelfFailure } from "./api.ts";
 import { BookshelfHost } from "./BookshelfHost.tsx";
-import { SHELF_SEARCH_DEBOUNCE_MS } from "./BookshelfPanel.tsx";
+import { SHELF_SEARCH_DEBOUNCE_MS, SHELF_SEARCH_RETRY_MS } from "./BookshelfPanel.tsx";
 import { BOOKSHELF_OVERLAY, useBookshelfStore } from "./bookshelfStore.ts";
 import { groupByFolder } from "./shelfModel.ts";
 
@@ -43,7 +43,7 @@ const DOCS: Record<string, string> = {
 
 function fakeApi(fail: { listing?: ShelfFailure; document?: ShelfFailure } = {}) {
   const calls: string[] = [];
-  const state = { fail };
+  const state = { fail, busy: 0 };
   const api: BookshelfApi = {
     listing: async (operationId) => {
       calls.push(`list:${operationId}`);
@@ -61,6 +61,10 @@ function fakeApi(fail: { listing?: ShelfFailure; document?: ShelfFailure } = {})
     },
     search: async (_operationId, q) => {
       calls.push(`search:${q}`);
+      if (state.busy > 0) {
+        state.busy -= 1;
+        return { ok: false, error: "busy" };
+      }
       return {
         ok: true,
         data: { hits: [{ path: "docs/guide.md", line: 5, text: "needle here" }], truncated: false },
@@ -161,6 +165,22 @@ describe("the bookshelf reader", () => {
     if (hit) await click(hit);
     await settle();
     expect(text(".rg-doc h1")).toBe("Guide");
+  });
+
+  test("a search the office is too busy for is asked again, and then answered", async () => {
+    const { api, calls, state } = fakeApi();
+    state.busy = 2;
+    mounted = await mount(<BookshelfHost api={api} />);
+    await act(async () => useBookshelfStore.getState().openShelf("op-1"));
+    await settle();
+    const input = document.querySelector<HTMLInputElement>(".rg-shelf__filter");
+    if (!input) throw new Error("no filter");
+    await type(input, "needle");
+    await wait(SHELF_SEARCH_DEBOUNCE_MS + 40);
+    expect(document.querySelector(".rg-shelf__hit")).toBeNull();
+    await wait(2 * SHELF_SEARCH_RETRY_MS + 80);
+    expect(calls.filter((c) => c === "search:needle")).toHaveLength(3);
+    expect(document.querySelector(".rg-shelf__hit")?.textContent).toContain("needle here");
   });
 
   test("a shelf that is not the reader's to open says so and shows nothing", async () => {

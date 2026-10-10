@@ -35,6 +35,7 @@ const STATUS: Readonly<Record<BookshelfError, number>> = {
   not_text: 415,
   not_image: 415,
   unavailable: 503,
+  busy: 429,
 };
 
 const NO_STORE = { "cache-control": "private, no-store" } as const;
@@ -61,7 +62,14 @@ export function mountBookshelfRoutes(router: Router, deps: BookshelfRoutesDeps):
   const answer = <T>(result: Answer<T>): Response => {
     // The same response as every other route gives for a room that is closed or missing.
     if (!result.ok && result.error === "not_found") throw new AuthHttpError(404, "not_found");
-    if (!result.ok) return json({ error: result.error }, { status: STATUS[result.error] });
+    if (!result.ok)
+      return json(
+        { error: result.error },
+        {
+          status: STATUS[result.error],
+          headers: result.error === "busy" ? { "retry-after": "1" } : undefined,
+        },
+      );
     return json(result.value, { headers: NO_STORE });
   };
 
@@ -80,7 +88,14 @@ export function mountBookshelfRoutes(router: Router, deps: BookshelfRoutesDeps):
   router.get(
     `${BOOKSHELF_ROUTE}/search`,
     handle(async (ctx, actor, operationId) =>
-      answer(await bookshelf.search(actor, operationId, ctx.url.searchParams.get("q"))),
+      answer(
+        await bookshelf.search(
+          actor,
+          operationId,
+          ctx.url.searchParams.get("q"),
+          ctx.request.signal,
+        ),
+      ),
     ),
   );
 

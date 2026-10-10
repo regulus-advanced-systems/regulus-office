@@ -39,11 +39,13 @@ import type { Logger } from "../logging.ts";
 import { type OperationActor, operationAccessFor } from "../operations/access.ts";
 import {
   type GitReader,
+  type GitStream,
   grepTree,
   listTree,
   readBlob,
   readGit,
   resolveCommit,
+  streamGit,
   type TreeEntry,
 } from "./git-tree.ts";
 import { type DocImageKind, sniffDocImage } from "./image.ts";
@@ -51,8 +53,8 @@ import { type DocImageKind, sniffDocImage } from "./image.ts";
 export const REFRESH_AFTER_MS = 5 * 60_000;
 /** How long opening a shelf waits for a due fetch before answering without it. */
 export const REFRESH_WAIT_MS = 2500;
-/** Search output read from git before the search is called truncated. */
-const SEARCH_MAX_BYTES = 512 * 1024;
+/** Searches the office runs at once; a person runs one. */
+export const SEARCHES_AT_ONCE = 4;
 
 export type Refused = { ok: false; error: BookshelfError };
 export type Answer<T> = { ok: true; value: T } | Refused;
@@ -67,6 +69,8 @@ interface Shelf {
   listed: BookshelfDoc[];
   total: number;
   images: Map<string, TreeEntry>;
+  /** Paths a search reads: the listed documents the reader would open. */
+  searched: string[];
 }
 
 export interface BookshelfDeps {
@@ -74,6 +78,8 @@ export interface BookshelfDeps {
   repos: Pick<RepoAccess, "listOperationRepos">;
   logger: Logger;
   git?: GitReader;
+  /** Git for searches: read as it arrives, stopped early (tests slow it down). */
+  stream?: GitStream;
   /** Fetch the repo's mirror with the office's own credential (never a person's). */
   refresh?(repo: RepoCheckout): Promise<void>;
   now?(): number;
@@ -115,6 +121,7 @@ function buildShelf(mirror: string, commit: string, entries: readonly TreeEntry[
     })),
     total: docs.length,
     images,
+    searched: kept.filter((d) => d.size <= BOOKSHELF_LIMITS.docMaxBytes).map((d) => d.path),
   };
 }
 
@@ -124,12 +131,18 @@ export class Bookshelf {
   readonly #now: () => number;
   readonly #shelves = new Map<string, Shelf>();
   readonly #building = new Map<string, Promise<Shelf | null>>();
+  /** When each repo's mirror was last fetched with success, and when a fetch was last tried. */
   readonly #fetched = new Map<string, number>();
+  readonly #attempted = new Map<string, number>();
   readonly #fetching = new Set<string>();
+  /** People with a search running. */
+  readonly #searching = new Set<string>();
+  readonly #stream: GitStream;
 
   constructor(deps: BookshelfDeps) {
     this.#deps = deps;
     this.#git = deps.git ?? readGit;
+    this.#stream = deps.stream ?? streamGit;
     this.#now = deps.now ?? Date.now;
   }
 
@@ -140,9 +153,15 @@ export class Bookshelf {
     return repos.find((r) => r.isPrimary) ?? repos[0] ?? null;
   }
 
-  async #shelf(repo: RepoCheckout): Promise<Shelf | null> {
+  /**
+   * The shelf at the commit the office last fetched for the default branch;
+   * `no_branch` when the mirror has no such remote branch (renamed upstream,
+   * say); null when the mirror cannot be read.
+   */
+  async #shelf(repo: RepoCheckout): Promise<Shelf | "no_branch" | null> {
     if (repo.cloneStatus !== "ready") return null;
     const commit = await resolveCommit(this.#git, repo.workdir, repo.defaultBranch);
+    if (commit === "missing") return "no_branch";
     if (!commit) return null;
     const have = this.#shelves.get(repo.repoId);
     if (have && have.commit === commit && have.mirror === repo.workdir) return have;
@@ -170,16 +189,23 @@ export class Bookshelf {
   #refresh(repo: RepoCheckout): Promise<void> {
     const { refresh, logger } = this.#deps;
     if (!refresh || this.#fetching.has(repo.repoId)) return Promise.resolve();
-    const last = this.#fetched.get(repo.repoId);
+    const last = this.#attempted.get(repo.repoId);
     if (last !== undefined && this.#now() - last < REFRESH_AFTER_MS) return Promise.resolve();
     this.#fetching.add(repo.repoId);
-    // Marked before the fetch ends, so a failing remote is not asked on every open.
-    this.#fetched.set(repo.repoId, this.#now());
+    // The limit is on attempts, so a failing remote is not asked on every open;
+    // `fetchedAt` is only ever the time of a fetch that worked.
+    this.#attempted.set(repo.repoId, this.#now());
+
     const fetched = refresh(repo)
-      .catch((err) => {
-        const reason = err instanceof Error ? err.message : String(err);
-        logger.warn({ repoId: repo.repoId, reason: reason.slice(0, 300) }, "shelf fetch failed");
-      })
+      .then(
+        () => {
+          this.#fetched.set(repo.repoId, this.#now());
+        },
+        (err) => {
+          const reason = err instanceof Error ? err.message : String(err);
+          logger.warn({ repoId: repo.repoId, reason: reason.slice(0, 300) }, "shelf fetch failed");
+        },
+      )
       .finally(() => this.#fetching.delete(repo.repoId));
     let timer: ReturnType<typeof setTimeout> | undefined;
     const patience = new Promise<void>((resolve) => {
@@ -207,6 +233,7 @@ export class Bookshelf {
     if (repo.cloneStatus === "cloning") return empty("cloning");
     if (repo.cloneStatus === "ready") await this.#refresh(repo);
     const shelf = await this.#shelf(repo);
+    if (shelf === "no_branch") return empty("no_branch");
     if (!shelf) return empty("unavailable");
     return {
       ok: true,
@@ -234,7 +261,8 @@ export class Bookshelf {
     const path = bookshelfPath(rawPath);
     if (!path) return refuse("bad_path");
     const shelf = repo ? await this.#shelf(repo) : null;
-    if (!shelf) return refuse("unavailable");
+    if (!shelf || shelf === "no_branch") return refuse("unavailable");
+
     const entry = shelf[kind].get(path);
     return entry ? { ok: true, value: { shelf, entry } } : refuse("not_found");
   }
@@ -284,10 +312,17 @@ export class Bookshelf {
     return kind ? { ok: true, value: { bytes, kind, oid: entry.oid } } : refuse("not_image");
   }
 
+  /**
+   * Lines of the shelf's documents that contain the text. One search at a
+   * time for a person and {@link SEARCHES_AT_ONCE} for the office: the rest
+   * are told `busy` and ask again. `signal` (the request was dropped) stops
+   * git.
+   */
   async search(
     actor: OperationActor,
     operationId: string,
     rawQuery: unknown,
+    signal?: AbortSignal,
   ): Promise<Answer<BookshelfSearchResponse>> {
     const repo = this.#repoFor(actor, operationId);
     if (repo && "ok" in repo) return repo;
@@ -295,22 +330,36 @@ export class Bookshelf {
     const malformed = /[\u0000-\u001f\u007f]/.test(q);
     if (q.length < BOOKSHELF_LIMITS.queryMin || q.length > BOOKSHELF_LIMITS.queryMax || malformed)
       return refuse("bad_query");
-    const shelf = repo ? await this.#shelf(repo) : null;
-    if (!shelf) return refuse("unavailable");
-    const found = await grepTree(this.#git, shelf.mirror, shelf.commit, q, SEARCH_MAX_BYTES);
-    if (!found) return refuse("unavailable");
-    // Only what is on the shelf: a symlink or an unlisted file never shows a line.
-    const lines = found.lines.filter((l) => shelf.docs.has(l.path));
-    return {
-      ok: true,
-      value: {
-        hits: lines.slice(0, BOOKSHELF_LIMITS.maxHits).map((l) => ({
-          path: l.path,
-          line: l.line,
-          text: l.text.trim().slice(0, BOOKSHELF_LIMITS.hitTextMax),
-        })),
-        truncated: found.overflow || lines.length > BOOKSHELF_LIMITS.maxHits,
-      },
-    };
+    if (this.#searching.has(actor.id) || this.#searching.size >= SEARCHES_AT_ONCE)
+      return refuse("busy");
+    this.#searching.add(actor.id);
+    try {
+      const shelf = repo ? await this.#shelf(repo) : null;
+      if (!shelf || shelf === "no_branch") return refuse("unavailable");
+      // Only the shelf's own documents are read, each of a size the reader would open:
+      // the paths come from the office's listing, and a symlink or an unlisted file is not one.
+      const found = await grepTree(this.#stream, shelf.mirror, shelf.commit, q, shelf.searched, {
+        maxLines: BOOKSHELF_LIMITS.maxHits,
+        // Room for the excerpt in any encoding; the rest of a long line is not kept.
+        lineBytes: BOOKSHELF_LIMITS.hitTextMax * 4,
+        signal,
+      });
+      if (!found) return refuse("unavailable");
+      return {
+        ok: true,
+        value: {
+          hits: found.lines
+            .filter((l) => shelf.docs.has(l.path))
+            .map((l) => ({
+              path: l.path,
+              line: l.line,
+              text: l.text.trim().slice(0, BOOKSHELF_LIMITS.hitTextMax),
+            })),
+          truncated: found.more,
+        },
+      };
+    } finally {
+      this.#searching.delete(actor.id);
+    }
   }
 }

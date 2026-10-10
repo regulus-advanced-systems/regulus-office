@@ -50,16 +50,23 @@ const endsWithAny = (path: string, endings: readonly string[]) => {
 
 export const isBookshelfDocPath = (path: string) => endsWithAny(path, BOOKSHELF_DOC_EXTENSIONS);
 export const isBookshelfImagePath = (path: string) => endsWithAny(path, BOOKSHELF_IMAGE_EXTENSIONS);
+/**
+ * Characters no listed path may hold: controls, the backslash, and the
+ * invisible format characters (bidirectional overrides and isolates,
+ * zero-width marks, line and paragraph separators) with which a file name
+ * can be made to read as another. A file so named is not on the shelf.
+ */
+const UNSAFE_IN_PATH = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}\\]/u;
 
 /**
  * `raw` as a path inside a repo's tree, or null: `/`-separated, relative,
- * no empty, `.` or `..` segment, no backslash, no control character, never
- * inside a `.git` directory.
+ * no empty, `.` or `..` segment, no backslash, no control or invisible
+ * format character, never inside a `.git` directory.
  */
 export function bookshelfPath(raw: unknown): string | null {
   if (typeof raw !== "string" || raw.length === 0 || raw.length > BOOKSHELF_LIMITS.pathMax)
     return null;
-  if (/[\u0000-\u001f\u007f\\]/.test(raw)) return null;
+  if (UNSAFE_IN_PATH.test(raw)) return null;
   for (const segment of raw.split("/")) {
     if (segment === "" || segment === "." || segment === "..") return null;
     if (segment.toLowerCase() === ".git") return null;
@@ -120,7 +127,13 @@ export const BookshelfDoc = z.object({
 export type BookshelfDoc = z.infer<typeof BookshelfDoc>;
 
 /** Why a shelf is empty: the room has no repo, or its mirror is not there (yet). */
-export const BOOKSHELF_STATES = ["ready", "no_repo", "cloning", "unavailable"] as const;
+export const BOOKSHELF_STATES = [
+  "ready",
+  "no_repo",
+  "cloning",
+  "no_branch",
+  "unavailable",
+] as const;
 export type BookshelfState = (typeof BOOKSHELF_STATES)[number];
 
 export const BookshelfListing = z.object({
@@ -171,6 +184,8 @@ export const BOOKSHELF_ERRORS = [
   "not_text",
   "not_image",
   "unavailable",
+  /** Too many searches at once (one per person, a few for the office): ask again shortly. */
+  "busy",
 ] as const;
 export type BookshelfError = (typeof BOOKSHELF_ERRORS)[number];
 

@@ -13,7 +13,7 @@ import {
   bookshelfSearchApiPath,
 } from "@regulus/protocol";
 
-export type ShelfFailure = "closed" | "too_large" | "not_text" | "unavailable" | "failed";
+export type ShelfFailure = "closed" | "too_large" | "not_text" | "unavailable" | "busy" | "failed";
 export type ShelfResult<T> = { ok: true; data: T } | { ok: false; error: ShelfFailure };
 
 export interface BookshelfApi {
@@ -37,6 +37,7 @@ interface Parser<T> {
 function failureOf(status: number): ShelfFailure {
   if (status === 401 || status === 404) return "closed";
   if (status === 413) return "too_large";
+  if (status === 429) return "busy";
   if (status === 415) return "not_text";
   return status === 503 ? "unavailable" : "failed";
 }

@@ -40,8 +40,21 @@ export type GitReader = (
   maxBytes: number,
 ) => Promise<GitOutput>;
 
+/**
+ * Run one read-only git command and hand its output over as it arrives.
+ * `onChunk` returning false stops git at once, as does `signal` (the
+ * request was dropped) and the time limit.
+ */
+export type GitStream = (
+  mirror: string,
+  args: readonly string[],
+  onChunk: (chunk: Uint8Array) => boolean,
+  signal?: AbortSignal,
+) => Promise<{ code: number; stopped: boolean }>;
+
 /** Run one read-only git command in the mirror at `mirror` (a clone's work dir). */
-export const readGit: GitReader = async (mirror, args, maxBytes) => {
+export const streamGit: GitStream = async (mirror, args, onChunk, signal) => {
+  if (signal?.aborted) return { code: 130, stopped: true };
   const proc = Bun.spawn(
     [
       "git",
@@ -59,32 +72,56 @@ export const readGit: GitReader = async (mirror, args, maxBytes) => {
     ],
     { cwd: "/", env: gitBaseEnv(), stdin: "ignore", stdout: "pipe", stderr: "ignore" },
   );
-  const timer = setTimeout(() => proc.kill("SIGKILL"), READ_TIMEOUT_MS);
+  let stopped = false;
+  let halt = () => undefined as void;
+  const halted = new Promise<null>((resolve) => {
+    halt = () => resolve(null);
+  });
+  const stop = () => {
+    stopped = true;
+    proc.kill("SIGKILL");
+    halt();
+  };
+  const timer = setTimeout(stop, READ_TIMEOUT_MS);
+  signal?.addEventListener("abort", stop, { once: true });
+  const reader = proc.stdout.getReader();
+  try {
+    while (!stopped) {
+      // Not only the next chunk: a stop must not wait for output that never comes.
+      const read = await Promise.race([reader.read(), halted]);
+      if (!read || read.done) break;
+      if (!onChunk(read.value)) stop();
+    }
+    return { code: await proc.exited, stopped };
+  } finally {
+    clearTimeout(timer);
+    signal?.removeEventListener("abort", stop);
+    void reader.cancel().catch(() => undefined);
+  }
+};
+
+/** {@link streamGit}, collected: at most `maxBytes` of output. */
+export const readGit: GitReader = async (mirror, args, maxBytes) => {
   const chunks: Uint8Array[] = [];
   let length = 0;
   let overflow = false;
-  try {
-    for await (const chunk of proc.stdout) {
-      if (length + chunk.length > maxBytes) {
-        overflow = true;
-        chunks.push(chunk.subarray(0, maxBytes - length));
-        proc.kill("SIGKILL");
-        break;
-      }
-      length += chunk.length;
-      chunks.push(chunk);
+  const { code } = await streamGit(mirror, args, (chunk) => {
+    if (length + chunk.length > maxBytes) {
+      overflow = true;
+      chunks.push(chunk.subarray(0, maxBytes - length));
+      return false;
     }
-    const code = await proc.exited;
-    const bytes = new Uint8Array(chunks.reduce((n, c) => n + c.length, 0));
-    let at = 0;
-    for (const chunk of chunks) {
-      bytes.set(chunk, at);
-      at += chunk.length;
-    }
-    return { code, bytes, overflow };
-  } finally {
-    clearTimeout(timer);
+    length += chunk.length;
+    chunks.push(chunk);
+    return true;
+  });
+  const bytes = new Uint8Array(chunks.reduce((n, c) => n + c.length, 0));
+  let at = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, at);
+    at += chunk.length;
   }
+  return { code, bytes, overflow };
 };
 
 const OID = /^[0-9a-f]{40,64}$/;
@@ -93,24 +130,33 @@ const BRANCH = /^[A-Za-z0-9][A-Za-z0-9._/-]{0,254}$/;
 
 const text = (bytes: Uint8Array) => new TextDecoder().decode(bytes);
 
-/** The commit the default branch is at in the mirror (as last fetched), or null. */
+/**
+ * The commit the default branch is at in the mirror as last fetched; `"missing"` when the
+ * mirror has no such remote branch; null when the mirror cannot be read.
+ */
 export async function resolveCommit(
   git: GitReader,
   mirror: string,
   branch: string,
 ): Promise<string | null> {
   if (!BRANCH.test(branch) || branch.includes("..")) return null;
-  // A clone keeps what it fetched under origin/; its own branch stays where the clone left it.
-  for (const ref of [`refs/remotes/origin/${branch}`, `refs/heads/${branch}`]) {
-    const out = await git(
-      mirror,
-      ["rev-parse", "--verify", "--quiet", "--end-of-options", `${ref}^{commit}`],
-      256,
-    );
-    const oid = text(out.bytes).trim();
-    if (out.code === 0 && !out.overflow && OID.test(oid)) return oid;
-  }
-  return null;
+  // Only what the office fetched from the remote. The mirror's own branches are never read:
+  // in a mirror from before #114 that doubled as a clone they may hold commits never pushed.
+  const out = await git(
+    mirror,
+    [
+      "rev-parse",
+      "--verify",
+      "--quiet",
+      "--end-of-options",
+      `refs/remotes/origin/${branch}^{commit}`,
+    ],
+    256,
+  );
+  const oid = text(out.bytes).trim();
+  if (out.code === 0 && !out.overflow && OID.test(oid)) return oid;
+  // `rev-parse --verify --quiet` exits 1 for a ref that is not there (128: not a repository).
+  return out.code === 1 ? "missing" : null;
 }
 
 /**
@@ -174,25 +220,65 @@ export interface GrepLine {
   text: string;
 }
 
-/** Pathspecs for the documents a search covers: the office's constants, never a request's. */
-export const DOC_PATHSPECS = [":(icase)*.md", ":(icase)*.markdown"] as const;
+export interface GrepOptions {
+  /** Stop after this many lines. */
+  maxLines: number;
+  /** Keep this many bytes of each line; the rest of a long line is read past, not kept. */
+  lineBytes: number;
+  /** The request was dropped: stop git. */
+  signal?: AbortSignal;
+}
+
+const NUL = 0;
+const NEWLINE = 10;
+/** Longest `<commit>:<path>` or line number the parser keeps, bytes. */
+const FIELD_BYTES = 8192;
 
 /**
- * Lines of the commit's Markdown files that contain `needle` (fixed text,
- * case-insensitive). The needle travels as its own argument after `-e`, so
- * it is never an option and never a pattern. Null when git failed.
+ * Lines of the given files of the commit that contain `needle` (fixed
+ * text, case-insensitive). Null when git failed.
+ *
+ * - The needle travels as its own argument after `-e`: never an option,
+ *   never a pattern.
+ * - `paths` are the office's own listing of the tree (never a request's
+ *   text) and are taken literally (`--literal-pathspecs`), so only those
+ *   files are read. With none, nothing is searched.
+ * - Output is parsed as it arrives (`<commit>:<path>\0<line>\0<text>\n`):
+ *   at most `lineBytes` of a line are kept however long it is, and git is
+ *   stopped at `maxLines` lines. `more` says it was stopped there.
  */
 export async function grepTree(
-  git: GitReader,
+  stream: GitStream,
   mirror: string,
   commit: string,
   needle: string,
-  maxBytes: number,
-): Promise<{ lines: GrepLine[]; overflow: boolean } | null> {
+  paths: readonly string[],
+  options: GrepOptions,
+): Promise<{ lines: GrepLine[]; more: boolean } | null> {
   if (!OID.test(commit)) return null;
-  const out = await git(
+  if (paths.length === 0) return { lines: [], more: false };
+  const lines: GrepLine[] = [];
+  const prefix = `${commit}:`;
+  // The record being read: its three fields, each cut at its cap.
+  const fields: number[][] = [[], [], []];
+  let field = 0;
+  let more = false;
+  const caps = [FIELD_BYTES, 32, options.lineBytes];
+  const finish = () => {
+    const [name, line, body] = fields.map((bytes) => text(Uint8Array.from(bytes))) as [
+      string,
+      string,
+      string,
+    ];
+    for (const bytes of fields) bytes.length = 0;
+    field = 0;
+    if (name.startsWith(prefix) && /^\d+$/.test(line))
+      lines.push({ path: name.slice(prefix.length), line: Number(line), text: body });
+  };
+  const { code, stopped } = await stream(
     mirror,
     [
+      "--literal-pathspecs",
       "grep",
       "-I",
       "-i",
@@ -207,22 +293,27 @@ export async function grepTree(
       needle,
       commit,
       "--",
-      ...DOC_PATHSPECS,
+      ...paths,
     ],
-    maxBytes,
+    (chunk) => {
+      for (const byte of chunk) {
+        if (byte === NEWLINE && field === 2) {
+          if (lines.length >= options.maxLines) {
+            more = true;
+            return false;
+          }
+          finish();
+        } else if (byte === NUL && field < 2) field += 1;
+        else if ((fields[field] as number[]).length < (caps[field] as number))
+          (fields[field] as number[]).push(byte);
+      }
+      return true;
+    },
+    options.signal,
   );
+  if (more) return { lines, more };
+  // Stopped by the time limit or a dropped request: what was found is not the whole answer.
+  if (stopped) return options.signal?.aborted ? null : { lines, more: true };
   // 1: nothing matched.
-  if (out.code === 1 && !out.overflow) return { lines: [], overflow: false };
-  if (out.code !== 0 && !out.overflow) return null;
-  // `<commit>:<path>\0<line>\0<text>\n`; after an overflow the last record is cut short.
-  const records = text(out.bytes).split("\n");
-  if (out.overflow) records.pop();
-  const lines: GrepLine[] = [];
-  const prefix = `${commit}:`;
-  for (const record of records) {
-    const [name, line, ...rest] = record.split("\0");
-    if (!name?.startsWith(prefix) || !/^\d+$/.test(line ?? "")) continue;
-    lines.push({ path: name.slice(prefix.length), line: Number(line), text: rest.join(" ") });
-  }
-  return { lines, overflow: out.overflow };
+  return code === 0 || code === 1 ? { lines, more: false } : null;
 }

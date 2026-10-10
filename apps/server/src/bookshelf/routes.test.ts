@@ -13,6 +13,7 @@ import {
 } from "@regulus/protocol";
 import type { SessionUser } from "../auth/auth.ts";
 import { Router } from "../http/router.ts";
+import { streamGit } from "./git-tree.ts";
 import { mountBookshelfRoutes } from "./routes.ts";
 import { type ShelfOffice, startShelfOffice } from "./test-helpers.ts";
 
@@ -120,6 +121,25 @@ describe("bookshelf routes", () => {
       const res = await get("reader", path);
       expect([path, res.status, await res.json()]).toEqual([path, status, { error: code }]);
     }
+  });
+
+  test("a search while the person's own is running is 429 busy, with when to ask again", async () => {
+    let release = () => undefined as void;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    office.searching.stream = async (...args) => {
+      await held;
+      return streamGit(...args);
+    };
+    const first = get("reader", bookshelfSearchApiPath("alpha", "needle-one"));
+    await Bun.sleep(30);
+    const second = await get("reader", bookshelfSearchApiPath("alpha", "needle-one"));
+    expect([second.status, await second.json()]).toEqual([429, { error: "busy" }]);
+    expect(second.headers.get("retry-after")).toBe("1");
+    release();
+    expect((await first).status).toBe(200);
+    office.searching.stream = undefined;
   });
 
   test("a picture goes out as an inert image: its real type, nosniff, sandboxed, same-origin", async () => {

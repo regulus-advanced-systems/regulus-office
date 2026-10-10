@@ -39,4 +39,7 @@ export const SHELF_MESSAGES: Readonly<
   failed: "The shelf could not be reached. Try again in a moment.",
   no_repo: "This room has no repo, so its shelf is empty.",
   cloning: "The office is still cloning this repo. The shelf fills when it is done.",
+  no_branch:
+    "The office has no copy of this repo's default branch (it may have been renamed on GitHub), so the shelf is empty.",
+  busy: "The office is busy searching. Try again in a moment.",
 };

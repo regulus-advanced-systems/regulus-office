@@ -26,6 +26,9 @@ import { DocView } from "./DocView.tsx";
 import { groupByFolder, SHELF_MESSAGES } from "./shelfModel.ts";
 
 export const SHELF_SEARCH_DEBOUNCE_MS = 250;
+/** A search the office was too busy for is asked again this often, this many times. */
+export const SHELF_SEARCH_RETRY_MS = 700;
+export const SHELF_SEARCH_RETRIES = 5;
 
 type Loaded<T> = { key: string; data: T | null; error: ShelfFailure | null };
 
@@ -109,14 +112,22 @@ export function BookshelfPanel({ api = defaultBookshelfApi }: { api?: BookshelfA
       return;
     }
     const abort = new AbortController();
-    const timer = setTimeout(() => {
+    let timer: ReturnType<typeof setTimeout>;
+    // Dropping the request (a new keystroke, the reader closed) stops the search on the server.
+    const ask = (triesLeft: number) => {
       void api
         .search(operationId, query.slice(0, BOOKSHELF_LIMITS.queryMax), abort.signal)
         .then((res) => {
           if (abort.signal.aborted) return;
+          // The office runs a few searches at a time: asked again shortly, a few times.
+          if (!res.ok && res.error === "busy" && triesLeft > 0) {
+            timer = setTimeout(() => ask(triesLeft - 1), SHELF_SEARCH_RETRY_MS);
+            return;
+          }
           setHits(res.ok ? { q: query, hits: res.data.hits, more: res.data.truncated } : null);
         });
-    }, SHELF_SEARCH_DEBOUNCE_MS);
+    };
+    timer = setTimeout(() => ask(SHELF_SEARCH_RETRIES), SHELF_SEARCH_DEBOUNCE_MS);
     return () => {
       clearTimeout(timer);
       abort.abort();
