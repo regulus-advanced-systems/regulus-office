@@ -56,6 +56,7 @@ import {
   openBuildMode,
   settledVerdict,
 } from "./buildChecks.ts";
+import { checkCoffee } from "./coffeeChecks.ts";
 import {
   cameraSettled,
   cameraState,
@@ -916,6 +917,12 @@ test("a PR merged on the board rings the gong; henchmen cheer and sit back as th
 test("the blast door opens for everyone, the owner walks out onto the dock, it shuts by itself (#188)", async () => {
   test.setTimeout(240_000);
   await checkBlastDoor(ownerPage, memberPage, owner.name);
+});
+
+test("coffee: E at the break-room machine buzzes the owner; the member sees the cup and the jitters; it wears off (#63)", async () => {
+  // The buzz lasts a minute after the last cup, and the step waits for it to end.
+  test.setTimeout(300_000);
+  await checkCoffee(ownerPage, memberPage, owner.name);
 });
 
 test("the lift: E opens its panel; the owner rides to Apollo's level, the member sees them gone, and back (#269)", async () => {
