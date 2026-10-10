@@ -34,7 +34,7 @@ import { AgentMind } from "./mind/mind.ts";
 import { MindService } from "./mind/people.ts";
 import { engineMind } from "./mind/port.ts";
 import { MindCipher } from "./mind/seal.ts";
-import { countUnreadable, countUnsealed, sealExisting } from "./mind/seal-existing.ts";
+import { sealAtStart } from "./mind/seal-existing.ts";
 import { MindStore } from "./mind/store.ts";
 import { HumanRequests } from "./requests.ts";
 import { mountOfficeAgentRoutes } from "./routes.ts";
@@ -128,6 +128,10 @@ export interface OfficeAgents {
   boot(): void;
   close(): Promise<void>;
 }
+
+/** On the card of a shared agent that ran on Hermes before #301; an engine cannot be changed afterwards. */
+export const SHARED_HERMES_STOPPED =
+  "Stopped by the office: a shared agent cannot run on Hermes for now (Hermes keeps its own memory across everyone it talks to). Make a new shared agent that runs as a Claude Code session; this one can be read here until you remove it.";
 
 const unavailable = (what: string) => () => {
   throw new ToolError("unavailable", `${what} is not available right now`);
@@ -249,7 +253,6 @@ export function createOfficeAgents(opts: OfficeAgentsOptions): OfficeAgents {
       requests,
       mind,
       scopes,
-      turnOf: (agentId) => runtime.turnOf(agentId),
       ports,
       now,
     },
@@ -313,35 +316,6 @@ export function createOfficeAgents(opts: OfficeAgentsOptions): OfficeAgents {
       if (owner === "elsewhere") opts.rounds?.remind(visit.henchmanId, agent.name);
     },
   });
-  /** The data step of migration 0028: encrypt what is still plain text, or say that it cannot be. */
-  const sealAtBoot = () => {
-    const unreadable = countUnreadable(db, cipher);
-    if (unreadable > 0) {
-      logger.error(
-        { agents: unreadable },
-        "office agents' documents are encrypted under a key this office does not have: check OFFICE_MASTER_KEY (and OFFICE_MASTER_KEY_PREVIOUS after a rotation); those agents cannot be started or read until it is right",
-      );
-    }
-    if (!cipher.on) {
-      const plain = countUnsealed(db);
-      if (plain.souls + plain.versions + plain.entries > 0) {
-        logger.warn(
-          plain,
-          "OFFICE_MASTER_KEY is not set: office agents' documents, memories and notes are stored as plain text and show in backups",
-        );
-      }
-      return;
-    }
-    const sealed = sealExisting(db, cipher);
-    if (sealed.souls + sealed.versions + sealed.entries > 0) {
-      logger.info(sealed, "encrypted office agents' documents, memories and notes at rest");
-      if (sealed.scrubbed === false) {
-        logger.warn(
-          "the database file could not be rebuilt after encrypting: old pages may still hold plain text until the next VACUUM",
-        );
-      }
-    }
-  };
   let notify: (userId: string) => void = () => {};
   conversations.onAppend = (_agentId, userId) => notify(userId);
   requests.onChange = (userId) => notify(userId);
@@ -393,8 +367,14 @@ export function createOfficeAgents(opts: OfficeAgentsOptions): OfficeAgents {
       bound = { ...bound, ...next };
     },
     boot: () => {
-      sealAtBoot();
+      sealAtStart(db, cipher, logger);
       runtime.boot();
+      // A shared agent on a Hermes the office runs is not started any more (#301): its card says why.
+      for (const row of store.list()) {
+        if (row.ownerUserId === null && row.engine === "hermes-managed") {
+          store.setStatus(row.id, "error", SHARED_HERMES_STOPPED);
+        }
+      }
       void managed?.reap();
     },
     close: () => runtime.close(),

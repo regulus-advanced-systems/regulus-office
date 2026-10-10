@@ -11,7 +11,7 @@ import {
   type OfficeAgentMessage,
   type OfficeAgentMessageAuthor,
 } from "@regulus/protocol";
-import { and, desc, eq, gte, ne } from "drizzle-orm";
+import { and, desc, eq, gte } from "drizzle-orm";
 import type { Db } from "../db/index.ts";
 import { officeAgentMessages } from "../db/schema/index.ts";
 
@@ -91,29 +91,16 @@ export class Conversations {
       .map((r) => r.ts.getTime());
   }
 
-  /** Everyone whose last message to the agent has no answer yet. */
-  waitingPeople(agentId: string): string[] {
-    const since = new Date(this.now() - TURN_MAX_AGE_MS);
-    const people = this.db
-      .selectDistinct({ userId: officeAgentMessages.userId })
-      .from(officeAgentMessages)
-      .where(and(eq(officeAgentMessages.agentId, agentId), gte(officeAgentMessages.ts, since)))
-      .all();
-    return people.map((p) => p.userId).filter((userId) => this.waiting(agentId, userId));
-  }
-
-  /** The person's last message to the agent has no answer yet (system lines do not count). */
+  /**
+   * The person's last message to the agent has no answer yet. A system line
+   * after it ("Not delivered: ...", the engine's "did not answer") ends the
+   * turn like a reply does (#301): a message that failed leaves nobody waiting.
+   */
   waiting(agentId: string, userId: string): boolean {
     const last = this.db
       .select({ author: officeAgentMessages.author, ts: officeAgentMessages.ts })
       .from(officeAgentMessages)
-      .where(
-        and(
-          eq(officeAgentMessages.agentId, agentId),
-          eq(officeAgentMessages.userId, userId),
-          ne(officeAgentMessages.author, "system"),
-        ),
-      )
+      .where(and(eq(officeAgentMessages.agentId, agentId), eq(officeAgentMessages.userId, userId)))
       .orderBy(desc(officeAgentMessages.ts), desc(officeAgentMessages.createdAt))
       .limit(1)
       .get();

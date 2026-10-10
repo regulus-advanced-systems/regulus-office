@@ -60,7 +60,9 @@ export function soulRead(call: ToolCall) {
 }
 
 export function memorySave(call: ToolCall, input: OfficeToolInput<"memory_save">) {
-  const entry = run(() => call.mind.addMemory(call.agent.id, input, "agent", scopeOf(call)));
+  const entry = run(() =>
+    call.mind.addMemory(call.agent.id, input, "agent", scopeOf(call), visibleIn(call)),
+  );
   call.auditMeta = { entryId: entry.id, kind: "memory", chars: entry.text.length };
   return { id: entry.id, saved: true };
 }

@@ -25,6 +25,7 @@ import {
   usageSamples,
 } from "../../../db/schema/index.ts";
 import { encryptSecret } from "../../../secrets/index.ts";
+import { SHARED_HERMES_STOPPED } from "../../setup.ts";
 import {
   type AgentsOffice,
   APOLLO,
@@ -274,57 +275,63 @@ describe("a personal Hermes run by the office", () => {
   });
 });
 
-describe("a shared Hermes run by the office", () => {
-  let shared: OfficeAgentView;
-
-  test("only an owner or admin creates it, and only on an office key: never a person's own", async () => {
+describe("a shared agent on a Hermes run by the office (#301)", () => {
+  test("is refused at the API with a plain reason, whoever asks and whatever key", async () => {
     const office = (extra: object) => managed("Front Desk", { owner: "office", ...extra });
     const member = await call(A, "POST", o.people.mia.cookie, office({ profileId: keys.office }));
     expect(member.status).toBe(403);
-
-    const ada = o.people.ada.cookie;
-    const personal = await call(A, "POST", ada, office({ profileId: keys.mia }));
-    expect(personal.status).toBe(400);
-    expect(personal.body.error).toBe("office_key_required");
-    const none = await call(A, "POST", ada, office({}));
-    expect(none.status).toBe(400);
-
-    const made = await call<OfficeAgentView>(A, "POST", ada, office({ profileId: keys.office }));
-    expect(made.status).toBe(201);
-    shared = made.body;
-    expect(shared).toMatchObject({
-      engine: "hermes-managed",
-      owner: { kind: "office" },
-      runsOn: { kind: "anthropic", officeKey: true },
-    });
+    const made = await call<{ error: string; message: string }>(
+      A,
+      "POST",
+      o.people.ada.cookie,
+      office({ profileId: keys.office }),
+    );
+    expect(made.status).toBe(400);
+    expect(made.body.error).toBe("personal_only");
+    expect(made.body.message).toContain("a shared agent cannot run on Hermes for now");
+    expect(o.officeAgents.store.list().some((a) => a.name === "Front Desk")).toBe(false);
   });
 
-  test("every member can talk to it; it runs on the office key and the office pays", async () => {
-    const sent = await call(`${A}/${shared.id}/messages`, "POST", o.people.sam.cookie, {
+  test("one that existed before the upgrade is stopped at the next start, and its card tells its admins why", async () => {
+    const { store } = o.officeAgents;
+    // As an earlier version left it: a shared agent on the office's Hermes.
+    const old = store.insert(o.db, {
+      name: "Old Front Desk",
+      ownerUserId: null,
+      engine: "hermes-managed",
+      role: "assistant",
+      preset: "observer",
+      provider: "claude-code",
+      model: "sonnet",
+      profileId: keys.office,
+      instructions: "You greet people.",
+    });
+    o.officeAgents.boot();
+    expect(store.get(old.id)).toMatchObject({
+      status: "error",
+      statusReason: SHARED_HERMES_STOPPED,
+    });
+    const list = await call<{ agents: OfficeAgentView[] }>(A, "GET", o.people.ada.cookie);
+    expect(list.body.agents.find((a) => a.id === old.id)).toMatchObject({
+      status: "error",
+      statusReason: SHARED_HERMES_STOPPED,
+    });
+    // It cannot be started, by a button or by a message; no Hermes is run for it.
+    const start = await call<{ error: string }>(
+      `${A}/${old.id}/start`,
+      "POST",
+      o.people.ada.cookie,
+    );
+    expect([start.status, start.body.error]).toEqual([409, "personal_only"]);
+    const sent = await call(`${A}/${old.id}/messages`, "POST", o.people.sam.cookie, {
       text: "who is on call?",
     });
-    expect(sent.status).toBe(202);
-    const c = await reply(o.people.sam.cookie, shared.id, 2);
-    expect(c.messages.at(-1)?.text).toBe("Hermes heard: who is on call?");
-    const { env } = started(shared.id);
-    expect(env.ANTHROPIC_API_KEY).toBe(OFFICE_KEY);
-    const usage = o.db.select().from(usageSamples).all();
-    expect(usage.some((u) => u.userId === null && u.inputTokens === 10)).toBe(true);
-  });
-
-  test("its token sees no room until the office lets it into one", async () => {
-    const token = started(shared.id).env.OFFICE_AGENT_TOKEN ?? "";
-    const operations = JSON.stringify((await o.tool(token, "list_operations")).body);
-    expect(operations).not.toContain(APOLLO);
-    expect(operations).not.toContain(BOREALIS);
-  });
-
-  test("moving it to a person's key is refused", async () => {
-    const patched = await call(`${A}/${shared.id}`, "PATCH", o.people.ada.cookie, {
-      profileId: keys.mia,
-    });
-    expect(patched.status).toBe(400);
-    expect(patched.body.error).toBe("office_key_required");
+    expect(sent.status).toBe(409);
+    expect(existsSync(join(host.home(old.id), "fake-start.json"))).toBe(false);
+    // Its admins still read what it was, and can remove it.
+    const soul = await call<{ content: string }>(`${A}/${old.id}/soul`, "GET", o.people.ada.cookie);
+    expect(soul.body.content).toBe("You greet people.");
+    expect((await call(`${A}/${old.id}`, "DELETE", o.people.ada.cookie)).status).toBe(204);
   });
 });
 
@@ -332,7 +339,7 @@ test("no key and no token is in any response, log line, audit entry or stored ro
   const audits = JSON.stringify(o.db.select().from(auditLog).all());
   const rows = JSON.stringify(o.db.select().from(officeAgents).all());
   const everything = [responses.join("\n"), o.log.text(), audits, rows].join("\n");
-  expect(handedOver.size).toBeGreaterThanOrEqual(5);
+  expect(handedOver.size).toBeGreaterThanOrEqual(3);
   for (const secret of [...handedOver, MIA_KEY, SAM_KEY, OFFICE_KEY]) {
     expect(everything).not.toContain(secret);
   }

@@ -9,25 +9,36 @@
  * keeps its timestamps.
  *
  * SQLite leaves the old plain text in the file's free pages (and in the WAL)
- * after an update, and a backup copies those pages. So when anything was
- * sealed the file is rebuilt (`VACUUM`) and the WAL emptied. Backup files
- * made before this ran still hold the plain text until they are pruned.
+ * after an update, and a backup copies those pages. So the file must be
+ * rebuilt (`VACUUM`) and the WAL emptied afterwards. That this is still owed
+ * is written down in the same transaction that seals the rows
+ * (`office_agent_settings.mind_scrub_pending`) and cleared only once it was
+ * done, so a start that is killed in between is finished by the next one.
+ * Backup files made before this ran still hold the plain text until they are
+ * pruned.
  */
+import { DEFAULT_OFFICE_AGENT_SETTINGS } from "@regulus/protocol";
 import { and, eq, ne } from "drizzle-orm";
 import type { DbOrTx } from "../../auth/audit.ts";
 import type { Db } from "../../db/index.ts";
 import {
   officeAgentMemories,
+  officeAgentSettings,
   officeAgentSoulVersions,
   officeAgents,
 } from "../../db/schema/index.ts";
-import { type MindCipher, sealEntry } from "./seal.ts";
+import type { Logger } from "../../logging.ts";
+import { type MindCipher, sealEntry, soulPlace } from "./seal.ts";
 
 export interface SealExistingResult {
   souls: number;
   versions: number;
   entries: number;
-  /** False when rows were sealed but the file could not be rebuilt: old pages may still hold plain text. */
+  /**
+   * Present when a rebuild of the file was owed (rows were sealed now, or by a
+   * start that did not get to finish): true only when the file was rebuilt and
+   * the WAL emptied; false when old pages may still hold plain text.
+   */
   scrubbed?: boolean;
 }
 
@@ -74,12 +85,32 @@ export function countUnreadable(db: Db, cipher: MindCipher): number {
     .where(eq(officeAgents.instructionsSealed, true))
     .all()) {
     try {
-      cipher.open(row.id, row);
+      cipher.open(soulPlace(row.id), row);
     } catch {
       unreadable += 1;
     }
   }
   return unreadable;
+}
+
+const SETTINGS_ID = "office";
+
+/** The file still holds pages from before the rows were sealed. */
+export function scrubPending(db: Db): boolean {
+  return (
+    db
+      .select({ pending: officeAgentSettings.mindScrubPending })
+      .from(officeAgentSettings)
+      .where(eq(officeAgentSettings.id, SETTINGS_ID))
+      .get()?.pending ?? false
+  );
+}
+
+function setScrubPending(db: DbOrTx, pending: boolean): void {
+  db.insert(officeAgentSettings)
+    .values({ id: SETTINGS_ID, ...DEFAULT_OFFICE_AGENT_SETTINGS, mindScrubPending: pending })
+    .onConflictDoUpdate({ target: officeAgentSettings.id, set: { mindScrubPending: pending } })
+    .run();
 }
 
 export function sealExisting(db: Db, cipher: MindCipher): SealExistingResult {
@@ -91,7 +122,7 @@ export function sealExisting(db: Db, cipher: MindCipher): SealExistingResult {
       .from(officeAgents)
       .where(and(eq(officeAgents.instructionsSealed, false), ne(officeAgents.instructions, "")))
       .all()) {
-      const soul = cipher.seal(row.id, row.text);
+      const soul = cipher.seal(soulPlace(row.id), row.text);
       // Raw SQL so `updated_at` is not bumped: nothing about the agent changed.
       db.$client
         .prepare(
@@ -111,7 +142,8 @@ export function sealExisting(db: Db, cipher: MindCipher): SealExistingResult {
         and(eq(officeAgentSoulVersions.sealed, false), ne(officeAgentSoulVersions.content, "")),
       )
       .all()) {
-      const version = cipher.seal(row.agentId, row.text);
+      const place = { agentId: row.agentId, kind: "version", rowId: row.id } as const;
+      const version = cipher.seal(place, row.text);
       db.$client
         .prepare(
           "update office_agent_soul_versions set content = ?, sealed = 1 where id = ? and sealed = 0",
@@ -124,7 +156,8 @@ export function sealExisting(db: Db, cipher: MindCipher): SealExistingResult {
       .from(officeAgentMemories)
       .where(eq(officeAgentMemories.sealed, false))
       .all()) {
-      const sealed = sealEntry(cipher, row.agentId, row, "");
+      const place = { agentId: row.agentId, kind: "entry", rowId: row.id } as const;
+      const sealed = sealEntry(cipher, place, row, "");
       db.$client
         .prepare(
           "update office_agent_memories set title = '', title_key = '', source = '', text = ?, sealed = 1 where id = ? and sealed = 0",
@@ -132,19 +165,62 @@ export function sealExisting(db: Db, cipher: MindCipher): SealExistingResult {
         .run(sealed.text, row.id);
       done.entries += 1;
     }
+    // With the rows, so it cannot be lost: the file is to be rebuilt.
+    if (done.souls + done.versions + done.entries > 0) setScrubPending(tx, true);
   });
-  if (done.souls + done.versions + done.entries > 0) done.scrubbed = scrub(db);
+  if (scrubPending(db)) {
+    done.scrubbed = scrub(db);
+    if (done.scrubbed) setScrubPending(db, false);
+  }
   return done;
 }
 
-/** Drop the plain text the updates left behind in free pages and in the WAL. */
+/**
+ * Drop the plain text the updates left behind in free pages and in the WAL.
+ * True only when the file was rebuilt and the whole WAL was written back and
+ * emptied (another connection reading at that moment keeps it from being).
+ */
 function scrub(db: Db): boolean {
   try {
     db.$client.run("VACUUM");
-    db.$client.run("PRAGMA wal_checkpoint(TRUNCATE)");
-    return true;
+    const result = db.$client.query("PRAGMA wal_checkpoint(TRUNCATE)").get() as {
+      busy?: number;
+    } | null;
+    return (result?.busy ?? 0) === 0;
   } catch {
-    // The rows are sealed all the same; the caller says that the file was not rebuilt.
+    // The rows are sealed all the same; the marker stays and the next start tries again.
     return false;
+  }
+}
+
+/** The data step of migration 0028: encrypt what is still plain text, or say that it cannot be. */
+export function sealAtStart(db: Db, cipher: MindCipher, logger: Logger): void {
+  const unreadable = countUnreadable(db, cipher);
+  if (unreadable > 0) {
+    logger.error(
+      { agents: unreadable },
+      "office agents' documents are encrypted under a key this office does not have: check OFFICE_MASTER_KEY (and OFFICE_MASTER_KEY_PREVIOUS after a rotation); those agents cannot be started or read until it is right",
+    );
+  }
+  if (!cipher.on) {
+    const plain = countUnsealed(db);
+    if (plain.souls + plain.versions + plain.entries > 0) {
+      logger.warn(
+        plain,
+        "OFFICE_MASTER_KEY is not set: office agents' documents, memories and notes are stored as plain text and show in backups",
+      );
+    }
+    return;
+  }
+  const sealed = sealExisting(db, cipher);
+  if (sealed.souls + sealed.versions + sealed.entries > 0) {
+    logger.info(sealed, "encrypted office agents' documents, memories and notes at rest");
+  }
+  if (sealed.scrubbed === true) {
+    logger.info("rebuilt the database file: no plain text of agents' documents is left in it");
+  } else if (sealed.scrubbed === false) {
+    logger.warn(
+      "the database file could not be rebuilt after encrypting (it was busy): old pages and backups made now may still hold plain text; the next start tries again",
+    );
   }
 }

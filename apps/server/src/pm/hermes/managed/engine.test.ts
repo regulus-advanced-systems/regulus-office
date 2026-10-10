@@ -267,19 +267,20 @@ describe("talking to it", () => {
     expect(sessions[0]?.messages[0]?.system).toContain("the person you belong to");
   });
 
-  test("a shared agent talks to anyone in the office, and its usage is the office's", async () => {
+  test("a shared agent is refused: Hermes keeps one memory for everyone it talks to (#301)", async () => {
     const { engine, of, host } = await setup();
-    await engine.start(agentOf({ ownerUserId: null, ownerName: null }), OFFICE);
-    await engine.send("agent-1", { id: "m1", userId: "sam", fromName: "Sam", text: "status?" });
-    await engine.idle();
-    expect(of("message")[0]).toMatchObject({ userId: "sam", text: "Hermes heard: status?" });
-    expect(of("usage")[0]).toMatchObject({ attributedTo: "office" });
-    const text = await kept(
-      join(host.home("agent-1"), "fake-sessions.json"),
-      "Hermes heard: status?",
+    const shared = agentOf({ ownerUserId: null, ownerName: null });
+    expect(() => engine.check(shared)).toThrow(EngineRefusal);
+    const err = await engine.start(shared, OFFICE).then(
+      () => undefined,
+      (e: unknown) => e,
     );
-    expect(text).toContain("one of the people of the office you work for");
-    expect(text).not.toContain("the person you belong to");
+    expect(err).toBeInstanceOf(EngineRefusal);
+    expect((err as EngineRefusal).code).toBe("personal_only");
+    expect((err as EngineRefusal).message).toContain("a shared agent cannot run on Hermes for now");
+    // Nothing was started for it.
+    expect(existsSync(join(host.home("agent-1"), "fake-start.json"))).toBe(false);
+    expect(of("status")).toEqual([]);
   });
 });
 

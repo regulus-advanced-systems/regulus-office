@@ -21,6 +21,7 @@ import {
   type EngineEvent,
   type EngineMind,
   EngineRefusal,
+  type EngineTurn,
   type OfficeAgentEngine,
 } from "./engines/types.ts";
 import type { RoomScopes } from "./scope.ts";
@@ -61,8 +62,8 @@ export class AgentRuntime {
   /** Agents started in this process. */
   readonly #running = new Set<string>();
   readonly #starting = new Map<string, Promise<void>>();
-  /** The person whose message each agent is working on, as its engine reported it (#301). */
-  readonly #turns = new Map<string, string>();
+  /** Stops in flight: a start waits for the stop before it, so the two never cross (#301). */
+  readonly #stopping = new Map<string, Promise<void>>();
 
   constructor(private readonly deps: AgentRuntimeDeps) {}
 
@@ -83,15 +84,6 @@ export class AgentRuntime {
 
   isRunning(agentId: string): boolean {
     return this.#running.has(agentId);
-  }
-
-  /**
-   * The person whose message the agent is working on right now, when its
-   * engine reports turns (#301): the office answers a shared agent's tool
-   * calls for that person. Undefined between turns.
-   */
-  turnOf(agentId: string): string | undefined {
-    return this.#turns.get(agentId);
   }
 
   engineAgent(row: OfficeAgentRow): EngineAgent {
@@ -132,6 +124,8 @@ export class AgentRuntime {
     if (!engine) {
       throw new EngineRefusal("engine_unavailable", `the ${row.engine} engine is not available`);
     }
+    // A stop that is still going finishes first: it must not take this run's tokens or status.
+    await this.#stopping.get(row.id);
     const { store, tokens } = this.deps;
     // Never with an empty document in place of one that could not be decrypted (#301).
     if (store.soulUnreadable(row.id)) {
@@ -152,6 +146,7 @@ export class AgentRuntime {
         toolsUrl: `${this.deps.officeUrl}${OFFICE_AGENT_TOOLS_API_PATH}`,
         token: Secret.of(minted.token),
         mind: this.deps.mind(row.id),
+        turn: (userId) => this.#turn(row.id, userId),
       });
     } catch (err) {
       tokens.revokeSessions(row.id);
@@ -166,10 +161,40 @@ export class AgentRuntime {
     if (store.get(row.id)?.status === "starting") store.setStatus(row.id, "ready");
   }
 
-  async stop(agentId: string, engineKind: OfficeAgentEngineKind, reason?: string): Promise<void> {
-    await this.#starting.get(agentId)?.catch(() => {});
+  /** A token for one turn of one person's conversation; `end` revokes it (#301, engines/types.ts). */
+  #turn(agentId: string, userId: string): EngineTurn {
+    const minted = this.deps.tokens.mint(agentId, "turn", "turn", null, userId);
+    if (!minted) throw new Error("turn token not minted");
+    return {
+      token: Secret.of(minted.token),
+      end: () => void this.deps.tokens.revoke(agentId, minted.id),
+    };
+  }
+
+  stop(agentId: string, engineKind: OfficeAgentEngineKind, reason?: string): Promise<void> {
+    // Only a start that began before this stop is waited for; one that comes after waits for us.
+    const starting = this.#starting.get(agentId);
+    // From this moment it is not running: a message that arrives while it stops starts it anew
+    // (after the stop) instead of being handed to the run that is going away.
+    if (!starting) this.#running.delete(agentId);
+    const before = this.#stopping.get(agentId) ?? Promise.resolve();
+    const run = before
+      .then(() => this.#stop(agentId, engineKind, reason, starting))
+      .finally(() => {
+        if (this.#stopping.get(agentId) === run) this.#stopping.delete(agentId);
+      });
+    this.#stopping.set(agentId, run);
+    return run;
+  }
+
+  async #stop(
+    agentId: string,
+    engineKind: OfficeAgentEngineKind,
+    reason: string | undefined,
+    starting: Promise<void> | undefined,
+  ): Promise<void> {
+    await starting?.catch(() => {});
     this.#running.delete(agentId);
-    this.#turns.delete(agentId);
     this.deps.tokens.revokeSessions(agentId);
     try {
       await this.#engines.get(engineKind)?.stop(agentId);
@@ -229,11 +254,6 @@ export class AgentRuntime {
     if (!row || row.engine !== kind) return;
     try {
       switch (event.type) {
-        case "turn": {
-          if (event.userId === null) this.#turns.delete(row.id);
-          else this.#turns.set(row.id, event.userId);
-          return;
-        }
         case "message": {
           if (!this.#mayAddress(row, event.userId)) return;
           conversations.append(row.id, event.userId, "agent", event.text);

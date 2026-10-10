@@ -70,8 +70,6 @@ export interface ToolDeps {
   mind: AgentMind;
   /** What rooms a conversation has read, and who may be shown what (#301). */
   scopes: RoomScopes;
-  /** The person whose message a shared agent is working on, when its engine said so (#301). */
-  turnOf: (agentId: string) => string | undefined;
   ports: OfficePorts;
   now: () => number;
 }
@@ -114,6 +112,7 @@ export function actingPerson(call: ToolCall, onBehalfOf: string | undefined): Ag
       "a shared agent does this for a person: pass onBehalfOf with the id of the person who asked",
     );
   }
+  // With a turn's token it acts for the person whose turn it is, and nobody else.
   if (call.asking.turn !== undefined && call.asking.turn !== onBehalfOf) {
     throw new ToolError(
       "not_waiting",

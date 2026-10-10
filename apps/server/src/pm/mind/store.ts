@@ -7,6 +7,11 @@
  * (#301, seal.ts), so nothing above this module sees an envelope. A sealed
  * note has no readable title in its row: it is found by opening the agent's
  * notes (at most `notesMax` of them) and comparing titles here.
+ *
+ * An entry whose room scope is not known (`parseRooms` gives null: a shared
+ * agent's entries from before scopes existed, or a value that does not parse)
+ * never leaves this module: it is kept in the database and is not listed,
+ * found or counted for anyone.
  */
 import type { MindAuthor, MindEntry, MindEntryKind, SoulVersionKind } from "@regulus/protocol";
 import { and, count, desc, eq, lte } from "drizzle-orm";
@@ -18,7 +23,7 @@ import {
   officeAgents,
   userProfiles,
 } from "../../db/schema/index.ts";
-import { type MindCipher, openEntry, PLAIN, sealEntry } from "./seal.ts";
+import { type MindCipher, openEntry, PLAIN, type Place, sealEntry, soulPlace } from "./seal.ts";
 
 type VersionRow = typeof officeAgentSoulVersions.$inferSelect;
 /** A soul version with its text opened. */
@@ -33,15 +38,33 @@ export type MemoryRow = Omit<StoredMemory, "sealed" | "roomScope" | "titleKey"> 
 /** Titles are compared without case or repeated spaces. */
 export const titleKeyOf = (title: string) => title.trim().replace(/\s+/g, " ").toLowerCase();
 
-/** A stored room scope as ids; anything unreadable is no scope at all. */
-export function roomsOf(json: string): string[] {
+/** The scope migration 0028 gives a shared agent's earlier entries: rooms unknown, shown to nobody. */
+export const UNKNOWN_SCOPE = "unknown";
+/** Stands in for a scope that cannot be read where a list of rooms is needed: a room nobody can see. */
+export const UNKNOWN_ROOM = "\u0000unknown";
+
+/**
+ * A stored room scope as ids, or null when it is not a list of ids: then the
+ * rooms are unknown and whatever carries it is closed to everyone.
+ */
+export function parseRooms(json: string): string[] | null {
   try {
     const v = JSON.parse(json) as unknown;
-    return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
+    return Array.isArray(v) && v.every((x) => typeof x === "string") ? (v as string[]) : null;
   } catch {
-    return [];
+    return null;
   }
 }
+
+/** As `parseRooms`, for callers that need rooms: an unknown scope is a room nobody can see. */
+export const roomsOf = (json: string): string[] => parseRooms(json) ?? [UNKNOWN_ROOM];
+
+const versionPlace = (agentId: string, rowId: string): Place => ({
+  agentId,
+  kind: "version",
+  rowId,
+});
+const entryPlace = (agentId: string, rowId: string): Place => ({ agentId, kind: "entry", rowId });
 
 export const roomsJson = (rooms: readonly string[]) => JSON.stringify([...new Set(rooms)].sort());
 
@@ -73,12 +96,13 @@ export class MindStore {
       .from(officeAgents)
       .where(eq(officeAgents.id, agentId))
       .get();
-    return row ? this.cipher.open(agentId, row) : undefined;
+    return row ? this.cipher.open(soulPlace(agentId), row) : undefined;
   }
 
   #version = ({ row, by }: { row: VersionRow; by: string | null }): SoulVersionRow => {
     const { sealed, ...rest } = row;
-    return { ...rest, content: this.cipher.open(row.agentId, { text: row.content, sealed }), by };
+    const place = versionPlace(row.agentId, row.id);
+    return { ...rest, content: this.cipher.open(place, { text: row.content, sealed }), by };
   };
 
   /** Newest first. */
@@ -135,12 +159,14 @@ export class MindStore {
     keep: number,
   ): void {
     const at = new Date(this.now());
-    // Two envelopes: each row opens on its own.
-    const version = this.cipher.seal(agentId, v.content);
-    const current = this.cipher.seal(agentId, v.content);
+    // Two envelopes, each bound to its own row.
+    const id = crypto.randomUUID();
+    const version = this.cipher.seal(versionPlace(agentId, id), v.content);
+    const current = this.cipher.seal(soulPlace(agentId), v.content);
     this.db.transaction((tx: DbOrTx) => {
       tx.insert(officeAgentSoulVersions)
         .values({
+          id,
           agentId,
           version: v.version,
           content: version.text,
@@ -171,9 +197,12 @@ export class MindStore {
 
   // ---- Memories and notes ----------------------------------------------------------
 
-  #entry = (row: StoredMemory): MemoryRow => {
+  /** The row opened, or nothing when its rooms are unknown. */
+  #entry = (row: StoredMemory): MemoryRow[] => {
     const { sealed: _sealed, roomScope, titleKey: _titleKey, ...rest } = row;
-    return { ...rest, ...openEntry(this.cipher, row.agentId, row), rooms: roomsOf(roomScope) };
+    const rooms = parseRooms(roomScope);
+    if (rooms === null) return [];
+    return [{ ...rest, ...openEntry(this.cipher, entryPlace(row.agentId, row.id), row), rooms }];
   };
 
   /** Most recently changed first. */
@@ -188,10 +217,24 @@ export class MindStore {
       )
       .orderBy(desc(officeAgentMemories.updatedAt), desc(officeAgentMemories.createdAt))
       .all()
-      .map(this.#entry);
+      .flatMap(this.#entry);
   }
 
-  count(agentId: string, kind: MindEntryKind): number {
+  /** The rooms of each entry of that kind whose rooms are known, without opening any text: for the caps. */
+  scopes(agentId: string, kind: MindEntryKind): string[][] {
+    return this.db
+      .select({ scope: officeAgentMemories.roomScope })
+      .from(officeAgentMemories)
+      .where(and(eq(officeAgentMemories.agentId, agentId), eq(officeAgentMemories.kind, kind)))
+      .all()
+      .flatMap((row) => {
+        const rooms = parseRooms(row.scope);
+        return rooms ? [rooms] : [];
+      });
+  }
+
+  /** Every row of that kind, those nobody is shown included: for the hard cap only. */
+  total(agentId: string, kind: MindEntryKind): number {
     const row = this.db
       .select({ n: count() })
       .from(officeAgentMemories)
@@ -207,12 +250,13 @@ export class MindStore {
       .from(officeAgentMemories)
       .where(and(eq(officeAgentMemories.agentId, agentId), eq(officeAgentMemories.id, entryId)))
       .get();
-    return row ? this.#entry(row) : undefined;
+    return row ? this.#entry(row)[0] : undefined;
   }
 
-  noteByTitle(agentId: string, title: string): MemoryRow | undefined {
+  /** Every note with this title: there can be several, each about rooms the others' readers cannot see. */
+  notesByTitle(agentId: string, title: string): MemoryRow[] {
     const key = titleKeyOf(title);
-    return this.entries(agentId, "note").find((note) => titleKeyOf(note.title) === key);
+    return this.entries(agentId, "note").filter((note) => titleKeyOf(note.title) === key);
   }
 
   insert(
@@ -228,14 +272,16 @@ export class MindStore {
   ): MemoryRow {
     const at = new Date(this.now());
     const title = entry.title ?? "";
+    const id = crypto.randomUUID();
     const row = this.db
       .insert(officeAgentMemories)
       .values({
+        id,
         agentId,
         kind: entry.kind,
         ...sealEntry(
           this.cipher,
-          agentId,
+          entryPlace(agentId, id),
           { title, text: entry.text, source: entry.source ?? "" },
           title ? titleKeyOf(title) : "",
         ),
@@ -246,7 +292,7 @@ export class MindStore {
       })
       .returning()
       .get();
-    return this.#entry(row);
+    return this.#entry(row)[0] as MemoryRow;
   }
 
   update(
@@ -262,7 +308,7 @@ export class MindStore {
       .set({
         ...sealEntry(
           this.cipher,
-          agentId,
+          entryPlace(agentId, entryId),
           { title, text: patch.text ?? before.text, source: before.source },
           title ? titleKeyOf(title) : "",
         ),
@@ -272,7 +318,7 @@ export class MindStore {
       .where(and(eq(officeAgentMemories.agentId, agentId), eq(officeAgentMemories.id, entryId)))
       .returning()
       .get();
-    return row ? this.#entry(row) : undefined;
+    return row ? this.#entry(row)[0] : undefined;
   }
 
   delete(agentId: string, entryId: string): boolean {

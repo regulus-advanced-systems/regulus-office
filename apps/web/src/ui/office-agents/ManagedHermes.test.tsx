@@ -83,22 +83,17 @@ describe("Hermes, run by the office", () => {
     });
   });
 
-  test("a shared one runs on one of the office's own keys", async () => {
-    const f = await openForm("owner", withManaged([]));
+  test("a shared agent is not offered Hermes, and the form says why (#301)", async () => {
+    await openForm("owner", withManaged([]));
+    const runsAs = () => Array.from(select("Runs as").options).map((o) => o.value);
+    expect(runsAs()).toContain("hermes-managed");
+    expect(text()).not.toContain("Hermes is not offered for a shared agent");
     await choose(select("Belongs to"), "office");
-    await choose(select("Runs as"), "hermes-managed");
-    expect(Array.from(select("Runs on").options).map((o) => o.textContent)).toEqual([
-      `Claude (Anthropic API key), the office's key "Office Anthropic"`,
-      `DeepSeek, the office's key "Watchdog key"`,
-    ]);
-    await typeInto("Name", "Scout");
-    await submit("New agent");
-    expect(f.calls.find((c) => c.method === "POST")?.body).toMatchObject({
-      owner: "office",
-      engine: "hermes-managed",
-      profileId: "o-an",
-      model: "sonnet",
-    });
+    expect(runsAs()).not.toContain("hermes-managed");
+    expect(runsAs()).not.toContain("hermes-external");
+    expect(text()).toContain(
+      "Hermes is not offered for a shared agent for now: it keeps its own memory across everyone it talks to",
+    );
   });
 
   test("someone with no key Hermes can run on is told what to add, and cannot create it", async () => {

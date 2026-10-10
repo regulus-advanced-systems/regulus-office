@@ -23,7 +23,7 @@ import {
   operations,
   userProfiles,
 } from "../db/schema/index.ts";
-import { type MindCipher, PLAIN, SealedUnreadable } from "./mind/seal.ts";
+import { type MindCipher, PLAIN, SealedUnreadable, soulPlace } from "./mind/seal.ts";
 
 type StoredAgent = typeof officeAgents.$inferSelect;
 /** An agent with its `instructions` opened. */
@@ -58,7 +58,7 @@ export class OfficeAgentStore {
   #open = (row: StoredAgent): OfficeAgentRow => {
     const { instructionsSealed: sealed, ...rest } = row;
     try {
-      const instructions = this.cipher.open(row.id, { text: row.instructions, sealed });
+      const instructions = this.cipher.open(soulPlace(row.id), { text: row.instructions, sealed });
       return { ...rest, instructions };
     } catch (err) {
       if (!(err instanceof SealedUnreadable)) throw err;
@@ -75,7 +75,7 @@ export class OfficeAgentStore {
       .get();
     if (!row) return false;
     try {
-      this.cipher.open(id, row);
+      this.cipher.open(soulPlace(id), row);
       return false;
     } catch (err) {
       if (err instanceof SealedUnreadable) return true;
@@ -133,7 +133,7 @@ export class OfficeAgentStore {
   insert(db: DbOrTx, row: NewOfficeAgentRow): OfficeAgentRow {
     // The id is chosen here: the soul's envelope is bound to it.
     const id = row.id ?? crypto.randomUUID();
-    const soul = this.cipher.seal(id, row.instructions ?? "");
+    const soul = this.cipher.seal(soulPlace(id), row.instructions ?? "");
     const stored = db
       .insert(officeAgents)
       .values({

@@ -3,18 +3,19 @@
  *
  * A personal agent only ever acts as its owner, through the access gate; none
  * of this applies to it. A shared agent has rooms its admins granted, and
- * whatever it reads ends up in front of a person, so every call is limited by
- * the people it is answered for:
+ * whatever it reads ends up in front of a person, so every call is answered
+ * for exactly one person, and who that is comes from the credential the call
+ * was made with, never from when it arrives or from what the agent says:
  *
- * - called by its engine while it works on a person's message: that person
- *   (the engine reports whose turn it is; engines run one turn at a time);
- * - called by its engine with no turn known: everyone who is waiting for its
- *   answer, all at once (the lowest of them decides);
- * - called with an access code someone minted: that someone. A code minted
- *   before the office recorded who did, or by a person who has left, opens no
- *   room at all;
- * - called by its engine while nobody waits: the agent is working on its own,
- *   under its grants. What it writes down then is scoped to all of them.
+ * - a **turn token**: the office mints one for each turn of a conversation,
+ *   bound to the person whose message it is, and revokes it when the turn is
+ *   over. A call made with it is answered for that person. A call that
+ *   arrives after its turn ended carries a token that no longer exists and is
+ *   not answered at all;
+ * - an **access code** someone minted: that someone. A code minted before
+ *   the office recorded who did, or by a person who has left, opens nothing;
+ * - the **token of an engine run** (outside any turn): nobody. A shared agent
+ *   has no errand of its own, so such a call is refused whatever it asks.
  *
  * The limit is the person's own access as the gate gives it at that moment
  * (`operationAccessFor`): never a role, never the agent's grant alone.
@@ -28,52 +29,50 @@ import type { ToolCall, ToolDeps } from "./context.ts";
 
 /** How the call was authenticated. */
 export interface ToolCaller {
-  /** `session`: the token the office minted for an engine run; `api`: an access code a person minted. */
-  kind: "session" | "api";
+  /**
+   * `turn`: the token of one turn of one person's conversation; `session`: the
+   * token the office minted for an engine run; `api`: an access code a person minted.
+   */
+  kind: "turn" | "session" | "api";
+  /** `api`: who minted it. */
   mintedBy: string | null;
+  /** `turn`: whose turn it is. */
+  forUserId: string | null;
 }
 
-export const ENGINE_CALLER: ToolCaller = { kind: "session", mintedBy: null };
+export const ENGINE_CALLER: ToolCaller = { kind: "session", mintedBy: null, forUserId: null };
 
 export interface Asking {
-  /** The people whose own access limits this call. */
-  people: AgentPerson[];
-  /** The person whose message the agent is working on, when its engine said so. */
+  /** The one person whose own access limits this call; absent for a personal agent. */
+  person?: AgentPerson;
+  /** Set when the call was made with that person's turn token. */
   turn?: string;
-  /** True: nobody the office knows stands behind the call, so it reads no room. */
+  /** True: a shared agent's call that nobody stands behind. It is refused. */
   none: boolean;
 }
 
-const UNLIMITED: Asking = { people: [], none: false };
+const OWNER: Asking = { none: false };
+const NOBODY: Asking = { none: true };
 
 export function askingOf(
-  deps: Pick<ToolDeps, "store" | "conversations" | "turnOf">,
+  deps: Pick<ToolDeps, "store">,
   agent: OfficeAgentRow,
   caller: ToolCaller,
 ): Asking {
-  if (agent.ownerUserId !== null) return UNLIMITED;
-  const { store } = deps;
-  if (caller.kind === "api") {
-    const minter = caller.mintedBy ? store.person(caller.mintedBy) : undefined;
-    return minter ? { people: [minter], none: false } : { people: [], none: true };
-  }
-  const turn = deps.turnOf(agent.id);
-  if (turn !== undefined) {
-    const person = store.person(turn);
-    return person ? { people: [person], turn, none: false } : { people: [], turn, none: true };
-  }
-  const waiting = deps.conversations
-    .waitingPeople(agent.id)
-    .flatMap((userId) => store.person(userId) ?? []);
-  return { people: waiting, none: false };
+  if (agent.ownerUserId !== null) return OWNER;
+  const userId = caller.kind === "turn" ? caller.forUserId : caller.mintedBy;
+  if (caller.kind === "session" || !userId) return NOBODY;
+  const person = deps.store.person(userId);
+  if (!person) return NOBODY;
+  return { person, none: false, ...(caller.kind === "turn" ? { turn: userId } : {}) };
 }
 
 const shared = (call: ToolCall) => call.agent.ownerUserId === null;
 
 /**
  * The call's access to a live operation, or null: the agent's own (as its
- * owner, or by grant), lowered to what every person it is answered for may
- * do there themselves. `forPerson` is the person a shared agent acts for.
+ * owner, or by grant), lowered to what the person it is answered for may do
+ * there themselves. `forPerson` is the person a shared agent acts for.
  */
 export function roomAccess(
   call: ToolCall,
@@ -81,13 +80,10 @@ export function roomAccess(
   forPerson?: AgentPerson,
 ): OperationAccess | null {
   if (!shared(call)) return call.access.operation(call.agent, operationId);
-  if (call.asking.none) return null;
-  let access = call.access.operation(call.agent, operationId, forPerson);
-  for (const person of call.asking.people) {
-    if (!access) break;
-    access = lowerAccess(access, operationAccessFor(call.store.db, person, operationId));
-  }
-  return access;
+  const { person } = call.asking;
+  if (!person) return null;
+  const access = call.access.operation(call.agent, operationId, forPerson);
+  return lowerAccess(access, operationAccessFor(call.store.db, person, operationId));
 }
 
 /** Every live operation open to the call, with its access. */
@@ -105,25 +101,30 @@ export function saw(call: ToolCall, ...rooms: string[]): void {
 
 /**
  * The rooms whatever this call writes down or passes on may be about: every
- * room the agent's conversations with the people it is answered for have
- * read. Working on its own, every room it is granted.
+ * room the agent's conversation with the person it is answered for has read.
  */
 export function scopeOf(call: ToolCall): string[] {
-  if (!shared(call) || call.asking.none) return [];
+  const { person } = call.asking;
+  if (!shared(call) || !person) return [];
   const rooms = new Set(call.saw);
-  if (call.asking.people.length === 0) {
-    for (const grant of call.store.grants(call.agent.id)) rooms.add(grant.operationId);
-  }
-  for (const person of call.asking.people) {
-    for (const room of call.scopes.seen(call.agent.id, person.id)) rooms.add(room);
-  }
+  for (const room of call.scopes.seen(call.agent.id, person.id)) rooms.add(room);
   return [...rooms].sort();
 }
 
 /** Which of the agent's memories, notes and questions this call may be given. */
 export function visibleIn(call: ToolCall): Visible {
   if (!shared(call)) return undefined;
-  if (call.asking.none) return (rooms) => rooms.length === 0;
-  if (call.asking.people.length === 0) return undefined;
-  return call.scopes.visibleTo(call.asking.people);
+  const { person } = call.asking;
+  return person ? call.scopes.visibleTo([person]) : () => false;
+}
+
+/**
+ * May this call put something where everyone who can enter `operationId`
+ * reads it (null: the lobby, read by everyone)? What a shared agent writes
+ * comes out of a conversation that may have read rooms, so only when every
+ * one of those readers can see all of them. A personal agent writes as its
+ * owner, like its owner would.
+ */
+export function mayReach(call: ToolCall, operationId: string | null): boolean {
+  return !shared(call) || call.scopes.audienceCanSeeAll(operationId, scopeOf(call));
 }

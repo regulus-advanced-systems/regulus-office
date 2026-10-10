@@ -54,7 +54,7 @@ export function officeSystemMessage(
       shared ? ", one of the people of the office you work for" : ", the person you belong to"
     }. Your reply is shown to them there.`,
     shared
-      ? 'If an MCP server named "office" is configured, its tools act in that office with the rights the office gave you, and never show you more than this person can see there themselves: a room that is closed to them answers "no such operation". Do not tell them about a room from what you recall of someone else\'s conversation.'
+      ? 'If an MCP server named "office" is configured, its tools act in that office with the rights the office gave you, whoever is asking.'
       : 'If an MCP server named "office" is configured, its tools act in that office with exactly this person\'s rights.',
   ];
   // The soul is the instructions' successor; an engine started without one still has the row's text.

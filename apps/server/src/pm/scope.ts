@@ -6,15 +6,16 @@
  * the agent itself was granted. The office cannot read an answer and know
  * what it is about, so it works with what it can know for certain:
  *
- * 1. **Who is asking.** A call is answered for the person whose message the
- *    agent is working on (`AgentRuntime.turnOf`), or, with an access code
- *    someone minted, for that someone. Every room that call can read is the
+ * 1. **Who is asking.** A call is answered for the person whose turn's token
+ *    it was made with, or, with an access code someone minted, for that
+ *    someone; with neither it is refused. Every room that call can read is the
  *    lower of the agent's grant and that person's own access (tools/asking.ts).
  * 2. **What a conversation has seen.** Each room a call read for a person is
  *    recorded here per agent and person (`sawRooms`): it is what may be in
  *    the context of that conversation.
  * 3. **Scope.** Whatever leaves that conversation for somebody else (a memory
- *    or note, a question to another person, a chat line) carries those rooms
+ *    or note, a question to another person, a chat line, a comment, a queued
+ *    task, a henchman's prompt) carries those rooms
  *    as its scope, and reaches only people who can see every one of them
  *    (`canSeeAll`). Too wide rather than too narrow: something general said in
  *    a conversation that looked at a room is treated as being about that room.

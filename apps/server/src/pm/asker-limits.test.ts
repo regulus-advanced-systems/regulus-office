@@ -49,13 +49,27 @@ afterAll(async () => {
 });
 
 describe("what the office tools hand a shared agent follows the person it is answering", () => {
-  test("on its own it has its grants; answering someone it has only what they can see", async () => {
-    expect((await rooms()).sort()).toEqual([APOLLO, BOREALIS]);
+  test("answering someone it has only what they can see; outside a turn it has nothing at all", async () => {
     expect(await during(o.people.mia, rooms)).toEqual([APOLLO]);
     expect(await during(o.people.sam, rooms)).toEqual([BOREALIS]);
     expect((await during(o.people.ada, rooms)).sort()).toEqual([APOLLO, BOREALIS]);
     // The office owner's role opens no room (D34): the agent's grants do not either.
     expect(await during(o.people.olga, rooms)).toEqual([]);
+    // With the token of its engine run and no turn, a shared agent has no errand of its own:
+    // whatever it asks is refused, the tools about its own memories included.
+    for (const [name, input] of [
+      ["list_operations", {}],
+      ["read_board", { operationId: APOLLO }],
+      ["read_usage", {}],
+      ["memory_list", {}],
+      ["memory_save", { text: "on my own" }],
+      ["post_chat", { text: "hello" }],
+    ] as const) {
+      const refused = await o.engineTool(pm.id, name, input);
+      expect([name, refused.status, errorOf(refused)]).toEqual([name, 403, "forbidden"]);
+    }
+    expect(o.audits("office_agent.tool_denied").at(-1)?.meta).toMatchObject({ tool: "post_chat" });
+    expect(o.chat).toHaveLength(0);
   });
 
   test("a room closed to that person answers exactly like one that does not exist", async () => {
@@ -102,15 +116,65 @@ describe("what the office tools hand a shared agent follows the person it is ans
     done(o.people.sam);
   });
 
-  test("an engine that does not say whose turn it is: the lowest of everyone waiting decides", async () => {
-    await o.send(`${A}/${pm.id}/messages`, "POST", o.people.mia.cookie, { text: "one" });
-    expect(await rooms()).toEqual([APOLLO]);
-    await o.send(`${A}/${pm.id}/messages`, "POST", o.people.sam.cookie, { text: "two" });
-    // Mia cannot see Borealis and Sam cannot see Apollo: nothing is safe to hand over.
-    expect(await rooms()).toEqual([]);
-    o.fake.emit({ type: "message", agentId: pm.id, userId: o.people.mia.id, text: "Done." });
-    expect(await rooms()).toEqual([BOREALIS]);
-    o.fake.emit({ type: "message", agentId: pm.id, userId: o.people.sam.id, text: "Done." });
+  test("a call is answered for the turn whose token it carries, and not at all once that turn is over", async () => {
+    const memories = () => o.officeAgents.mind.list(pm.id, "memory", { limit: 1000 }).total;
+    const before = memories();
+    // Mia's turn reads Apollo, then fails (the CLI timed out); the next person's turn starts.
+    const mias = await f.turn(o.people.mia);
+    expect((await mias.call("read_board", { operationId: APOLLO })).status).toBe(200);
+    o.fake.emit({
+      type: "error",
+      agentId: pm.id,
+      userId: o.people.mia.id,
+      message: "the agent did not answer within 10 min",
+    });
+    mias.end();
+    const sams = await f.turn(o.people.sam);
+    // What Mia's process still had in flight (or an orphan of it sends later) arrives now, during
+    // Sam's turn. It is not Sam's call, and Mia's turn is over: it is not answered.
+    for (const [name, input] of [
+      ["memory_save", { text: `late: ${CANARY}` }],
+      ["read_board", { operationId: BOREALIS }],
+      ["read_board", { operationId: APOLLO }],
+      ["list_operations", {}],
+    ] as const) {
+      const late = await mias.call(name, input);
+      expect([name, late.status]).toEqual([name, 401]);
+      expect(JSON.stringify(late.body)).not.toMatch(/apollo|borealis|CANARY/i);
+    }
+    expect(memories()).toBe(before);
+    // Sam's own turn is untouched by it, and reads what Sam can see.
+    expect((await sams.call("read_board", { operationId: APOLLO })).status).toBe(404);
+    expect((await sams.call("read_board", { operationId: BOREALIS })).status).toBe(200);
+    f.done(o.people.sam);
+    expect((await sams.call("list_operations")).status).toBe(401);
+  });
+
+  test("a message that failed leaves nobody waiting, so nobody can have the agent act for them", async () => {
+    // (The failed turn above.) Mia's last line is the failure, not her message.
+    expect(o.officeAgents.conversations.waiting(pm.id, o.people.mia.id)).toBe(false);
+    const res = await o.send(`${A}/${pm.id}/tokens`, "POST", o.people.ada.cookie, { label: "x" });
+    const code = (await res.json()) as OfficeAgentTokenCreated;
+    // (Ada's own conversation with the agent has read Borealis, which would refuse a task in
+    // Apollo for another reason; set aside for this call.)
+    const adas = o.db
+      .select()
+      .from(officeAgentRoomReads)
+      .where(eq(officeAgentRoomReads.userId, o.people.ada.id))
+      .all();
+    o.db.delete(officeAgentRoomReads).where(eq(officeAgentRoomReads.userId, o.people.ada.id)).run();
+    const asMia = await o.tool(code.token, "enqueue_task", {
+      operationId: APOLLO,
+      repoId: APOLLO_REPO,
+      kind: "freeform",
+      title: "as Mia",
+      prompt: "do it",
+      provider: "claude-code",
+      model: "sonnet",
+      onBehalfOf: o.people.mia.id,
+    });
+    expect([asMia.status, asMia.body]).toMatchObject([403, { error: "not_waiting" }]);
+    for (const row of adas) o.db.insert(officeAgentRoomReads).values(row).run();
   });
 });
 
@@ -143,14 +207,16 @@ describe("an access code reads what the person who minted it can see", () => {
     expect(await open(adas.token)).toEqual([APOLLO]);
     o.setRoomAccess(BOREALIS, o.people.ada.id, "manage");
 
-    // A code from before the office recorded who minted it opens no room.
+    // A code from before the office recorded who minted it: nobody stands behind it, nothing opens.
     o.db
       .update(officeAgentTokens)
       .set({ mintedBy: null })
       .where(eq(officeAgentTokens.id, adas.id))
       .run();
-    expect(await open(adas.token)).toEqual([]);
-    expect((await o.tool(adas.token, "read_board", { operationId: APOLLO })).status).toBe(404);
+    for (const name of ["list_operations", "memory_list"]) {
+      const refused = await o.tool(adas.token, name);
+      expect([refused.status, refused.body]).toMatchObject([403, { error: "forbidden" }]);
+    }
   });
 });
 

@@ -8,10 +8,12 @@
  * access and the credential profile again. A shared agent's henchmen always
  * run on the office key (SPEC §8 rule 3, D2).
  *
- * What a shared agent passes on to somebody else (#301): a question or a chat
- * line is written from a conversation that may have read rooms (asking.ts,
- * `scopeOf`), so it goes only where every reader can see all of those rooms.
- * The refusal says that and nothing about which room.
+ * What a shared agent passes on to somebody else (#301) is written from a
+ * conversation that may have read rooms (asking.ts, `scopeOf`), so it goes
+ * only where every reader can see all of those rooms. For a chat line, a
+ * comment, a queued task and a henchman's prompt that is checked before the
+ * tool runs (call.ts, `TOOL_REACH`); a question is checked here against the
+ * person asked. The refusal says that and nothing about which room.
  */
 import { mayWriteBoard, type OfficeToolInput } from "@regulus/protocol";
 import { and, eq, gte } from "drizzle-orm";
@@ -173,13 +175,6 @@ const chatTimes = new Map<string, number[]>();
 
 export function postChat(call: ToolCall, input: OfficeToolInput<"post_chat">) {
   if (input.operationId) requireOperation(call, input.operationId, "view");
-  // A room's chat is read by everyone who can enter it, the lobby's by everyone.
-  if (shared(call) && !call.scopes.audienceCanSeeAll(input.operationId ?? null, scopeOf(call))) {
-    throw new ToolError(
-      "forbidden",
-      "this cannot be posted there: it may concern a room that not everyone reading there can see",
-    );
-  }
   const now = call.now();
   const recent = (chatTimes.get(call.agent.id) ?? []).filter((t) => now - t < 60_000);
   if (recent.length >= CHAT_PER_MINUTE) {

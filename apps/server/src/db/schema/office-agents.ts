@@ -93,8 +93,14 @@ export const officeAgentTokens = sqliteTable(
       .references(() => officeAgents.id, { onDelete: "cascade" }),
     /** SHA-256 (hex) of the token. The plaintext is shown once, at creation. */
     tokenHash: text("token_hash").notNull(),
-    /** `api`: minted by whoever configures the agent; `session`: minted by the office for an engine run. */
-    kind: text("kind", { enum: ["api", "session"] }).notNull(),
+    /**
+     * `api`: minted by whoever configures the agent; `session`: minted by the office for an
+     * engine run; `turn`: minted by the office for one turn of one person's conversation and
+     * revoked when that turn is over (#301).
+     */
+    kind: text("kind", { enum: ["api", "session", "turn"] }).notNull(),
+    /** `turn` tokens: the person whose message the agent is answering with it. */
+    forUserId: text("for_user_id").references(() => users.id, { onDelete: "cascade" }),
     label: text("label").notNull().default(""),
     /**
      * `api` tokens: the person who minted it. A shared agent called with it reads
@@ -230,6 +236,12 @@ export const officeAgentSettings = sqliteTable("office_agent_settings", {
   personalAgentCap: integer("personal_agent_cap").notNull(),
   managerDailySpawnCap: integer("manager_daily_spawn_cap").notNull(),
   sharedMessagesPerHour: integer("shared_messages_per_hour").notNull(),
+  /**
+   * Agents' texts were encrypted in place and the database file has not been
+   * rebuilt since (#301, pm/mind/seal-existing.ts): old pages may still hold
+   * the plain text. Set with the encryption, cleared only after the rebuild.
+   */
+  mindScrubPending: integer("mind_scrub_pending", { mode: "boolean" }).notNull().default(false),
   ...timestamps(),
 });
 
@@ -294,7 +306,9 @@ export const officeAgentMemories = sqliteTable(
      * The rooms this entry may be about (#301): JSON array of operation ids. A
      * shared agent's entry reaches a person only if they can see every one of
      * them. Ids, not names; an id is kept when its room is deleted, so the
-     * entry stays closed.
+     * entry stays closed. Anything that is not such an array (`unknown`, which
+     * migration 0028 gives a shared agent's earlier entries) means the rooms
+     * are not known: the entry is kept and shown to nobody.
      */
     roomScope: jsonText("room_scope").notNull().default("[]"),
     ...timestamps(),

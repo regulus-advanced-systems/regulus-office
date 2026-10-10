@@ -1,93 +1,30 @@
 /**
  * Souls, memories and notes are encrypted in the database (#301): nothing of
- * them is in a row, or in the database file a backup copies; rows written
- * before are encrypted by the office's start, and that step can run again;
- * search and titles still work; a row does not open under another key or on
- * another agent.
+ * them is in a row, or in the database file a backup copies; search and
+ * titles still work; a row does not open under another key, on another
+ * agent, or in another row or column. (Rows from before: seal-existing.test.ts.)
  */
-import { afterEach, describe, expect, test } from "bun:test";
-import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { describe, expect, test } from "bun:test";
 import { OFFICE_AGENTS_API_PATH, type OfficeAgentView } from "@regulus/protocol";
-import {
-  closeDatabase,
-  type Db,
-  databasePathFor,
-  openDatabase,
-  runMigrations,
-} from "../../db/index.ts";
 import { testKeyring } from "../../notifications/testing.ts";
-import { OfficeAgentStore } from "../store.ts";
 import { agentsOffice } from "../test-helpers.ts";
 import { AgentMind, MindError } from "./mind.ts";
+import {
+  CANARIES,
+  fill,
+  MEMORY,
+  NOTE,
+  office,
+  onDisk,
+  open,
+  rows,
+  SOUL,
+  SOURCE,
+  TITLE,
+} from "./seal.fixture.ts";
 import { MindCipher, PLAIN } from "./seal.ts";
 import { countUnsealed, sealExisting } from "./seal-existing.ts";
 import { MindStore } from "./store.ts";
-
-const SOUL = "You are Ledger. SOULCANARY: be blunt.";
-const MEMORY = "MEMORYCANARY the launch is on Friday";
-const SOURCE = "SOURCECANARY Mia, in chat";
-const TITLE = "TITLECANARY Launch plan";
-const NOTE = "NOTECANARY step one, step two";
-const CANARIES = ["SOULCANARY", "MEMORYCANARY", "SOURCECANARY", "TITLECANARY", "NOTECANARY"];
-
-const dirs: string[] = [];
-const open: Db[] = [];
-afterEach(() => {
-  for (const db of open.splice(0)) closeDatabase(db);
-  for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
-});
-
-function office(cipher: MindCipher, path?: string) {
-  let file = path;
-  if (!file) {
-    const dir = mkdtempSync(join(tmpdir(), "rgo-seal-"));
-    dirs.push(dir);
-    file = databasePathFor(dir);
-  }
-  const db = openDatabase({ path: file });
-  open.push(db);
-  runMigrations(db);
-  const store = new OfficeAgentStore(db, Date.now, cipher);
-  const mind = new AgentMind(new MindStore(db, Date.now, cipher));
-  return { db, file, store, mind };
-}
-
-function fill({ store, mind }: Pick<ReturnType<typeof office>, "store" | "mind">) {
-  const agent = store.insert(store.db, {
-    name: "Ledger",
-    ownerUserId: null,
-    engine: "cli-session",
-    role: "pm",
-    preset: "coordinator",
-    provider: "claude-code",
-    model: "sonnet",
-    instructions: SOUL,
-  });
-  mind.saveSoul(agent.id, SOUL, { userId: null, kind: "created" });
-  mind.saveSoul(agent.id, `${SOUL} v2`, { userId: null, kind: "edit" });
-  const memory = mind.addMemory(agent.id, { text: MEMORY, source: SOURCE }, "agent", ["op-1"]);
-  mind.writeNote(agent.id, { title: TITLE, text: NOTE }, "agent");
-  return { agent, memory };
-}
-
-/** Every table that holds an agent's text, as the rows are. */
-const rows = (db: Db) =>
-  JSON.stringify(
-    ["office_agents", "office_agent_soul_versions", "office_agent_memories"].map((table) =>
-      db.$client.query(`select * from ${table}`).all(),
-    ),
-  );
-
-/** The database as a backup would copy it: the file and whatever sits beside it (the WAL). */
-function onDisk(db: Db, file: string): string {
-  db.$client.run("PRAGMA wal_checkpoint(TRUNCATE)");
-  const dir = join(file, "..");
-  return readdirSync(dir)
-    .map((name) => readFileSync(join(dir, name)).toString("latin1"))
-    .join("\n");
-}
 
 describe("with OFFICE_MASTER_KEY", () => {
   test("no row and no byte of the database file holds the text; the office reads it as before", () => {
@@ -212,68 +149,43 @@ describe("with OFFICE_MASTER_KEY", () => {
     expect(() => o.mind.soul(other.id)).toThrow(MindError);
     expect(o.mind.soul(agent.id).content).toBe(`${SOUL} v2`);
   });
-});
 
-describe("rows from before: the data step of migration 0028", () => {
-  test("it encrypts what is plain, leaves no plain text in the file, and can run again", () => {
-    // An office as it was: no encryption of these tables.
-    const before = office(PLAIN);
-    const { agent, memory } = fill(before);
-    expect(rows(before.db)).toContain("MEMORYCANARY");
-    expect(onDisk(before.db, before.file)).toContain("SOULCANARY");
-    expect(countUnsealed(before.db)).toEqual({ souls: 1, versions: 2, entries: 2 });
-    const stamps = () =>
-      JSON.stringify(
-        ["office_agents", "office_agent_soul_versions", "office_agent_memories"].map((table) =>
-          before.db.$client.query(`select id, created_at, updated_at from ${table}`).all(),
-        ),
-      );
-    const stampsBefore = stamps();
-
-    const cipher = new MindCipher(testKeyring());
-    expect(sealExisting(before.db, cipher)).toEqual({
-      souls: 1,
-      versions: 2,
-      entries: 2,
-      scrubbed: true,
-    });
-    const sealed = rows(before.db);
-    const disk = onDisk(before.db, before.file);
-    for (const canary of CANARIES) {
-      expect(sealed).not.toContain(canary);
-      // Not in free pages or the WAL either: the file was rebuilt.
-      expect(disk).not.toContain(canary);
-    }
-    // Nothing about the rows changed but the text's form.
-    expect(stamps()).toBe(stampsBefore);
-
-    // Again, and after a restart: nothing left to do, and nothing is touched.
-    expect(sealExisting(before.db, cipher)).toEqual({ souls: 0, versions: 0, entries: 0 });
-    expect(rows(before.db)).toBe(sealed);
-    closeDatabase(open.splice(open.indexOf(before.db), 1)[0] as Db);
-    const after = office(cipher, before.file);
-    expect(sealExisting(after.db, cipher)).toEqual({ souls: 0, versions: 0, entries: 0 });
-    expect(rows(after.db)).toBe(sealed);
-
-    // The office reads everything as it was written.
-    expect(after.store.get(agent.id)?.instructions).toBe(`${SOUL} v2`);
-    expect(after.mind.version(agent.id, 1).content).toBe(SOUL);
-    expect(after.mind.entry(agent.id, memory.id)).toMatchObject({ text: MEMORY, source: SOURCE });
-    expect(after.mind.note(agent.id, TITLE).text).toBe(NOTE);
-    expect(
-      after.mind
-        .search(agent.id, "launch")
-        .map((e) => e.text)
-        .sort(),
-    ).toEqual([MEMORY, NOTE]);
-  });
-
-  test("without a key nothing is encrypted, and the office can say how much is plain", () => {
-    const o = office(PLAIN);
-    fill(o);
-    expect(sealExisting(o.db, PLAIN)).toEqual({ souls: 0, versions: 0, entries: 0 });
-    expect(countUnsealed(o.db)).toEqual({ souls: 1, versions: 2, entries: 2 });
-    expect(rows(o.db)).toContain("SOULCANARY");
+  test("an envelope opens only in its own row and column, also within one agent", () => {
+    const o = office(new MindCipher(testKeyring()));
+    const { agent, memory } = fill(o);
+    // A memory about one room, and one that reaches everyone, of the same agent.
+    const open = o.mind.addMemory(agent.id, { text: "harmless" }, "agent", []);
+    const raw = o.db.$client
+      .query("select text from office_agent_memories where id = ?")
+      .get(memory.id) as { text: string };
+    // Copied onto the row that reaches everyone: it does not open there.
+    o.db.$client
+      .prepare("update office_agent_memories set text = ? where id = ?")
+      .run(raw.text, open.id);
+    expect(() => o.mind.entry(agent.id, open.id)).toThrow(MindError);
+    expect(o.mind.entry(agent.id, memory.id).text).toBe(MEMORY);
+    // Copied into the agent's document, or one of its versions: not there either.
+    o.db.$client
+      .prepare("update office_agents set instructions = ?, instructions_sealed = 1 where id = ?")
+      .run(raw.text, agent.id);
+    o.db.$client
+      .prepare(
+        "update office_agent_soul_versions set content = ? where agent_id = ? and version = 1",
+      )
+      .run(raw.text, agent.id);
+    expect(o.store.get(agent.id)?.instructions).toBe("");
+    expect(o.store.soulUnreadable(agent.id)).toBe(true);
+    expect(() => o.mind.soul(agent.id)).toThrow(MindError);
+    expect(() => o.mind.version(agent.id, 1)).toThrow(MindError);
+    // A version's envelope does not open as the current document either.
+    const v2 = o.db.$client
+      .query("select content from office_agent_soul_versions where agent_id = ? and version = 2")
+      .get(agent.id) as { content: string };
+    o.db.$client
+      .prepare("update office_agents set instructions = ? where id = ?")
+      .run(v2.content, agent.id);
+    expect(o.store.soulUnreadable(agent.id)).toBe(true);
+    expect(o.mind.version(agent.id, 2).content).toBe(`${SOUL} v2`);
   });
 });
 

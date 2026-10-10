@@ -29,17 +29,14 @@ const grantsSeenBy = async (cookie: string) => {
   const list = (await (await o.send(A, "GET", cookie)).json()) as OfficeAgentsResponse;
   return list.agents.find((a) => a.id === pm.id)?.config?.grants;
 };
+/** The rooms the agent was granted, as the office keeps them. */
+const openTo = async () => o.officeAgents.store.grants(pm.id).map((g) => [g.operationId, g.access]);
 /**
- * What the agent itself reaches, asked as its own engine with nobody waiting
- * for it. (An access code an admin minted reads only what that admin can see,
- * #301: asker-limits.test.ts.)
+ * What the grants let the agent read is asked in a turn of Sam's, whose own GitHub access
+ * (set below) covers both rooms: a call is always answered for somebody (#301).
  */
-const openTo = async () =>
-  (
-    (await o.engineTool(pm.id, "list_operations")).body as unknown as {
-      result: { operations: Array<{ id: string; access: string }> };
-    }
-  ).result.operations.map((x) => [x.id, x.access]);
+const asSam = (name: string, input: unknown = {}) =>
+  o.inTurn(pm.id, o.people.sam, (call) => call(name, input));
 
 beforeAll(async () => {
   o = await agentsOffice({ fake: { reply: () => null } });
@@ -57,6 +54,8 @@ beforeAll(async () => {
   pm = (await made.json()) as OfficeAgentView;
   // Ada's GitHub account may write to Apollo's repo and cannot see Borealis's.
   o.setAccess(APOLLO, o.people.ada.id, "spawn");
+  o.setRoomAccess(APOLLO, o.people.sam.id, "manage");
+  o.setRoomAccess(BOREALIS, o.people.sam.id, "manage");
 });
 afterAll(async () => {
   await o.stop();
@@ -126,8 +125,8 @@ describe("granting rooms to a shared agent", () => {
     expect(cleared.body.config?.grants).toEqual([]);
     expect(JSON.stringify(cleared.body)).not.toContain(BOREALIS);
     expect(await openTo()).toEqual([[BOREALIS, "manage"]]);
-    expect((await o.engineTool(pm.id, "read_board", { operationId: BOREALIS })).status).toBe(200);
-    expect((await o.engineTool(pm.id, "read_board", { operationId: APOLLO })).status).toBe(404);
+    expect((await asSam("read_board", { operationId: BOREALIS })).status).toBe(200);
+    expect((await asSam("read_board", { operationId: APOLLO })).status).toBe(404);
     // Once Ada's GitHub account loses Apollo too, she sees no grant and can set none.
     o.setRoomAccess(APOLLO, o.people.ada.id, null);
     expect(await grantsSeenBy(o.people.ada.cookie)).toEqual([]);
@@ -148,7 +147,7 @@ describe("the usage leaderboard a shared agent reads", () => {
     tokens,
   });
   const readUsage = async () => {
-    const res = await o.engineTool(pm.id, "read_usage");
+    const res = await asSam("read_usage");
     expect(res.status).toBe(200);
     const { result } = res.body as unknown as { result: { scope: string; usage: UsageSummary } };
     return { result, text: JSON.stringify(res.body) };

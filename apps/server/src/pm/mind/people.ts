@@ -200,7 +200,9 @@ export class MindService {
     }
     const visible = this.#visible(actor, row);
     const entry = this.#try(() => {
-      if (input.kind === "memory") return this.deps.mind.addMemory(row.id, input, "person", rooms);
+      if (input.kind === "memory") {
+        return this.deps.mind.addMemory(row.id, input, "person", rooms, visible);
+      }
       // In Settings a note is added, not overwritten: a taken title is said so.
       try {
         this.deps.mind.note(row.id, input.title, visible);

@@ -1,8 +1,10 @@
 /**
  * Souls, memories and notes encrypted at rest (#301): the office's existing
  * envelope encryption (`secrets/`, AES-256-GCM, a key per value wrapped under
- * `OFFICE_MASTER_KEY`), nothing new. Every value is bound to its agent, so an
- * envelope copied onto another agent's row does not open.
+ * `OFFICE_MASTER_KEY`), nothing new. Every value is bound to its agent, to
+ * the kind of text it is and to its own row (`Place`), so an envelope copied
+ * onto another agent, another row or another column does not open: a memory
+ * about one room cannot be moved onto an entry that reaches everyone.
  *
  * What this is for: a copy of the database (a backup file, a stolen disk
  * image) does not show what agents are or remember. It does not protect
@@ -41,7 +43,21 @@ export class SealedUnreadable extends Error {
   }
 }
 
-const context = (agentId: string) => ({ userId: agentId, secretName: "office-agent-mind" });
+/** Where a text is stored: what its envelope is bound to. */
+export interface Place {
+  agentId: string;
+  /** `soul`: the agent's document as it is now; `version`: one of its versions; `entry`: a memory or note. */
+  kind: "soul" | "version" | "entry";
+  /** The row's id (for `soul`, the agent's). */
+  rowId: string;
+}
+
+export const soulPlace = (agentId: string): Place => ({ agentId, kind: "soul", rowId: agentId });
+
+const context = (place: Place) => ({
+  userId: place.agentId,
+  secretName: `office-agent-${place.kind}:${place.rowId}`,
+});
 
 export class MindCipher {
   constructor(private readonly keyring: MasterKeyring | undefined) {}
@@ -51,17 +67,17 @@ export class MindCipher {
     return this.keyring !== undefined;
   }
 
-  seal(agentId: string, text: string): Sealed {
+  seal(place: Place, text: string): Sealed {
     if (!this.keyring || text === "") return { text, sealed: false };
     const { keys, current } = this.keyring;
-    return { text: encryptSecret(text, context(agentId), keys, current), sealed: true };
+    return { text: encryptSecret(text, context(place), keys, current), sealed: true };
   }
 
-  open(agentId: string, stored: Sealed): string {
+  open(place: Place, stored: Sealed): string {
     if (!stored.sealed) return stored.text;
     if (!this.keyring) throw new SealedUnreadable();
     try {
-      return decryptSecretToString(stored.text, context(agentId), this.keyring.keys);
+      return decryptSecretToString(stored.text, context(place), this.keyring.keys);
     } catch (err) {
       if (isSecretsError(err)) throw new SealedUnreadable();
       throw err;
@@ -80,22 +96,22 @@ export interface EntryText {
 }
 
 /** The columns of a memory row for these fields. */
-export function sealEntry(cipher: MindCipher, agentId: string, entry: EntryText, titleKey: string) {
+export function sealEntry(cipher: MindCipher, place: Place, entry: EntryText, titleKey: string) {
   if (!cipher.on) return { ...entry, titleKey, sealed: false };
-  const { text } = cipher.seal(agentId, JSON.stringify(entry));
+  const { text } = cipher.seal(place, JSON.stringify(entry));
   // The title's key would give the title away: a sealed note is found by opening the agent's notes.
   return { title: "", titleKey: "", source: "", text, sealed: true };
 }
 
 export function openEntry(
   cipher: MindCipher,
-  agentId: string,
+  place: Place,
   row: EntryText & { sealed: boolean },
 ): EntryText {
   if (!row.sealed) return { title: row.title, text: row.text, source: row.source };
   let parsed: unknown;
   try {
-    parsed = JSON.parse(cipher.open(agentId, { text: row.text, sealed: true }));
+    parsed = JSON.parse(cipher.open(place, { text: row.text, sealed: true }));
   } catch (err) {
     if (err instanceof SealedUnreadable) throw err;
     throw new SealedUnreadable();

@@ -99,6 +99,20 @@ export interface EngineOffice {
   token: Secret;
   /** The agent's own soul, memories and notes, from the office's copy (#136). */
   mind: EngineMind;
+  /**
+   * A token for one turn of one person's conversation (#301): what the agent
+   * does with it is answered for that person, within their own access. The
+   * engine hands it to the agent for that turn only and calls `end` when the
+   * turn is over, whichever way it ended; after that the token is refused.
+   * An engine that cannot give each turn its own credential uses `token`,
+   * with which a shared agent can do nothing.
+   */
+  turn?(userId: string): EngineTurn;
+}
+
+export interface EngineTurn {
+  token: Secret;
+  end(): void;
 }
 
 /** An agent that remembers nothing, for tests that start an engine by hand. */
@@ -133,13 +147,6 @@ export interface EngineUsage {
 export type EngineEvent =
   /** The agent said something to a person. */
   | { type: "message"; agentId: string; userId: string; text: string }
-  /**
-   * Whose message the agent is working on from now on, or null when it is
-   * done with it (#301). Only an engine that runs an agent's turns one at a
-   * time reports this: the office answers the agent's tool calls for that
-   * person, within that person's own access.
-   */
-  | { type: "turn"; agentId: string; userId: string | null }
   | { type: "status"; agentId: string; status: OfficeAgentStatus; reason?: string }
   /** Engine state to keep across restarts (never a credential). */
   | { type: "state"; agentId: string; state: Record<string, unknown> }

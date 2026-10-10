@@ -12,7 +12,13 @@ import {
   type OfficeAgentView,
 } from "@regulus/protocol";
 import { eq } from "drizzle-orm";
-import { githubIssues, operationMembers, operations, tasks } from "../db/schema/index.ts";
+import {
+  githubIssues,
+  officeAgentRoomReads,
+  operationMembers,
+  operations,
+  tasks,
+} from "../db/schema/index.ts";
 import {
   type AgentsOffice,
   APOLLO,
@@ -354,6 +360,10 @@ describe("a shared agent has its grants and acts for people who asked", () => {
       number: 12,
       body: "Looking into it.",
     };
+    // The token is Ada's access code, and the calls above read Apollo's board with it. A comment
+    // on a card of Borealis is read by people who cannot see Apollo, so from that conversation
+    // it is refused (#301, asker-limits.test.ts); here it starts with nothing read.
+    o.db.delete(officeAgentRoomReads).run();
     expect(errorOf(await o.tool(pm.token, "comment_on_card", comment))).toBe("forbidden");
     await o.send(`${A}/${pm.agent.id}/grants`, "PUT", o.people.ada.cookie, {
       grants: [{ operationId: BOREALIS, access: "manage" }],
@@ -377,20 +387,13 @@ describe("a shared agent has its grants and acts for people who asked", () => {
     );
     const hidden = { question: "About Borealis", userId: o.people.mia.id, operationId: BOREALIS };
     expect(errorOf(await o.tool(pm.token, "ask_human", hidden))).toBe("forbidden");
-    // The token is Ada's access code, and the calls above read Apollo's board with it: what the
-    // agent asks from here on may be about Apollo, so Sam, who cannot see Apollo, is not asked
-    // either (#301; the rule and its other paths are in asker-limits.test.ts).
-    const toSam = { ...hidden, userId: o.people.sam.id };
-    expect(errorOf(await o.tool(pm.token, "ask_human", toSam))).toBe("forbidden");
-    expect(o.officeAgents.requests.pendingFor(o.people.sam.id)).toEqual([]);
-    o.setRoomAccess(APOLLO, o.people.sam.id, "view");
-    const asked = await o.tool(pm.token, "ask_human", toSam);
+    const asked = await o.tool(pm.token, "ask_human", { ...hidden, userId: o.people.sam.id });
     expect(asked.status).toBe(200);
     expect(o.officeAgents.requests.pendingFor(o.people.sam.id)).toEqual([
       expect.objectContaining({ agentName: "Number Two", operationId: BOREALIS }),
     ]);
-    o.setRoomAccess(APOLLO, o.people.sam.id, null);
-    // The lobby's chat is read by everyone, and not everyone can see those rooms.
+    // Its conversation (Ada's code) has commented in Borealis. The lobby's chat is read by
+    // everyone, and not everyone can see Borealis (#301).
     const lines = o.chat.length;
     expect(errorOf(await o.tool(pm.token, "post_chat", { text: "Standup in five." }))).toBe(
       "forbidden",
@@ -399,11 +402,9 @@ describe("a shared agent has its grants and acts for people who asked", () => {
     expect((await o.tool(pm.token, "post_chat", { text: "x", operationId: APOLLO })).status).toBe(
       404,
     );
-    // On its own, with no room granted, there is no room it could be talking about.
-    await o.send(`${A}/${pm.agent.id}/grants`, "PUT", o.people.ada.cookie, { grants: [] });
-    expect(
-      (await o.engineTool(pm.agent.id, "post_chat", { text: "Standup in five." })).status,
-    ).toBe(200);
+    // From a conversation that has read no room there is no room it could be talking about.
+    o.db.delete(officeAgentRoomReads).run();
+    expect((await o.tool(pm.token, "post_chat", { text: "Standup in five." })).status).toBe(200);
     expect(o.chat.at(-1)).toEqual({
       userId: `office-agent:${pm.agent.id}`,
       displayName: "Number Two",

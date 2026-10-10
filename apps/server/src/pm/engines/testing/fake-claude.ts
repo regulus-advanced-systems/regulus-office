@@ -42,8 +42,9 @@ const fail = (subtype: string) => {
 };
 
 if (!argv.includes("-p") || flag("--output-format") !== "json") fail("error_bad_flags");
-const sessionDir = `${home}/.fake-claude`;
-const sessionFile = `${sessionDir}/${sessionId}.json`;
+// Where Claude Code keeps a session's transcript, so the engine's clean-up finds it (#301).
+const sessionDir = `${home}/.claude/projects/fake`;
+const sessionFile = `${sessionDir}/${sessionId}.jsonl`;
 let turns: string[] = [];
 try {
   turns = JSON.parse(readFileSync(sessionFile, "utf8")) as string[];

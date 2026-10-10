@@ -12,15 +12,18 @@
  *   office keeps who minted each: a shared agent called with one reads only
  *   what that person may read themselves (#301, tools/asking.ts);
  * - `session` tokens are minted by the office for one engine run and revoked
- *   when the agent stops.
+ *   when the agent stops;
+ * - `turn` tokens are minted by the office for one turn of one person's
+ *   conversation with the agent and revoked when that turn is over (#301):
+ *   what the agent does with one is answered for that person.
  */
 import { createHash, randomBytes } from "node:crypto";
 import { OFFICE_AGENT_LIMITS, OFFICE_AGENT_TOKEN_PREFIX } from "@regulus/protocol";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, ne } from "drizzle-orm";
 import type { Db } from "../db/index.ts";
 import { officeAgentTokens } from "../db/schema/index.ts";
 
-export type OfficeAgentTokenKind = "api" | "session";
+export type OfficeAgentTokenKind = "api" | "session" | "turn";
 
 export interface MintedToken {
   id: string;
@@ -49,6 +52,7 @@ export class OfficeAgentTokens {
     kind: OfficeAgentTokenKind,
     label: string,
     mintedBy: string | null = null,
+    forUserId: string | null = null,
   ): MintedToken | null {
     if (kind === "api" && this.list(agentId).length >= OFFICE_AGENT_LIMITS.tokensPerAgent) {
       return null;
@@ -56,7 +60,7 @@ export class OfficeAgentTokens {
     const token = `${OFFICE_AGENT_TOKEN_PREFIX}${randomBytes(32).toString("base64url")}`;
     const row = this.db
       .insert(officeAgentTokens)
-      .values({ agentId, kind, label, tokenHash: hashToken(token), mintedBy })
+      .values({ agentId, kind, label, tokenHash: hashToken(token), mintedBy, forUserId })
       .returning({ id: officeAgentTokens.id })
       .get();
     return { id: row.id, label, token };
@@ -68,6 +72,7 @@ export class OfficeAgentTokens {
     tokenId: string;
     kind: OfficeAgentTokenKind;
     mintedBy: string | null;
+    forUserId: string | null;
   } | null {
     if (!TOKEN.test(presented)) return null;
     const row = this.db
@@ -84,7 +89,13 @@ export class OfficeAgentTokens {
         .where(eq(officeAgentTokens.id, row.id))
         .run();
     }
-    return { agentId: row.agentId, tokenId: row.id, kind: row.kind, mintedBy: row.mintedBy };
+    return {
+      agentId: row.agentId,
+      tokenId: row.id,
+      kind: row.kind,
+      mintedBy: row.mintedBy,
+      forUserId: row.forUserId,
+    };
   }
 
   /** The agent's `api` tokens, without any secret material. */
@@ -112,17 +123,17 @@ export class OfficeAgentTokens {
     );
   }
 
-  /** Drop the tokens of the agent's engine runs (on stop, and before a new start). */
+  /** Drop the tokens of the agent's engine runs and their turns (on stop, and before a new start). */
   revokeSessions(agentId: string): void {
     this.db
       .delete(officeAgentTokens)
-      .where(and(eq(officeAgentTokens.agentId, agentId), eq(officeAgentTokens.kind, "session")))
+      .where(and(eq(officeAgentTokens.agentId, agentId), ne(officeAgentTokens.kind, "api")))
       .run();
   }
 
-  /** After a restart no engine run holds a session token any more. */
+  /** After a restart no engine run holds a session or turn token any more. */
   revokeAllSessions(): void {
-    this.db.delete(officeAgentTokens).where(eq(officeAgentTokens.kind, "session")).run();
+    this.db.delete(officeAgentTokens).where(ne(officeAgentTokens.kind, "api")).run();
   }
 }
 

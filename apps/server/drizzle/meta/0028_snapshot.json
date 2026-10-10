@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "38670cf7-9565-4e2a-8537-42ac88b8eea6",
+  "id": "af25a3d9-3580-4aef-a1b7-b25f189adf10",
   "prevId": "943aa7f8-7722-44c4-adc0-f239cdd63bcd",
   "tables": {
     "agent_events": {
@@ -3290,6 +3290,14 @@
           "notNull": true,
           "autoincrement": false
         },
+        "mind_scrub_pending": {
+          "name": "mind_scrub_pending",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "integer",
@@ -3469,6 +3477,13 @@
           "notNull": true,
           "autoincrement": false
         },
+        "for_user_id": {
+          "name": "for_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "label": {
           "name": "label",
           "type": "text",
@@ -3524,6 +3539,15 @@
           "tableFrom": "office_agent_tokens",
           "tableTo": "office_agents",
           "columnsFrom": ["agent_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "office_agent_tokens_for_user_id_users_id_fk": {
+          "name": "office_agent_tokens_for_user_id_users_id_fk",
+          "tableFrom": "office_agent_tokens",
+          "tableTo": "users",
+          "columnsFrom": ["for_user_id"],
           "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"

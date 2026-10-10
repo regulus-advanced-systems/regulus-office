@@ -13,19 +13,20 @@ CREATE UNIQUE INDEX `office_agent_room_reads_unique` ON `office_agent_room_reads
 ALTER TABLE `office_agent_memories` ADD `sealed` integer DEFAULT false NOT NULL;--> statement-breakpoint
 ALTER TABLE `office_agent_memories` ADD `room_scope` text DEFAULT '[]' NOT NULL;--> statement-breakpoint
 ALTER TABLE `office_agent_requests` ADD `room_scope` text DEFAULT '[]' NOT NULL;--> statement-breakpoint
+ALTER TABLE `office_agent_settings` ADD `mind_scrub_pending` integer DEFAULT false NOT NULL;--> statement-breakpoint
 ALTER TABLE `office_agent_soul_versions` ADD `sealed` integer DEFAULT false NOT NULL;--> statement-breakpoint
+ALTER TABLE `office_agent_tokens` ADD `for_user_id` text REFERENCES `users`(`id`) ON DELETE cascade;--> statement-breakpoint
 ALTER TABLE `office_agent_tokens` ADD `minted_by` text REFERENCES `users`(`id`) ON DELETE set null;--> statement-breakpoint
 ALTER TABLE `office_agents` ADD `stopped_by_person` integer DEFAULT false NOT NULL;--> statement-breakpoint
 ALTER TABLE `office_agents` ADD `instructions_sealed` integer DEFAULT false NOT NULL;--> statement-breakpoint
 -- A shared agent's memories and notes from before this migration carry no room
--- (#301). They may be about any room the agent could read, so each takes the
--- rooms the agent is granted now as its scope: it reaches only people who can
--- see all of them. Personal agents' entries are read by their owner only and
--- keep an empty scope.
-UPDATE `office_agent_memories` SET `room_scope` = (
-	SELECT json_group_array(`operation_id`) FROM `office_agent_grants`
-	WHERE `office_agent_grants`.`agent_id` = `office_agent_memories`.`agent_id`
-) WHERE `agent_id` IN (SELECT `id` FROM `office_agents` WHERE `owner_user_id` IS NULL);
+-- (#301), and nothing recorded tells reliably which rooms they are about (its
+-- grants may have been wider then). Their rooms are unknown: they are kept,
+-- and shown to nobody. A shared agent starts with none of its earlier
+-- memories. Personal agents' entries are read by their owner only and are not
+-- touched.
+UPDATE `office_agent_memories` SET `room_scope` = 'unknown'
+WHERE `agent_id` IN (SELECT `id` FROM `office_agents` WHERE `owner_user_id` IS NULL);
 --> statement-breakpoint
 -- A shared agent's engine sessions from before this migration may hold what it
 -- read under its grants alone, for whoever asked. They are dropped once: its

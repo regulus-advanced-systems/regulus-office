@@ -174,11 +174,7 @@ export class HermesExternalEngine implements OfficeAgentEngine {
     run.turns += 1;
     const host = this.#host(run);
     run.queue = run.queue
-      .then(() => {
-        // Turns run one after another: the office answers tool calls for this person meanwhile (#301).
-        this.#emit({ type: "turn", agentId, userId: message.userId });
-        return runTurn(host, message);
-      })
+      .then(() => runTurn(host, message))
       .catch((err) => {
         // runTurn reports its own failures; this is a bug in it, still not silent.
         this.options.logger.error(
@@ -193,20 +189,11 @@ export class HermesExternalEngine implements OfficeAgentEngine {
         });
       })
       .finally(() => {
-        this.#emit({ type: "turn", agentId, userId: null });
         run.turns -= 1;
         if (run.turns === 0 && this.#runs.get(agentId) === run && run.health.ok) {
           this.#emit({ type: "status", agentId, status: "ready" });
         }
       });
-  }
-
-  forgetConversation(agentId: string, userId: string): void {
-    const run = this.#runs.get(agentId);
-    if (!run || run.state.sessions[userId] === undefined) return;
-    // Their next message gets a new Hermes session. What Hermes itself remembers is its own.
-    delete run.state.sessions[userId];
-    this.#emit({ type: "state", agentId, state: { ...run.state } });
   }
 
   async health(agentId: string): Promise<EngineHealth> {

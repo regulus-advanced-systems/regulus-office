@@ -263,8 +263,12 @@ describe("a turn that hangs", () => {
     const before = Date.now();
     await engine.stop(agent.id);
     expect(Date.now() - before).toBeLessThan(350);
-    // A stopped agent says nothing more.
-    expect(events.filter((e) => e.type === "message" || e.type === "error")).toEqual([]);
+    // A stopped agent answers nothing more; the person whose turn was cut short is told so,
+    // once, so that they are not left waiting (#301).
+    expect(events.filter((e) => e.type === "message")).toEqual([]);
+    expect(events.filter((e) => e.type === "error")).toMatchObject([
+      { type: "error", message: "the agent was stopped" },
+    ]);
     expect(await engine.health(agent.id)).toEqual({ ok: false, detail: "not started" });
     await expect(engine.send(agent.id, message)).rejects.toThrow("not started");
   });

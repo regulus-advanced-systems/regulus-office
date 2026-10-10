@@ -44,7 +44,9 @@ export function callerFromRequest(
   if (!token) return null;
   const found = deps.tokens.verify(token);
   const agent = found ? deps.store.get(found.agentId) : undefined;
-  return found && agent ? { agent, caller: { kind: found.kind, mintedBy: found.mintedBy } } : null;
+  if (!found || !agent) return null;
+  const { kind, mintedBy, forUserId } = found;
+  return { agent, caller: { kind, mintedBy, forUserId } };
 }
 
 /** The agent a request's bearer token belongs to, or null. */
