@@ -121,6 +121,21 @@ export const SOCIAL_HELP: readonly HotkeyBinding[] = [
   },
 ];
 
+/**
+ * Shown with the Navigation keys but not dispatched from here: the registry
+ * ignores presses with a modifier, and the palette (ui/palette/hotkey.ts, #261)
+ * has its own rule for when Ctrl+K is its to take.
+ */
+export const PALETTE_HELP: readonly HotkeyBinding[] = [
+  {
+    id: "commandPalette",
+    key: "Ctrl+K",
+    description:
+      "Command palette: jump to a level, room, person, henchman, issue or action (⌘K on a Mac)",
+    group: "Navigation",
+  },
+];
+
 /** Binding ids that move keyboard focus to the chat input (ui/chat). */
 export const FOCUS_CHAT_HOTKEYS: ReadonlySet<string> = new Set(["focusChat", "focusChatEnter"]);
 

@@ -234,6 +234,34 @@ describe("tickJump", () => {
     expect(log).toEqual(["open:a1"]);
     expect(useSearchStore.getState().reveal).toEqual({ agentId: "a1", docId: 11, query: "needle" });
   });
+
+  test("a jump that is not from a search (#261): no match to reveal; walk-only stops at the desk", () => {
+    const state = {
+      ...operationFixture,
+      operationId: "f1",
+      layoutTemplateId: "room",
+      henchmen: { a1: { ...henchmanFixture, seatId: desk.id } },
+    } as OperationState;
+    useCompoundStore.setState({ world });
+    useOperationStore.getState().apply(state);
+    usePlayerStore.setState({
+      spawned: true,
+      spawnKey: "operation:f1",
+      x: desk.pose.x + 0.5,
+      z: desk.pose.z,
+      target: null,
+      navigation: { walkable: () => true, plan: (_from, to) => [to] },
+    });
+    const progress = () => ({ rode: false, walkingSince: null });
+    const plain = { ...target, docId: null, query: "" };
+    const opened = recorder();
+    expect(tickJump(plain, progress(), opened.deps)).toBe(false);
+    expect(opened.log).toEqual(["open:a1"]);
+    expect(useSearchStore.getState().reveal).toBeNull();
+    const walked = recorder();
+    expect(tickJump({ ...plain, walkOnly: true }, progress(), walked.deps)).toBe(false);
+    expect(walked.log).toEqual([]);
+  });
 });
 
 test("highlightTerms marks every occurrence, case-insensitively", () => {

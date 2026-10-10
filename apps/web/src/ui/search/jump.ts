@@ -15,10 +15,13 @@ export interface JumpTarget {
   operationId: string;
   /** The henchman's desk seat from the search result; the live operation state wins. */
   seatId?: string;
-  docId: number;
+  /** The search hit to show in the terminal; null when the jump is not from a search (#261). */
+  docId: number | null;
   /** The query, so the terminal can show the match. */
   query: string;
   startedAt: number;
+  /** Stop at the desk and leave the terminal shut (the palette's "Walk to", #261). */
+  walkOnly?: boolean;
 }
 
 export interface JumpWorld {

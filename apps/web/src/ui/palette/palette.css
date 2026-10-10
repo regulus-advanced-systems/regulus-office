@@ -1,0 +1,65 @@
+/* Command palette (#261): the search dialog's field over a list of rows. */
+
+.rg-palette {
+  display: grid;
+  gap: 8px;
+}
+.rg-palette__input {
+  width: 100%;
+  font-size: 16px;
+}
+.rg-palette__list {
+  display: grid;
+  gap: 4px;
+  max-height: min(52vh, 440px);
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.rg-palette__option {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border: 1px solid var(--rg-color-panel-border, #d9d2c3);
+  border-radius: var(--rg-radius-button, 8px);
+  background: var(--rg-color-raised);
+  color: var(--rg-color-ink, #1f2233);
+  cursor: pointer;
+}
+.rg-palette__option[aria-selected="true"] {
+  border-color: var(--rg-color-blue, #2d7ff9);
+  background: var(--rg-color-selected);
+}
+.rg-palette__group {
+  justify-self: start;
+  padding: 1px 8px;
+  border-radius: var(--rg-radius-chip, 999px);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--rg-color-plate-ink);
+  background: var(--rg-color-plate);
+  border: 1px solid var(--rg-color-frame-shadow);
+}
+.rg-palette__title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rg-palette__hint {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--rg-color-ink-muted, #5a5a66);
+}
+.rg-palette__status,
+.rg-palette__help {
+  margin: 0;
+  font-size: 12px;
+  color: var(--rg-color-ink-muted, #5a5a66);
+}
+.rg-palette__status {
+  min-height: 18px;
+}
