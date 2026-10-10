@@ -59,7 +59,7 @@ const DECOR_SIZE = {
   shelf: { w: 1.2, h: 0.3, y: 1.9 },
 } as const;
 /** Wall space each decor item takes, whatever its kind (the widest is the shelf). */
-const DECOR_SLOT = 1.2;
+export const DECOR_SLOT = 1.2;
 
 /** Which full wall a run is on: the one facing the door, or its neighbour. */
 type Role = "back" | "side";

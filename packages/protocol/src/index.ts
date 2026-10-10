@@ -12,6 +12,7 @@
  * - operations-api.ts      REST shapes for operations, repos and operation members
  * - boards-api.ts      REST shapes for the issue/PR board panel and its write actions (#36)
  * - changes-api.ts     REST shapes for a henchman's changes window: diff, commit, discard (#38)
+ * - bookshelf-api.ts   the room's bookshelf: the repo's Markdown docs, paths, limits, REST (#264)
  * - celebrations.ts    merge gong messages: `pr.merged`, `gong.ring` (#43)
  * - clock-sync.ts     four-timestamp clock sync for the jukebox (#47)
  * - coffee.ts         the break-room coffee machine: the buzz, its speed boost and the jitters (#63)
@@ -56,6 +57,7 @@ export * from "./agent-events.ts";
 export * from "./agent-messages.ts";
 export * from "./blast-door.ts";
 export * from "./boards-api.ts";
+export * from "./bookshelf-api.ts";
 export * from "./building-state.ts";
 export * from "./celebrations.ts";
 export * from "./changes-api.ts";

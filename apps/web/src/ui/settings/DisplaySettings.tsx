@@ -85,6 +85,14 @@ export function DisplaySettings() {
               hint="Only for you: the music keeps playing for everyone else."
             />
           </div>
+          <div className="rg-field">
+            <Switch
+              checked={settings.pageTurnSound}
+              onChange={(next) => update({ pageTurnSound: next })}
+              label="Page-turn sound"
+              hint="A quiet page turn when a document opens at a room's bookshelf."
+            />
+          </div>
           <VoiceSettings />
           <DictationSettings />
           <div className="rg-field">

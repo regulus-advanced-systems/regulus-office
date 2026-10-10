@@ -41,6 +41,8 @@ export interface UiSettings {
    * "needs you" and "answer ready" bubbles always show.
    */
   activityBubbles: boolean;
+  /** The quiet page turn when a document opens at a room's bookshelf (#264). */
+  pageTurnSound: boolean;
 }
 
 export const SETTINGS_STORAGE_KEY = "regulus.ui.settings.v1";
@@ -57,6 +59,7 @@ export const DEFAULT_SETTINGS: Readonly<UiSettings> = {
   pushToTalk: false,
   micDeviceId: "",
   activityBubbles: true,
+  pageTurnSound: true,
 };
 
 export interface StorageLike {
@@ -102,6 +105,8 @@ export function parseSettings(raw: string | null | undefined): UiSettings {
         : DEFAULT_SETTINGS.micDeviceId,
     activityBubbles:
       typeof o.activityBubbles === "boolean" ? o.activityBubbles : DEFAULT_SETTINGS.activityBubbles,
+    pageTurnSound:
+      typeof o.pageTurnSound === "boolean" ? o.pageTurnSound : DEFAULT_SETTINGS.pageTurnSound,
   };
 }
 

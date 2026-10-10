@@ -47,6 +47,7 @@ import { checkAgentForm } from "./agentFormChecks.ts";
 import { checkAgentMind } from "./agentMindChecks.ts";
 import { checkBlastDoor } from "./blastDoorChecks.ts";
 import { checkBoardLayout } from "./boardLayoutChecks.ts";
+import { checkBookshelf } from "./bookshelfChecks.ts";
 import {
   addDeskInRoomSettings,
   aimAt,
@@ -951,6 +952,13 @@ test("wall pictures: uploaded, hung on a free wall, seen by the other browser, r
   test.setTimeout(240_000);
   await ensureApollo();
   await checkWallPictures(ownerPage, memberPage, "Apollo", "octo/hello");
+});
+
+test("the bookshelf: the repo's docs for those who may see the repo, a hostile document rendered as text (#264)", async () => {
+  test.skip(!process.env.E2E_DATA_DIR, "needs the locally started server (local git remotes)");
+  test.setTimeout(240_000);
+  await ensureApollo();
+  await checkBookshelf(ownerPage, memberPage, "Apollo", "octo/hello");
 });
 
 test("access taken away while in a room: a plain message, no reconnect loop (#244)", async () => {

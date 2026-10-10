@@ -18,9 +18,10 @@
  * layout that leaves a seat or stand point unreachable throws.
  */
 import { DECOR_STYLES, ROOM_MAX_TILES, ROOM_MIN_TILES } from "@regulus/protocol";
+import { anchorStandPose } from "../query.ts";
 import { COMPASS_DIRECTIONS, ROOM_TIERS, type RoomTemplateInput, type RoomTier } from "../types.ts";
 import { loadTemplate } from "../validate.ts";
-import { hangBoardWall } from "./anchors.ts";
+import { DECOR_SLOT, hangBoardWall } from "./anchors.ts";
 import { ROOM_MIN_FREE, ROOM_STUB_HEIGHT, ROOM_WALL_HEIGHT, TILE } from "./constants.ts";
 import { roomLighting } from "./lighting.ts";
 import { roomFreeFraction } from "./measure.ts";
@@ -93,7 +94,21 @@ function build(input: GenerateRoomInput, maxDeskCount: number): RoomLayout {
     style.wallDecor.slice(0, Math.min(4, deskCount - 1)),
   );
   const planner = new PropPlanner(shell, grid, w, d, board.free, style);
-  lamps.push(...placeProps(planner, deskCount));
+  lamps.push(
+    ...placeProps(planner, deskCount, {
+      // Full walls are whole, so an anchor's or decor item's `t` is its side's.
+      stands: board.anchors.flatMap((a) => {
+        const wall = shell.walls.find((x) => x.id === a.wallId);
+        return wall ? [anchorStandPose(wall, a)] : [];
+      }),
+      // The slot, not the item's own width: a style's choice of decor never moves the shelf.
+      decor: board.wallDecor.map((x) => ({
+        side: x.wallId,
+        start: x.t - DECOR_SLOT / 2,
+        end: x.t + DECOR_SLOT / 2,
+      })),
+    }),
+  );
   for (const prop of planner.props) {
     f.obstacles.push(prop.obstacle);
     models[prop.obstacle.id] = prop.model;

@@ -17,6 +17,7 @@ import {
   originPolicyFor,
 } from "./auth/index.ts";
 import { dbAccessSubjects, LIVE_ACCESS_SWEEP_MS, LiveAccess } from "./auth/live-access.ts";
+import { createBookshelf } from "./bookshelf/index.ts";
 import { createCelebrations, watchQueueEmptied } from "./celebrations/index.ts";
 import { ChangesService, mountChangesRoutes } from "./changes/index.ts";
 import {
@@ -498,6 +499,17 @@ async function main(): Promise<void> {
   // `agent.worktree` (#33) reach `worktrees` through the manager.
   const worktrees = createWorktrees({ db, logger, config, repos: operations.repos, runner });
   mountWorktreeRoutes(server.router, { auth, db, prune: worktrees.prune });
+  // The room's bookshelf (#264): the repo's Markdown docs from the office's mirror, fetched
+  // with the office's own credential under the mirror's lock.
+  createBookshelf({
+    db,
+    logger,
+    repos: operations.repos,
+    refresh: (repo) =>
+      worktrees.workspaces.locks.run(repo.workdir, () =>
+        worktrees.workspaces.fetch(repo, repo.workdir),
+      ),
+  }).mount(server.router, auth);
   // Changes window (#38): git in the owner's runner/sandbox; view for the operation, write for the owner.
   mountChangesRoutes(server.router, {
     auth,

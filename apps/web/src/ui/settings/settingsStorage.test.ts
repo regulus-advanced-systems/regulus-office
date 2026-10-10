@@ -39,6 +39,7 @@ describe("settings storage", () => {
       pushToTalk: false,
       micDeviceId: "",
       activityBubbles: true,
+      pageTurnSound: true,
     });
     expect(parseSettings('{"reducedMotion":"no","volume":-1}')).toEqual({
       reducedMotion: null,
@@ -52,6 +53,7 @@ describe("settings storage", () => {
       pushToTalk: false,
       micDeviceId: "",
       activityBubbles: true,
+      pageTurnSound: true,
     });
   });
 
@@ -61,12 +63,14 @@ describe("settings storage", () => {
       pushToTalk: false,
       micDeviceId: "",
       activityBubbles: true,
+      pageTurnSound: true,
     });
     expect(parseSettings('{"voiceVolume":3,"pushToTalk":"on","micDeviceId":7}')).toMatchObject({
       voiceVolume: 1,
       pushToTalk: false,
       micDeviceId: "",
       activityBubbles: true,
+      pageTurnSound: true,
     });
     expect(
       parseSettings('{"voiceVolume":0.3,"pushToTalk":true,"micDeviceId":"abc"}'),
@@ -113,6 +117,7 @@ describe("settings storage", () => {
       pushToTalk: true,
       micDeviceId: "mic-2",
       activityBubbles: false,
+      pageTurnSound: false,
     };
     saveSettings(storage, settings);
     expect(storage.map.get(SETTINGS_STORAGE_KEY)).toBe(serializeSettings(settings));
@@ -145,4 +150,7 @@ test("activity bubbles are on unless turned off (#256)", () => {
   expect(parseSettings("{}").activityBubbles).toBe(true);
   expect(parseSettings('{"activityBubbles":false}').activityBubbles).toBe(false);
   expect(parseSettings('{"activityBubbles":"no"}').activityBubbles).toBe(true);
+  expect(parseSettings("{}").pageTurnSound).toBe(true);
+  expect(parseSettings('{"pageTurnSound":false}').pageTurnSound).toBe(false);
+  expect(parseSettings('{"pageTurnSound":0}').pageTurnSound).toBe(true);
 });

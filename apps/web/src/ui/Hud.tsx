@@ -11,6 +11,7 @@ import { useUiStore } from "../state/ui.ts";
 import { GitHubLinkPrompt } from "./access/GitHubLinkPrompt.tsx";
 import { AgentHost } from "./agent/AgentHost.tsx";
 import { BoardsHost } from "./boards/BoardsHost.tsx";
+import { BookshelfHost } from "./bookshelf/BookshelfHost.tsx";
 import { BuildModeHost } from "./build-mode/BuildModeHost.tsx";
 import { ChatPanel } from "./chat/ChatPanel.tsx";
 import { BuzzMeter } from "./coffee/BuzzMeter.tsx";
@@ -139,6 +140,7 @@ export function Hud() {
       <AgentHost />
       <BoardsHost />
       <QueueHost />
+      <BookshelfHost />
       <MeetingHost />
       <JukeboxHost />
       <MediaHost />

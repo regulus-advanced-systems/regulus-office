@@ -64,6 +64,7 @@ describe("ui store", () => {
       pushToTalk: false,
       micDeviceId: "",
       activityBubbles: true,
+      pageTurnSound: true,
     });
     store.getState().updateSettings({ volume: 0.1 });
     expect(createUiStore({ storage }).getState().settings.volume).toBe(0.1);

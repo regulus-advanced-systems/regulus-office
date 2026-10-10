@@ -19,6 +19,7 @@ export { roomLayoutSvg } from "./debug-svg.ts";
 export { generateRoom, maxDeskCount, RoomGenerationError } from "./generate.ts";
 export * from "./legacy.ts";
 export { facingProblems, overlapProblems, roomFreeFraction, roomProblems } from "./measure.ts";
+export { DOCS_SHELF_ID, DOCS_SHELF_MODEL, SHELF_CLEARANCE } from "./props.ts";
 export * from "./seat-ids.ts";
 export { DOOR_WALL_ID, doorSpan } from "./shell.ts";
 export { type PodSlot, podSlots, type SlotGrid } from "./slots.ts";
