@@ -29,10 +29,13 @@ const INSIDE_FROM_PX = 120;
 /** Where the pill stands for a box at `rect`: its top-right corner, inside a tall one. */
 export function pillPosition(rect: { top: number; right: number; height: number }): CSSProperties {
   const inside = rect.height >= INSIDE_FROM_PX;
+  const left = Math.max(48, rect.right - (inside ? 8 : 0));
   return {
-    left: Math.max(48, rect.right - (inside ? 8 : 0)),
+    left,
     top: inside ? rect.top + 8 : Math.max(36, rect.top - 6),
     transform: inside ? "translate(-100%, 0)" : "translate(-100%, -100%)",
+    // It grows to the left: never past the window's edge (the words heard are cut instead).
+    maxWidth: Math.min(560, Math.max(40, left - 8)),
   };
 }
 

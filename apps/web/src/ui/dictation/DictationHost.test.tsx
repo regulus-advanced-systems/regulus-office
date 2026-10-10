@@ -290,11 +290,13 @@ describe("bits", () => {
       left: 400,
       top: 694,
       transform: "translate(-100%, -100%)",
+      maxWidth: 392,
     });
     expect(pillPosition({ top: 100, right: 900, height: 480 })).toEqual({
       left: 892,
       top: 108,
       transform: "translate(-100%, 0)",
+      maxWidth: 560,
     });
     // Never off the top of the window.
     expect(pillPosition({ top: 10, right: 400, height: 32 }).top).toBe(36);

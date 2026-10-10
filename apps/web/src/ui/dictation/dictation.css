@@ -7,7 +7,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  max-width: min(520px, calc(100vw - 16px));
+  width: max-content;
   pointer-events: none;
 }
 .rg-dictation__mic {
