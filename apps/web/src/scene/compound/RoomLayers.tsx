@@ -12,6 +12,7 @@ import { useShallow } from "zustand/react/shallow";
 import { useOperationStore } from "../../state/operation.ts";
 import { roomOperationStore, useRoomsStore } from "../../state/rooms.ts";
 import { BoardLayer } from "../boards/BoardLayer.tsx";
+import { BookshelfLayer } from "../bookshelf/BookshelfLayer.tsx";
 import { anchorPlacement } from "../furniture/placement.ts";
 import { GongLayer } from "../gong/GongLayer.tsx";
 import { HenchmanLayer } from "../henchmen/HenchmanLayer.tsx";
@@ -93,6 +94,8 @@ const JoinedRoom = memo(function JoinedRoom({
           <PictureLayer template={layout} />
           <UsageScreens layout={layout} depth={scope.wallDepth} />
           <MeetingTable template={layout} />
+          {/* Last: its E listens after the boards', the clipboard's and the gong's. */}
+          <BookshelfLayer template={layout} />
           {interactive && <DepartingHenchmen template={layout} />}
         </Suspense>
       </group>

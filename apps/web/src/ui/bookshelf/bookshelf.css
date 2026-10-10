@@ -1,0 +1,178 @@
+/* The room's bookshelf reader (#264): the shelf on the left, the page on the right. */
+
+.rg-modal--bookshelf {
+  height: min(100%, 820px);
+}
+.rg-modal--bookshelf > .rg-modal__body {
+  display: flex;
+  overflow: hidden;
+  background: none;
+}
+.rg-shelf {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(200px, 280px) minmax(0, 1fr);
+  gap: 16px;
+}
+.rg-shelf__side,
+.rg-shelf__reader {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.rg-shelf__filter {
+  width: 100%;
+}
+.rg-shelf__list,
+.rg-shelf__page {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.rg-shelf__list ul {
+  list-style: none;
+  margin: 0 0 10px;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+.rg-shelf__folder {
+  margin: 0 0 4px;
+  font-family: var(--rg-font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--rg-color-ink-muted);
+  overflow-wrap: anywhere;
+}
+.rg-shelf__doc,
+.rg-shelf__hit {
+  display: block;
+  width: 100%;
+  padding: 4px 8px;
+  text-align: left;
+  font: inherit;
+  font-size: 14px;
+  color: var(--rg-color-ink);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.rg-shelf__doc:hover:not(:disabled),
+.rg-shelf__hit:hover {
+  background: var(--rg-color-raised);
+  border-color: var(--rg-color-panel-border);
+}
+.rg-shelf__doc[aria-current="page"] {
+  background: var(--rg-color-raised);
+  border-color: var(--rg-color-gold);
+  font-weight: 700;
+}
+.rg-shelf__doc:disabled {
+  color: var(--rg-color-ink-muted);
+  cursor: default;
+}
+.rg-shelf__hit-where {
+  display: block;
+  font-family: var(--rg-font-mono);
+  font-size: 11px;
+  color: var(--rg-color-ink-muted);
+}
+.rg-shelf__hit-text {
+  display: block;
+  font-size: 13px;
+}
+.rg-shelf__hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--rg-color-ink-muted);
+  overflow-wrap: anywhere;
+}
+.rg-shelf__note {
+  margin: 24px 0;
+  color: var(--rg-color-ink-muted);
+}
+.rg-shelf__bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--rg-color-panel-border);
+}
+.rg-shelf__path {
+  min-width: 0;
+  font-family: var(--rg-font-mono);
+  font-size: 13px;
+  color: var(--rg-color-ink-muted);
+  overflow-wrap: anywhere;
+}
+.rg-shelf__page {
+  padding: 4px 12px 16px 2px;
+}
+
+/* A document: the sanitised markdown (.rg-md, boards.css) at reading size. */
+.rg-doc {
+  max-width: 78ch;
+  font-size: 15px;
+  line-height: 1.55;
+}
+.rg-doc h1,
+.rg-doc h2 {
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--rg-color-panel-border);
+}
+.rg-doc h1 {
+  font-size: 26px;
+}
+.rg-doc h2 {
+  font-size: 21px;
+}
+.rg-doc h3 {
+  font-size: 17px;
+}
+.rg-doc__ref {
+  cursor: pointer;
+}
+.rg-doc__offshelf {
+  text-decoration: underline dotted;
+}
+.rg-doc__image {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 8px 0;
+  border: 1px solid var(--rg-color-panel-border);
+  border-radius: 4px;
+}
+.rg-md__table {
+  overflow-x: auto;
+  margin: 12px 0;
+}
+.rg-md__table table {
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.rg-md__table th,
+.rg-md__table td {
+  padding: 4px 10px;
+  border: 1px solid var(--rg-color-panel-border);
+  vertical-align: top;
+  text-align: left;
+}
+.rg-md__table th {
+  background: var(--rg-color-raised);
+}
+
+@media (max-width: 720px) {
+  .rg-shelf {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(120px, 34%) minmax(0, 1fr);
+  }
+}

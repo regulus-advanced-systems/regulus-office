@@ -61,7 +61,7 @@ export const DEFAULT_HOTKEYS: readonly HotkeyBinding[] = [
     id: "interact",
     key: "e",
     description:
-      "Interact with what is in reach: desk, laptop, board, clipboard, gong, door button, the lift; sit down or stand up",
+      "Interact with what is in reach: desk, laptop, board, clipboard, gong, bookshelf, door button, the lift; sit down or stand up",
     group: "World",
   },
   {
