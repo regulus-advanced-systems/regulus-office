@@ -297,8 +297,6 @@ test("Who's where lists the owner in the lobby; clicking the name walks there (#
 });
 
 test("Ctrl+K opens the command palette, by keyboard alone; a text field and an open dialog keep the key (#261)", async () => {
-  // Two browsers, several dialogs and a walk back, drawn in software.
-  test.setTimeout(180_000);
   await checkCommandPalette(ownerPage, memberPage);
 });
 
