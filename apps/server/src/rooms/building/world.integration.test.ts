@@ -99,6 +99,9 @@ beforeAll(async () => {
     auth: createDevHeaderAuth({ NODE_ENV: "test" }),
     publicUrl: "https://office.example.com",
     production: false,
+    // These tests are about someone who arrives at the lobby spawn; coming back where
+    // you left has its own (returning.integration.test.ts).
+    places: null,
   });
   // Alpha, a project room on Ante's level: Ante's GitHub access covers it, Mia's does not.
   for (const [id, name] of [

@@ -11,6 +11,7 @@ import { getOfficeClient } from "../../net/index.ts";
 import { cameraView } from "../../state/camera.ts";
 import { useConnectionStore } from "../../state/connection.ts";
 import { DRAFT_LEVEL_ID, useLevelStore } from "../../state/level.ts";
+import { useOperationsStore } from "../../state/operations.ts";
 import { usePlayerStore } from "../../state/player.ts";
 import type { CorridorChunk } from "./corridors.ts";
 import type { Bounds, PlacedRoom } from "./placed.ts";
@@ -118,6 +119,14 @@ export function RoomPresence({
     since.current = 0;
     const player = usePlayerStore.getState();
     if (!player.spawned) return;
+    // Which rooms we may enter is not known until the operation list has loaded: until then
+    // the pick could only be "no room", and a player who came back inside a room (#262)
+    // would tell the building they are in none.
+    const list = useOperationsStore.getState();
+    if (!target && list.operations === null && list.error === null) {
+      since.current = PRESENCE_S;
+      return;
+    }
     const pick = pickRooms(
       world,
       player,

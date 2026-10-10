@@ -20,6 +20,7 @@ import type { ChatStore } from "../chat/store.ts";
 import type { RoomDefinition } from "../transport.ts";
 import type { BlastDoorOptions } from "./blast-door.ts";
 import type { OperationSource } from "./operations.ts";
+import type { PlaceStore } from "./place-store.ts";
 import type { ScreenShareRules } from "./screen-share.ts";
 
 export type BuildingState = InstanceType<typeof BuildingStateSchema>;
@@ -47,6 +48,8 @@ export interface BuildingRoomDeps {
    * is no default that shows anything.
    */
   lairView(user: RoomAuthUser): LairView;
+  /** Where each person last stood (#262); absent = everyone arrives at the lobby spawn. */
+  places?: PlaceStore;
   /** The lobby's blast door (#188): open time and the audit of presses. */
   blastDoor?: BlastDoorOptions;
   /** The lobby jukebox (#47): playhead, queue and permissions; absent = refused. */

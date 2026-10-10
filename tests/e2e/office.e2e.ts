@@ -102,6 +102,7 @@ import {
   sampleLocalPoses,
   screenPointOf,
 } from "./probes.ts";
+import { checkReturnWhereYouLeft } from "./returnChecks.ts";
 import {
   backToLobbyMiddle,
   checkChatBubbles,
@@ -940,6 +941,20 @@ test("a second person on a level: one room opens for them, the other is a sealed
   ensureRemoteRepo(process.env.E2E_DATA_DIR ?? "", "octo", "forge");
   await ensureOperation(ownerPage, "Vulcan", "octo/forge");
   await checkOpenAndClosedRooms(ownerPage, memberPage, "Apollo", "octo/hello", "Vulcan");
+});
+
+test("back where you left: a reload returns the owner to Apollo; the member, who lost Apollo while away, arrives in the lobby with no word of it (#262)", async () => {
+  test.skip(!process.env.E2E_DATA_DIR, "needs the locally started server (local git remotes)");
+  // Two people walk into a room on another level and three pages load.
+  test.setTimeout(300_000);
+  await ensureApollo();
+  await checkReturnWhereYouLeft(
+    ownerPage,
+    memberPage,
+    "Apollo",
+    "octo/hello",
+    process.env.E2E_RETURN_SHOTS,
+  );
 });
 
 test("the jukebox: E opens it, a queued track plays in both browsers at the same playhead (#47)", async () => {
