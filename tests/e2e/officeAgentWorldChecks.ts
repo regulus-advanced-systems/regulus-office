@@ -6,6 +6,7 @@
  *   into the war room, and the member sees it there with "<owner>'s assistant" over it;
  * - the member clicks it: no chat opens (a toast says whose it is), and the server refuses
  *   them its chat, its dismiss and its recall;
+ * - the owner stops it and it is gone for both browsers, starts it and it is back, twice (#301);
  * - the owner presses `E` next to it: its chat opens as a window in the world; Dismiss
  *   sends it wandering for both browsers and Recall brings it back;
  * - the shared agent appears for both and wanders, and both the owner and the member open its
@@ -161,6 +162,40 @@ export async function checkAgentsInTheWorld(owner: Page, member: Page, shots?: s
     });
     if (shots) await owner.screenshot({ path: `${shots}/personal-agent-beside-owner.png` });
 
+    // Its owner stops it: a stopped agent has no body, for either browser (#301). Started
+    // again, it is back beside its owner. (It was not running before either: an agent that
+    // merely is not running keeps its body, which is what the checks above saw.)
+    const setRunning = async (verb: "start" | "stop") => {
+      const res = await owner.request.post(`/api/office-agents/${mine.id}/${verb}`, { headers });
+      expect(res.status(), await res.text()).toBe(200);
+      return (await res.json()) as { status: string; stoppedByPerson?: boolean };
+    };
+    const besideOwner = async () => {
+      const [body, pose] = [await bodyOf(owner, mine.id), await navPose(owner)];
+      return body && body.mode === "follow" && !body.moving
+        ? Math.hypot(body.x - pose.x, body.z - pose.z)
+        : 99;
+    };
+    for (const round of [1, 2]) {
+      expect(await setRunning("stop")).toMatchObject({ status: "stopped", stoppedByPerson: true });
+      for (const page of [owner, member]) {
+        await expect.poll(() => bodyOf(page, mine.id), { timeout: 15_000 }).toBeNull();
+      }
+      if (shots && round === 1) {
+        await owner.screenshot({ path: `${shots}/stopped-agent-has-no-body.png` });
+      }
+      expect((await setRunning("start")).stoppedByPerson).toBeUndefined();
+      for (const page of [owner, member]) {
+        await expect
+          .poll(async () => (await bodyOf(page, mine.id))?.name, { timeout: 15_000 })
+          .toBe(mine.name);
+      }
+      await expect.poll(besideOwner, { timeout: 15_000 }).toBeLessThan(3);
+      if (shots && round === 1) {
+        await owner.screenshot({ path: `${shots}/started-again-it-is-back.png` });
+      }
+    }
+
     // It follows them out of the lobby and into the war room.
     await standIn(owner, war);
     await expect
@@ -240,6 +275,17 @@ export async function checkAgentsInTheWorld(owner: Page, member: Page, shots?: s
     await expect(chat.getByRole("list", { name: `Chat with ${mine.name}` })).toBeVisible();
     await expect(chat.getByLabel(`Message to ${mine.name}`)).toBeVisible();
     if (shots) await owner.screenshot({ path: `${shots}/chat-window-from-the-world.png` });
+    // For the screenshots only (#301): a message this office cannot deliver (it has no runner)
+    // leaves two lines in the chat, enough for "Start this conversation over" and its divider.
+    if (shots) {
+      await chat.getByLabel(`Message to ${mine.name}`).fill("Hello");
+      await chat.getByRole("button", { name: "Send" }).click();
+      const over = chat.getByRole("button", { name: "Start this conversation over" });
+      await expect(over).toBeVisible({ timeout: 30_000 });
+      await over.click();
+      await expect(chat).toContainText("Started over here");
+      await owner.screenshot({ path: `${shots}/start-this-conversation-over.png` });
+    }
 
     // Dismiss: it goes off on its own, for both browsers. Recall: back to the owner's side.
     await chat.getByRole("button", { name: "Dismiss", exact: true }).click();
