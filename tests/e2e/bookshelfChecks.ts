@@ -19,6 +19,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, type Page } from "@playwright/test";
 import {
+  cameraState,
   clickInScene,
   navPose,
   roomNamed,
@@ -26,6 +27,7 @@ import {
   walkInto,
   walkTo,
   walkToLobby,
+  wheelZoomTo,
 } from "./compoundProbes.ts";
 import { MEMBER_GITHUB } from "./fakeGitHub.ts";
 import { checkGitHubNow, officeGitHubUrl, setRepoPermission } from "./githubAccess.ts";
@@ -223,7 +225,14 @@ export async function checkBookshelf(owner: Page, member: Page, operation: strin
   if (!place) return;
   if (await walkTo(owner, place.x, place.z)) await waitStill(owner);
   expect((await navPose(owner)).walking).toBe(false);
-  await shot(owner, "01-shelf-in-reach");
+  if (process.env.E2E_SHOTS_DIR) {
+    // Close up for the picture, then back to where the camera was.
+    const zoom = (await cameraState(owner)).wantZoom;
+    await owner.mouse.move(640, 420);
+    await wheelZoomTo(owner, 0.12);
+    await shot(owner, "01-shelf-in-reach");
+    await wheelZoomTo(owner, zoom);
+  }
   await owner.keyboard.press("t");
   const chat = owner.locator(".rg-chat__input");
   await expect(chat).toBeFocused();

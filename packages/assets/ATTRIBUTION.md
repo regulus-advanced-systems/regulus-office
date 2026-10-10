@@ -19,6 +19,7 @@ The four jukebox tracks are changed from the originals: re-encoded from the 256-
 | Lair art kit (#183): walls, floors, corridors, blast doors, lights, pipes, consoles, lair furniture, wall decor, plants and build-phase props | Regulus Office contributors | Built procedurally in code from primitives (`apps/web/src/scene/lair/geometry/`); no model, texture or image from any other source, no CC0 base | MIT (this repository) |
 | Outside and mountain (#188): the mountain round the compound, the blast door's portal and leaves, beach, sea shader, dock, boat, palms and rocks | Regulus Office contributors | Built procedurally in code (`apps/web/src/scene/compound/outside/`); no model, texture or image from any other source, no CC0 base | MIT (this repository) |
 | Blast door klaxon and machinery, surf and gulls (#188) | Regulus Office contributors | Synthesised at run time with Web Audio (`apps/web/src/scene/compound/outside/audio/`); no samples | MIT (this repository) |
+| The room's bookshelf and its page-turn sound (#264) | Regulus Office contributors | The shelf is the lair art kit's own shelving piece (above), placed by the room generator: no new model. The page turn is synthesised at run time with Web Audio (`apps/web/src/audio/pageTurn.ts`); no samples | MIT (this repository) |
 
 ## Fonts
 
