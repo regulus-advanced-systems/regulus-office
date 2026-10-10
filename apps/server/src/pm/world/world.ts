@@ -66,8 +66,12 @@ type Body = InstanceType<typeof OfficeAgentBodySchema>;
 /** Bodies are stepped this often, and the agent list re-read this often, ms. */
 export const STEP_MS = 300;
 export const SYNC_MS = 2_000;
-/** The owner moved this far since the agent was last sent: send it again, metres. */
-export const FOLLOW_RETARGET = 1;
+/**
+ * The owner moved this far since the agent was last sent: send it again, metres. With the
+ * polite distance this stays under `OFFICE_AGENT_REACH`: wherever its owner stops, `E`
+ * reaches the agent at their side (at 1 m it could be left 2.4 m behind, out of reach, #299).
+ */
+export const FOLLOW_RETARGET = 0.7;
 /** An answer of `mayEnter` is reused this long, ms. */
 export const ACCESS_TTL_MS = 3_000;
 

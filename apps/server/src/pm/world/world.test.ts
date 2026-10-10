@@ -1,10 +1,15 @@
 import { describe, expect, test } from "bun:test";
-import { LOBBY_LEVEL_ID, LOBBY_OPERATION_ID } from "@regulus/protocol";
+import {
+  LOBBY_LEVEL_ID,
+  LOBBY_OPERATION_ID,
+  OFFICE_AGENT_POLITE_DISTANCE,
+  OFFICE_AGENT_REACH,
+} from "@regulus/protocol";
 import { liftSpotIn } from "@regulus/room-layout";
 import { rng } from "@regulus/room-layout/src/compound/test-support.ts";
 import { centreOf, corridorAt, inRect, type LairRoom, readLair, roomAt } from "./geometry.ts";
 import { ACME, APOLLO, BOREALIS, lairState, person, type TestState } from "./test-lair.ts";
-import { AgentWorld, STEP_MS, type WorldAgent } from "./world.ts";
+import { AgentWorld, FOLLOW_RETARGET, STEP_MS, type WorldAgent } from "./world.ts";
 
 const agent = (over: Partial<WorldAgent>): WorldAgent => ({
   id: "a1",
@@ -124,6 +129,25 @@ describe("AgentWorld", () => {
       corridorAt(s.lair.levels.get(LOBBY_LEVEL_ID), body?.target ?? { x: 0, z: 0 }),
     ).not.toBeNull();
     expect(body?.hop).toBe(1);
+  });
+
+  test("wherever its owner stops, the agent at their side is within reach of E (#299)", () => {
+    expect(OFFICE_AGENT_POLITE_DISTANCE + FOLLOW_RETARGET).toBeLessThan(OFFICE_AGENT_REACH);
+    // A short step in any direction, the kind that ends a walk: never left out of reach.
+    for (let i = 0; i < 16; i++) {
+      const s = setup([agent({})]);
+      const c = centreOf(s.room(LOBBY_LEVEL_ID, LOBBY_OPERATION_ID).rect);
+      person(s.state, "ante", c);
+      s.run(STEP_MS);
+      const angle = (i / 16) * Math.PI * 2;
+      for (const step of [0.5, 0.95]) {
+        const at = { x: c.x + Math.cos(angle) * step, z: c.z + Math.sin(angle) * step };
+        person(s.state, "ante", at);
+        s.run(STEP_MS);
+        const target = s.body("a1")?.target ?? { x: 0, z: 0 };
+        expect(Math.hypot(target.x - at.x, target.z - at.z)).toBeLessThan(OFFICE_AGENT_REACH);
+      }
+    }
   });
 
   test("it changes level with its owner and goes into a room they may enter", () => {

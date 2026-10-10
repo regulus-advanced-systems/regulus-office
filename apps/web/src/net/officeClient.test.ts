@@ -8,12 +8,15 @@ import {
   EMPTY_COMPOUND,
   IDLE_JUKEBOX,
   type OperationState,
+  type PendingPermission,
   UNPLACED_ROOM,
 } from "@regulus/protocol";
 import { useBuildingStore } from "../state/building.ts";
 import { useConnectionStore } from "../state/connection.ts";
 import { useOperationStore } from "../state/operation.ts";
 import { useRoomsStore } from "../state/rooms.ts";
+import { createAgentStore } from "../ui/agent/agentStore.ts";
+import { syncAgentMessages } from "../ui/agent/agentSync.ts";
 import { type AccessNotice, OfficeClient, type Scheduler } from "./officeClient.ts";
 import type { OperationJoinOptions, RoomHandle, RoomTransport } from "./transport.ts";
 
@@ -421,6 +424,34 @@ describe("OfficeClient", () => {
     expect(seen).toHaveLength(3);
     await client.setRooms("f1", ["f2"]);
     expect(seen.slice(3)).toEqual([{ agentId: "g", requests: [] }]);
+  });
+
+  test("requests handed over on walking in outlast the HUD's change of room (#299)", async () => {
+    // The agent store forgets the room the HUD has left (agentSync.ts). Were the HUD to change
+    // room after the held requests are handed over, it would forget those too: the prompt of
+    // a henchman already waiting next door would never open for the owner who walks in.
+    const { transport, client } = setup();
+    const store = createAgentStore();
+    const off = syncAgentMessages({ client, store, operation: useOperationStore });
+    await client.connect();
+    await client.setRooms("f1", ["f2"]);
+    const [, r2] = transport.operationRooms;
+    const agentId = "3f0e7a52-6f0b-4c0e-9d59-1f1f4f0c2a11";
+    const request: PendingPermission = {
+      requestId: "p1",
+      toolName: "Edit",
+      description: "Edit: FAKE_CLAUDE.md",
+      options: ["allow_once", "reject"],
+      requestedAt: 1,
+      expiresAt: 2,
+    };
+    r2?.message("agent.permissions", { agentId, requests: [request] });
+    expect(store.getState().permissions).toEqual({});
+    await client.setRooms("f2", ["f1"]);
+    expect(useOperationStore.getState().operationId).toBe("f2");
+    expect(store.getState().permissions[agentId]).toEqual([request]);
+    expect(store.getState().permissionAgentId).toBe(agentId);
+    off();
   });
 
   test("a denied operation join is not retried", async () => {
