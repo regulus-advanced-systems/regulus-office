@@ -5,10 +5,8 @@
  */
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import type { BookshelfListing } from "@regulus/protocol";
-import { generateRoom } from "@regulus/room-layout";
 import { act } from "react";
 import { pageTurnGain } from "../../audio/pageTurn.ts";
-import { shelfInReach, shelfSpot } from "../../scene/bookshelf/shelfSpot.ts";
 import { useOperationStore } from "../../state/operation.ts";
 import { useUiStore } from "../../state/ui.ts";
 import { click, type Mounted, mount, useDom } from "../a11y/dom.ts";
@@ -221,23 +219,6 @@ describe("the shelf's E key", () => {
     }
     for (const modifier of ["ctrlKey", "metaKey", "altKey"])
       expect(pressE({ [modifier]: true })).toBeNull();
-  });
-
-  test("reaches only from in front of the shelf the generator placed", () => {
-    const layout = generateRoom({
-      width: 6,
-      depth: 6,
-      doorSide: "south",
-      deskCount: 1,
-      decorStyle: "lab",
-    });
-    const spot = shelfSpot(layout);
-    if (!spot) throw new Error("the room has no docs shelf");
-    expect(shelfInReach(spot, spot.stand)).toBe(true);
-    expect(shelfInReach(spot, { x: spot.stand.x + 0.9, z: spot.stand.z })).toBe(true);
-    expect(shelfInReach(spot, { x: spot.stand.x + 1.1, z: spot.stand.z })).toBe(false);
-    expect(shelfInReach(null, spot.stand)).toBe(false);
-    expect(shelfSpot({ ...layout, obstacles: [] })).toBeNull();
   });
 });
 

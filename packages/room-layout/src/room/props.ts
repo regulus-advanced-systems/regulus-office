@@ -48,10 +48,10 @@ const SHELF_LANE = 1.5;
 
 /**
  * How far the reader's stand point keeps from every wall anchor's: more than
- * a board's or the gong's `E` reach (1.4 m and 1.2 m in the scene), so `E`
- * at the shelf is never `E` at one of them.
+ * a board's `E` reach (1.4 m in the scene; the gong's is 1.2 m) and the shelf's
+ * own (1 m) together, so no spot answers `E` for both.
  */
-export const SHELF_CLEARANCE = 2;
+export const SHELF_CLEARANCE = 2.5;
 
 /** What the shelf keeps away from: anchor stand points, and wall decor spans along a side. */
 export interface ShelfAvoid {
