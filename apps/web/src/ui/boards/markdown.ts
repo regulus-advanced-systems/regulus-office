@@ -14,14 +14,25 @@
  * GitHub comments), fenced code, block quotes, bullet / numbered / task
  * lists, rules, inline code, bold, italic, strikethrough, links, autolinks.
  * Tables and other extensions show as their source text.
+ *
+ * The room's bookshelf (#264) reads whole documents from a repo with the
+ * same parser and {@link DOCUMENT_MARKDOWN}: single newlines are spaces,
+ * pipe tables are tables, and a relative link or image keeps its target as
+ * written (`ref`, `src`) for the reader to resolve inside the repo's tree.
+ * The target is still only text here; nothing in the tree is a URL the
+ * parser did not pass through {@link safeUrl}.
  */
+import { type TableAlign, tableAt } from "./markdownTable.ts";
 
 export type Inline =
   | { t: "text"; v: string }
   | { t: "code"; v: string }
   | { t: "strong" | "em" | "del"; c: Inline[] }
   | { t: "link"; href: string; c: Inline[] }
-  | { t: "image"; href: string | null; alt: string }
+  /** A relative link, as written (documents only). */
+  | { t: "ref"; target: string; c: Inline[] }
+  /** `src`: a relative image target, as written (documents only). */
+  | { t: "image"; href: string | null; alt: string; src?: string }
   | { t: "br" };
 
 export type Block =
@@ -30,6 +41,7 @@ export type Block =
   | { t: "code"; lang: string; v: string }
   | { t: "quote"; c: Block[] }
   | { t: "list"; ordered: boolean; start: number; items: ListItem[] }
+  | { t: "table"; align: TableAlign[]; head: Inline[][]; rows: Inline[][][] }
   | { t: "hr" };
 
 export interface ListItem {
@@ -38,8 +50,40 @@ export interface ListItem {
   c: Block[];
 }
 
+export interface MarkdownOptions {
+  /** Keep relative link and image targets (`ref`, `src`) instead of dropping them. */
+  relative?: boolean;
+  /** A single newline is a space, as in a document, not a line break, as in a comment. */
+  softBreaks?: boolean;
+  /** Parse pipe tables. */
+  tables?: boolean;
+  /** Text beyond this many characters is not parsed (default {@link MAX_MARKDOWN_CHARS}). */
+  maxChars?: number;
+}
+
 export const MAX_MARKDOWN_CHARS = 65_536;
+/** How a repo's document is parsed (#264). */
+export const DOCUMENT_MARKDOWN: Readonly<MarkdownOptions> = {
+  relative: true,
+  softBreaks: true,
+  tables: true,
+  maxChars: 600_000,
+};
+const COMMENT: Readonly<MarkdownOptions> = {};
 const MAX_DEPTH = 6;
+/**
+ * One paragraph, heading or cell longer than this is shown as plain text:
+ * the emphasis scan is quadratic in its length, and a document is untrusted.
+ */
+export const MAX_INLINE_CHARS = 20_000;
+
+/** A link target that is a relative path (or `#heading`), as text: no scheme, no host. */
+function relativeTarget(raw: string): string | null {
+  const target = raw.trim().replace(/^<|>$/g, "");
+  if (target === "" || /[\u0000-\u001f\u007f\\]/.test(target)) return null;
+  if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(target) || target.startsWith("//")) return null;
+  return target;
+}
 
 const SAFE_PROTOCOLS = new Set(["http:", "https:", "mailto:"]);
 
@@ -93,7 +137,8 @@ function closing(s: string, marker: string, from: number): number {
   return -1;
 }
 
-export function parseInline(s: string, depth = 0): Inline[] {
+export function parseInline(s: string, depth = 0, opts: MarkdownOptions = COMMENT): Inline[] {
+  if (s.length > MAX_INLINE_CHARS) return [{ t: "text", v: s }];
   const out: Inline[] = [];
   let i = 0;
   while (i < s.length) {
@@ -105,7 +150,8 @@ export function parseInline(s: string, depth = 0): Inline[] {
       continue;
     }
     if (ch === "\n") {
-      out.push({ t: "br" });
+      if (opts.softBreaks) pushText(out, " ");
+      else out.push({ t: "br" });
       i += 1;
       continue;
     }
@@ -124,10 +170,13 @@ export function parseInline(s: string, depth = 0): Inline[] {
     if (ch === "!" && s[i + 1] === "[") {
       const m = IMAGE.exec(rest);
       if (m) {
+        const href = safeUrl(m[2] ?? "");
+        const src = href || !opts.relative ? null : relativeTarget(m[2] ?? "");
         out.push({
           t: "image",
-          href: safeUrl(m[2] ?? ""),
+          href,
           alt: (m[1] ?? "").replace(/\\(.)/g, "$1"),
+          ...(src ? { src } : {}),
         });
         i += m[0].length;
         continue;
@@ -139,9 +188,11 @@ export function parseInline(s: string, depth = 0): Inline[] {
         const href = safeUrl(m[2] ?? "");
         const label =
           depth < MAX_DEPTH
-            ? parseInline(m[1] ?? "", depth + 1)
+            ? parseInline(m[1] ?? "", depth + 1, opts)
             : [{ t: "text" as const, v: m[1] ?? "" }];
+        const target = href || !opts.relative ? null : relativeTarget(m[2] ?? "");
         if (href) out.push({ t: "link", href, c: label });
+        else if (target) out.push({ t: "ref", target, c: label });
         else for (const node of label) node.t === "text" ? pushText(out, node.v) : out.push(node);
         i += m[0].length;
         continue;
@@ -170,7 +221,7 @@ export function parseInline(s: string, depth = 0): Inline[] {
     if (strongMarker && !intraword && depth < MAX_DEPTH) {
       const end = closing(s, strongMarker, i + 2);
       if (end > i + 2) {
-        out.push({ t: "strong", c: parseInline(s.slice(i + 2, end), depth + 1) });
+        out.push({ t: "strong", c: parseInline(s.slice(i + 2, end), depth + 1, opts) });
         i = end + 2;
         continue;
       }
@@ -178,7 +229,7 @@ export function parseInline(s: string, depth = 0): Inline[] {
     if (rest.startsWith("~~") && depth < MAX_DEPTH) {
       const end = closing(s, "~~", i + 2);
       if (end > i + 2) {
-        out.push({ t: "del", c: parseInline(s.slice(i + 2, end), depth + 1) });
+        out.push({ t: "del", c: parseInline(s.slice(i + 2, end), depth + 1, opts) });
         i = end + 2;
         continue;
       }
@@ -187,7 +238,7 @@ export function parseInline(s: string, depth = 0): Inline[] {
       const end = closing(s, ch, i + 1);
       const after = s[end + 1] ?? "";
       if (end > i + 1 && !(ch === "_" && /\w/.test(after))) {
-        out.push({ t: "em", c: parseInline(s.slice(i + 1, end), depth + 1) });
+        out.push({ t: "em", c: parseInline(s.slice(i + 1, end), depth + 1, opts) });
         i = end + 1;
         continue;
       }
@@ -215,7 +266,8 @@ function startsBlock(line: string): boolean {
   );
 }
 
-function parseLines(lines: string[], depth: number): Block[] {
+function parseLines(lines: string[], depth: number, opts: MarkdownOptions): Block[] {
+  const inline = (s: string) => parseInline(s, 0, opts);
   const blocks: Block[] = [];
   let i = 0;
   while (i < lines.length) {
@@ -240,7 +292,7 @@ function parseLines(lines: string[], depth: number): Block[] {
     const heading = HEADING.exec(line);
     if (heading) {
       const level = (heading[1] as string).length as 1 | 2 | 3 | 4 | 5 | 6;
-      blocks.push({ t: "h", level, c: parseInline(heading[2] ?? "") });
+      blocks.push({ t: "h", level, c: inline(heading[2] ?? "") });
       i += 1;
       continue;
     }
@@ -257,8 +309,8 @@ function parseLines(lines: string[], depth: number): Block[] {
       }
       blocks.push(
         depth < MAX_DEPTH
-          ? { t: "quote", c: parseLines(body, depth + 1) }
-          : { t: "p", c: parseInline(body.join("\n")) },
+          ? { t: "quote", c: parseLines(body, depth + 1, opts) }
+          : { t: "p", c: inline(body.join("\n")) },
       );
       continue;
     }
@@ -300,29 +352,41 @@ function parseLines(lines: string[], depth: number): Block[] {
           checked: task ? task[1] !== " " : null,
           c:
             depth < MAX_DEPTH
-              ? parseLines(body, depth + 1)
-              : [{ t: "p", c: parseInline(body.join("\n")) }],
+              ? parseLines(body, depth + 1, opts)
+              : [{ t: "p", c: inline(body.join("\n")) }],
         });
       }
       blocks.push(list);
       continue;
     }
+    const table = opts.tables ? tableAt(lines, i) : null;
+    if (table) {
+      blocks.push({
+        t: "table",
+        align: table.align,
+        head: table.head.map(inline),
+        rows: table.rows.map((row) => row.map(inline)),
+      });
+      i = table.next;
+      continue;
+    }
     const para: string[] = [];
     while (i < lines.length && !isBlank(lines[i] as string)) {
       if (para.length > 0 && startsBlock(lines[i] as string)) break;
+      if (para.length > 0 && opts.tables && tableAt(lines, i)) break;
       para.push((lines[i] as string).trim());
       i += 1;
     }
-    blocks.push({ t: "p", c: parseInline(para.join("\n")) });
+    blocks.push({ t: "p", c: inline(para.join("\n")) });
   }
   return blocks;
 }
 
 /** Parse a markdown document; HTML comments are removed, text is capped. */
-export function parseMarkdown(source: string): Block[] {
+export function parseMarkdown(source: string, opts: MarkdownOptions = COMMENT): Block[] {
   const text = source
-    .slice(0, MAX_MARKDOWN_CHARS)
+    .slice(0, opts.maxChars ?? MAX_MARKDOWN_CHARS)
     .replace(/\r\n?/g, "\n")
     .replace(/<!--[\s\S]*?(?:-->|$)/g, "");
-  return parseLines(text.split("\n"), 0);
+  return parseLines(text.split("\n"), 0, opts);
 }
