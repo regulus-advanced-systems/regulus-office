@@ -13,6 +13,7 @@ import type { Logger } from "../logging.ts";
 import { lairViewFor } from "../operations/access.ts";
 import type { RoomAuth } from "./auth.ts";
 import { DrizzleOperationSource } from "./building/operations.ts";
+import { DrizzlePlaceStore, type PlaceStore } from "./building/place-store.ts";
 import { type BuildingRoom, createBuildingRoom } from "./building/room.ts";
 import { createScreenShareRules } from "./building/screen-share.ts";
 import { DrizzleChatStore } from "./chat/store.ts";
@@ -53,6 +54,11 @@ export interface RoomsOptions {
   jukebox?: JukeboxPlayer;
   /** LiveKit is configured (#48): the lounge TV may be shared. */
   mediaEnabled?: boolean;
+  /**
+   * Where each person last stood (#262); the database by default. `null`:
+   * nobody is remembered and everyone arrives at the lobby spawn.
+   */
+  places?: PlaceStore | null;
 }
 
 export interface Rooms {
@@ -81,6 +87,7 @@ export function createRooms(options: RoomsOptions): Rooms {
     logger: logger.child({ room: ROOM_NAMES.building }),
     // The one gate (operations/access.ts): what each person may see of the lair.
     lairView: (user) => lairViewFor(db, { id: user.userId, role: user.role }),
+    places: options.places === null ? undefined : (options.places ?? new DrizzlePlaceStore(db)),
     jukebox,
     screenShare: createScreenShareRules({
       enabled: mediaEnabled ?? false,

@@ -4,6 +4,7 @@ import {
   BLAST_DOOR_CLOSED,
   type BuildingState,
   type CommandRejected,
+  DEFAULT_GENIUS_LOOK,
   DEFAULT_ROOM_SETTINGS,
   EMPTY_COMPOUND,
   IDLE_JUKEBOX,
@@ -346,6 +347,75 @@ describe("OfficeClient", () => {
       type: "operation.go",
       payload: { operationId: "f1", mode: "teleport", levelId: "lv-octo" },
     });
+  });
+
+  test("back where we left (#262): the building is not told what it already has, only what differs", async () => {
+    const { transport, client } = setup();
+    await client.connect();
+    // The building put us back in room f1 on Octo's level when we joined.
+    const here = (operationId: string) =>
+      transport.building.patch((s) => {
+        s.humans[transport.building.sessionId] = {
+          sessionId: transport.building.sessionId,
+          userId: "u1",
+          displayName: "Ada",
+          role: "member",
+          avatar: DEFAULT_GENIUS_LOOK,
+          operationId,
+          levelId: "lv-octo",
+          position: { x: 24, z: 68, heading: 1 },
+          animation: "idle",
+          doing: "",
+          seatId: "",
+          sharingScreen: false,
+          joinedAt: 1,
+        };
+      });
+    here("f1");
+    // The scene adopts that level and finds the player standing in f1: nothing to say.
+    client.setLevel("lv-octo");
+    await client.setRooms("f1");
+    expect(transport.building.sent).toEqual([]);
+    expect(client.currentOperationId).toBe("f1");
+    // Walking out is told as ever, with the level.
+    await client.setRooms(null);
+    expect(transport.building.sent).toEqual([
+      {
+        type: "operation.go",
+        payload: { operationId: "lobby", mode: "teleport", levelId: "lv-octo" },
+      },
+    ]);
+  });
+
+  test("back where we left (#262): a client that does not find itself in that room says so", async () => {
+    const { transport, client } = setup();
+    await client.connect();
+    transport.building.patch((s) => {
+      s.humans[transport.building.sessionId] = {
+        sessionId: transport.building.sessionId,
+        userId: "u1",
+        displayName: "Ada",
+        role: "member",
+        avatar: DEFAULT_GENIUS_LOOK,
+        operationId: "f1",
+        levelId: "lv-octo",
+        position: { x: 24, z: 68, heading: 1 },
+        animation: "idle",
+        doing: "",
+        seatId: "",
+        sharingScreen: false,
+        joinedAt: 1,
+      };
+    });
+    client.setLevel("lv-octo");
+    // Its own first look says "in no room": the building must not keep it in f1.
+    await client.setRooms(null);
+    expect(transport.building.sent).toEqual([
+      {
+        type: "operation.go",
+        payload: { operationId: "lobby", mode: "teleport", levelId: "lv-octo" },
+      },
+    ]);
   });
 
   test("joins the current room and up to three nearby rooms, leaving the rest (#186)", async () => {

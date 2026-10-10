@@ -222,7 +222,8 @@ export class OfficeClient {
       }
     }
     const promise = this.operations.set(current, nearby);
-    if (before !== current) this.announce(current, false);
+    // Only said when it differs from what the building last heard (or had us in, #262).
+    this.announce(current, false);
     await promise;
   }
 
@@ -237,7 +238,16 @@ export class OfficeClient {
    */
   setLevel(levelId: string): void {
     if (this.level === levelId) return;
+    const first = this.level === null;
     this.level = levelId;
+    // The building put us on this level when we joined (#262: back where we left, room
+    // and all): there is nothing to tell it, and saying "in no room" would be wrong.
+    // What we tell it next is measured against the room it has us in (`setRooms`).
+    const self = this.building?.snapshot().humans[this.building.sessionId];
+    if (first && self && self.levelId === levelId) {
+      this.announcedOperation = self.operationId;
+      return;
+    }
     this.announce(this.operations.primary, true);
   }
 

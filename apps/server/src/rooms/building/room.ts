@@ -53,11 +53,11 @@ import {
   type OperationSource,
 } from "./operations.ts";
 import { RateLimiter } from "./rate-limiter.ts";
+import { createReturning } from "./returning.ts";
 import { applyLook, chatLine } from "./schema-copy.ts";
 import { createScreenShareRules, type ScreenShareRules } from "./screen-share.ts";
 import { seatWorldOn } from "./seats.ts";
 import { createSocialRules } from "./social.ts";
-import { placeAtSpawn } from "./spawn.ts";
 import {
   type BuildingRoom,
   type BuildingRoomDeps,
@@ -84,6 +84,8 @@ export {
 interface ClientBookkeeping {
   lastMoveAt: number;
   emoteUntil: number;
+  /** They joined back where they left (#262): not to be moved to the spawn. */
+  returned: boolean;
 }
 
 export function createBuildingRoom(deps: BuildingRoomDeps): BuildingRoom {
@@ -95,6 +97,7 @@ export function createBuildingRoom(deps: BuildingRoomDeps): BuildingRoom {
   const canVisit = (user: RoomAuthUser, operationId: string) =>
     viewers.viewOf(user).rooms.has(operationId);
   const social = createSocialRules({ now, canVisit });
+  const returning = createReturning({ places: deps.places, logger });
   let known: OperationRecord[] = [];
   let usage: UsageSummary | OfficeUsage | undefined;
   let compound: CompoundSnapshot | undefined;
@@ -186,6 +189,7 @@ export function createBuildingRoom(deps: BuildingRoomDeps): BuildingRoom {
     const t = now();
     // A body that changed room or level is shown to those who may see where it is now.
     if (world?.tick(handle.state, t)) viewers.sync(handle);
+    returning.tick(handle.state, t);
     handle.state.humans.forEach((human, sessionId) => {
       const book = books.get(sessionId);
       if (!book) return;
@@ -364,22 +368,27 @@ export function createBuildingRoom(deps: BuildingRoomDeps): BuildingRoom {
       human.displayName = client.user.displayName;
       human.role = client.user.role;
       applyLook(human, client.user.avatar);
-      human.operationId = LOBBY_OPERATION_ID;
-      human.levelId = LOBBY_LEVEL_ID;
       human.animation = "idle";
       human.joinedAt = now();
-      // Where their own client puts them, until their first `move` says otherwise (spawn.ts).
-      placeAtSpawn(human, room.state.compound);
-      room.state.humans.set(client.sessionId, human);
-      books.set(client.sessionId, { lastMoveAt: 0, emoteUntil: 0 });
-      recountHumans();
       // A join asks the gate afresh: what this person may see, and who sees them.
       viewers.forget(client.user.userId);
+      // Where they left, if the gate lets them be there now, else the lobby spawn (#262,
+      // returning.ts); their own client starts from this, and their `move`s take over.
+      const returned = returning.arrive(
+        room.state,
+        client.sessionId,
+        human,
+        viewers.viewOf(client.user),
+      );
+      room.state.humans.set(client.sessionId, human);
+      books.set(client.sessionId, { lastMoveAt: 0, emoteUntil: 0, returned });
+      recountHumans();
       viewers.sync(room);
       logger.info({ sessionId: client.sessionId, userId: client.user.userId }, "human joined");
     },
 
     onLeave(room, client) {
+      returning.leave(client.sessionId, room.state.humans.get(client.sessionId));
       room.state.humans.delete(client.sessionId);
       books.delete(client.sessionId);
       moveLimiter.forget(client.sessionId);
@@ -403,6 +412,7 @@ export function createBuildingRoom(deps: BuildingRoomDeps): BuildingRoom {
     onDispose() {
       handle = undefined;
       books.clear();
+      returning.clear();
       viewers.clear();
     },
 
@@ -460,9 +470,13 @@ export function createBuildingRoom(deps: BuildingRoomDeps): BuildingRoom {
       if (!handle) return;
       applyCompoundState(handle.state.compound, snapshot.state);
       // Whoever joined before the lair was published and has not moved yet.
-      const published = handle.state.compound;
-      handle.state.humans.forEach((human, sessionId) => {
-        if (books.get(sessionId)?.lastMoveAt === 0) placeAtSpawn(human, published);
+      const clients = new Map(handle.clients.map((c) => [c.sessionId, c]));
+      const state = handle.state;
+      state.humans.forEach((human, sessionId) => {
+        const book = books.get(sessionId);
+        const client = clients.get(sessionId);
+        if (!book || !client || book.lastMoveAt !== 0 || book.returned) return;
+        book.returned = returning.arrive(state, sessionId, human, viewers.viewOf(client.user));
       });
       applyLevels(handle.state.levels, snapshot);
       handle.state.operations.forEach((entry, operationId) =>

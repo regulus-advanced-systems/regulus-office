@@ -16,6 +16,7 @@
 import { Canvas } from "@react-three/fiber";
 import type { Pose } from "@regulus/room-layout";
 import { type ReactNode, Suspense, useEffect, useLayoutEffect, useMemo } from "react";
+import { arrivalPose } from "../../state/arrival.ts";
 import { useCompoundStore } from "../../state/compound.ts";
 import { useOperationStore } from "../../state/operation.ts";
 import { usePlayerStore } from "../../state/player.ts";
@@ -120,7 +121,8 @@ function Scene({ world, avatars, presence, send, children }: CompoundCanvasProps
   const doorOpen = useDoorPassable();
   const grid = useMemo(() => compoundNavGrid(world, { blastDoorOpen: doorOpen }), [key, doorOpen]);
   useDoorwayGuard(grid);
-  const spawn = useMemo(() => lobbySpawn(world), [world]);
+  // The first spawn is where the building has us (#262: back where we left); later ones the lobby's.
+  const spawn = useMemo(() => arrivalPose(world, grid, lobbySpawn(world)), [world, grid]);
   // The clickable ground runs past the beach strip to the end of the dock.
   const groundD = (world.depth + outsideRows(world)) * world.tileMetres;
   const plane = useMemo(() => ({ x: 0, z: 0, w: extent.w, d: groundD }), [extent.w, groundD]);

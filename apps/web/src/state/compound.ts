@@ -11,6 +11,7 @@ import { LOBBY_LEVEL_ID } from "@regulus/protocol";
 import { useEffect } from "react";
 import { create } from "zustand";
 import { type CompoundWorld, compoundWorld } from "../scene/compound/world.ts";
+import { adoptArrivalLevel } from "./arrival.ts";
 import { useBuildingStore } from "./building.ts";
 import { isKnownLevel, levelView, useLevelStore } from "./level.ts";
 import { useOperationsStore } from "./operations.ts";
@@ -63,6 +64,8 @@ export function syncCompoundWorld(): void {
   const building = useBuildingStore.getState().state;
   const operations = useOperationsStore.getState().operations;
   const enterable = operations ? new Set(operations.map((f) => f.operationId)) : null;
+  // Before the player's first spawn: the level the building has them on (#262).
+  adoptArrivalLevel();
   // A level that is gone (its last room archived or deleted) leaves its viewers in the lobby.
   const level = useLevelStore.getState();
   if (building && !isKnownLevel(building, level.levelId)) level.set(LOBBY_LEVEL_ID);

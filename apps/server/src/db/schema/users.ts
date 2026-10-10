@@ -3,7 +3,15 @@
  * (SPEC §5, §13; roles in SPEC §2).
  */
 import { DEFAULT_GENIUS_LOOK, USER_ROLES } from "@regulus/protocol";
-import { check, index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import {
+  check,
+  index,
+  integer,
+  real,
+  sqliteTable,
+  text,
+  uniqueIndex,
+} from "drizzle-orm/sqlite-core";
 import { enumText, id, inEnum, jsonText, timestampMs, timestamps } from "./_columns.ts";
 
 /** Pre-#185 profiles and new ones start as the default genius until the picker saves one. */
@@ -55,6 +63,28 @@ export const userProfiles = sqliteTable(
     check("user_profiles_role_check", inEnum("role", USER_ROLES)),
   ],
 );
+
+/**
+ * Where a person last stood (#262): one row per person, rewritten as they
+ * walk and when they leave, so they come back there on any device. It is a
+ * wish only: on return the BuildingRoom asks the access gate whether they may
+ * be there now (rooms/building/return-place.ts) and deletes the row when not.
+ * `levelId` and `operationId` are plain text, not references: a level or room
+ * that is gone must not be told apart from one that is closed to them.
+ */
+export const userPlaces = sqliteTable("user_places", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  levelId: text("level_id").notNull(),
+  /** The project room they stood in; the lobby id anywhere else on the level. */
+  operationId: text("operation_id").notNull(),
+  /** Compound metres on that level, and the way they faced (radians). */
+  x: real("x").notNull(),
+  z: real("z").notNull(),
+  heading: real("heading").notNull(),
+  ...timestamps(),
+});
 
 export const invites = sqliteTable(
   "invites",

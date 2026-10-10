@@ -72,6 +72,7 @@ const EXTRA_TABLES = [
   "github_user_links",
   "github_repo_permissions",
   "github_org_memberships",
+  "user_places",
 ] as const;
 
 /** Better Auth's remaining core tables (`users` is in SPEC_TABLES); see schema/auth.ts. */
