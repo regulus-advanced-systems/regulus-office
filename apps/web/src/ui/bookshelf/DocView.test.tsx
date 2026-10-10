@@ -6,7 +6,6 @@
  */
 import { describe, expect, test } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
-import { MAX_INLINE_CHARS } from "../boards/markdown.ts";
 import { DocView } from "./DocView.tsx";
 
 const SHELF = new Set(["README.md", "docs/guide.md", "docs/adr/0001.md", "docs/my notes.md"]);
@@ -248,13 +247,5 @@ describe("a well-meant document", () => {
     expect(out).toContain("a | b");
     expect(out).toContain('src="/api/operations/op-1/docs/image?path=docs%2Fimg%2Fa.png"');
     expect(out).toContain('alt="shot"');
-  });
-
-  test("a huge paragraph of markers is shown as text instead of being scanned", () => {
-    const bomb = "*a ".repeat(MAX_INLINE_CHARS);
-    const started = performance.now();
-    const out = html(bomb);
-    expect(performance.now() - started).toBeLessThan(2000);
-    expect(out).not.toContain("<em>");
   });
 });

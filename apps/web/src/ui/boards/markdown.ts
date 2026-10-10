@@ -22,18 +22,25 @@
  * The target is still only text here; nothing in the tree is a URL the
  * parser did not pass through {@link safeUrl}.
  */
+import {
+  COMMENT,
+  type Inline,
+  MAX_DEPTH,
+  type MarkdownOptions,
+  newWork,
+  parseInline,
+  type Work,
+} from "./markdownInline.ts";
 import { type TableAlign, tableAt } from "./markdownTable.ts";
 
-export type Inline =
-  | { t: "text"; v: string }
-  | { t: "code"; v: string }
-  | { t: "strong" | "em" | "del"; c: Inline[] }
-  | { t: "link"; href: string; c: Inline[] }
-  /** A relative link, as written (documents only). */
-  | { t: "ref"; target: string; c: Inline[] }
-  /** `src`: a relative image target, as written (documents only). */
-  | { t: "image"; href: string | null; alt: string; src?: string }
-  | { t: "br" };
+export {
+  type Inline,
+  type MarkdownOptions,
+  newWork,
+  parseInline,
+  safeUrl,
+  type Work,
+} from "./markdownInline.ts";
 
 export type Block =
   | { t: "p"; c: Inline[] }
@@ -50,17 +57,6 @@ export interface ListItem {
   c: Block[];
 }
 
-export interface MarkdownOptions {
-  /** Keep relative link and image targets (`ref`, `src`) instead of dropping them. */
-  relative?: boolean;
-  /** A single newline is a space, as in a document, not a line break, as in a comment. */
-  softBreaks?: boolean;
-  /** Parse pipe tables. */
-  tables?: boolean;
-  /** Text beyond this many characters is not parsed (default {@link MAX_MARKDOWN_CHARS}). */
-  maxChars?: number;
-}
-
 export const MAX_MARKDOWN_CHARS = 65_536;
 /** How a repo's document is parsed (#264). */
 export const DOCUMENT_MARKDOWN: Readonly<MarkdownOptions> = {
@@ -69,186 +65,6 @@ export const DOCUMENT_MARKDOWN: Readonly<MarkdownOptions> = {
   tables: true,
   maxChars: 600_000,
 };
-const COMMENT: Readonly<MarkdownOptions> = {};
-const MAX_DEPTH = 6;
-/**
- * One paragraph, heading or cell longer than this is shown as plain text:
- * the emphasis scan is quadratic in its length, and a document is untrusted.
- */
-export const MAX_INLINE_CHARS = 20_000;
-
-/** A link target that is a relative path (or `#heading`), as text: no scheme, no host. */
-function relativeTarget(raw: string): string | null {
-  const target = raw.trim().replace(/^<|>$/g, "");
-  if (target === "" || /[\u0000-\u001f\u007f\\]/.test(target)) return null;
-  if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(target) || target.startsWith("//")) return null;
-  return target;
-}
-
-const SAFE_PROTOCOLS = new Set(["http:", "https:", "mailto:"]);
-
-/** The URL if it is absolute http(s) or mailto, else null. */
-export function safeUrl(raw: string): string | null {
-  const href = raw.trim().replace(/^<|>$/g, "");
-  // Control characters and whitespace inside a URL are how `java\tscript:` sneaks through.
-  if (href === "" || /[\u0000- \u007f]/.test(href)) return null;
-  let url: URL;
-  try {
-    url = new URL(href);
-  } catch {
-    return null;
-  }
-  return SAFE_PROTOCOLS.has(url.protocol) ? url.href : null;
-}
-
-// ---- Inline ------------------------------------------------------------------
-
-const ESCAPABLE = /^[\\`*_{}[\]()#+\-.!|~<>"'&]/;
-const LINK =
-  /^\[((?:[^[\]\\]|\\.|\[[^\]]*\])*)\]\(\s*(<[^>]*>|[^)\s]*)(?:\s+(?:"[^"]*"|'[^']*'))?\s*\)/;
-const IMAGE = /^!\[((?:[^[\]\\]|\\.)*)\]\(\s*(<[^>]*>|[^)\s]*)(?:\s+(?:"[^"]*"|'[^']*'))?\s*\)/;
-const AUTOLINK = /^<((?:https?:\/\/|mailto:)[^>\s]+)>/i;
-const BARE_URL = /^https?:\/\/[^\s<>"]*[^\s<>"'.,:;!?)\]]/i;
-
-function pushText(out: Inline[], v: string): void {
-  const last = out[out.length - 1];
-  if (last?.t === "text") last.v += v;
-  else out.push({ t: "text", v });
-}
-
-/** Index of the closing `marker` for an emphasis run starting at `from`, or -1. */
-function closing(s: string, marker: string, from: number): number {
-  let i = from;
-  while (i < s.length) {
-    if (s[i] === "\\") {
-      i += 2;
-      continue;
-    }
-    if (s[i] === "`") {
-      const end = s.indexOf("`", i + 1);
-      if (end > 0) {
-        i = end + 1;
-        continue;
-      }
-    }
-    if (s.startsWith(marker, i) && i > from && s[i - 1] !== " ") return i;
-    i += 1;
-  }
-  return -1;
-}
-
-export function parseInline(s: string, depth = 0, opts: MarkdownOptions = COMMENT): Inline[] {
-  if (s.length > MAX_INLINE_CHARS) return [{ t: "text", v: s }];
-  const out: Inline[] = [];
-  let i = 0;
-  while (i < s.length) {
-    const ch = s[i] as string;
-    const rest = s.slice(i);
-    if (ch === "\\" && ESCAPABLE.test(s.slice(i + 1))) {
-      pushText(out, s[i + 1] as string);
-      i += 2;
-      continue;
-    }
-    if (ch === "\n") {
-      if (opts.softBreaks) pushText(out, " ");
-      else out.push({ t: "br" });
-      i += 1;
-      continue;
-    }
-    if (ch === "`") {
-      const run = /^`+/.exec(rest)?.[0] ?? "`";
-      const end = s.indexOf(run, i + run.length);
-      if (end > 0) {
-        out.push({ t: "code", v: s.slice(i + run.length, end).trim() });
-        i = end + run.length;
-        continue;
-      }
-      pushText(out, run);
-      i += run.length;
-      continue;
-    }
-    if (ch === "!" && s[i + 1] === "[") {
-      const m = IMAGE.exec(rest);
-      if (m) {
-        const href = safeUrl(m[2] ?? "");
-        const src = href || !opts.relative ? null : relativeTarget(m[2] ?? "");
-        out.push({
-          t: "image",
-          href,
-          alt: (m[1] ?? "").replace(/\\(.)/g, "$1"),
-          ...(src ? { src } : {}),
-        });
-        i += m[0].length;
-        continue;
-      }
-    }
-    if (ch === "[") {
-      const m = LINK.exec(rest);
-      if (m) {
-        const href = safeUrl(m[2] ?? "");
-        const label =
-          depth < MAX_DEPTH
-            ? parseInline(m[1] ?? "", depth + 1, opts)
-            : [{ t: "text" as const, v: m[1] ?? "" }];
-        const target = href || !opts.relative ? null : relativeTarget(m[2] ?? "");
-        if (href) out.push({ t: "link", href, c: label });
-        else if (target) out.push({ t: "ref", target, c: label });
-        else for (const node of label) node.t === "text" ? pushText(out, node.v) : out.push(node);
-        i += m[0].length;
-        continue;
-      }
-    }
-    if (ch === "<") {
-      const m = AUTOLINK.exec(rest);
-      const href = m ? safeUrl(m[1] ?? "") : null;
-      if (m && href) {
-        out.push({ t: "link", href, c: [{ t: "text", v: m[1] ?? "" }] });
-        i += m[0].length;
-        continue;
-      }
-    }
-    if ((ch === "h" || ch === "H") && (i === 0 || /[\s(]/.test(s[i - 1] ?? ""))) {
-      const m = BARE_URL.exec(rest);
-      const href = m ? safeUrl(m[0]) : null;
-      if (m && href) {
-        out.push({ t: "link", href, c: [{ t: "text", v: m[0] }] });
-        i += m[0].length;
-        continue;
-      }
-    }
-    const strongMarker = rest.startsWith("**") ? "**" : rest.startsWith("__") ? "__" : "";
-    const intraword = ch === "_" && /\w/.test(s[i - 1] ?? "");
-    if (strongMarker && !intraword && depth < MAX_DEPTH) {
-      const end = closing(s, strongMarker, i + 2);
-      if (end > i + 2) {
-        out.push({ t: "strong", c: parseInline(s.slice(i + 2, end), depth + 1, opts) });
-        i = end + 2;
-        continue;
-      }
-    }
-    if (rest.startsWith("~~") && depth < MAX_DEPTH) {
-      const end = closing(s, "~~", i + 2);
-      if (end > i + 2) {
-        out.push({ t: "del", c: parseInline(s.slice(i + 2, end), depth + 1, opts) });
-        i = end + 2;
-        continue;
-      }
-    }
-    if ((ch === "*" || ch === "_") && !intraword && depth < MAX_DEPTH && s[i + 1] !== " ") {
-      const end = closing(s, ch, i + 1);
-      const after = s[end + 1] ?? "";
-      if (end > i + 1 && !(ch === "_" && /\w/.test(after))) {
-        out.push({ t: "em", c: parseInline(s.slice(i + 1, end), depth + 1, opts) });
-        i = end + 1;
-        continue;
-      }
-    }
-    pushText(out, ch);
-    i += 1;
-  }
-  return out;
-}
-
 // ---- Blocks ------------------------------------------------------------------
 
 const FENCE = /^ {0,3}(`{3,}|~{3,})\s*([\w+#.-]*)/;
@@ -266,8 +82,8 @@ function startsBlock(line: string): boolean {
   );
 }
 
-function parseLines(lines: string[], depth: number, opts: MarkdownOptions): Block[] {
-  const inline = (s: string) => parseInline(s, 0, opts);
+function parseLines(lines: string[], depth: number, opts: MarkdownOptions, work: Work): Block[] {
+  const inline = (s: string) => parseInline(s, 0, opts, work);
   const blocks: Block[] = [];
   let i = 0;
   while (i < lines.length) {
@@ -309,7 +125,7 @@ function parseLines(lines: string[], depth: number, opts: MarkdownOptions): Bloc
       }
       blocks.push(
         depth < MAX_DEPTH
-          ? { t: "quote", c: parseLines(body, depth + 1, opts) }
+          ? { t: "quote", c: parseLines(body, depth + 1, opts, work) }
           : { t: "p", c: inline(body.join("\n")) },
       );
       continue;
@@ -352,7 +168,7 @@ function parseLines(lines: string[], depth: number, opts: MarkdownOptions): Bloc
           checked: task ? task[1] !== " " : null,
           c:
             depth < MAX_DEPTH
-              ? parseLines(body, depth + 1, opts)
+              ? parseLines(body, depth + 1, opts, work)
               : [{ t: "p", c: inline(body.join("\n")) }],
         });
       }
@@ -382,11 +198,18 @@ function parseLines(lines: string[], depth: number, opts: MarkdownOptions): Bloc
   return blocks;
 }
 
-/** Parse a markdown document; HTML comments are removed, text is capped. */
-export function parseMarkdown(source: string, opts: MarkdownOptions = COMMENT): Block[] {
+/**
+ * Parse a markdown document; HTML comments are removed, text is capped, and
+ * the inline scan works within a budget set from the length (markdownInline.ts).
+ */
+export function parseMarkdown(
+  source: string,
+  opts: MarkdownOptions = COMMENT,
+  work?: Work,
+): Block[] {
   const text = source
     .slice(0, opts.maxChars ?? MAX_MARKDOWN_CHARS)
     .replace(/\r\n?/g, "\n")
     .replace(/<!--[\s\S]*?(?:-->|$)/g, "");
-  return parseLines(text.split("\n"), 0, opts);
+  return parseLines(text.split("\n"), 0, opts, work ?? newWork(text.length));
 }
