@@ -82,6 +82,7 @@ import { checkMergeGong } from "./gongChecks.ts";
 import { checkHermesConnection } from "./hermesChecks.ts";
 import { checkJukebox } from "./jukeboxChecks.ts";
 import { checkLift, checkOpenAndClosedRooms } from "./liftChecks.ts";
+import { checkLinkedTask } from "./linkedTaskChecks.ts";
 import { checkAgentsInTheWorld } from "./officeAgentWorldChecks.ts";
 import { loadOwnerGenius, type OfficeSession, openOffice, owner } from "./officeSession.ts";
 import { reportFramePerf } from "./perfProbe.ts";
@@ -954,6 +955,20 @@ test("back where you left: a reload returns the owner to Apollo; the member, who
     "Apollo",
     "octo/hello",
     process.env.E2E_RETURN_SHOTS,
+  );
+});
+
+test("one task across two rooms: a part in each for the owner; an ordinary task for someone who sees one room (#257)", async () => {
+  test.skip(!process.env.E2E_DATA_DIR, "needs the locally started server (local git remotes)");
+  test.setTimeout(300_000);
+  await ensureApollo();
+  ensureRemoteRepo(process.env.E2E_DATA_DIR ?? "", "octo", "forge");
+  await ensureOperation(ownerPage, "Vulcan", "octo/forge");
+  await checkLinkedTask(
+    ownerPage,
+    memberPage,
+    { first: "Apollo", firstRepo: "octo/hello", second: "Vulcan", secondRepo: "octo/forge" },
+    process.env.E2E_LINKED_TASK_SHOTS,
   );
 });
 

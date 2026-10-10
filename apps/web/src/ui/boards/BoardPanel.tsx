@@ -19,6 +19,8 @@ import { useOperationStore } from "../../state/operation.ts";
 import { useOperationsStore } from "../../state/operations.ts";
 import { useUiStore } from "../../state/ui.ts";
 import { Modal } from "../components/Modal.tsx";
+import { linkedPullChips } from "../queue/linked/linkedModel.ts";
+import { useLinkedStore } from "../queue/linked/linkedStore.ts";
 import type { BoardsApi } from "./api.ts";
 import { BOARD_OVERLAY, useBoardStore } from "./boardStore.ts";
 import { CardDetail } from "./CardDetail.tsx";
@@ -74,6 +76,11 @@ export function CardButton({
         <span className="rg-board__card-head">
           <span className="rg-board__number">#{card.number}</span>
           {card.repoChip && <span className="rg-board__chip">{card.repoChip}</span>}
+          {card.linked && (
+            <span className="rg-board__chip" title={card.linked}>
+              {card.linked}
+            </span>
+          )}
         </span>
         <span className="rg-board__card-title" title={card.title}>
           {card.title}
@@ -159,6 +166,11 @@ export function BoardPanel({ kind, api }: { kind: CardKind; api?: BoardsApi }) {
   const access = useOperationsStore(
     (s) => s.operations?.find((f) => f.operationId === operationId)?.access,
   );
+  const linkedViews = useLinkedStore((s) => s.views);
+  const linkedPulls = useMemo(
+    () => linkedPullChips(linkedViews, operationId),
+    [linkedViews, operationId],
+  );
   const columns = useMemo(
     () =>
       buildBoard(kind, {
@@ -167,8 +179,9 @@ export function BoardPanel({ kind, api }: { kind: CardKind; api?: BoardsApi }) {
         repos: board.repos,
         henchmen: Object.values(board.henchmen),
         queue: board.queue,
+        linkedPulls,
       }),
-    [kind, board],
+    [kind, board, linkedPulls],
   );
   const card = selected ? (kind === "pr" ? board.pulls[selected] : board.issues[selected]) : null;
 

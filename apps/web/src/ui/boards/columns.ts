@@ -145,6 +145,8 @@ export interface BoardCardView {
   labels: string[];
   /** An open issue with a task waiting in the queue and no henchman on it yet. */
   queued: boolean;
+  /** A PR that is one part of a task across rooms: the other rooms and their state (#257). */
+  linked?: string;
   checks: StatusBadge | null;
   review: StatusBadge | null;
   updatedAt: number;
@@ -173,6 +175,8 @@ export function buildBoard(
     repos: readonly RepoSummary[];
     henchmen?: readonly Pick<HenchmanState, "repoId" | "issueNumber" | "status">[];
     queue?: readonly Pick<QueueTask, "kind" | "repoId" | "refNumber" | "state">[];
+    /** Chips for PRs of linked tasks, by PR number (as this viewer may see them). */
+    linkedPulls?: ReadonlyMap<number, string>;
   },
 ): BoardColumnView[] {
   const chips = repoChips(input.repos);
@@ -215,6 +219,7 @@ export function buildBoard(
         assignees: c.assignees,
         labels: c.labels,
         queued: false,
+        linked: input.linkedPulls?.get(c.number) ?? "",
         checks: column === "merged" || column === "closed" ? null : checksBadge(c.checksState),
         review: reviewBadge(c.reviewState),
         updatedAt: c.updatedAt,

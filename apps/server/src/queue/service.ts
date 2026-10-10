@@ -28,6 +28,7 @@ import {
 import { and, eq } from "drizzle-orm";
 import { AgentManagerError } from "../agents/manager/errors.ts";
 import type { AgentObserver } from "../agents/manager/runtime.ts";
+import type { DbOrTx } from "../auth/audit.ts";
 import type { Db } from "../db/index.ts";
 import { operationRepos } from "../db/schema/index.ts";
 import type { GitHubEventBus } from "../github/events.ts";
@@ -37,7 +38,7 @@ import { taskContent } from "./content.ts";
 import { agentsOnBranch, cachedPrFor, pullFromEvent } from "./pr-link.ts";
 import { toQueueTask } from "./publish.ts";
 import { QueueScheduler, type QueueSpawner } from "./scheduler.ts";
-import { type TaskRow, TaskStore } from "./store.ts";
+import { type NewTask, type TaskRow, TaskStore } from "./store.ts";
 
 /** Queued (not yet started) tasks a room holds at most. */
 export const MAX_QUEUED_PER_ROOM = 100;
@@ -72,6 +73,18 @@ export interface EnqueueInput {
   /** The queuer's own profile id or `office:<provider>`; omitted = their CLI login. */
   profileId?: string;
   autoWorktree?: boolean;
+  /** Server-side only: the linked task this is a part of (#257). */
+  linkedTaskId?: string;
+}
+
+/** What the linked tasks (#257) add to the queue; set once with {@link TaskQueue.extend}. */
+export interface QueueHooks {
+  /** The prompt a task's henchman starts with, when it is not the stored one. */
+  promptFor?(task: TaskRow): string | undefined;
+  /** A running task became done or failed. */
+  taskFinished?(task: TaskRow): void;
+  /** A task got (or changed) its pull request. */
+  pullRequestLinked?(task: TaskRow): void;
 }
 
 /** Where the queue is shown (OperationRooms). */
@@ -95,6 +108,7 @@ export class TaskQueue {
   readonly #logger: Logger;
   #timer: ReturnType<typeof setInterval> | undefined;
   #offGitHub: (() => void) | undefined;
+  #hooks: QueueHooks = {};
 
   constructor(opts: TaskQueueOptions) {
     this.#opts = opts;
@@ -105,13 +119,24 @@ export class TaskQueue {
       spawner: opts.spawner,
       logger: this.#logger,
       changed: (operationId) => this.publish(operationId),
+      promptFor: (task) => this.#hooks.promptFor?.(task),
+      finished: (task) => this.#hooks.taskFinished?.(task),
     });
+  }
+
+  extend(hooks: QueueHooks): void {
+    this.#hooks = hooks;
   }
 
   // ---- Server API ------------------------------------------------------------
 
   /** Queue a task owned by `actor` (their credentials, their runner). */
   enqueueTask(actor: OperationActor, input: EnqueueInput): TaskRow {
+    return this.insertPrepared([this.prepareTask(actor, input)])[0] as TaskRow;
+  }
+
+  /** Every check of `enqueueTask`, without queueing: the row it would insert. Throws QueueError. */
+  prepareTask(actor: OperationActor, input: EnqueueInput): NewTask {
     const access = operationAccessFor(this.#opts.db, actor, input.operationId);
     if (!mayQueueTask(access)) {
       throw new QueueError("forbidden", "you may not queue tasks in this room");
@@ -158,7 +183,7 @@ export class TaskQueue {
       if (err instanceof AgentManagerError) throw new QueueError("bad_request", err.message);
       throw err;
     }
-    const row = this.store.insert({
+    return {
       operationId: input.operationId,
       repoId: input.repoId,
       kind: input.kind,
@@ -172,14 +197,25 @@ export class TaskQueue {
       profileId: input.profileId ?? null,
       autoWorktree,
       createdBy: actor.id,
-    });
-    this.#logger.info(
-      { taskId: row.id, operationId: row.operationId, kind: row.kind },
-      "task queued",
-    );
-    this.publish(row.operationId);
-    void this.scheduler.kick(row.operationId);
-    return row;
+      linkedTaskId: input.linkedTaskId ?? null,
+    };
+  }
+
+  /**
+   * Queue prepared tasks in one transaction, together with what `first`
+   * writes (the parts of a linked task and its own row, #257): all or none.
+   */
+  insertPrepared(prepared: readonly NewTask[], first?: (tx: DbOrTx) => void): TaskRow[] {
+    const rows = this.store.insertAll(prepared, first);
+    for (const row of rows) {
+      this.#logger.info(
+        { taskId: row.id, operationId: row.operationId, kind: row.kind },
+        "task queued",
+      );
+      this.publish(row.operationId);
+      void this.scheduler.kick(row.operationId);
+    }
+    return rows;
   }
 
   reorder(actor: OperationActor, operationId: string, taskId: string, position: number): void {
@@ -252,7 +288,9 @@ export class TaskQueue {
   linkPullRequest(agentId: string, prNumber: number): void {
     const task = this.store.latestFor(agentId);
     if (!task || (task.state !== "running" && task.state !== "done")) return;
-    if (this.store.linkPr(task.id, prNumber)) this.publish(task.operationId);
+    if (!this.store.linkPr(task.id, prNumber)) return;
+    this.publish(task.operationId);
+    this.#hooks.pullRequestLinked?.({ ...task, prNumber });
   }
 
   /** Link PRs as they appear on the GitHub event bus (#35). */

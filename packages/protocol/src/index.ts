@@ -33,6 +33,7 @@
  * - acl.ts             who may control a henchman, who may emergency-stop it (D12)
  * - permission-modes.ts per-provider henchman permission modes (#166)
  * - queue-api.ts       room task queue: limits, results, who may queue/reorder/retry (#37)
+ * - linked-tasks.ts    one task across several repos: its parts, combined state, REST (#257)
  * - room-settings-api.ts room desk count and decor style (#182)
  * - search-api.ts     search across chat and terminal scrollback (#41)
  * - social.ts         seat keys, emote and chat limits, chat bubble timing (#49)
@@ -75,6 +76,7 @@ export * from "./github-api.ts";
 export * from "./jukebox.ts";
 export * from "./levels.ts";
 export * from "./line-diff.ts";
+export * from "./linked-tasks.ts";
 export * from "./live-access.ts";
 export * from "./media.ts";
 export * from "./meeting-plan.ts";

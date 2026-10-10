@@ -13,6 +13,7 @@
  * route, may contain a word that belongs to a closed room.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import * as schema from "../db/schema/index.ts";
 import type { Person } from "./office.fixture.ts";
 import { MARKERS, type RoomThings, type Scenario, startScenario } from "./scenario.fixture.ts";
 
@@ -58,6 +59,9 @@ const ROOM_ROUTES = [
   "POST /api/agents/:agentId/changes/discard",
   "GET /api/meetings/:id",
   "POST /api/meetings/:id/:action",
+  "POST /api/linked-tasks/:id/stop",
+  "POST /api/linked-tasks/:id/notes/:noteId/release",
+  "PUT /api/linked-tasks/:id/notes/auto",
   // Named by a query parameter or a body field instead of the path.
   "GET /api/workflows",
   "POST /api/workflows",
@@ -65,6 +69,8 @@ const ROOM_ROUTES = [
   "GET /api/workflows/runs",
   "GET /api/meetings",
   "POST /api/meetings",
+  "GET /api/linked-tasks",
+  "POST /api/linked-tasks",
   "POST /api/compound/check",
 ] as const;
 
@@ -181,7 +187,10 @@ const OFFICE_ROUTES: Record<string, string> = {
 };
 
 /** Path parameters a room route may use; a new one must be given a meaning here. */
-type Ids = Record<"operationId" | "boardId" | "repoId" | "agentId" | "decorId" | "id", string>;
+type Ids = Record<
+  "operationId" | "boardId" | "repoId" | "agentId" | "decorId" | "id" | "noteId",
+  string
+>;
 
 const NOWHERE = "00000000-0000-4000-8000-000000000270";
 
@@ -190,7 +199,9 @@ function idsOf(room: RoomThings, pattern: string): Ids {
     ? room.runId
     : pattern.includes("/workflows/")
       ? room.workflowId
-      : room.meetingId;
+      : pattern.includes("/linked-tasks/")
+        ? room.linkedTaskId
+        : room.meetingId;
   return {
     operationId: room.operationId,
     boardId: room.operationId,
@@ -198,6 +209,7 @@ function idsOf(room: RoomThings, pattern: string): Ids {
     agentId: room.agentId,
     decorId: room.decorId,
     id,
+    noteId: room.noteId,
   };
 }
 
@@ -208,6 +220,7 @@ const NO_IDS: Ids = {
   agentId: NOWHERE,
   decorId: NOWHERE,
   id: NOWHERE,
+  noteId: NOWHERE,
 };
 
 /** The request for a route with these ids: path, query and a body that passes validation. */
@@ -227,6 +240,13 @@ function request(route: string, ids: Ids, userId: string) {
   const bodies: Record<string, unknown> = {
     "POST /api/workflows": { operationId: ids.operationId, name: "w" },
     "POST /api/meetings": { operationId: ids.operationId, repoId: ids.repoId, topic: "t" },
+    "PUT /api/linked-tasks/:id/notes/auto": { on: true },
+    "POST /api/linked-tasks": {
+      operationIds: [ids.operationId, s.alpha.operationId],
+      prompt: "p",
+      provider: "claude-code",
+      model: "m",
+    },
     "POST /api/compound/check": {
       operationId: ids.operationId,
       placement: { gridX: 1, gridY: 1, width: 6, depth: 6, doorSide: "south" },
@@ -326,6 +346,63 @@ describe("the route table", () => {
       "Charlie-secret",
     ]);
   }, 60_000);
+
+  test("a linked task with a part in a closed room is an ordinary task to those outside it (#257)", async () => {
+    const linkedIn = async (who: Person, operationId: string) =>
+      (
+        (await (
+          await s.office.call(who, "GET", `/api/linked-tasks?operationId=${operationId}`)
+        ).json()) as { tasks: { id: string; parts: { operationId: string }[] }[] }
+      ).tasks;
+    // Mia sees both rooms: one task, two parts, from either room.
+    for (const room of [s.alpha, s.bravo]) {
+      const tasks = await linkedIn(s.mia, room.operationId);
+      expect(tasks.map((t) => t.id)).toEqual([s.bravo.linkedTaskId]);
+      expect(tasks[0]?.parts.map((p) => p.operationId).sort()).toEqual(
+        [s.alpha.operationId, s.bravo.operationId].sort(),
+      );
+    }
+    // Gus sees Alpha, where one part is: no linked task, and not its id either.
+    for (const who of [s.gus, s.olga, s.ned]) {
+      const res = await s.office.call(
+        who,
+        "GET",
+        `/api/linked-tasks?operationId=${s.alpha.operationId}`,
+      );
+      const text = await res.text();
+      expect(text).toBe('{"tasks":[]}');
+      expect(text).not.toContain(s.bravo.linkedTaskId);
+    }
+    // Nor may he stop it, or learn from the refusal that it exists.
+    const real = await s.office.call(
+      s.gus,
+      "POST",
+      `/api/linked-tasks/${s.bravo.linkedTaskId}/stop`,
+      {},
+    );
+    const none = await s.office.call(s.gus, "POST", `/api/linked-tasks/${NOWHERE}/stop`, {});
+    expect([real.status, await real.text()]).toEqual([none.status, await none.text()]);
+    expect(real.status).toBe(404);
+    // The notes are for the task's owner: Mia has Bravo's, nobody else is sent any.
+    const mine = (
+      (await (
+        await s.office.call(s.mia, "GET", `/api/linked-tasks?operationId=${s.alpha.operationId}`)
+      ).json()) as { tasks: { notes?: { id: string }[] }[] }
+    ).tasks;
+    expect(mine[0]?.notes?.map((n) => n.id)).toEqual([s.bravo.noteId]);
+    const pass = await s.office.call(
+      s.gus,
+      "POST",
+      `/api/linked-tasks/${s.bravo.linkedTaskId}/notes/${s.bravo.noteId}/release`,
+      {},
+    );
+    expect(pass.status).toBe(404);
+    const released = s.office.db
+      .select({ at: schema.linkedTaskNotes.releasedAt })
+      .from(schema.linkedTaskNotes)
+      .all();
+    expect(released.every((n) => n.at === null)).toBe(true);
+  });
 
   test("no office route's answer names a closed room either", async () => {
     const failures: string[] = [];

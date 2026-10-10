@@ -16,6 +16,7 @@ import {
   type TaskState,
 } from "@regulus/protocol";
 import { and, asc, desc, eq, inArray, isNull, lt, max, sql } from "drizzle-orm";
+import type { DbOrTx } from "../auth/audit.ts";
 import type { Db } from "../db/index.ts";
 import { desks, operationQueueSettings, tasks, userProfiles } from "../db/schema/index.ts";
 
@@ -35,6 +36,8 @@ export interface NewTask {
   profileId: string | null;
   autoWorktree: boolean;
   createdBy: string;
+  /** The linked task this is a part of (#257). */
+  linkedTaskId?: string | null;
 }
 
 /** Finished tasks older than this are deleted at boot. */
@@ -54,18 +57,45 @@ export class TaskStore {
 
   /** Append at the end of the room's queue. */
   insert(task: NewTask): TaskRow {
+    return this.insertAll([task])[0] as TaskRow;
+  }
+
+  /**
+   * Append several tasks, each at the end of its room's queue, in one
+   * transaction with whatever `first` writes (a linked task's own row, #257):
+   * all of it is there afterwards, or none.
+   */
+  insertAll(list: readonly NewTask[], first?: (tx: DbOrTx) => void): TaskRow[] {
     return this.db.transaction((tx) => {
-      const top = tx
-        .select({ max: max(tasks.position) })
-        .from(tasks)
-        .where(eq(tasks.operationId, task.operationId))
-        .get();
-      return tx
-        .insert(tasks)
-        .values({ ...task, position: (top?.max ?? -1) + 1, state: "queued" })
-        .returning()
-        .get();
+      first?.(tx);
+      return list.map((task) => {
+        const top = tx
+          .select({ max: max(tasks.position) })
+          .from(tasks)
+          .where(eq(tasks.operationId, task.operationId))
+          .get();
+        return tx
+          .insert(tasks)
+          .values({ ...task, position: (top?.max ?? -1) + 1, state: "queued" })
+          .returning()
+          .get();
+      });
     });
+  }
+
+  /**
+   * The owner stopped this part's henchman themselves (a linked task stopped
+   * whole): the part is cancelled, also when the henchman's exit had just
+   * marked it failed. False when it had finished some other way.
+   */
+  cancelStopped(taskId: string): boolean {
+    const changed = this.db
+      .update(tasks)
+      .set({ state: "cancelled", reason: "", finishedAt: new Date(this.now()) })
+      .where(and(eq(tasks.id, taskId), inArray(tasks.state, ["queued", "running", "failed"])))
+      .returning({ id: tasks.id })
+      .all();
+    return changed.length > 0;
   }
 
   /** Queued tasks of a room in run order. */

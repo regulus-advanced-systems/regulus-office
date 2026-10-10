@@ -91,3 +91,86 @@
 .rg-queue__settings select {
   min-width: 56px;
 }
+/* One task across rooms (#257): its parts under a queue task, and the rooms to add in the dialog. */
+.rg-queue__linked {
+  display: grid;
+  gap: 4px;
+  margin-top: 4px;
+  padding: 6px 8px;
+  border-left: 3px solid var(--rg-color-gold);
+  background: var(--rg-color-inset);
+  border-radius: 4px;
+  font-size: 12px;
+}
+.rg-queue__linked-head {
+  font-weight: 600;
+}
+.rg-queue__linked-parts {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+.rg-queue__linked-part {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: baseline;
+}
+.rg-queue__linked-room {
+  font-weight: 600;
+}
+.rg-queue__linked-repo,
+.rg-queue__also-repo,
+.rg-queue__also-hint {
+  color: var(--rg-color-ink-muted);
+}
+.rg-queue__linked-part--failed .rg-queue__linked-state,
+.rg-queue__linked-note {
+  color: var(--rg-color-amber);
+}
+.rg-queue__also {
+  display: grid;
+  gap: 6px;
+  margin: 0 0 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--rg-color-panel-border);
+  border-radius: 6px;
+  font-size: 13px;
+}
+.rg-queue__also legend {
+  padding: 0 4px;
+  font-weight: 600;
+}
+.rg-queue__also-hint {
+  margin: 0;
+  font-size: 12px;
+}
+.rg-queue__also-rooms {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+}
+.rg-queue__also-link {
+  font-size: 12px;
+}
+.rg-queue__linked-notes {
+  display: grid;
+  gap: 4px;
+  border-top: 1px solid var(--rg-color-panel-border);
+  padding-top: 4px;
+}
+.rg-queue__linked-note-row {
+  display: grid;
+  gap: 2px;
+}
+.rg-queue__linked-note-body {
+  margin: 0;
+  white-space: pre-wrap;
+  font-family: var(--rg-font-mono);
+  font-size: 12px;
+}
+.rg-queue__linked:focus {
+  outline: none;
+}
