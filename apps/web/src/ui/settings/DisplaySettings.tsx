@@ -8,6 +8,7 @@ import { useId } from "react";
 import { selectReducedMotion, useUiStore } from "../../state/ui.ts";
 import { Button } from "../components/Button.tsx";
 import { Switch } from "../components/Switch.tsx";
+import { DictationSettings } from "../dictation/DictationSettings.tsx";
 import { FirstPersonSettings } from "./FirstPersonSettings.tsx";
 import { GraphicsSettings } from "./GraphicsSettings.tsx";
 import { DEFAULT_SETTINGS } from "./settingsStorage.ts";
@@ -84,6 +85,7 @@ export function DisplaySettings() {
             />
           </div>
           <VoiceSettings />
+          <DictationSettings />
           <div className="rg-field">
             <Switch
               checked={settings.hour12}

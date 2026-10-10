@@ -7,6 +7,7 @@
  */
 import { type CSSProperties, useEffect, useRef } from "react";
 import { Button } from "../components/Button.tsx";
+import { useDictationTerminal } from "../dictation/useDictationTerminal.ts";
 import { CopyFailed } from "./CopyFailed.tsx";
 import type { TerminalHost } from "./host.ts";
 import type { TerminalUiState } from "./terminalState.ts";
@@ -38,6 +39,7 @@ export function TerminalScreen({
 }: TerminalScreenProps) {
   const readOnly = state.mode !== "control";
   const clip = useTerminalClipboard(element, host, readOnly, clipboardDeps);
+  useDictationTerminal(element, host, readOnly);
   const paste = clip.mac ? "Cmd+V" : "Ctrl+Shift+V";
   const copyKey = clip.mac ? "Cmd+C" : "Ctrl+Shift+C";
   return (

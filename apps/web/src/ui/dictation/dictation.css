@@ -1,0 +1,121 @@
+/* Dictation (#260): the mic button and recording pill by the focused box, and
+   the notice card. Both sit above dialogs (a terminal is one). */
+
+.rg-dictation {
+  position: fixed;
+  z-index: 210;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: min(520px, calc(100vw - 16px));
+  pointer-events: none;
+}
+.rg-dictation__mic {
+  pointer-events: auto;
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  font-size: 15px;
+  color: var(--rg-color-ink);
+  background: var(--rg-gradient-steel, var(--rg-color-modal-surface));
+  border: 1.5px solid var(--rg-color-gold);
+  border-radius: 50%;
+  box-shadow: var(--rg-shadow-toast);
+  cursor: pointer;
+  opacity: 0.8;
+  touch-action: none;
+  user-select: none;
+}
+.rg-dictation__mic:hover {
+  opacity: 1;
+}
+.rg-dictation[data-phase="starting"] .rg-dictation__mic,
+.rg-dictation[data-phase="listening"] .rg-dictation__mic,
+.rg-dictation[data-phase="finishing"] .rg-dictation__mic {
+  opacity: 1;
+  color: #fff;
+  background: var(--rg-lamp-error);
+  border-color: var(--rg-lamp-error);
+}
+.rg-dictation__live {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 4px 10px 4px 9px;
+  font-size: 13px;
+  color: var(--rg-color-ink);
+  background: var(--rg-color-modal-surface);
+  border: 2px solid var(--rg-lamp-error);
+  border-radius: 999px;
+  box-shadow: var(--rg-shadow-toast);
+}
+.rg-dictation__lamp {
+  --rg-lamp: var(--rg-lamp-error);
+}
+.rg-dictation__label {
+  flex: none;
+  font-weight: 700;
+}
+.rg-dictation__interim {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  /* The newest words stay in view. */
+  direction: rtl;
+  text-align: left;
+  color: var(--rg-color-ink-muted);
+}
+.rg-dictation__note {
+  flex: none;
+  font-size: 12px;
+  color: var(--rg-color-ink-muted);
+}
+
+.rg-dictation-engines {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  margin-inline: 0;
+  padding: 0;
+  border: 0;
+}
+.rg-dictation-engine {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px;
+  align-items: start;
+  cursor: pointer;
+}
+.rg-dictation-engine input {
+  margin-top: 3px;
+  accent-color: var(--rg-color-gold);
+}
+.rg-dictation-engine__hint {
+  display: block;
+}
+
+.rg-dictation-notice {
+  position: fixed;
+  z-index: 210;
+  left: 50%;
+  bottom: 20px;
+  transform: translateX(-50%);
+  width: min(460px, calc(100vw - 32px));
+  grid-template-columns: auto 1fr;
+  font-size: 14px;
+  animation: none;
+}
+.rg-dictation-notice__body {
+  line-height: 1.4;
+}
+.rg-dictation-notice__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
