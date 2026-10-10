@@ -19,6 +19,8 @@ import { makePng } from "../pictures/test-helpers.ts";
 import { Bookshelf } from "./service.ts";
 
 export const BRANCH = "trunk";
+/** A short wait for a due fetch, so the test of a hanging one is quick. */
+export const TEST_REFRESH_WAIT_MS = 150;
 /** Text that exists only outside the repo's tree. */
 export const OUTSIDE_SECRET = "OUTSIDE-SECRET-264";
 
@@ -130,12 +132,16 @@ export function startShelfOffice() {
   };
   const refreshed: string[] = [];
   let now = 1_000_000;
+  /** What the office's fetch of the mirror does in this test (nothing, by default). */
+  const fetching = { run: async (_repo: RepoCheckout): Promise<void> => undefined };
   const bookshelf = new Bookshelf({
     db,
     repos,
     logger: createLogger({ level: "silent" }),
-    refresh: async (repo) => {
+    refreshWaitMs: TEST_REFRESH_WAIT_MS,
+    refresh: (repo) => {
       refreshed.push(repo.repoId);
+      return fetching.run(repo);
     },
     now: () => now,
   });
@@ -147,6 +153,7 @@ export function startShelfOffice() {
     mirror,
     bookshelf,
     refreshed,
+    fetching,
     addRoom,
     person,
     advance: (ms: number) => {

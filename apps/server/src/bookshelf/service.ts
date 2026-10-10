@@ -17,8 +17,10 @@
  *
  * Freshness. The mirror is the office's (SPEC §8): when a shelf is opened
  * and the mirror was last fetched more than {@link REFRESH_AFTER_MS} ago,
- * the office fetches it in the background with its own repo credential,
- * never a person's token; the answer does not wait for that.
+ * the office fetches it with its own repo credential, never a person's
+ * token. The listing waits for that fetch at most {@link REFRESH_WAIT_MS}
+ * and then answers with what the mirror holds; a fetch that fails or is
+ * slow costs freshness, never the shelf.
  */
 import {
   BOOKSHELF_LIMITS,
@@ -47,6 +49,8 @@ import {
 import { type DocImageKind, sniffDocImage } from "./image.ts";
 
 export const REFRESH_AFTER_MS = 5 * 60_000;
+/** How long opening a shelf waits for a due fetch before answering without it. */
+export const REFRESH_WAIT_MS = 2500;
 /** Search output read from git before the search is called truncated. */
 const SEARCH_MAX_BYTES = 512 * 1024;
 
@@ -73,6 +77,8 @@ export interface BookshelfDeps {
   /** Fetch the repo's mirror with the office's own credential (never a person's). */
   refresh?(repo: RepoCheckout): Promise<void>;
   now?(): number;
+  /** How long a listing waits for a due fetch (default {@link REFRESH_WAIT_MS}). */
+  refreshWaitMs?: number;
 }
 
 /** README first, then the repo root, then `docs/`, then the rest; by path within each. */
@@ -156,20 +162,30 @@ export class Bookshelf {
     return building;
   }
 
-  #refreshInBackground(repo: RepoCheckout): void {
+  /**
+   * Fetch the mirror when it is due. Resolves when the fetch ends or after
+   * {@link REFRESH_WAIT_MS}, whichever is first (the fetch carries on); at
+   * once when no fetch is due or one is already running.
+   */
+  #refresh(repo: RepoCheckout): Promise<void> {
     const { refresh, logger } = this.#deps;
-    if (!refresh || repo.cloneStatus !== "ready" || this.#fetching.has(repo.repoId)) return;
+    if (!refresh || this.#fetching.has(repo.repoId)) return Promise.resolve();
     const last = this.#fetched.get(repo.repoId);
-    if (last !== undefined && this.#now() - last < REFRESH_AFTER_MS) return;
+    if (last !== undefined && this.#now() - last < REFRESH_AFTER_MS) return Promise.resolve();
     this.#fetching.add(repo.repoId);
     // Marked before the fetch ends, so a failing remote is not asked on every open.
     this.#fetched.set(repo.repoId, this.#now());
-    void refresh(repo)
+    const fetched = refresh(repo)
       .catch((err) => {
         const reason = err instanceof Error ? err.message : String(err);
         logger.warn({ repoId: repo.repoId, reason: reason.slice(0, 300) }, "shelf fetch failed");
       })
       .finally(() => this.#fetching.delete(repo.repoId));
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const patience = new Promise<void>((resolve) => {
+      timer = setTimeout(resolve, this.#deps.refreshWaitMs ?? REFRESH_WAIT_MS);
+    });
+    return Promise.race([fetched, patience]).finally(() => clearTimeout(timer));
   }
 
   async listing(actor: OperationActor, operationId: string): Promise<Answer<BookshelfListing>> {
@@ -189,9 +205,9 @@ export class Bookshelf {
     });
     if (!repo) return empty("no_repo");
     if (repo.cloneStatus === "cloning") return empty("cloning");
+    if (repo.cloneStatus === "ready") await this.#refresh(repo);
     const shelf = await this.#shelf(repo);
     if (!shelf) return empty("unavailable");
-    this.#refreshInBackground(repo);
     return {
       ok: true,
       value: {

@@ -8,7 +8,14 @@ import { join } from "node:path";
 import { BOOKSHELF_LIMITS } from "@regulus/protocol";
 import { seedRepoPermission, seedRoomAccess } from "../github/access/test-snapshot.ts";
 import { REFRESH_AFTER_MS } from "./service.ts";
-import { BRANCH, git, OUTSIDE_SECRET, type ShelfOffice, startShelfOffice } from "./test-helpers.ts";
+import {
+  BRANCH,
+  git,
+  OUTSIDE_SECRET,
+  type ShelfOffice,
+  startShelfOffice,
+  TEST_REFRESH_WAIT_MS,
+} from "./test-helpers.ts";
 
 let office: ShelfOffice;
 let reader: { id: string; role: "member" };
@@ -92,6 +99,39 @@ describe("the shelf", () => {
     office.advance(REFRESH_AFTER_MS + 1);
     await office.bookshelf.listing(outsider, "alpha");
     expect(office.refreshed).toHaveLength(2);
+  });
+
+  test("the shelf shows what a due fetch brought in; a fetch that fails or hangs costs only freshness", async () => {
+    writeFileSync(join(office.upstream, "docs", "fresh.md"), "# Fresh\n");
+    git(office.upstream, "add", "-A");
+    git(office.upstream, "commit", "--quiet", "-m", "fresh");
+    office.advance(REFRESH_AFTER_MS + 1);
+    office.fetching.run = async () => {
+      git(office.mirror, "fetch", "--quiet", "origin");
+    };
+    const fresh = value(await office.bookshelf.listing(reader, "alpha"));
+    expect(fresh.docs.map((d) => d.path)).toContain("docs/fresh.md");
+
+    office.advance(REFRESH_AFTER_MS + 1);
+    office.fetching.run = async () => {
+      throw new Error("remote: Repository not found");
+    };
+    expect(value(await office.bookshelf.listing(reader, "alpha")).docs.length).toBe(
+      fresh.docs.length,
+    );
+
+    office.advance(REFRESH_AFTER_MS + 1);
+    office.fetching.run = () => new Promise<void>(() => undefined);
+    const started = performance.now();
+    expect(value(await office.bookshelf.listing(reader, "alpha")).state).toBe("ready");
+    const waited = performance.now() - started;
+    expect(waited).toBeGreaterThanOrEqual(TEST_REFRESH_WAIT_MS - 20);
+    expect(waited).toBeLessThan(2000);
+    // While that fetch hangs, nobody else waits for it.
+    const again = performance.now();
+    value(await office.bookshelf.listing(reader, "alpha"));
+    expect(performance.now() - again).toBeLessThan(1000);
+    office.fetching.run = async () => undefined;
   });
 
   test("a room without a repo, or whose mirror is not ready, has an empty shelf", async () => {
