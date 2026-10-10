@@ -132,6 +132,9 @@ export const AUDIT_ACTIONS = {
   watchdogSentryProjects: "watchdog.sentry_projects",
   watchdogRoundRequest: "watchdog.round_request",
   watchdogFixDecide: "watchdog.fix_decide",
+  /** A person queued, or dropped, the task a board helper proposed to them (#56). Ids only. */
+  officeAgentProposalConfirm: "office_agent.proposal_confirm",
+  officeAgentProposalDismiss: "office_agent.proposal_dismiss",
 } as const;
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];
 

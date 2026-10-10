@@ -363,6 +363,7 @@ export const isOfficeWatchdog = (agent: ToolHolder): boolean =>
  *   round tools, in a conversation the conversation tools. It keeps no
  *   memories and posts nowhere: what it reads covers rooms the person it
  *   talks to may not see.
+ * - A board helper (#56) has only `KIOSK_TOOLS`, as far as its preset includes them.
  * - Every other agent has what its preset includes, and never a watchdog tool.
  */
 export function agentMayUseTool(
@@ -375,7 +376,8 @@ export function agentMayUseTool(
   if (isOfficeWatchdog(agent)) {
     return spec.role === "watchdog" && (spec.roundTurn === true) === (turn === "round");
   }
-  return spec.role === undefined && turn === "conversation";
+  if (spec.role !== undefined || turn !== "conversation") return false;
+  return !isBoardHelper(agent) || KIOSK_TOOLS.includes(tool);
 }
 
 /** The tools an agent has in a turn, in list order. */
@@ -386,11 +388,31 @@ export function toolsForAgent(
   return OFFICE_TOOLS.filter((t) => agentMayUseTool(agent, t.name, turn));
 }
 
+/**
+ * The only tools a board helper has (#56), whatever its preset: it reads its
+ * room and queues tasks. No comments, no chat, no henchmen, no questions to
+ * people, no memories or notes (a helper at a board keeps nothing about the
+ * people who walk up to it).
+ */
+export const KIOSK_TOOLS: readonly OfficeToolName[] = [
+  "list_operations",
+  "list_henchmen",
+  "read_board",
+  "read_queue",
+  "soul_read",
+  "enqueue_task",
+];
+
+/** A board helper: a shared agent whose job is `kiosk` (#56). */
+export const isBoardHelper = (agent: ToolHolder): boolean => agent.role === "kiosk";
+
 /** Error codes a refused or failed tool call carries (REST `error`, MCP `structuredContent.error`). */
 export const OFFICE_TOOL_ERRORS = [
   "unknown_tool",
   "invalid_input",
   "preset_forbids",
+  /** The agent's job does not include the tool: a board helper asked for more than its board (#56). */
+  "role_forbids",
   "not_found",
   "forbidden",
   "on_behalf_required",

@@ -13,6 +13,8 @@ import {
   AGENT_BUBBLE_MAX_TEXT,
   type AgentBubble,
   type BuildingState,
+  KIOSK_BODY_SCALE,
+  kioskBoardOfPost,
   LOBBY_LEVEL_ID,
   mayTalkToOfficeAgent,
   type OfficeAgentAttentionEntry,
@@ -48,11 +50,18 @@ export function canChatWith(
   return !!viewer && mayTalkToOfficeAgent(viewer, { ownerUserId: body.ownerUserId || null });
 }
 
+/** A board helper (#56): it stands at a board of the room it is in. */
+export const isBoardHelper = (body: { post?: string }) => kioskBoardOfPost(body.post) !== undefined;
+
+/** How big a body is drawn: a board helper is a small henchman. */
+export const bodyScale = (body: { post?: string }) => (isBoardHelper(body) ? KIOSK_BODY_SCALE : 1);
+
 /** Whose it is, in a few words: under its name in the chat window, and over it for other people. */
 export function bodyCaption(
-  body: Pick<OfficeAgentBody, "ownerUserId" | "ownerName">,
+  body: Pick<OfficeAgentBody, "ownerUserId" | "ownerName"> & { post?: string },
   viewer: Viewer | null,
 ): string {
+  if (isBoardHelper(body)) return "Board helper";
   if (body.ownerUserId === "") return "Office agent";
   if (isOwnBody(body, viewer)) return "Your assistant";
   return `${body.ownerName || "Someone"}'s assistant`;

@@ -10,7 +10,6 @@
  */
 import {
   mayConfigureOfficeAgent,
-  maySeeOfficeAgent,
   mayTalkToOfficeAgent,
   type OfficeAgentAttention,
   type OfficeAgentView,
@@ -18,6 +17,7 @@ import {
 import { AUDIT_ACTIONS, writeAudit } from "../../auth/audit.ts";
 import { AuthHttpError, forbidden } from "../../auth/errors.ts";
 import type { OperationActor } from "../../operations/access.ts";
+import { kiosksByAgent, seesAgent } from "../kiosk/placements.ts";
 import type { OfficeAgentRow, OfficeAgentStore } from "../store.ts";
 import type { AgentAttention } from "./attention.ts";
 
@@ -38,7 +38,7 @@ export class AgentWorldService {
 
   #owned(actor: OperationActor, id: string): OfficeAgentRow {
     const row = this.deps.store.get(id);
-    if (!row || !maySeeOfficeAgent(actor, row)) throw notFound();
+    if (!row || !seesAgent(this.deps.store.db, actor, row)) throw notFound();
     if (row.ownerUserId === null) throw new AuthHttpError(400, "shared_agents_wander");
     if (!mayConfigureOfficeAgent(actor, row)) throw forbidden("not_your_agent");
     return row;
@@ -71,7 +71,7 @@ export class AgentWorldService {
   /** The actor has read their own conversation with the agent. */
   seen(actor: OperationActor, id: string): void {
     const row = this.deps.store.get(id);
-    if (!row || !maySeeOfficeAgent(actor, row)) throw notFound();
+    if (!row || !seesAgent(this.deps.store.db, actor, row)) throw notFound();
     if (!mayTalkToOfficeAgent(actor, row)) {
       throw forbidden(row.ownerUserId === null ? "viewers_cannot" : "not_your_agent");
     }
@@ -81,9 +81,13 @@ export class AgentWorldService {
 
   /** What the actor's agents (the ones they may talk to) want from them. */
   attention(actor: OperationActor): OfficeAgentAttention {
+    const { db } = this.deps.store;
+    const kiosks = kiosksByAgent(db);
     const mine = new Set(
       this.deps.store
         .list()
+        // Not a board helper of a room this person cannot see (#56).
+        .filter((row) => seesAgent(db, actor, row, kiosks.get(row.id)))
         .filter((row) => mayTalkToOfficeAgent(actor, row))
         .map((row) => row.id),
     );

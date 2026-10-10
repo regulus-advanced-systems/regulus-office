@@ -39,8 +39,13 @@ export type OfficeAgentPatch = Partial<
 
 const SETTINGS_ID = "office";
 
-/** Names are compared without case or repeated spaces. */
-export const nameKeyOf = (name: string) => name.trim().replace(/\s+/g, " ").toLowerCase();
+/**
+ * Names are compared without case or repeated spaces. A `scope` makes the name
+ * unique within that scope only (a board helper's room, #56); the separator
+ * cannot be in a name.
+ */
+export const nameKeyOf = (name: string, scope?: string) =>
+  `${scope ? `${scope}\n` : ""}${name.trim().replace(/\s+/g, " ").toLowerCase()}`;
 
 export class OfficeAgentStore {
   constructor(
@@ -97,12 +102,12 @@ export class OfficeAgentStore {
     return row ? this.#open(row) : undefined;
   }
 
-  nameTaken(name: string): boolean {
+  nameTaken(name: string, scope?: string): boolean {
     return (
       this.db
         .select({ id: officeAgents.id })
         .from(officeAgents)
-        .where(eq(officeAgents.nameKey, nameKeyOf(name)))
+        .where(eq(officeAgents.nameKey, nameKeyOf(name, scope)))
         .get() !== undefined
     );
   }
@@ -130,7 +135,7 @@ export class OfficeAgentStore {
     return row?.n ?? 0;
   }
 
-  insert(db: DbOrTx, row: NewOfficeAgentRow): OfficeAgentRow {
+  insert(db: DbOrTx, row: NewOfficeAgentRow, nameScope?: string): OfficeAgentRow {
     // The id is chosen here: the soul's envelope is bound to it.
     const id = row.id ?? crypto.randomUUID();
     const soul = this.cipher.seal(soulPlace(id), row.instructions ?? "");
@@ -141,7 +146,7 @@ export class OfficeAgentStore {
         id,
         instructions: soul.text,
         instructionsSealed: soul.sealed,
-        nameKey: nameKeyOf(row.name),
+        nameKey: nameKeyOf(row.name, nameScope),
       })
       .returning()
       .get();

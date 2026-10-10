@@ -15,7 +15,6 @@ import {
   type HermesConnectionTest,
   type HermesConnectionTestResult,
   mayConfigureOfficeAgent,
-  maySeeOfficeAgent,
   type OfficeAgentView,
   OWN_MODEL_PLACEHOLDER,
 } from "@regulus/protocol";
@@ -23,6 +22,7 @@ import { AUDIT_ACTIONS, writeAudit } from "../../auth/audit.ts";
 import { AuthHttpError, forbidden } from "../../auth/errors.ts";
 import type { OperationActor } from "../../operations/access.ts";
 import { EngineRefusal } from "../engines/types.ts";
+import { seesAgent } from "../kiosk/placements.ts";
 import type { AgentRuntime } from "../runtime.ts";
 import type { CreateInput, OfficeAgentService } from "../service.ts";
 import type { OfficeAgentRow, OfficeAgentStore } from "../store.ts";
@@ -151,7 +151,10 @@ export class HermesAgentService {
   /** The caller's own `hermes-external` agent; 404 when they may not see it, 403 when it is not theirs. */
   #own(actor: OperationActor, agentId: string): OfficeAgentRow {
     const row = this.deps.store.get(agentId);
-    if (!row || !maySeeOfficeAgent(actor, row)) throw new AuthHttpError(404, "not_found");
+    // A board helper of a room the caller cannot see is like an agent that does not exist (#56).
+    if (!row || !seesAgent(this.deps.store.db, actor, row)) {
+      throw new AuthHttpError(404, "not_found");
+    }
     if (row.ownerUserId === null || !mayConfigureOfficeAgent(actor, row)) {
       throw forbidden("not_your_agent");
     }

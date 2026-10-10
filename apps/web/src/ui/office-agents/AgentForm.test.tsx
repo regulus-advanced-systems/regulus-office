@@ -123,7 +123,8 @@ describe("office agent form", () => {
     // The watchdog has a kit of its own (#253); any other job goes back to the jumpsuit.
     await choose(select("Job"), "watchdog");
     expect(radio("Black ops").checked).toBe(true);
-    await choose(select("Job"), "kiosk");
+    // (Not "kiosk": a board helper is a job of the office only, with a coat of its own, #56.)
+    await choose(select("Job"), "custom");
     expect(radio("Standard").checked).toBe(true);
     await choose(select("Job"), "pm");
     await typeInto("Name", "Ledger");

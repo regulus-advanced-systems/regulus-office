@@ -10,6 +10,7 @@ import {
   agentModelLabel,
   engineBringsOwnModel,
   type HermesConnectionInput,
+  KIOSK_BOARD_LABELS,
   mayEmergencyStopOfficeAgent,
   type OfficeAgentTokenCreated,
   type OfficeAgentView,
@@ -27,6 +28,7 @@ import { AppearanceThumb } from "./AppearancePicker.tsx";
 import type { OfficeAgentsApi } from "./api.ts";
 import { useChatRequest } from "./chatRequest.ts";
 import { HermesConnectionSection } from "./HermesConnection.tsx";
+import { KioskProposals } from "./KioskProposals.tsx";
 import {
   ago,
   costWords,
@@ -108,6 +110,12 @@ export function AgentCard({
                 : `Personal: ${agent.owner.kind === "user" ? agent.owner.displayName : ""}`}
             </span>
             <span>Job: {ROLE_WORDS[agent.role].label}</span>
+            {agent.kiosk && (
+              <span data-testid="agent-kiosk">
+                Stands at: {KIOSK_BOARD_LABELS[agent.kiosk.board]}, {agent.kiosk.operationName}
+                {agent.kiosk.runsLikePm ? " (runs like the project manager)" : ""}
+              </span>
+            )}
             <span>May: {PRESET_WORDS[agent.preset].label}</span>
             <span>Looks: {officeAgentAppearanceLabel(agent.appearance)}</span>
             {/* An agent a person stopped has no body in the lair (#301). */}
@@ -203,12 +211,14 @@ export function AgentCard({
         <AgentForm
           api={api}
           agent={agent}
+          rooms={operations}
           busy={busy}
           onSave={(patch) => void actions.update(patch).then((ok) => ok && setEditing(false))}
           onCancel={() => setEditing(false)}
           onConnect={actions.connect}
         />
       )}
+      {chatting && agent.canTalk && agent.kiosk && <KioskProposals api={api} agentId={agent.id} />}
       {chatting && agent.canTalk && (
         <AgentChat api={api} agentId={agent.id} agentName={agent.name} />
       )}
@@ -233,7 +243,10 @@ export function AgentCard({
         <AgentAccess
           agent={agent}
           config={agent.config}
-          operations={operations}
+          // A board helper works in its own room only (#56).
+          operations={operations.filter(
+            (room) => !agent.kiosk || room.operationId === agent.kiosk.operationId,
+          )}
           busy={busy}
           now={now}
           minted={minted}

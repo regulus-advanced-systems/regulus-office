@@ -305,3 +305,76 @@
   flex-wrap: wrap;
   gap: 8px;
 }
+
+/* Board helpers (#56): where one stands, and what it says about its board. */
+.rg-office-agent__kiosk {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.rg-office-agent__check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.rg-kiosk-brief {
+  display: grid;
+  gap: 4px;
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--rg-border, rgba(201, 162, 39, 0.45));
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.18);
+}
+.rg-kiosk-brief__where {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.75;
+}
+.rg-kiosk-brief__headline {
+  font-size: 15px;
+}
+.rg-kiosk-brief__lines {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 2px;
+}
+
+/* What a board helper proposes to queue (#56): shown in full, queued only on Confirm. */
+.rg-kiosk-proposal {
+  display: grid;
+  gap: 6px;
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--rg-accent, #f2c200);
+  border-radius: 6px;
+  background: rgba(242, 194, 0, 0.08);
+}
+.rg-kiosk-proposal__facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 2px 10px;
+  margin: 0;
+}
+.rg-kiosk-proposal__facts dt {
+  opacity: 0.75;
+}
+.rg-kiosk-proposal__facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.rg-kiosk-proposal__prompt {
+  margin: 0;
+  max-height: 160px;
+  overflow: auto;
+  padding: 6px 8px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.25);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: inherit;
+}
