@@ -7,13 +7,15 @@ import {
   ROOM_MIN_TILES,
 } from "@regulus/protocol";
 import { doorApproach, doorStart } from "../compound/grid.ts";
+import { headingToward } from "../geometry.ts";
 import { buildNavGrid } from "../nav-grid.ts";
-import { interactables } from "../query.ts";
+import { interactables, rectSpanOnWall, wallById } from "../query.ts";
 import { COMPASS_DIRECTIONS, WALL_ANCHOR_KINDS } from "../types.ts";
 import { BOARD_LIKE, GONG_CLEARANCE } from "./anchors.ts";
 import { ROOM_MIN_FREE } from "./constants.ts";
 import { generateRoom, maxDeskCount, RoomGenerationError } from "./generate.ts";
 import { roomProblems } from "./measure.ts";
+import { DOCS_SHELF_ID, DOCS_SHELF_MODEL, SHELF_CLEARANCE } from "./props.ts";
 import { roomDeskSeatIds } from "./seat-ids.ts";
 import type { RoomLayout } from "./types.ts";
 
@@ -55,6 +57,47 @@ function check(l: RoomLayout): string[] {
     const c = grid.cellToWorld(grid.worldToCell(p.x, p.z));
     if (Math.abs(c.x - p.x) > 1e-9 || Math.abs(c.z - p.z) > 1e-9)
       problems.push(`${p.id} is off its cell centre`);
+  }
+  problems.push(...shelfProblems(l));
+  return problems;
+}
+
+/**
+ * The docs bookshelf (#264): one in every room, usable (a stand point), its
+ * `E` clear of every board's, the gong's and the door's, and never standing
+ * under wall decor. That it blocks no desk, board or lane is `roomProblems`.
+ */
+function shelfProblems(l: RoomLayout): string[] {
+  const shelves = l.obstacles.filter((o) => o.id === DOCS_SHELF_ID);
+  const shelf = shelves[0];
+  if (shelves.length !== 1 || !shelf?.standAt) return [`${shelves.length} usable docs shelves`];
+  const problems: string[] = [];
+  const stand = shelf.standAt;
+  if (shelf.kind !== "bookshelf" || l.room.models[shelf.id] !== DOCS_SHELF_MODEL)
+    problems.push("the docs shelf is not drawn as the bookshelf");
+  for (const other of interactables(l)) {
+    if (other.id === shelf.id) continue;
+    const gap = Math.hypot(other.standAt.x - stand.x, other.standAt.z - stand.z);
+    if (gap < SHELF_CLEARANCE - 1e-9)
+      problems.push(`the docs shelf answers E at ${other.id} (${gap.toFixed(2)} m)`);
+  }
+  // In front of the shelf, within arm's reach of it, facing it.
+  const centre = { x: shelf.rect.x + shelf.rect.w / 2, z: shelf.rect.z + shelf.rect.d / 2 };
+  const off = Math.abs(stand.heading - headingToward(stand, centre)) % (2 * Math.PI);
+  if (
+    Math.hypot(centre.x - stand.x, centre.z - stand.z) > 0.6 ||
+    Math.min(off, 2 * Math.PI - off) > 1e-6
+  )
+    problems.push("the docs shelf's stand point does not face it");
+  for (const item of l.wallDecor) {
+    const wall = wallById(l, item.wallId);
+    if (!wall) continue;
+    const near = Math.abs(
+      wall.from.x === wall.to.x ? centre.x - wall.from.x : centre.z - wall.from.z,
+    );
+    const span = rectSpanOnWall(wall, shelf.rect);
+    if (near < 0.5 && item.t + item.w / 2 > span.start && item.t - item.w / 2 < span.end)
+      problems.push(`the docs shelf stands under ${item.id}`);
   }
   return problems;
 }
@@ -129,10 +172,11 @@ describe("desk count and seat ids", () => {
 
 describe("vanilla start and decor styles", () => {
   test.each([...COMPASS_DIRECTIONS])(
-    "a new room (door %s) is one desk, a cabinet, a plant and a lamp",
+    "a new room (door %s) is one desk, a cabinet, a plant and a lamp, and the docs bookshelf",
     (side) => {
       const l = room(8, 8, side, 1, "ops_room");
       expect(l.obstacles.map((o) => o.kind).sort()).toEqual([
+        "bookshelf",
         "cabinet",
         "floor_lamp",
         "plant",

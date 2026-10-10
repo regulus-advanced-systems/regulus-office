@@ -9,12 +9,13 @@
  *   free floor (wall to nearest desk pod) still leaves a 1.5 m lane beside
  *   them, never in front of an anchor or within 0.8 m of the door.
  *
- * The vanilla room gets a cabinet, a plant and a lamp. Every further desk
+ * The vanilla room gets a cabinet, a plant and a lamp, and the bookshelf of
+ * the repo's docs (#264), which every room has. Every further desk
  * adds three props, in a fixed order, so props only ever appear as a room
  * grows and never move. Which kind fills a site depends on the decor style;
  * the footprint never does.
  */
-import type { CompassDirection, Rect } from "../geometry.ts";
+import { type CompassDirection, HEADING, type Pose, type Rect } from "../geometry.ts";
 import type { Obstacle } from "../types.ts";
 import type { Run } from "./anchors.ts";
 import type { Shell } from "./shell.ts";
@@ -32,6 +33,36 @@ const DOOR_CLEAR = 0.8;
 const CORNER = 1.6;
 /** Lived-in props each desk beyond the first brings. */
 const PROPS_PER_DESK = 3;
+
+/** The room's bookshelf of the repo's docs (#264): the one floor prop people use. */
+export const DOCS_SHELF_ID = "docs-shelf";
+/** One look in every decor style (the kit's shelving), so people learn where the docs are. */
+export const DOCS_SHELF_MODEL = "lair/common/bookshelf";
+const SHELF_LEN = 1;
+/** Front edge on a nav cell boundary (0.12 + 0.38 = 0.5), so the cell in front stays free. */
+const SHELF_DEEP = 0.38;
+/** Where a reader stands, from the wall line: the first cell centre in front of the shelf. */
+const SHELF_STAND = 0.75;
+/** Free floor the shelf must leave between itself and the desk pods: one lane. */
+const SHELF_LANE = 1.5;
+
+/**
+ * How far the reader's stand point keeps from every wall anchor's: more than
+ * a board's or the gong's `E` reach (1.4 m and 1.2 m in the scene), so `E`
+ * at the shelf is never `E` at one of them.
+ */
+export const SHELF_CLEARANCE = 2;
+
+/** What the shelf keeps away from: anchor stand points, and wall decor spans along a side. */
+export interface ShelfAvoid {
+  readonly stands: ReadonlyArray<{ x: number; z: number }>;
+  readonly decor: ReadonlyArray<{ side: string; start: number; end: number }>;
+}
+
+/** Smallest `t >= v` on a nav cell centre (0.25 mod 0.5), so a stand point ends a path exactly. */
+function onCell(v: number): number {
+  return Math.ceil((v - 0.25) / 0.5 - 1e-6) * 0.5 + 0.25;
+}
 
 export interface PlacedProp {
   obstacle: Obstacle;
@@ -176,6 +207,63 @@ export class PropPlanner {
     return id;
   }
 
+  /**
+   * The docs bookshelf (#264), against the first wall site with room for it
+   * and a lane left in front, the board wall's free stretches first. It
+   * keeps its own id and model in every style (it is used, not decor), and
+   * its centre and stand point sit on nav cell centres. Null when no site
+   * fits; generate.test.ts holds every size, door side and desk count to one.
+   */
+  docsShelf(avoid: ShelfAvoid = { stands: [], decor: [] }): string | null {
+    const order = [...this.#sites].sort((a, b) => Number(b.back) - Number(a.back));
+    const half = SHELF_LEN / 2;
+    for (const site of order) {
+      if (site.band - WALL_GAP - SHELF_DEEP < SHELF_LANE) continue;
+      for (let from = site.cursor; ; from += 0.5) {
+        const centre = onCell(from + half);
+        if (centre + half > site.end + 1e-6) break;
+        const standAt = this.#shelfStand(site.side, centre);
+        const crowded = avoid.stands.some(
+          (s) => Math.hypot(s.x - standAt.x, s.z - standAt.z) < SHELF_CLEARANCE - 1e-6,
+        );
+        // Taller than a cabinet: it does not stand under a clock, poster or pinboard.
+        const underDecor = avoid.decor.some(
+          (d) => d.side === site.side && d.end > centre - half && d.start < centre + half,
+        );
+        if (crowded || underDecor) continue;
+        const rect = againstWall(
+          site.side,
+          centre - half,
+          SHELF_LEN,
+          SHELF_DEEP,
+          this.width,
+          this.depth,
+        );
+        site.cursor = centre + half + SPACING;
+        this.props.push({
+          obstacle: { id: DOCS_SHELF_ID, kind: "bookshelf", rect, standAt },
+          model: DOCS_SHELF_MODEL,
+        });
+        return DOCS_SHELF_ID;
+      }
+    }
+    return null;
+  }
+
+  /** In front of the shelf's centre, facing it. */
+  #shelfStand(side: CompassDirection, centre: number): Pose {
+    switch (side) {
+      case "north":
+        return { x: centre, z: SHELF_STAND, heading: HEADING.north };
+      case "south":
+        return { x: centre, z: this.depth - SHELF_STAND, heading: HEADING.south };
+      case "west":
+        return { x: SHELF_STAND, z: centre, heading: HEADING.west };
+      case "east":
+        return { x: this.width - SHELF_STAND, z: centre, heading: HEADING.east };
+    }
+  }
+
   readonly #corners = new Set<string>();
 
   /** A `size` square in a free corner, `inset` from both walls; null when the corner is taken. */
@@ -248,7 +336,7 @@ export class PropPlanner {
  * Vanilla props, then three lived-in props per desk beyond the first. Returns
  * the ids of the floor lamps (they get lights).
  */
-export function placeProps(p: PropPlanner, deskCount: number): string[] {
+export function placeProps(p: PropPlanner, deskCount: number, avoid?: ShelfAvoid): string[] {
   // Vanilla: a cabinet by the boards, a plant and a lamp.
   const corners = propCorners(p.shell);
   if (!p.wall("cabinet", 1, 0.45, undefined, true)) p.corner(corners.extra, "cabinet", 0.8);
@@ -256,6 +344,7 @@ export function placeProps(p: PropPlanner, deskCount: number): string[] {
   const lamps = [p.lampCorner(corners.lamp, deskCount > 1)].filter(
     (id): id is string => id !== null,
   );
+  p.docsShelf(avoid);
 
   let budget = PROPS_PER_DESK * (deskCount - 1) - (deskCount > 1 ? 1 : 0);
   if (budget > 0 && p.corner(corners.extra, p.siteKind("corner"), 0.8, "corner")) budget--;
