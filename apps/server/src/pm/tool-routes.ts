@@ -43,11 +43,12 @@ export const statusOfToolResult = (result: OfficeToolResult): number =>
 
 export function mountToolRoutes(router: Router, deps: AgentAuthDeps & { tools: OfficeTools }) {
   router.get(OFFICE_AGENT_TOOLS_API_PATH, (ctx) => {
-    const agent = agentFromRequest(deps, ctx.request);
-    if (!agent) return unauthorizedAgent();
+    const found = callerFromRequest(deps, ctx.request);
+    if (!found) return unauthorizedAgent();
+    const { agent } = found;
     return json({
       agent: { id: agent.id, name: agent.name, preset: agent.preset },
-      tools: deps.tools.list(agent),
+      tools: deps.tools.list(agent, found.caller),
     });
   });
 

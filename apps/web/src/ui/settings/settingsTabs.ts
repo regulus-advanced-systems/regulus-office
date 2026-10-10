@@ -4,7 +4,9 @@
  * (sessionStorage, every access wrapped: private modes and blocked storage
  * just forget it). Owners and admins see Office and Henchmen; everyone else
  * never lands on them, even if a remembered id says so. Agents (#271) is for
- * everyone: each person has their own, and the shared ones serve all.
+ * everyone: each person has their own, and the shared ones serve all. Watchdog
+ * (#253) is for everyone too: each person sees its findings for the rooms they
+ * may see, and owners and admins also what it watches.
  */
 import type { UserRole } from "@regulus/protocol";
 import { create } from "zustand";
@@ -17,6 +19,7 @@ export const SETTINGS_TAB_IDS = [
   "office",
   "henchmen",
   "agents",
+  "watchdog",
   "notifications",
   "display",
 ] as const;
@@ -27,6 +30,7 @@ export const SETTINGS_TAB_LABELS: Readonly<Record<SettingsTabId, string>> = {
   office: "Office",
   henchmen: "Henchmen",
   agents: "Agents",
+  watchdog: "Watchdog",
   notifications: "Notifications",
   display: "Display and sound",
 };

@@ -245,6 +245,7 @@ describe("palette entries: by role", () => {
     expect(titles(forRole(member), "Settings")).toEqual([
       "Settings: You",
       "Settings: Agents",
+      "Settings: Watchdog",
       "Settings: Notifications",
       "Settings: Display and sound",
     ]);

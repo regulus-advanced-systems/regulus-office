@@ -56,6 +56,8 @@ export interface AgentsOfficeOptions {
   /** Timings of the Hermes engine (#58). */
   hermes?: OfficeAgentsOptions["hermes"];
   managedHermes?: OfficeAgentsOptions["managedHermes"];
+  /** Stand-ins for the hosts and the Sentry the watchdog reaches (#253). */
+  watchdog?: OfficeAgentsOptions["watchdog"];
 }
 
 export async function agentsOffice(options: AgentsOfficeOptions = {}) {
@@ -224,6 +226,7 @@ export async function agentsOffice(options: AgentsOfficeOptions = {}) {
     cliCommand: options.cliCommand,
     hermes: options.hermes,
     managedHermes: options.managedHermes,
+    watchdog: options.watchdog,
     usage: new UsageTracker(db),
   });
   officeAgents.bind({

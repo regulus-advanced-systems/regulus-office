@@ -54,6 +54,11 @@ export interface CliTurnInput {
   resume: boolean;
   /** What the agent remembers, as text (`EngineMind.digest()`); empty when nothing. */
   memory?: string;
+  /**
+   * Given: this text stands in place of the office's usual frame (how to act, memories), and
+   * `memory` is left out. For an agent that works differently: the office's watchdog (#253).
+   */
+  frame?: string;
   prompt: string;
   /** Program override (tests point this at the fake CLI). */
   command?: string;
@@ -72,7 +77,16 @@ export function agentDir(home: string, agentId: string): string {
  * Who the agent is, for the system prompt: the office's frame, then its soul
  * (so the soul can refine the frame), then what it remembers.
  */
-export function rolePrompt(agent: EngineAgent, memory = ""): string {
+export function rolePrompt(agent: EngineAgent, memory = "", frame?: string): string {
+  if (frame !== undefined) {
+    return [
+      `You are ${agent.name}, an office agent (role: ${agent.role}) in a Regulus Office.`,
+      frame.trim(),
+      agent.instructions.trim(),
+    ]
+      .filter((s) => s.length > 0)
+      .join("\n\n");
+  }
   const whose =
     agent.ownerUserId === null
       ? "You are a shared agent of the office: you serve everyone in it. Each message tells you who is speaking and their user id. When an office tool takes `onBehalfOf` and you act for the person who asked, pass their user id; you can only act for a person while they wait for your answer."
@@ -159,7 +173,7 @@ export function buildClaudeTurn(input: CliTurnInput): SpawnPlan {
     // A Secret so it is never logged with the plan: it is private, not a credential.
     {
       path: promptPath,
-      contents: Secret.of(`${rolePrompt(input.agent, input.memory)}\n`),
+      contents: Secret.of(`${rolePrompt(input.agent, input.memory, input.frame)}\n`),
       mode: 0o600,
     },
   ];

@@ -101,6 +101,11 @@ export const officeAgentTokens = sqliteTable(
     kind: text("kind", { enum: ["api", "session", "turn"] }).notNull(),
     /** `turn` tokens: the person whose message the agent is answering with it. */
     forUserId: text("for_user_id").references(() => users.id, { onDelete: "cascade" }),
+    /**
+     * `turn` tokens of a turn the office itself gave the agent, for nobody (one part of a
+     * watchdog round, #253): what the office gave that turn for. Such a turn has no person.
+     */
+    officeTurn: text("office_turn"),
     label: text("label").notNull().default(""),
     /**
      * `api` tokens: the person who minted it. A shared agent called with it reads

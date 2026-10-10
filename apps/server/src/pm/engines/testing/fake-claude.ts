@@ -13,8 +13,10 @@
  * Prompts: "SLEEP" hangs (timeout test), "FAIL" reports an error, "QUEUE
  * <operation> <repo> <user>" calls `enqueue_task` on behalf of that user,
  * "REMEMBER <text>" calls `memory_save` and "RECALL <words>" `memory_search`
- * (#136), "BOARD <operation>" calls `read_board` (#301). The system prompt is
- * read from `--append-system-prompt-file`.
+ * (#136), "BOARD <operation>" calls `read_board` (#301). The office's
+ * instruction to its watchdog to do one part of a round (#253) makes it do
+ * that: read, record each new signal, finish. The system prompt is read from
+ * `--append-system-prompt-file`.
  */
 import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -73,13 +75,21 @@ async function rpc(method: string, params: unknown): Promise<Record<string, unkn
     body: JSON.stringify({ jsonrpc: "2.0", id: rpcId, method, params }),
   });
   if (!res.ok) return { httpStatus: res.status };
-  return ((await res.json()) as { result: Record<string, unknown> }).result;
+  const body = (await res.json()) as {
+    result?: Record<string, unknown>;
+    error?: { code: number; message: string };
+  };
+  // A protocol error (a tool this session does not have) is reported, not thrown.
+  return body.result ?? { rpcError: body.error?.message ?? "error" };
 }
-const callTool = async (name: string, args: unknown) =>
-  (await rpc("tools/call", { name, arguments: args })).structuredContent;
+const callTool = async (name: string, args: unknown) => {
+  const answer = await rpc("tools/call", { name, arguments: args });
+  return answer.structuredContent ?? answer;
+};
 
 await rpc("initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: {} });
 const listed = (await rpc("tools/list", {})) as { tools?: Array<{ name: string }> };
+// Not every agent has it (the office's watchdog has its own tools only): then this is the refusal.
 const operations = await callTool("list_operations", {});
 let queued: unknown;
 const queue = /QUEUE (\S+) (\S+) (\S+)/.exec(prompt);
@@ -104,6 +114,30 @@ if (remember) remembered = await callTool("memory_save", { text: remember[1], so
 let recalled: unknown;
 const recall = /RECALL (.+)/.exec(prompt);
 if (recall) recalled = await callTool("memory_search", { query: recall[1] });
+// The office's instruction to its watchdog for one part of a round (#253): read, record each
+// signal that is new, finish.
+let round: unknown;
+if (prompt.includes("Do this part of your round now")) {
+  const check = (await callTool("watchdog_check", {})) as {
+    signals?: Array<{ key: string; summary: string; known?: unknown }>;
+  };
+  const recorded: unknown[] = [];
+  for (const signal of check.signals ?? []) {
+    if (signal.known) continue;
+    recorded.push(
+      await callTool("watchdog_record_finding", {
+        title: signal.summary.slice(0, 160),
+        sources: [{ key: signal.key, lines: [1] }],
+        disposition: "notify",
+        reason: "seen by the fake CLI",
+      }),
+    );
+  }
+  const finished = await callTool("watchdog_finish_round", { summary: "fake CLI round" });
+  // A round turn has no other tool: what the office answers to one is reported.
+  const memory = await callTool("memory_save", { text: "from a round" });
+  round = { signals: (check.signals ?? []).length, recorded: recorded.length, finished, memory };
+}
 const promptFile = flag("--append-system-prompt-file");
 let systemPrompt: string | null = null;
 try {
@@ -134,6 +168,9 @@ out({
     board,
     remembered,
     recalled,
+    round,
+    // The MCP servers the session was given, by name only (their config holds tokens).
+    mcpServers: Object.keys(config.mcpServers).sort(),
     tools: listed.tools?.map((t) => t.name) ?? [],
     operations,
     queued,

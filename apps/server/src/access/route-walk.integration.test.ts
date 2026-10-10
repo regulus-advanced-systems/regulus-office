@@ -175,6 +175,24 @@ const OFFICE_ROUTES: Record<string, string> = {
   "POST /api/office-agents/:id/conversation/start-over":
     "office agents: the caller's own conversation",
   "POST /api/office-agents/:id/messages": "office agents: the caller's own conversation",
+  // The watchdog (#253). Its findings belong to rooms: each is filtered through the gate per
+  // viewer, and the per-person view is tested in apps/server/src/pm/watchdog.
+  "GET /api/watchdog": "the watchdog's report; findings filtered per viewer through the gate",
+  "POST /api/watchdog/news":
+    "the watchdog: a count of the caller's own untold findings, filtered through the gate",
+  "POST /api/watchdog/rounds": "the watchdog: owners and admins ask for a round",
+  "POST /api/watchdog/findings/:id/fix":
+    "the watchdog: a finding the caller cannot see answers not_found; the queue checks the room",
+  "POST /api/watchdog/findings/:id/noise":
+    "the watchdog: a finding the caller cannot see answers not_found",
+  "GET /api/watchdog/settings": "the watchdog's targets; a room the admin cannot see is not named",
+  "PATCH /api/watchdog/settings": "the watchdog's settings, owners and admins",
+  "PUT /api/watchdog/sentry-projects":
+    "the watchdog: a target goes only into a room the admin sees",
+  "POST /api/watchdog/hosts": "the watchdog: a target goes only into a room the admin sees",
+  "PUT /api/watchdog/hosts/:id": "the watchdog: a target goes only into a room the admin sees",
+  "POST /api/watchdog/hosts/:id/accept-key": "the watchdog: an admin accepts a host's new key",
+  "DELETE /api/watchdog/hosts/:id": "the watchdog's targets, owners and admins",
   "GET /api/credential-profiles": "the caller's own provider profiles",
   "GET /api/credential-profiles/manage": "office provider keys",
   "POST /api/credential-profiles": "provider profiles",

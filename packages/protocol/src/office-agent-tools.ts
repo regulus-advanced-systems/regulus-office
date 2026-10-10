@@ -28,7 +28,12 @@ import {
   NoteTitle,
   OFFICE_AGENT_MIND_LIMITS,
 } from "./office-agent-mind.ts";
-import { OFFICE_AGENT_LIMITS, type OfficeAgentPreset } from "./office-agents.ts";
+import {
+  OFFICE_AGENT_LIMITS,
+  type OfficeAgentPreset,
+  type OfficeAgentRole,
+} from "./office-agents.ts";
+import { WATCHDOG_TOOL_INPUTS, WATCHDOG_TOOL_SPECS } from "./watchdog-tools.ts";
 
 export const OFFICE_MCP_PATH = "/mcp";
 export const OFFICE_AGENT_TOOLS_API_PATH = "/api/agent-tools";
@@ -133,6 +138,8 @@ export const OFFICE_TOOL_INPUTS = {
   note_read: z.object({ title: NoteTitle }),
   note_list: z.object({}),
   note_delete: z.object({ title: NoteTitle }),
+  // The watchdog's round (#253, watchdog-tools.ts): only the office's watchdog has these.
+  ...WATCHDOG_TOOL_INPUTS,
 } as const;
 
 export type OfficeToolName = keyof typeof OFFICE_TOOL_INPUTS;
@@ -146,6 +153,10 @@ export interface OfficeToolSpec {
   preset: OfficeAgentPreset;
   /** Reads change nothing in the office. */
   readOnly: boolean;
+  /** Set: only an agent with this job has the tool, whatever its preset. */
+  role?: OfficeAgentRole;
+  /** Set on a tool of one job: true when it works only in a round turn (#253). */
+  roundTurn?: boolean;
 }
 
 export const OFFICE_TOOLS: readonly OfficeToolSpec[] = [
@@ -304,6 +315,7 @@ export const OFFICE_TOOLS: readonly OfficeToolSpec[] = [
     preset: "manager",
     readOnly: false,
   },
+  ...WATCHDOG_TOOL_SPECS,
 ];
 
 const RANK: Readonly<Record<OfficeAgentPreset, number>> = {
@@ -322,9 +334,56 @@ export function presetAllows(preset: OfficeAgentPreset, tool: OfficeToolName): b
   return spec !== undefined && RANK[preset] >= RANK[spec.preset];
 }
 
-/** The tools a preset includes, in list order. */
+/** The tools a preset includes, in list order; those of one job only (`role`) are not among them. */
 export function toolsForPreset(preset: OfficeAgentPreset): OfficeToolSpec[] {
-  return OFFICE_TOOLS.filter((t) => RANK[preset] >= RANK[t.preset]);
+  return OFFICE_TOOLS.filter((t) => t.role === undefined && RANK[preset] >= RANK[t.preset]);
+}
+
+export interface ToolHolder {
+  preset: OfficeAgentPreset;
+  role: OfficeAgentRole;
+  /** Null: a shared agent. Left out counts as shared. */
+  ownerUserId?: string | null;
+}
+
+/**
+ * The turn a call is made in. `round`: a turn the office gave its watchdog for
+ * one part of a round (#253), known from the token the call comes with.
+ */
+export type ToolTurn = "conversation" | "round";
+
+/** A shared agent whose job is watchdog: it has the watchdog's tools and no others. */
+export const isOfficeWatchdog = (agent: ToolHolder): boolean =>
+  agent.role === "watchdog" && (agent.ownerUserId ?? null) === null;
+
+/**
+ * Does this agent have the tool in this turn?
+ *
+ * - The office's watchdog has only the watchdog's tools: in a round turn the
+ *   round tools, in a conversation the conversation tools. It keeps no
+ *   memories and posts nowhere: what it reads covers rooms the person it
+ *   talks to may not see.
+ * - Every other agent has what its preset includes, and never a watchdog tool.
+ */
+export function agentMayUseTool(
+  agent: ToolHolder,
+  tool: OfficeToolName,
+  turn: ToolTurn = "conversation",
+): boolean {
+  const spec = officeToolSpec(tool);
+  if (!spec || RANK[agent.preset] < RANK[spec.preset]) return false;
+  if (isOfficeWatchdog(agent)) {
+    return spec.role === "watchdog" && (spec.roundTurn === true) === (turn === "round");
+  }
+  return spec.role === undefined && turn === "conversation";
+}
+
+/** The tools an agent has in a turn, in list order. */
+export function toolsForAgent(
+  agent: ToolHolder,
+  turn: ToolTurn = "conversation",
+): OfficeToolSpec[] {
+  return OFFICE_TOOLS.filter((t) => agentMayUseTool(agent, t.name, turn));
 }
 
 /** Error codes a refused or failed tool call carries (REST `error`, MCP `structuredContent.error`). */

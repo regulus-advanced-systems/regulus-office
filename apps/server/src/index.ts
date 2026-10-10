@@ -625,8 +625,19 @@ async function main(): Promise<void> {
   officeAgents.onAttention((userId) =>
     rooms.building.sendToUser(userId, OFFICE_AGENT_ATTENTION_MESSAGE, {}),
   );
+  // The watchdog henchman (#253): a fix goes through the room's queue and becomes a draft PR.
+  officeAgents.watchdog.bind({
+    enqueue: (actor, input) => tasks.queue.enqueueTask(actor, input),
+    task: (taskId) => tasks.queue.store.get(taskId),
+    openPullRequest: (actor, agentId, opts) => agents.openPullRequest(actor, agentId, opts),
+  });
+  officeAgents.watchdog.setSink({
+    sendToUser: (userId, type, payload) => rooms.building.sendToUser(userId, type, payload),
+    connected: (userId) => rooms.building.isConnected(userId),
+  });
   officeAgents.mount(server.router, auth);
   officeAgents.boot();
+  officeAgents.watchdog.start();
   // "Send all home" before deleting an operation (#150): branches are kept, GitHub is not touched.
   // An office owner/admin clears everyone's henchmen, which is not henchman control (D12, #138).
   operations.lifecycle.henchmen = {

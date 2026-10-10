@@ -15,6 +15,7 @@
  * text, which may be a prompt, a comment, a memory or a note.
  */
 import {
+  agentMayUseTool,
   OFFICE_TOOL_INPUTS,
   OFFICE_TOOLS,
   type OfficeToolError,
@@ -24,14 +25,15 @@ import {
   officeToolSpec,
   presetAllows,
   REACH_REFUSAL,
-  toolsForPreset,
+  toolsForAgent,
 } from "@regulus/protocol";
 import { z } from "zod";
 import { AUDIT_ACTIONS, writeAudit } from "../../auth/audit.ts";
 import type { Logger } from "../../logging.ts";
+import type { AgentPerson } from "../access.ts";
 import type { OfficeAgentRow } from "../store.ts";
-import { askingOf, ENGINE_CALLER, mayReach, roomAccess, type ToolCaller } from "./asking.ts";
-import { type ToolCall, type ToolDeps, ToolError } from "./context.ts";
+import { askingOf, ENGINE_CALLER, mayReach, roomAccess, saw, type ToolCaller } from "./asking.ts";
+import { type ToolCall, type ToolDeps, ToolError, type WatchdogToolPort } from "./context.ts";
 import * as memory from "./memory.ts";
 import * as read from "./read.ts";
 import * as write from "./write.ts";
@@ -65,7 +67,38 @@ const HANDLERS: { [N in OfficeToolName]: Handler<N> } = {
   note_read: memory.noteRead,
   note_list: (call) => memory.noteList(call),
   note_delete: memory.noteDelete,
+  watchdog_check: (call) => watchdog(call).check(call.agent, officeTurn(call)),
+  watchdog_record_finding: (call, input) =>
+    watchdog(call).recordFinding(call.agent, officeTurn(call), input),
+  watchdog_finish_round: (call, input) =>
+    watchdog(call).finish(call.agent, officeTurn(call), input),
+  watchdog_request_round: (call) => watchdog(call).requestRound(call.agent, asker(call)),
+  watchdog_read_report: (call) => {
+    const { report, rooms } = watchdog(call).readReport(call.agent, asker(call));
+    // What it read of these rooms is in its conversation with this person from now on (#301).
+    saw(call, ...rooms);
+    return report;
+  },
 };
+
+function watchdog(call: ToolCall): WatchdogToolPort {
+  if (!call.watchdog) throw new ToolError("unavailable", "the watchdog is not available right now");
+  return call.watchdog;
+}
+
+/** What the office gave the calling turn for; a round tool works in no other turn. */
+function officeTurn(call: ToolCall): string {
+  if (!call.asking.officeTurn) throw new ToolError("unknown_tool", "no such tool");
+  return call.asking.officeTurn;
+}
+
+/** The person this call is answered for (asking.ts): whose turn it is, never who the agent names. */
+function asker(call: ToolCall): AgentPerson {
+  const { person } = call.asking;
+  if (!person) throw new ToolError("not_waiting", "nobody is waiting for your answer");
+  call.actedFor = person.id;
+  return person;
+}
 
 /**
  * Where what a tool is given ends up (#301). Every tool is listed, so a new
@@ -80,9 +113,14 @@ const HANDLERS: { [N in OfficeToolName]: Handler<N> } = {
  *   prompt), or everyone at all when it names none. Checked here, before the
  *   tool runs, so no handler can leave it out: a shared agent's call is
  *   refused unless every one of those readers can see every room its
- *   conversation has read.
+ *   conversation has read;
+ * - `round`: text for the people who can see the one room a part of a watchdog
+ *   round reads (#253). The room is the office's, set from the turn's token and
+ *   never from the input, and that turn was handed that room's data only
+ *   (watchdog/round-tools.ts, service.ts), so there is nothing to check here
+ *   but that the call is such a turn's, which `officeTurn` does.
  */
-export type ToolReach = "nothing" | "mind" | "person" | "room";
+export type ToolReach = "nothing" | "mind" | "person" | "room" | "round";
 export const TOOL_REACH: { readonly [N in OfficeToolName]: ToolReach } = {
   list_operations: "nothing",
   list_henchmen: "nothing",
@@ -98,6 +136,13 @@ export const TOOL_REACH: { readonly [N in OfficeToolName]: ToolReach } = {
   note_read: "nothing",
   note_list: "nothing",
   note_delete: "nothing",
+  // The watchdog (#253). Reading what there is to judge, and a person's own report.
+  watchdog_check: "nothing",
+  watchdog_read_report: "nothing",
+  watchdog_request_round: "nothing",
+  // A finding's title and reason and a part's summary: for the one room this turn reads.
+  watchdog_record_finding: "round",
+  watchdog_finish_round: "round",
   memory_save: "mind",
   note_write: "mind",
   ask_human: "person",
@@ -139,9 +184,21 @@ export class OfficeTools {
     private readonly logger: Logger,
   ) {}
 
-  /** The tools the agent's preset includes, with their input schemas. */
-  list(agent: Pick<OfficeAgentRow, "preset">): PublishedTool[] {
-    return toolsForPreset(agent.preset).map((t) => ({
+  /** The watchdog, once it exists (#253). */
+  bindWatchdog(port: WatchdogToolPort): void {
+    this.deps.watchdog = port;
+  }
+
+  /**
+   * The tools the agent has in the turn the caller's token is of (its preset's;
+   * for the office's watchdog its own, #253), with their input schemas.
+   */
+  list(
+    agent: Pick<OfficeAgentRow, "preset" | "role" | "ownerUserId">,
+    caller: ToolCaller = ENGINE_CALLER,
+  ): PublishedTool[] {
+    const turn = caller.kind === "turn" && caller.officeTurn ? "round" : "conversation";
+    return toolsForAgent(agent, turn).map((t) => ({
       ...t,
       inputSchema: SCHEMAS.get(t.name) ?? { type: "object" },
     }));
@@ -227,6 +284,14 @@ export class OfficeTools {
         "preset_forbids",
         `your privilege preset (${call.agent.preset}) does not include ${spec.name}; it needs ${spec.preset}`,
       );
+    }
+    // Which tools there are depends on the agent's job and on the turn (#253): the office's
+    // watchdog has only its own, and in a turn of a round only the round tools; nobody else
+    // has a watchdog tool, and a turn of a round opens nothing else. A tool an agent does
+    // not have in this turn does not exist for it.
+    const turn = call.asking.officeTurn ? "round" : "conversation";
+    if (!agentMayUseTool(call.agent, spec.name, turn)) {
+      throw new ToolError("unknown_tool", "no such tool");
     }
     const parsed = OFFICE_TOOL_INPUTS[spec.name].safeParse(rawInput);
     if (!parsed.success) {

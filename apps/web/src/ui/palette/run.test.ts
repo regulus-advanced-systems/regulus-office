@@ -28,6 +28,7 @@ describe("what the palette reads from the stores (#261)", () => {
       "Keyboard shortcuts",
       "Settings: You",
       "Settings: Agents",
+      "Settings: Watchdog",
       "Settings: Notifications",
       "Settings: Display and sound",
     ]);

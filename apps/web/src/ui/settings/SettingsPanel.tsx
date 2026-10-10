@@ -7,6 +7,7 @@
  * - Office (owners and admins): GitHub, archived operations, AI providers.
  * - Henchmen (owners and admins): henchman skin rules.
  * - Agents: office agents, shared and personal (#271).
+ * - Watchdog: what the watchdog henchman found, and what it watches (#253).
  * - Notifications: desktop notifications and team channels.
  * - Display and sound: graphics, first person, motion, volume, clock.
  *
@@ -20,6 +21,7 @@ import { Button } from "../components/Button.tsx";
 import { type TabItem, Tabs } from "../components/Tabs.tsx";
 import { OfficeAgentsSection } from "../office-agents/OfficeAgentsSection.tsx";
 import { openProvidersPanel } from "../providers/providersStore.ts";
+import { WatchdogSection } from "../watchdog/WatchdogSection.tsx";
 import { DisplaySettings } from "./DisplaySettings.tsx";
 import { GitHubLinkSection } from "./GitHubLinkSection.tsx";
 import { GitHubSection } from "./GitHubSection.tsx";
@@ -101,6 +103,7 @@ const RENDER: Readonly<Record<SettingsTabId, () => ReactNode>> = {
   office: () => <OfficePanel />,
   henchmen: () => <SkinRulesSection />,
   agents: () => <OfficeAgentsSection />,
+  watchdog: () => <WatchdogSection />,
   notifications: () => (
     <div className="rg-settings__columns">
       <NotificationsSection />

@@ -15,7 +15,9 @@
  * - an **access code** someone minted: that someone. A code minted before
  *   the office recorded who did, or by a person who has left, opens nothing;
  * - the **token of an engine run** (outside any turn): nobody. A shared agent
- *   has no errand of its own, so such a call is refused whatever it asks.
+ *   has no errand of its own, so such a call is refused whatever it asks;
+ * - a **turn token of the office's own turn** (one part of a watchdog round,
+ *   #253): no person. It opens the tools of that errand and nothing else.
  *
  * The limit is the person's own access as the gate gives it at that moment
  * (`operationAccessFor`): never a role, never the agent's grant alone.
@@ -38,6 +40,11 @@ export interface ToolCaller {
   mintedBy: string | null;
   /** `turn`: whose turn it is. */
   forUserId: string | null;
+  /**
+   * `turn`, in place of a person: the turn is the office's own (one part of a
+   * watchdog round, #253) and this is what it was given for.
+   */
+  officeTurn?: string | null;
 }
 
 export const ENGINE_CALLER: ToolCaller = { kind: "session", mintedBy: null, forUserId: null };
@@ -47,6 +54,13 @@ export interface Asking {
   person?: AgentPerson;
   /** Set when the call was made with that person's turn token. */
   turn?: string;
+  /**
+   * Set when the call was made in a turn the office itself gave the agent, for
+   * no person: what the office gave the turn for. Such a call reads and writes
+   * only what that errand's own tools do (round-tools.ts); it has no person's
+   * access and no conversation.
+   */
+  officeTurn?: string;
   /** True: a shared agent's call that nobody stands behind. It is refused. */
   none: boolean;
 }
@@ -60,6 +74,10 @@ export function askingOf(
   caller: ToolCaller,
 ): Asking {
   if (agent.ownerUserId !== null) return OWNER;
+  // The office's own errand: nobody's access, and only that errand's tools (call.ts).
+  if (caller.kind === "turn" && caller.officeTurn) {
+    return { none: false, officeTurn: caller.officeTurn };
+  }
   const userId = caller.kind === "turn" ? caller.forUserId : caller.mintedBy;
   if (caller.kind === "session" || !userId) return NOBODY;
   const person = deps.store.person(userId);

@@ -79,9 +79,15 @@ export const OFFICE_AGENT_APPEARANCES: readonly string[] = CHARACTER_FORM_IDS;
 export const DEFAULT_OFFICE_AGENT_APPEARANCE: string = DEFAULT_SKIN_ID;
 /** The office PM's suit: what a "Project manager" wears when no look was chosen (#60). */
 export const PM_OFFICE_AGENT_APPEARANCE: string = "number_two";
+/** The watchdog's kit: what a "Watchdog" wears when no look was chosen (#253). */
+export const WATCHDOG_OFFICE_AGENT_APPEARANCE: string = "black_ops";
 /** The look an agent of this job gets when none was chosen. */
 export const defaultOfficeAgentAppearance = (role: OfficeAgentRole): string =>
-  role === "pm" ? PM_OFFICE_AGENT_APPEARANCE : DEFAULT_OFFICE_AGENT_APPEARANCE;
+  role === "pm"
+    ? PM_OFFICE_AGENT_APPEARANCE
+    : role === "watchdog"
+      ? WATCHDOG_OFFICE_AGENT_APPEARANCE
+      : DEFAULT_OFFICE_AGENT_APPEARANCE;
 export const isOfficeAgentAppearance = (value: unknown): value is string =>
   typeof value === "string" && OFFICE_AGENT_APPEARANCES.includes(value);
 

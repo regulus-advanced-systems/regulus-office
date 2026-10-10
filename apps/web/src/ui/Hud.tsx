@@ -49,6 +49,7 @@ import { SpawnDialogHost } from "./spawn/SpawnDialog.tsx";
 import { TerminalModalHost } from "./terminal/TerminalModal.tsx";
 import { Toaster } from "./toast/Toaster.tsx";
 import { useMyUsagePolling } from "./usage/usageStore.ts";
+import { WatchdogHost } from "./watchdog/WatchdogHost.tsx";
 import { useDoingSync } from "./whereabouts/useDoingSync.ts";
 import { WhereaboutsPanel } from "./whereabouts/WhereaboutsPanel.tsx";
 import { WhiteboardHost } from "./whiteboard/WhiteboardHost.tsx";
@@ -148,6 +149,7 @@ export function Hud() {
       <MediaHost />
       <WhiteboardHost />
       <NotificationsHost />
+      <WatchdogHost />
       <AgentChatWindowHost />
       <EmoteWheel />
       <DictationHost />

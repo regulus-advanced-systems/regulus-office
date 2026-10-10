@@ -112,6 +112,7 @@ import {
   checkSitAndStand,
   checkWhereabouts,
 } from "./socialChecks.ts";
+import { checkWatchdog } from "./watchdogChecks.ts";
 import { checkWhiteboard } from "./whiteboardChecks.ts";
 
 const run = Date.now().toString(36);
@@ -701,6 +702,12 @@ test("Settings → Agents: the owner connects their existing Hermes, and a gatew
 
 test("Settings → Agents: who an agent is, what it remembers and its notes; a personal agent's stay private (#136)", async () => {
   await checkAgentMind(ownerPage, memberPage, process.env.E2E_AGENT_MIND_SHOTS);
+});
+
+test("Settings → Watchdog: the owner sets it up with keys that only go in; each person sees the findings they may (#253)", async () => {
+  test.setTimeout(240_000);
+  if (process.env.E2E_DATA_DIR) await ensureApollo();
+  await checkWatchdog(ownerPage, memberPage, process.env.E2E_WATCHDOG_SHOTS);
 });
 
 test("clicking a free desk opens the spawn dialog and the server answers agent.spawn", async () => {
