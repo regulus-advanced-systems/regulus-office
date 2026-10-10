@@ -33,6 +33,8 @@ const CARRIES_NO_TEXT: readonly OfficeToolName[] = [
   "stop_henchman",
   "memory_forget",
   "note_delete",
+  // Asks the office for a round; it takes no text at all (#253).
+  "watchdog_request_round",
 ];
 
 /** A call of each tool that writes into a room, aimed at Borealis, with the canary as its text. */
@@ -104,6 +106,15 @@ describe("where a tool's text ends up is decided for every tool", () => {
     const intoRooms = names.filter((name) => TOOL_REACH[name] === "room");
     expect(Object.keys(INTO_BOREALIS).sort()).toEqual(intoRooms);
     expect(intoRooms.length).toBeGreaterThanOrEqual(4);
+    // What a watchdog round writes (#253) is for the one room its turn reads, which the office
+    // sets from the turn: those are exactly the round tools that write, and no conversation
+    // and no other agent has them (pm/watchdog, packages/protocol watchdog.test.ts).
+    const inRounds = OFFICE_TOOLS.filter((t) => TOOL_REACH[t.name] === "round");
+    expect(inRounds.map((t) => t.name).sort()).toEqual([
+      "watchdog_finish_round",
+      "watchdog_record_finding",
+    ]);
+    for (const tool of inRounds) expect([tool.role, tool.roundTurn]).toEqual(["watchdog", true]);
   });
 });
 

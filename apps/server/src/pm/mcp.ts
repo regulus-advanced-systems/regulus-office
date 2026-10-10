@@ -45,8 +45,8 @@ export function callerFromRequest(
   const found = deps.tokens.verify(token);
   const agent = found ? deps.store.get(found.agentId) : undefined;
   if (!found || !agent) return null;
-  const { kind, mintedBy, forUserId } = found;
-  return { agent, caller: { kind, mintedBy, forUserId } };
+  const { kind, mintedBy, forUserId, officeTurn } = found;
+  return { agent, caller: { kind, mintedBy, forUserId, officeTurn } };
 }
 
 /** The agent a request's bearer token belongs to, or null. */
@@ -124,7 +124,7 @@ export function mountMcp(router: Router, deps: McpDeps): void {
         return ok({});
       case "tools/list":
         return ok({
-          tools: deps.tools.list(agent).map((t) => ({
+          tools: deps.tools.list(agent, caller).map((t) => ({
             name: t.name,
             title: t.title,
             description: t.description,

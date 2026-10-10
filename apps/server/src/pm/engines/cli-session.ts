@@ -283,7 +283,9 @@ export class CliSessionEngine implements OfficeAgentEngine {
     const { credential, attributedTo } = this.opts.credentials.resolve(agent);
     const user = { userId: agent.ownerUserId ?? OFFICE_AGENT_RUNNER_USER };
     const handle = await this.opts.runner.provision(user);
-    const known = run.sessions[message.userId];
+    // An instruction from the office (a watchdog round) gets a session of its own, not kept.
+    const known = message.ephemeral ? undefined : run.sessions[message.userId];
+    const frame = office.frame?.({ ephemeral: message.ephemeral === true }) ?? undefined;
     const sessionId = known ?? (this.opts.newSessionId ?? (() => crypto.randomUUID()))();
     const plan = buildClaudeTurn({
       agent,
@@ -296,8 +298,12 @@ export class CliSessionEngine implements OfficeAgentEngine {
       resume: known !== undefined,
       // The soul is the one it was started with; what it remembers is read from the office now.
       // A shared agent's: only what this person may see (#301).
-      memory: office.mind.digest(message.userId),
-      prompt: `[From ${message.fromName}, user id ${message.userId}]\n${message.text}`,
+      // An agent with a frame of its own has no memories in its prompt.
+      memory: frame === undefined ? office.mind.digest(message.userId) : "",
+      frame,
+      prompt: message.ephemeral
+        ? `[From ${message.fromName}; nobody is waiting for a reply]\n${message.text}`
+        : `[From ${message.fromName}, user id ${message.userId}]\n${message.text}`,
       command: this.opts.command,
     });
     if (run.stopped) throw new EngineRefusal("stopped", "the agent was stopped");
@@ -331,7 +337,7 @@ export class CliSessionEngine implements OfficeAgentEngine {
     const result = parseClaudeTurn(stdout);
     // Not when their conversation was started over meanwhile: this session holds what it must not.
     const current = (run.resets[message.userId] ?? 0) === resets;
-    if (known === undefined && result.error === null && current) {
+    if (known === undefined && result.error === null && current && !message.ephemeral) {
       run.sessions[message.userId] = sessionId;
       this.#events.emit({
         type: "state",

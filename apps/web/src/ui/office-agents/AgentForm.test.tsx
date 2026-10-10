@@ -120,7 +120,10 @@ describe("office agent form", () => {
     expect(radio("Standard").checked).toBe(true);
     await choose(select("Job"), "pm");
     expect(radio("Number two (PM suit)").checked).toBe(true);
+    // The watchdog has a kit of its own (#253); any other job goes back to the jumpsuit.
     await choose(select("Job"), "watchdog");
+    expect(radio("Black ops").checked).toBe(true);
+    await choose(select("Job"), "kiosk");
     expect(radio("Standard").checked).toBe(true);
     await choose(select("Job"), "pm");
     await typeInto("Name", "Ledger");

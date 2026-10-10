@@ -1,0 +1,111 @@
+/* Settings → Watchdog (#253): the report and, for owners and admins, what it watches. */
+.rg-watchdog__sub {
+  margin: 8px 0 0;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--rg-color-heading);
+}
+.rg-watchdog-finding {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--rg-color-panel-border);
+  border-left-width: 4px;
+  border-radius: var(--rg-radius-panel);
+  min-width: 0;
+}
+.rg-watchdog-finding + .rg-watchdog-finding {
+  margin-top: 8px;
+}
+/* The lair's own accents (SPEC §12): alarm red, henchman yellow, console teal. */
+.rg-watchdog-finding--notify {
+  border-left-color: #d7263d;
+}
+.rg-watchdog-finding--propose_fix {
+  border-left-color: #f2c200;
+}
+.rg-watchdog-finding--dismiss {
+  border-left-color: #2ec4b6;
+  opacity: 0.85;
+}
+.rg-watchdog-finding__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+}
+.rg-watchdog-finding p {
+  margin: 0;
+}
+.rg-watchdog-finding__evidence {
+  margin: 6px 0 0;
+  padding: 8px 10px;
+  max-height: 220px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  background: var(--rg-color-plate);
+  color: var(--rg-color-plate-text);
+  border-radius: var(--rg-radius-chip);
+}
+.rg-watchdog-finding__fix {
+  display: grid;
+  gap: 6px;
+  padding-top: 6px;
+  border-top: 1px dashed var(--rg-color-panel-border);
+}
+.rg-watchdog-rounds {
+  display: grid;
+  gap: 4px;
+}
+.rg-watchdog-round--failed {
+  color: #d7263d;
+}
+.rg-watchdog-host {
+  display: grid;
+  gap: 4px;
+  padding: 8px 0;
+  border-top: 1px solid var(--rg-color-panel-border);
+}
+.rg-watchdog-form {
+  display: grid;
+  gap: 6px;
+  padding: 10px 0;
+  border-top: 1px solid var(--rg-color-panel-border);
+}
+.rg-watchdog-form__apps {
+  display: grid;
+  gap: 6px;
+  margin: 4px 0 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.rg-watchdog__key {
+  font-family: var(--rg-font-mono, monospace);
+  font-size: 12px;
+  resize: vertical;
+}
+.rg-settings__row > .rg-watchdog__room {
+  flex: 1 1 150px;
+}
+.rg-settings__row > .rg-watchdog__provider {
+  flex: 0 1 140px;
+}
+.rg-watchdog__port {
+  width: 84px;
+}
+
+.rg-watchdog__warning {
+  display: grid;
+  gap: 6px;
+  padding: 8px 10px;
+  border-left: 4px solid #d7263d;
+  background: var(--rg-color-plate);
+  color: var(--rg-color-plate-text);
+  border-radius: var(--rg-radius-chip);
+  overflow-wrap: anywhere;
+}

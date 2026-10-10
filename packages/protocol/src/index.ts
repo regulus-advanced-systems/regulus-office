@@ -49,6 +49,7 @@
  * - terminal-screens.ts laptop screen feed (plain-text screens per operation)
  * - usage-api.ts      the viewer's own usage (plan limits, spend); office totals are in building-state
  * - wall-pictures.ts  wall pictures: upload limits, REST paths, who may hang/move/remove (#46)
+ * - watchdog.ts       the watchdog henchman: targets, rounds, findings, the fix rule (#253)
  * - whiteboard.ts     the shared whiteboard: Yjs endpoint, board ids, access, snapshot REST (#45)
  * - workflows.ts       GitHub workflow definitions (#155); workflows-api.ts their REST shapes
  */
@@ -104,6 +105,9 @@ export * from "./terminal.ts";
 export * from "./terminal-screens.ts";
 export * from "./usage-api.ts";
 export * from "./wall-pictures.ts";
+export * from "./watchdog.ts";
+export * from "./watchdog-report.ts";
+export * from "./watchdog-tools.ts";
 export * from "./whiteboard.ts";
 export * from "./workflows.ts";
 export * from "./workflows-api.ts";

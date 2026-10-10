@@ -108,6 +108,18 @@ export interface EngineOffice {
    * with which a shared agent can do nothing.
    */
   turn?(userId: string): EngineTurn;
+  /**
+   * Given and not null for a turn: how this agent works, in place of the
+   * office's usual frame and its memories (the office's watchdog, #253). Read
+   * anew for each turn.
+   */
+  frame?: (turn: FrameTurn) => string | null;
+}
+
+/** The turn a frame is asked for. */
+export interface FrameTurn {
+  /** True for a turn the office itself gave the agent (`EngineMessage.ephemeral`). */
+  ephemeral: boolean;
 }
 
 export interface EngineTurn {
@@ -134,6 +146,15 @@ export interface EngineMessage {
   userId: string;
   fromName: string;
   text: string;
+  /**
+   * An instruction from the office itself, not a person's message (one part
+   * of a watchdog round, #253): `userId` is then no person's id but what the
+   * office gave the turn for, `EngineOffice.turn(userId)` gives it a token of
+   * that errand, the turn runs in a session of its own that is not kept, and
+   * the reply comes back under the same `userId` for whoever gave the
+   * instruction. An engine that cannot do that must refuse the message.
+   */
+  ephemeral?: boolean;
 }
 
 export interface EngineUsage {

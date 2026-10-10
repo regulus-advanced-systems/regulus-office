@@ -23,8 +23,10 @@ import {
   type EngineMind,
   EngineRefusal,
   type EngineTurn,
+  type FrameTurn,
   type OfficeAgentEngine,
 } from "./engines/types.ts";
+import { type InstructionResult, Instructions } from "./instructions.ts";
 import type { RoomScopes } from "./scope.ts";
 import type { OfficeAgentRow, OfficeAgentStore } from "./store.ts";
 import type { OfficeAgentTokens } from "./tokens.ts";
@@ -65,8 +67,56 @@ export class AgentRuntime {
   readonly #starting = new Map<string, Promise<void>>();
   /** Stops in flight: a start waits for the stop before it, so the two never cross (#301). */
   readonly #stopping = new Map<string, Promise<void>>();
+  /** Turns the office itself gave an agent that have not ended (instructions.ts). */
+  readonly #instructions: Instructions;
+  /** How an agent works, in place of the office's usual frame (the watchdog, #253). */
+  frame: ((row: OfficeAgentRow, turn: FrameTurn) => string | null) | undefined;
 
-  constructor(private readonly deps: AgentRuntimeDeps) {}
+  constructor(private readonly deps: AgentRuntimeDeps) {
+    this.#instructions = new Instructions(
+      (id, tokenId) => deps.tokens.revoke(id, tokenId),
+      deps.logger,
+    );
+  }
+
+  /** Hear how the office's own instructions ended. */
+  onInstructed(listener: (result: InstructionResult) => void): () => void {
+    return this.#instructions.listen(listener);
+  }
+
+  /**
+   * Give the agent a turn of the office's own (one part of a watchdog round,
+   * #253): no person's conversation holds it and nobody waits for a reply.
+   * `key` is no person's id; it says what the turn is for. The turn gets a
+   * turn token like any other (`EngineOffice.turn`), bound to `key` in place
+   * of a person, and its result goes to `onInstructed`. Throws
+   * {@link EngineRefusal} when the agent cannot be started or reached.
+   */
+  async instruct(row: OfficeAgentRow, key: string, fromName: string, text: string): Promise<void> {
+    if (this.deps.store.person(key)) throw new Error("an instruction key must not be a person");
+    this.deps.store.touch(row.id);
+    if (!this.#running.has(row.id)) await this.start(row);
+    const engine = this.#engines.get(row.engine);
+    if (!engine) throw new EngineRefusal("engine_unavailable", "the engine is not available");
+    this.#instructions.open(row.id, key);
+    try {
+      await engine.send(row.id, { id: key, userId: key, fromName, text, ephemeral: true });
+    } catch (err) {
+      this.endInstruction(row.id, key);
+      if (err instanceof EngineRefusal) throw err;
+      this.deps.logger.error({ agentId: row.id, err: String(err).slice(0, 300) }, "send failed");
+      throw new EngineRefusal("send_failed", "the agent could not be reached");
+    }
+  }
+
+  /**
+   * The office gives up on a turn of its own (it ran out of time): its token
+   * stops working at once, whatever the engine is still doing, and no result
+   * is told.
+   */
+  endInstruction(agentId: string, key: string): void {
+    this.#instructions.close(agentId, key);
+  }
 
   register(engine: OfficeAgentEngine): this {
     if (this.#engines.has(engine.kind)) throw new Error(`engine ${engine.kind} registered twice`);
@@ -177,6 +227,10 @@ export class AgentRuntime {
         token: Secret.of(minted.token),
         mind: this.deps.mind(row.id),
         turn: (userId) => this.#turn(row.id, userId),
+        frame: (turn) => {
+          const now = this.deps.store.get(row.id);
+          return now ? (this.frame?.(now, turn) ?? null) : null;
+        },
       });
     } catch (err) {
       tokens.revokeSessions(row.id);
@@ -193,8 +247,14 @@ export class AgentRuntime {
 
   /** A token for one turn of one person's conversation; `end` revokes it (#301, engines/types.ts). */
   #turn(agentId: string, userId: string): EngineTurn {
-    const minted = this.deps.tokens.mint(agentId, "turn", "turn", null, userId);
+    // A turn of the office's own (`instruct`): the same kind of token, bound to what the turn
+    // is for in place of a person. Anything else that is no person gets a token for nobody.
+    const office = this.#instructions.isOpen(agentId, userId);
+    const minted = office
+      ? this.deps.tokens.mint(agentId, "turn", "office turn", null, null, userId)
+      : this.deps.tokens.mint(agentId, "turn", "turn", null, userId);
     if (!minted) throw new Error("turn token not minted");
+    if (office) this.#instructions.holds(agentId, userId, minted.id);
     return {
       token: Secret.of(minted.token),
       end: () => void this.deps.tokens.revoke(agentId, minted.id),
@@ -285,12 +345,19 @@ export class AgentRuntime {
     try {
       switch (event.type) {
         case "message": {
+          if (this.#instructions.ended(row.id, event.userId, true, event.text)) return;
           if (!this.#mayAddress(row, event.userId)) return;
           conversations.append(row.id, event.userId, "agent", event.text);
           store.touch(row.id);
           return;
         }
         case "error": {
+          if (
+            event.userId &&
+            this.#instructions.ended(row.id, event.userId, false, event.message)
+          ) {
+            return;
+          }
           if (event.userId && this.#mayAddress(row, event.userId)) {
             conversations.append(row.id, event.userId, "system", event.message);
           }

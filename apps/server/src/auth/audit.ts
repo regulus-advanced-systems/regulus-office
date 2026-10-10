@@ -117,6 +117,21 @@ export const AUDIT_ACTIONS = {
   officeAgentMemoryDelete: "office_agent.memory_delete",
   /** An office owner/admin removed someone else's personal agent with everything it held. */
   officeAgentAdminRemove: "office_agent.admin_remove",
+  /**
+   * The watchdog (#253): what it watches, its keys, a round asked for by a
+   * person, a fix a person agreed to or declined. Entries say which fields
+   * or how many; never a key, a token or a log line.
+   */
+  watchdogSettings: "watchdog.settings",
+  watchdogHostSave: "watchdog.host_save",
+  watchdogHostDelete: "watchdog.host_delete",
+  /** An admin accepted the key a host shows now in place of its pin (fingerprints, which are public). */
+  watchdogHostKeyAccept: "watchdog.host_key_accept",
+  /** A person marked a finding as known noise, or took that back. */
+  watchdogNoise: "watchdog.noise",
+  watchdogSentryProjects: "watchdog.sentry_projects",
+  watchdogRoundRequest: "watchdog.round_request",
+  watchdogFixDecide: "watchdog.fix_decide",
 } as const;
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];
 
@@ -142,7 +157,8 @@ export interface AuditEntry {
     | "workflow"
     | "workflow_run"
     | "skin_rule"
-    | "office_agent";
+    | "office_agent"
+    | "watchdog";
   targetId: string | null;
   meta?: Record<string, unknown>;
 }

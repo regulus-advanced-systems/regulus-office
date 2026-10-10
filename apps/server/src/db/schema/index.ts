@@ -16,5 +16,6 @@ export * from "./ops.ts";
 export * from "./skins.ts";
 export * from "./usage.ts";
 export * from "./users.ts";
+export * from "./watchdog.ts";
 export * from "./workflows.ts";
 export * from "./world.ts";

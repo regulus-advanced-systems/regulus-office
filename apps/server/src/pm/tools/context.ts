@@ -12,6 +12,8 @@ import type {
   QueueSettings,
   QueueTask,
   UsageSummary,
+  WatchdogFindingInput,
+  WatchdogFinishInput,
 } from "@regulus/protocol";
 import type { SpawnInput } from "../../agents/manager/spawn.ts";
 import type { OperationBoard } from "../../github/board-summary.ts";
@@ -61,7 +63,26 @@ export interface OfficePorts {
   stop(actor: OperationActor, henchmanId: string): Promise<void>;
 }
 
+/**
+ * The watchdog as its tools reach it (#253; `../watchdog/`). The round tools
+ * get what the office gave the calling turn for (from its turn token): they
+ * work for that part of a round and for nothing else. The other two act for
+ * the person the call is answered for. Each throws a {@link ToolError} for an
+ * agent that is not the office's chosen watchdog.
+ */
+export interface WatchdogToolPort {
+  check(agent: OfficeAgentRow, turn: string): Promise<unknown>;
+  recordFinding(agent: OfficeAgentRow, turn: string, input: WatchdogFindingInput): Promise<unknown>;
+  finish(agent: OfficeAgentRow, turn: string, input: WatchdogFinishInput): Promise<unknown>;
+  /** A person in a conversation asks for a round; done only if that person may ask. */
+  requestRound(agent: OfficeAgentRow, person: AgentPerson): Promise<unknown>;
+  /** The report as one person may see it, and the rooms it tells of. */
+  readReport(agent: OfficeAgentRow, person: AgentPerson): { report: unknown; rooms: string[] };
+}
+
 export interface ToolDeps {
+  /** Bound once the watchdog exists (`OfficeTools.bindWatchdog`). */
+  watchdog?: WatchdogToolPort;
   store: OfficeAgentStore;
   access: AgentAccess;
   conversations: Conversations;

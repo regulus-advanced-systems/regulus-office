@@ -67,6 +67,8 @@ export interface BuildingRoom extends RoomDefinition<BuildingState, BuildingJoin
   refreshOperations(): Promise<void>;
   /** Send a message to every connected client of one human (notifications, #42). */
   sendToUser(userId: string, type: string, payload: unknown): void;
+  /** Whether a client of this human is connected right now (#253: who can be told at once). */
+  isConnected(userId: string): boolean;
   /**
    * A person's access changed (GitHub snapshot, role, member row): their view of
    * rooms, levels and people is worked out again, and they are walked back to

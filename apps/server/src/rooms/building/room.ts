@@ -420,6 +420,10 @@ export function createBuildingRoom(deps: BuildingRoomDeps): BuildingRoom {
 
     accessChanged: (userId) => reconsider(userId),
 
+    isConnected(userId) {
+      return (handle?.clients ?? []).some((client) => client.user.userId === userId);
+    },
+
     sendToUser(userId, type, payload) {
       for (const client of handle?.clients ?? []) {
         if (client.user.userId === userId) client.send(type, payload);

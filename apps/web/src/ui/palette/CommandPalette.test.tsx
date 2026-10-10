@@ -218,6 +218,7 @@ describe("the palette by keyboard (#261)", () => {
       "Go to Apollo",
       "Settings: You",
       "Settings: Agents",
+      "Settings: Watchdog",
       "Settings: Notifications",
       "Settings: Display and sound",
     ]);
@@ -297,6 +298,7 @@ describe("the palette by keyboard (#261)", () => {
       "Keyboard shortcuts",
       "Settings: You",
       "Settings: Agents",
+      "Settings: Watchdog",
       "Settings: Notifications",
       "Settings: Display and sound",
     ]);

@@ -15,7 +15,10 @@
  *   when the agent stops;
  * - `turn` tokens are minted by the office for one turn of one person's
  *   conversation with the agent and revoked when that turn is over (#301):
- *   what the agent does with one is answered for that person.
+ *   what the agent does with one is answered for that person. A turn the
+ *   office itself gave the agent, for nobody (one part of a watchdog round,
+ *   #253), has a `turn` token too, with what it was given for in place of a
+ *   person; with it the agent has the tools of that errand and no others.
  */
 import { createHash, randomBytes } from "node:crypto";
 import { OFFICE_AGENT_LIMITS, OFFICE_AGENT_TOKEN_PREFIX } from "@regulus/protocol";
@@ -53,6 +56,7 @@ export class OfficeAgentTokens {
     label: string,
     mintedBy: string | null = null,
     forUserId: string | null = null,
+    officeTurn: string | null = null,
   ): MintedToken | null {
     if (kind === "api" && this.list(agentId).length >= OFFICE_AGENT_LIMITS.tokensPerAgent) {
       return null;
@@ -60,7 +64,15 @@ export class OfficeAgentTokens {
     const token = `${OFFICE_AGENT_TOKEN_PREFIX}${randomBytes(32).toString("base64url")}`;
     const row = this.db
       .insert(officeAgentTokens)
-      .values({ agentId, kind, label, tokenHash: hashToken(token), mintedBy, forUserId })
+      .values({
+        agentId,
+        kind,
+        label,
+        tokenHash: hashToken(token),
+        mintedBy,
+        forUserId,
+        officeTurn,
+      })
       .returning({ id: officeAgentTokens.id })
       .get();
     return { id: row.id, label, token };
@@ -73,6 +85,7 @@ export class OfficeAgentTokens {
     kind: OfficeAgentTokenKind;
     mintedBy: string | null;
     forUserId: string | null;
+    officeTurn: string | null;
   } | null {
     if (!TOKEN.test(presented)) return null;
     const row = this.db
@@ -95,6 +108,7 @@ export class OfficeAgentTokens {
       kind: row.kind,
       mintedBy: row.mintedBy,
       forUserId: row.forUserId,
+      officeTurn: row.officeTurn,
     };
   }
 

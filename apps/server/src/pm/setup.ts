@@ -47,6 +47,7 @@ import { OfficeAgentTokens } from "./tokens.ts";
 import { mountToolRoutes } from "./tool-routes.ts";
 import { OfficeTools } from "./tools/call.ts";
 import { type CommentTarget, type OfficePorts, ToolError } from "./tools/context.ts";
+import { createWatchdog, type Watchdog, type WatchdogOptions } from "./watchdog/setup.ts";
 import {
   AgentAttention,
   AgentWorld,
@@ -93,6 +94,11 @@ export interface OfficeAgentsOptions {
   >;
   /** CLI override for the session engine (tests: the fake `claude`). */
   cliCommand?: string;
+  /** Stand-ins for what the watchdog reaches outside the office (#253; tests). */
+  watchdog?: Pick<
+    WatchdogOptions,
+    "probe" | "sshCommand" | "keyscanCommand" | "sentry" | "sentryDeadlineMs"
+  >;
   now?: () => number;
 }
 
@@ -118,6 +124,8 @@ export interface OfficeAgents {
   hermes: HermesAgentService;
   /** Souls, memories and notes (#136). */
   mind: AgentMind;
+  /** The watchdog henchman: targets, rounds, findings (#253). */
+  watchdog: Watchdog;
   mount(
     router: Router,
     auth: Pick<OfficeAuth, "getSessionFromRequest" | "publicUrl" | "allowedOrigins">,
@@ -258,6 +266,18 @@ export function createOfficeAgents(opts: OfficeAgentsOptions): OfficeAgents {
     },
     logger,
   );
+  // The watchdog henchman (#253): its rounds reach the same runtime, tools and runner.
+  const watchdog = createWatchdog({
+    db,
+    keyring: opts.keyring,
+    logger,
+    agents: store,
+    runtime,
+    tools,
+    runner: opts.runner,
+    now,
+    ...opts.watchdog,
+  });
   const mindService = new MindService({ store, mind, scopes, runtime });
   const service = new OfficeAgentService({
     store,
@@ -345,7 +365,9 @@ export function createOfficeAgents(opts: OfficeAgentsOptions): OfficeAgents {
     },
     hermes,
     mind,
+    watchdog,
     mount(router, auth) {
+      watchdog.mount(router, auth);
       // Before the agent routes: `/attention` is not an agent id.
       mountAgentWorldRoutes(router, { auth, service: worldService });
       mountMcp(router, { store, tokens, tools, version: opts.version });
@@ -357,6 +379,7 @@ export function createOfficeAgents(opts: OfficeAgentsOptions): OfficeAgents {
         hermes,
         mind: mindService,
         onRemoved: async (agentId) => {
+          await watchdog.agentRemoved(agentId);
           await managed?.forget(agentId).catch(() => {
             logger.warn({ agentId }, "could not remove what a managed Hermes left behind");
           });
@@ -369,6 +392,8 @@ export function createOfficeAgents(opts: OfficeAgentsOptions): OfficeAgents {
     boot: () => {
       sealAtStart(db, cipher, logger);
       runtime.boot();
+      // No turn survived, a round's among them: its tokens are gone (above) and it is failed.
+      watchdog.boot();
       // A shared agent on a Hermes the office runs is not started any more (#301): its card says why.
       for (const row of store.list()) {
         if (row.ownerUserId === null && row.engine === "hermes-managed") {
@@ -377,6 +402,9 @@ export function createOfficeAgents(opts: OfficeAgentsOptions): OfficeAgents {
       }
       void managed?.reap();
     },
-    close: () => runtime.close(),
+    close: () => {
+      watchdog.close();
+      return runtime.close();
+    },
   };
 }
