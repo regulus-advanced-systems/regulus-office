@@ -58,6 +58,7 @@ import { pickGenius } from "./geniusChecks.ts";
 import { linkGitHub, setRepoPermission } from "./githubAccess.ts";
 import { createRemoteRepo } from "./gitRemote.ts";
 import { checkHenchmanCheers } from "./gongChecks.ts";
+import { checkTerminalKeepsCtrlK } from "./paletteChecks.ts";
 import { checkPmRounds } from "./pmRoundsChecks.ts";
 import { freeDeskPoint, OFFICE_PROBE_PATH, waitForScene } from "./probes.ts";
 import { checkHenchmanTerminal } from "./terminalChecks.ts";
@@ -802,6 +803,16 @@ test("7b2. dictation: a watched terminal takes none; in control the words arrive
     },
     ([command = "", ...rest]) => henchmanTmux([command, "-t", pane, ...rest]),
   );
+});
+
+test("7b3. Ctrl+K typed into the henchman's terminal goes to the terminal, not the command palette (#261)", async () => {
+  await checkTerminalKeepsCtrlK(ownerPage, async () => {
+    await openHenchmanPanel(ownerPage);
+    await ownerPage
+      .locator("section.rg-agent-panel")
+      .getByRole("button", { name: "Open terminal" })
+      .click();
+  });
 });
 
 test("7c. copying works in the henchman's terminal, on the laptop and in the login terminal (#164)", async () => {

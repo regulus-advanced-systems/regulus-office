@@ -84,7 +84,7 @@ import { checkJukebox } from "./jukeboxChecks.ts";
 import { checkLift, checkOpenAndClosedRooms } from "./liftChecks.ts";
 import { checkAgentsInTheWorld } from "./officeAgentWorldChecks.ts";
 import { loadOwnerGenius, type OfficeSession, openOffice, owner } from "./officeSession.ts";
-import { checkCommandPalette } from "./paletteChecks.ts";
+import { checkCommandPalette, checkWhiteboardKeepsCtrlK } from "./paletteChecks.ts";
 import { reportFramePerf } from "./perfProbe.ts";
 import { checkWallPictures } from "./pictureChecks.ts";
 import {
@@ -298,6 +298,10 @@ test("Who's where lists the owner in the lobby; clicking the name walks there (#
 
 test("Ctrl+K opens the command palette, by keyboard alone; a text field and an open dialog keep the key (#261)", async () => {
   await checkCommandPalette(ownerPage, memberPage);
+});
+
+test("Ctrl+K on the whiteboard is the whiteboard's (Excalidraw's link editor), not the palette's (#261)", async () => {
+  await checkWhiteboardKeepsCtrlK(ownerPage);
 });
 
 test("the status box unfolds the viewer's own usage (#40)", async () => {
