@@ -38,6 +38,7 @@ interface Nav {
   rooms(): NavRoom[];
   seat(operationId: string, seatId: string): { x: number; z: number } | null;
   walkTo(x: number, z: number): boolean;
+  travelInto(roomName: string): boolean;
   walkToSeat(operationId: string, seatId: string): boolean;
   terminalDesk(): string | null;
   camera(): CameraState;
@@ -182,7 +183,7 @@ export async function rideLiftTo(page: Page, levelId: string): Promise<string[]>
     }
     if (!pose.walking) expect(await walkTo(page, at.x, at.z)).toBe(true);
     throw new Error("walking to the lift");
-  }).toPass({ timeout: 90_000, intervals: [500, 1_000] });
+  }).toPass({ timeout: 90_000, intervals: [200, 400] });
   const rows = panel.getByRole("list", { name: "Levels you can reach" }).getByRole("button");
   const listed = await rows.locator(".rg-lift__name").allTextContents();
   await panel.locator(`[data-level="${levelId}"]`).click();
@@ -221,18 +222,40 @@ export async function waitStill(page: Page, timeout = 60_000): Promise<NavPose> 
 }
 
 /**
- * Walk from wherever the player is into `name` (through the corridors, its door opening on
- * the way), on to the middle of the room so all of it is in view, and wait until the HUD is
- * in that room with its OperationRoom state in.
+ * Quick travel to the door of the room called `name` and start walking in: what picking it
+ * in the `F` dialog does, asked of the nav probe, so it needs no dialog and two pages can do
+ * it at the same time. False while the room is not there to travel to.
+ */
+export const travelToRoom = (page: Page, name: string): Promise<boolean> =>
+  page.evaluate(`(${probe.toString()})().travelInto(${JSON.stringify(name)})`) as Promise<boolean>;
+
+/**
+ * Get into the room called `name` from wherever the player is, and wait until the HUD is in
+ * that room with its OperationRoom state in. Unless they are in it already, the player quick
+ * travels to its door (what picking the room in the `F` dialog does, on whichever level it is;
+ * asked of the nav probe, so two pages can do it at the same time) and walks in from there,
+ * on to the middle of the room so all of it is in view. Walking the corridors from one end of
+ * a level to the other is left to the steps that are about walking (#299).
  */
 export async function walkInto(page: Page, name: string): Promise<NavRoom> {
+  const here = await navPose(page);
+  const already = (await navRooms(page)).find((r) => r.name === name);
+  if (!already || here.room !== already.id) {
+    // Not there to travel to until it is built and this page has been told it may enter.
+    await expect.poll(() => travelToRoom(page, name), { timeout: 45_000 }).toBe(true);
+  }
+  return walkOnInto(page, name);
+}
+
+/** Walk into `name` from where the player stands, on to its middle, until the HUD is in it. */
+async function walkOnInto(page: Page, name: string): Promise<NavRoom> {
   const room = await roomNamed(page, name);
   await expect(async () => {
     const pose = await navPose(page);
     if (pose.room === room.id && pose.operationId === room.id) return;
     if (!pose.walking) expect(await walkTo(page, room.inside.x, room.inside.z)).toBe(true);
     throw new Error(`walking into ${name}`);
-  }).toPass({ timeout: 90_000, intervals: [500, 1_000] });
+  }).toPass({ timeout: 90_000, intervals: [200, 400] });
   // On to the middle (the nearest free spot to it, like a click on a desk there).
   if (await walkTo(page, room.x + room.w / 2, room.z + room.d / 2)) await waitStill(page);
   await expect(page.locator(".rg-topbar__operation")).toHaveText(name);
@@ -251,7 +274,7 @@ export async function walkToLobby(page: Page): Promise<void> {
     if (pose.room === lobby.id) return;
     if (!pose.walking) await walkTo(page, lobby.inside.x, lobby.inside.z);
     throw new Error("walking to the lobby");
-  }).toPass({ timeout: 90_000, intervals: [500, 1_000] });
+  }).toPass({ timeout: 90_000, intervals: [200, 400] });
   await expect(page.locator(".rg-topbar__operation")).toHaveText("Lobby");
 }
 
@@ -287,7 +310,7 @@ export async function walkUpToDesk(page: Page, operationId: string, seatId: stri
     if (!pose.walking && (await terminalDesk(page)) === seatId) return;
     if (!pose.walking) expect(await walkToSeat(page, operationId, seatId)).toBe(true);
     throw new Error(`walking to desk ${seatId}`);
-  }).toPass({ timeout: 60_000, intervals: [500, 1_000] });
+  }).toPass({ timeout: 60_000, intervals: [200, 400] });
 }
 
 /** Where an object of the scene is: its screen point and its ground point (compound metres). */
@@ -339,5 +362,5 @@ export async function clickInScene(page: Page, name: string, opens: Locator): Pr
     }
     await page.mouse.click(at.x, at.y);
     await expect(opens).toBeVisible({ timeout: 3_000 });
-  }).toPass({ timeout: 60_000, intervals: [500, 1_000] });
+  }).toPass({ timeout: 60_000, intervals: [200, 400] });
 }

@@ -19,6 +19,7 @@ import {
   cameraState,
   goToLobbyLevel,
   navPose,
+  travelToRoom,
   waitStill,
   walkTo,
   walkToLobby,
@@ -172,6 +173,8 @@ export async function checkCoffee(owner: Page, member: Page, ownerName: string):
   ] as const;
   const sober = shots ? await walkingSpeed(owner, lane[0], lane[1]) : 0;
   if (shots) await walkUpTo(member, watch, 1.5);
+  // Quick travel to the break room's door; the walk up to the machine is from there.
+  expect(await travelToRoom(owner, "Break room")).toBe(true);
   await walkUpTo(owner, at);
 
   // For the PR's screenshots only: both cameras close in on the machine.

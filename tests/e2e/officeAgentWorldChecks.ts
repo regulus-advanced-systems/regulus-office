@@ -30,6 +30,7 @@ import {
   type NavRoom,
   navPose,
   navRooms,
+  travelToRoom,
   waitStill,
   walkInto,
   walkTo,
@@ -347,8 +348,10 @@ export async function checkAgentsInTheWorld(owner: Page, member: Page, shots?: s
       }
     }
 
-    // It follows them out of the corridor and into the war room. The member comes to look,
-    // walking at the same time.
+    // The owner quick travels to the war room and walks in: it follows them out of the
+    // corridor and into the room. The member comes to look, the same way at the same time.
+    expect(await travelToRoom(owner, war.name)).toBe(true);
+    expect(await travelToRoom(member, war.name)).toBe(true);
     await Promise.all([standIn(owner, war), standIn(member, war, 2, 2)]);
     await expect
       .poll(async () => {

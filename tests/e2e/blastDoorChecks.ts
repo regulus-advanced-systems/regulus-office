@@ -60,7 +60,7 @@ async function walkUpTo(page: Page, at: Point, near = 0.6): Promise<void> {
     if (!pose.walking && Math.hypot(pose.x - at.x, pose.z - at.z) <= near) return;
     if (!pose.walking) expect(await walkTo(page, at.x, at.z)).toBe(true);
     throw new Error(`walking to ${at.x.toFixed(1)}, ${at.z.toFixed(1)}`);
-  }).toPass({ timeout: 90_000, intervals: [500, 1_000] });
+  }).toPass({ timeout: 90_000, intervals: [200, 400] });
 }
 
 /** Press `E` in the page, as the player standing at the button would. */

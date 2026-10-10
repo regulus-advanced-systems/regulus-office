@@ -139,10 +139,12 @@ export async function checkWallPictures(
   await checkGitHubNow(member);
   // The member's operation list (and with it room access) refreshes on reload.
   await member.reload();
-  await waitForScene(member);
-  await walkInto(member, operation);
+  // Both go into the room at the same time (the member once their page is back).
+  await Promise.all([
+    waitForScene(member).then(() => walkInto(member, operation)),
+    walkInto(owner, operation),
+  ]);
   await owner.bringToFront();
-  await walkInto(owner, operation);
   await expect(member.getByRole("button", { name: "Hang a picture…" })).toHaveCount(0);
 
   // Upload from the PC: the dock asks for a wall.

@@ -180,7 +180,7 @@ async function enter(page: Page, name: string): Promise<void> {
     if (pose.room === room.id && pose.operationId === room.id) return;
     if (!pose.walking) expect(await walkTo(page, room.inside.x, room.inside.z)).toBe(true);
     throw new Error(`walking into ${name}`);
-  }).toPass({ timeout: 180_000, intervals: [500, 1_000] });
+  }).toPass({ timeout: 180_000, intervals: [200, 400] });
   await expect(page.locator(".rg-topbar__operation")).toHaveText(name, { timeout: 60_000 });
 }
 

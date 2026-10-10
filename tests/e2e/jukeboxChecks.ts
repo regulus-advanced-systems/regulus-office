@@ -72,7 +72,7 @@ export async function walkUpToJukebox(page: Page): Promise<void> {
     if (!pose.walking && Math.hypot(pose.x - stand.x, pose.z - stand.z) <= 0.8) return;
     if (!pose.walking) expect(await walkTo(page, stand.x, stand.z)).toBe(true);
     throw new Error("walking to the jukebox");
-  }).toPass({ timeout: 90_000, intervals: [500, 1_000] });
+  }).toPass({ timeout: 90_000, intervals: [200, 400] });
   await waitStill(page);
 }
 
