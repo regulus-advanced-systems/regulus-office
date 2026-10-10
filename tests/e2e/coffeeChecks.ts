@@ -292,6 +292,7 @@ export async function checkCoffee(owner: Page, member: Page, ownerName: string):
     await page.mouse.move(640, 330);
     await wheelZoomTo(page, zoom);
   }
-  await walkToLobby(owner);
+  // The owner stays at the machine, on the lobby level: the steps after this one walk to
+  // where they need to be, and the walk back would only add to the suite's time (#299).
   if (shots) await walkToLobby(member);
 }
