@@ -282,3 +282,26 @@
   margin-top: 4px;
   color: var(--rg-color-ink);
 }
+
+/* Where a conversation was started over (#301): what is above is no longer in the agent's mind. */
+.rg-office-agent-chat__divider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--rg-color-panel-border);
+  font-size: 0.8em;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.rg-office-agent-chat__divider::before,
+.rg-office-agent-chat__divider::after {
+  content: "";
+  flex: 1;
+  border-top: 1px dashed currentColor;
+}
+.rg-office-agent-chat__over {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}

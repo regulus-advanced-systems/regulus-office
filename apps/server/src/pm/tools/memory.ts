@@ -37,6 +37,9 @@ function run<T>(fn: () => T): T {
   }
 }
 
+/** The person this call's notes are written for and looked up for: the one it is answered for. */
+const who = (call: ToolCall) => call.asking.person?.id ?? call.agent.ownerUserId ?? undefined;
+
 /** The entries were handed to the agent: their rooms are in its conversation now. */
 function read(call: ToolCall, entries: readonly MindEntry[]): void {
   saw(call, ...entries.flatMap((e) => e.rooms ?? []));
@@ -61,7 +64,7 @@ export function soulRead(call: ToolCall) {
 
 export function memorySave(call: ToolCall, input: OfficeToolInput<"memory_save">) {
   const entry = run(() =>
-    call.mind.addMemory(call.agent.id, input, "agent", scopeOf(call), visibleIn(call)),
+    call.mind.addMemory(call.agent.id, input, "agent", scopeOf(call), visibleIn(call), who(call)),
   );
   call.auditMeta = { entryId: entry.id, kind: "memory", chars: entry.text.length };
   return { id: entry.id, saved: true };
@@ -104,6 +107,7 @@ export function noteWrite(call: ToolCall, input: OfficeToolInput<"note_write">) 
     call.mind.writeNote(call.agent.id, input, "agent", {
       rooms: scopeOf(call),
       visible: visibleIn(call),
+      forUser: who(call),
     }),
   );
   call.auditMeta = { entryId: entry.id, kind: "note", chars: entry.text.length, created };
@@ -111,7 +115,7 @@ export function noteWrite(call: ToolCall, input: OfficeToolInput<"note_write">) 
 }
 
 export function noteRead(call: ToolCall, input: OfficeToolInput<"note_read">) {
-  const entry = run(() => call.mind.note(call.agent.id, input.title, visibleIn(call)));
+  const entry = run(() => call.mind.note(call.agent.id, input.title, visibleIn(call), who(call)));
   read(call, [entry]);
   return { ...noteHead(entry), text: entry.text };
 }
@@ -124,7 +128,7 @@ export function noteList(call: ToolCall) {
 
 export function noteDelete(call: ToolCall, input: OfficeToolInput<"note_delete">) {
   const gone = run(() => {
-    const entry = call.mind.note(call.agent.id, input.title, visibleIn(call));
+    const entry = call.mind.note(call.agent.id, input.title, visibleIn(call), who(call));
     return call.mind.remove(call.agent.id, entry.id, visibleIn(call));
   });
   call.auditMeta = { entryId: gone.id, kind: "note", removed: true };

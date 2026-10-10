@@ -15,7 +15,7 @@
  * tool runs (call.ts, `TOOL_REACH`); a question is checked here against the
  * person asked. The refusal says that and nothing about which room.
  */
-import { mayWriteBoard, type OfficeToolInput } from "@regulus/protocol";
+import { mayWriteBoard, type OfficeToolInput, REACH_REFUSAL } from "@regulus/protocol";
 import { and, eq, gte } from "drizzle-orm";
 import { OFFICE_PROFILE_PREFIX } from "../../agents/manager/credentials.ts";
 import { AgentManagerError } from "../../agents/manager/errors.ts";
@@ -29,6 +29,7 @@ import { roomAccess, saw, scopeOf } from "./asking.ts";
 import { actingPerson, requireOperation, type ToolCall, ToolError } from "./context.ts";
 
 const shared = (call: ToolCall) => call.agent.ownerUserId === null;
+const ASK_REFUSED = "that person cannot be asked from this conversation";
 
 /** The credential profile a henchman started by this agent runs on. */
 function henchmanProfile(call: ToolCall, provider: string, chosen: string | undefined) {
@@ -74,10 +75,14 @@ export function askHuman(call: ToolCall, input: OfficeToolInput<"ask_human">) {
   const rooms = [...new Set([...scopeOf(call), ...(input.operationId ? [input.operationId] : [])])];
   const person = call.store.person(forUserId);
   if (!person || !call.scopes.canSeeAll(person, rooms)) {
-    throw new ToolError(
-      "forbidden",
-      "that person cannot be asked this: it may concern a room they cannot see",
-    );
+    // Because of the room the question itself names (which the agent's asker can see)...
+    if (!person || (input.operationId && !call.scopes.canSeeAll(person, [input.operationId]))) {
+      throw new ToolError("forbidden", "that person cannot see this operation");
+    }
+    // ...or because of what this conversation has read: said without naming a room, and to the
+    // person in their chat as well.
+    if (call.asking.turn) call.conversations.noticeReach(agent.id, call.asking.turn);
+    throw new ToolError("forbidden", REACH_REFUSAL.replace("this cannot go there", ASK_REFUSED));
   }
   const request = call.requests.create({
     agentId: agent.id,

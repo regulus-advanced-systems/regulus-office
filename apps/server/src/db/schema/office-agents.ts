@@ -311,6 +311,12 @@ export const officeAgentMemories = sqliteTable(
      * are not known: the entry is kept and shown to nobody.
      */
     roomScope: jsonText("room_scope").notNull().default("[]"),
+    /**
+     * The person it was written for (#301): whose conversation with the agent
+     * saved it, or who wrote it by hand. Only to pick between notes with the
+     * same title; it opens nothing.
+     */
+    forUserId: text("for_user_id").references(() => users.id, { onDelete: "set null" }),
     ...timestamps(),
   },
   (t) => [

@@ -236,11 +236,27 @@ export class AgentMind {
     }
   }
 
-  /** The note with this title that the reader can see (the most recently changed, if several). */
-  #noteByTitle(agentId: string, title: string, visible: Visible): MemoryRow | undefined {
-    return readable(() => this.store.notesByTitle(agentId, title)).find((row) =>
+  /**
+   * The note a title means for a reader. Several notes can have one title
+   * (each about rooms the others' readers cannot all see), so among those the
+   * reader can see: first one that was written for them (in their own
+   * conversation with the agent, or by their hand), then the one about the
+   * most rooms (the one fewest people share), then the most recently changed.
+   * So a note someone else left with the same title, visible to everyone,
+   * never stands in for the reader's own.
+   */
+  #noteByTitle(
+    agentId: string,
+    title: string,
+    visible: Visible,
+    forUser?: string,
+  ): MemoryRow | undefined {
+    const seen = readable(() => this.store.notesByTitle(agentId, title)).filter((row) =>
       shown(visible, row),
     );
+    const own = (row: MemoryRow) => Number(forUser !== undefined && row.forUserId === forUser);
+    // (A stable sort: notes that tie stay most recently changed first.)
+    return seen.sort((a, b) => own(b) - own(a) || b.rooms.length - a.rooms.length)[0];
   }
 
   #row(agentId: string, entryId: string, visible: Visible): MemoryRow {
@@ -259,16 +275,19 @@ export class AgentMind {
     by: MindAuthor,
     rooms: readonly string[] = [],
     visible?: Visible,
+    forUser?: string,
   ): MindEntry {
     const text = clean(input.text).trim();
     const source = input.source ? clean(input.source).trim() : undefined;
     assertNoSecret("That memory", `${text}\n${source ?? ""}`);
     this.#room(agentId, "memory", visible);
-    return entryView(this.store.insert(agentId, { kind: "memory", text, source, by, rooms }));
+    return entryView(
+      this.store.insert(agentId, { kind: "memory", text, source, by, rooms, forUserId: forUser }),
+    );
   }
 
-  note(agentId: string, title: string, visible?: Visible): MindEntry {
-    const row = this.#noteByTitle(agentId, title, visible);
+  note(agentId: string, title: string, visible?: Visible, forUser?: string): MindEntry {
+    const row = this.#noteByTitle(agentId, title, visible, forUser);
     if (!row) throw new MindError("not_found", "no note with that title");
     return entryView(row);
   }
@@ -281,11 +300,11 @@ export class AgentMind {
     agentId: string,
     input: { title: string; text: string; append?: boolean },
     by: MindAuthor,
-    opts: { rooms?: readonly string[]; visible?: Visible } = {},
+    opts: { rooms?: readonly string[]; visible?: Visible; forUser?: string } = {},
   ): { entry: MindEntry; created: boolean } {
     const title = input.title.trim();
     // Among the notes the writer can see: one they cannot see may have this title as well.
-    const existing = this.#noteByTitle(agentId, title, opts.visible);
+    const existing = this.#noteByTitle(agentId, title, opts.visible, opts.forUser);
     const added = clean(input.text);
     const text = existing && input.append ? `${existing.text.trimEnd()}\n${added}` : added;
     if (text.length > LIMITS.noteTextMax) {
@@ -299,7 +318,14 @@ export class AgentMind {
       return { entry: entryView(row), created: false };
     }
     this.#room(agentId, "note", opts.visible);
-    const row = this.store.insert(agentId, { kind: "note", title, text, by, rooms: opts.rooms });
+    const row = this.store.insert(agentId, {
+      kind: "note",
+      title,
+      text,
+      by,
+      rooms: opts.rooms,
+      forUserId: opts.forUser,
+    });
     return { entry: entryView(row), created: true };
   }
 

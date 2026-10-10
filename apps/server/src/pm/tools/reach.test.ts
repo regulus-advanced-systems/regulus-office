@@ -7,7 +7,18 @@
  * tool that is added later cannot go unclassified or unchecked.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { OFFICE_TOOLS, type OfficeAgentView, type OfficeToolName } from "@regulus/protocol";
+import {
+  OFFICE_AGENTS_API_PATH,
+  OFFICE_TOOL_INPUTS,
+  OFFICE_TOOLS,
+  type OfficeAgentConversation,
+  type OfficeAgentTokenCreated,
+  type OfficeAgentView,
+  type OfficeToolName,
+  officeAgentStartOverPath,
+  REACH_NOTICE,
+  REACH_REFUSAL,
+} from "@regulus/protocol";
 import { githubIssues, tasks } from "../../db/schema/index.ts";
 import { CANARY, errorOf, type LimitsOffice, limitsOffice } from "../asker-limits.fixture.ts";
 import { type AgentsOffice, APOLLO, BOREALIS, BOREALIS_REPO } from "../test-helpers.ts";
@@ -138,5 +149,91 @@ describe("from a conversation that has read Apollo, nothing is written where peo
     ]);
     // The henchman it spawned, and the one the queue started for the task.
     expect(after.henchmen).toBeGreaterThan(before.henchmen);
+  });
+});
+
+describe("the words of such a refusal", () => {
+  const conversation = async (person: { cookie: string }) =>
+    (await (
+      await o.send(`${OFFICE_AGENTS_API_PATH}/${pm.id}/conversation`, "GET", person.cookie)
+    ).json()) as OfficeAgentConversation;
+
+  test("the agent is told why and what clears it; the person is told the same in their chat, once; no room is named", async () => {
+    const notices = async () =>
+      (await conversation(o.people.ada)).messages.filter((m) => m.text === REACH_NOTICE).length;
+    const before = await notices();
+    const turn = await f.turn(o.people.ada);
+    for (const [name, input] of Object.entries(INTO_BOREALIS)) {
+      const refused = await turn.call(name, input(o.people.ada.id));
+      expect((refused.body as { message?: string }).message).toBe(REACH_REFUSAL);
+    }
+    expect(REACH_REFUSAL).toContain("starting this conversation over");
+    expect(REACH_REFUSAL).toContain("looked at rooms that not everyone who reads there can see");
+    for (const words of [REACH_REFUSAL, REACH_NOTICE]) {
+      expect(words).not.toMatch(/apollo|borealis|octo/i);
+    }
+    // Four refusals in this turn: one line in Ada's chat, from the office.
+    const ada = await conversation(o.people.ada);
+    expect(await notices()).toBe(before + 1);
+    expect(ada.messages.at(-1)).toMatchObject({ author: "system", text: REACH_NOTICE });
+    // It is a notice, not an end: she is still waiting for the agent's answer.
+    expect(ada.waiting).toBe(true);
+    expect((await turn.call("list_operations")).status).toBe(200);
+    f.done(o.people.ada);
+    // Nobody else gets it.
+    expect((await conversation(o.people.sam)).messages.some((m) => m.text === REACH_NOTICE)).toBe(
+      false,
+    );
+  });
+});
+
+describe("acting for a person", () => {
+  test("with an access code the agent acts only for the person who minted it, on every tool that acts for someone", async () => {
+    const res = await o.send(
+      `${OFFICE_AGENTS_API_PATH}/${pm.id}/tokens`,
+      "POST",
+      o.people.ada.cookie,
+      {
+        label: "script",
+      },
+    );
+    const code = ((await res.json()) as OfficeAgentTokenCreated).token;
+    // (Ada starts her conversation over, so that nothing it had looked at is what refuses below.)
+    const cleared = await o.send(officeAgentStartOverPath(pm.id), "POST", o.people.ada.cookie);
+    expect(cleared.status).toBe(200);
+    const before = written();
+    // Every tool whose input can name a person to act for.
+    const onBehalf = OFFICE_TOOLS.map((t) => t.name).filter(
+      (name) => "onBehalfOf" in OFFICE_TOOL_INPUTS[name].shape,
+    );
+    const calls: Record<string, (userId: string) => Record<string, unknown>> = {
+      enqueue_task: (userId) => ({
+        ...INTO_BOREALIS.enqueue_task?.(userId),
+        operationId: APOLLO,
+        repoId: "repo-apollo",
+      }),
+      spawn_henchman: (userId) => ({
+        ...INTO_BOREALIS.spawn_henchman?.(userId),
+        operationId: APOLLO,
+        repoId: "repo-apollo",
+      }),
+      stop_henchman: (userId) => ({
+        henchmanId: o.spawned[0]?.agentId ?? "none",
+        onBehalfOf: userId,
+      }),
+    };
+    expect(Object.keys(calls).sort()).toEqual([...onBehalf].sort());
+    // Mia's turn is open: she is waiting for the agent. Ada's code still cannot act for her.
+    const mias = await f.turn(o.people.mia);
+    for (const [name, input] of Object.entries(calls)) {
+      const asMia = await o.tool(code, name, input(o.people.mia.id));
+      expect([name, asMia.status, errorOf(asMia)]).toEqual([name, 403, "not_waiting"]);
+    }
+    expect(written()).toEqual(before);
+    // Mia's own turn can, for Mia.
+    expect((await mias.call("enqueue_task", calls.enqueue_task?.(o.people.mia.id))).status).toBe(
+      200,
+    );
+    f.done(o.people.mia);
   });
 });

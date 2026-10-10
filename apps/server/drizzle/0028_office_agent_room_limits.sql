@@ -12,6 +12,7 @@ CREATE TABLE `office_agent_room_reads` (
 CREATE UNIQUE INDEX `office_agent_room_reads_unique` ON `office_agent_room_reads` (`agent_id`,`user_id`,`operation_id`);--> statement-breakpoint
 ALTER TABLE `office_agent_memories` ADD `sealed` integer DEFAULT false NOT NULL;--> statement-breakpoint
 ALTER TABLE `office_agent_memories` ADD `room_scope` text DEFAULT '[]' NOT NULL;--> statement-breakpoint
+ALTER TABLE `office_agent_memories` ADD `for_user_id` text REFERENCES `users`(`id`) ON DELETE set null;--> statement-breakpoint
 ALTER TABLE `office_agent_requests` ADD `room_scope` text DEFAULT '[]' NOT NULL;--> statement-breakpoint
 ALTER TABLE `office_agent_settings` ADD `mind_scrub_pending` integer DEFAULT false NOT NULL;--> statement-breakpoint
 ALTER TABLE `office_agent_soul_versions` ADD `sealed` integer DEFAULT false NOT NULL;--> statement-breakpoint

@@ -324,13 +324,14 @@ export class OfficeAgentService {
     const row = this.#visible(actor, id);
     const emergency = mayEmergencyStopOfficeAgent(actor, row);
     if (!mayConfigureOfficeAgent(actor, row) && !emergency) throw forbidden("not_your_agent");
+    // A person stopped it: until it is started again it has no body in the world (#301). Written
+    // before the stop, so a message that arrives while it stops, and starts it anew, is the later word.
+    this.deps.store.update(row.id, { stoppedByPerson: true });
     await this.deps.runtime.stop(
       row.id,
       row.engine,
       emergency ? "stopped by an office admin" : undefined,
     );
-    // A person stopped it: from now until it is started again it has no body in the world (#301).
-    this.deps.store.update(row.id, { stoppedByPerson: true });
     this.#audit(
       actor,
       emergency ? AUDIT_ACTIONS.officeAgentEmergencyStop : AUDIT_ACTIONS.officeAgentStop,
@@ -367,6 +368,16 @@ export class OfficeAgentService {
       waiting: this.deps.conversations.waiting(row.id, actor.id),
       status: row.status,
     };
+  }
+
+  /** The actor's own conversation with the agent begins again (`AgentRuntime.startOver`). */
+  startOver(actor: OperationActor, id: string): OfficeAgentConversation {
+    const row = this.#talkable(actor, id);
+    this.deps.runtime.startOver(row, actor.id);
+    this.#audit(actor, AUDIT_ACTIONS.officeAgentConversationStartOver, row.id, {
+      shared: row.ownerUserId === null,
+    });
+    return this.conversation(actor, id);
   }
 
   async send(actor: OperationActor, id: string, text: string): Promise<OfficeAgentMessage> {

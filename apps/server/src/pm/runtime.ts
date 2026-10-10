@@ -8,6 +8,7 @@
  */
 import { Secret } from "@regulus/agent-adapters";
 import {
+  CONVERSATION_RESTARTED_LINE,
   OFFICE_AGENT_TOOLS_API_PATH,
   OFFICE_MCP_PATH,
   type OfficeAgentEngineKind,
@@ -104,10 +105,38 @@ export class AgentRuntime {
     };
   }
 
-  /** After a restart: nothing runs, and no engine run holds a token. */
+  /**
+   * After a restart: nothing runs, no engine run holds a token, and whoever was
+   * still waiting for an answer is told that it will not come (#301).
+   */
   boot(): void {
     this.deps.store.resetStatuses();
     this.deps.tokens.revokeAllSessions();
+    this.deps.conversations.closeOpenTurns();
+  }
+
+  /**
+   * One person's conversation with the agent begins again (#301): the engine's
+   * session with them is dropped (and what it kept of it, where the engine can),
+   * and with it the record of rooms that conversation had read. The lines the
+   * person sees stay, under a line that says so.
+   */
+  startOver(row: OfficeAgentRow, userId: string): void {
+    const { store, scopes, conversations } = this.deps;
+    const engine = this.#engines.get(row.engine);
+    if (this.#running.has(row.id) && engine?.forgetConversation) {
+      engine.forgetConversation(row.id, userId);
+    } else {
+      // Not running: the session its next start would continue is taken out of what is kept.
+      const state = stateOf(row.engineState);
+      const sessions = state.sessions;
+      if (sessions && typeof sessions === "object" && userId in sessions) {
+        const { [userId]: _dropped, ...rest } = sessions as Record<string, unknown>;
+        store.update(row.id, { engineState: JSON.stringify({ ...state, sessions: rest }) });
+      }
+    }
+    scopes?.forget(row.id, userId);
+    conversations.append(row.id, userId, "system", CONVERSATION_RESTARTED_LINE);
   }
 
   /** Start the agent on its engine with a fresh session token. Throws {@link EngineRefusal}. */
@@ -135,8 +164,9 @@ export class AgentRuntime {
       );
     }
     store.setStatus(row.id, "starting");
-    // Started again (by a person, or by its first message): whoever stopped it is overruled (#301).
-    if (row.stoppedByPerson) store.update(row.id, { stoppedByPerson: false });
+    // Started again (by a person, or by its first message): whoever stopped it is overruled
+    // (#301). Not from `row`: it may have been read before the stop that this start waited for.
+    store.update(row.id, { stoppedByPerson: false });
     tokens.revokeSessions(row.id);
     const minted = tokens.mint(row.id, "session", "engine run");
     if (!minted) throw new Error("session token not minted");

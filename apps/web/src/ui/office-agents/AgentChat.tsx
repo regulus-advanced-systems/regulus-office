@@ -4,7 +4,11 @@
  * conversation is polled while it is open). A reply shown here is read: the
  * office is told, and the "answer ready" bubble over the agent clears (#252).
  */
-import { OFFICE_AGENT_LIMITS, type OfficeAgentConversation } from "@regulus/protocol";
+import {
+  CONVERSATION_RESTARTED_LINE,
+  OFFICE_AGENT_LIMITS,
+  type OfficeAgentConversation,
+} from "@regulus/protocol";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { FormAlert } from "../auth/AuthCard.tsx";
 import { Button } from "../components/Button.tsx";
@@ -71,20 +75,36 @@ export function AgentChat({
     setBusy(false);
   };
 
+  const startOver = async () => {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    const res = await api.startOver(agentId);
+    if (res.ok) setConvo(res.data);
+    else setError(describeOfficeAgentsError(res));
+    setBusy(false);
+  };
+
   return (
     <div className="rg-office-agent-chat">
       <ol ref={log} className="rg-office-agent-chat__log" aria-label={`Chat with ${agentName}`}>
         {convo?.messages.length === 0 && (
           <li className="rg-muted">Nothing yet. Say something to {agentName}.</li>
         )}
-        {convo?.messages.map((m) => (
-          <li key={m.id} className={`rg-office-agent-chat__line is-${m.author}`}>
-            <span className="rg-office-agent-chat__who">
-              {m.author === "person" ? "You" : m.author === "agent" ? agentName : "Office"}
-            </span>
-            <span className="rg-office-agent-chat__text">{m.text}</span>
-          </li>
-        ))}
+        {convo?.messages.map((m) =>
+          m.author === "system" && m.text === CONVERSATION_RESTARTED_LINE ? (
+            <li key={m.id} className="rg-office-agent-chat__divider" title={m.text}>
+              Started over here
+            </li>
+          ) : (
+            <li key={m.id} className={`rg-office-agent-chat__line is-${m.author}`}>
+              <span className="rg-office-agent-chat__who">
+                {m.author === "person" ? "You" : m.author === "agent" ? agentName : "Office"}
+              </span>
+              <span className="rg-office-agent-chat__text">{m.text}</span>
+            </li>
+          ),
+        )}
       </ol>
       <div role="status" aria-live="polite" className="rg-field__hint">
         {/* A closing line from the office ("Not delivered: …") means nothing is on its way. */}
@@ -119,6 +139,16 @@ export function AgentChat({
           Send
         </Button>
       </form>
+      {(convo?.messages.length ?? 0) > 0 && (
+        <div className="rg-office-agent-chat__over">
+          <Button variant="ghost" size="sm" disabled={busy} onClick={() => void startOver()}>
+            Start this conversation over
+          </Button>
+          <span className="rg-field__hint">
+            {agentName} begins again without what was said above. What you see here stays.
+          </span>
+        </div>
+      )}
       {error && <FormAlert>{error}</FormAlert>}
     </div>
   );

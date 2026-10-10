@@ -92,8 +92,9 @@ export interface ToolCall extends ToolDeps {
  * - Personal agent: its owner, always; naming anyone else is refused.
  * - Shared agent: the person named in `onBehalfOf`, and only while that
  *   person is waiting for the agent's answer (an open turn in their
- *   conversation), so the agent cannot borrow someone's rights unasked. While
- *   it works on one person's message it acts for that person only (#301).
+ *   conversation), so the agent cannot borrow someone's rights unasked. And
+ *   only the person the call is answered for (asking.ts, #301): with a turn's
+ *   token that person, with an access code the person who minted it.
  */
 export function actingPerson(call: ToolCall, onBehalfOf: string | undefined): AgentPerson {
   const { agent } = call;
@@ -112,11 +113,12 @@ export function actingPerson(call: ToolCall, onBehalfOf: string | undefined): Ag
       "a shared agent does this for a person: pass onBehalfOf with the id of the person who asked",
     );
   }
-  // With a turn's token it acts for the person whose turn it is, and nobody else.
-  if (call.asking.turn !== undefined && call.asking.turn !== onBehalfOf) {
+  // It acts for the person the call is answered for and nobody else (#301): the one whose
+  // turn's token it carries, or, with an access code, the one who minted the code.
+  if (call.asking.person?.id !== onBehalfOf) {
     throw new ToolError(
       "not_waiting",
-      "you are answering someone else right now, so you cannot act for that person",
+      "you can act only for the person you are answering, not for somebody else",
     );
   }
   const person = call.store.person(onBehalfOf);

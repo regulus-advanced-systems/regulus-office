@@ -220,6 +220,43 @@ describe("a memory written while helping one person does not surface for another
     }
   });
 
+  test("a note with the same title that everyone can see does not stand in for one's own", async () => {
+    const read = async () =>
+      resultOf<{ text: string }>(await call("note_read", { title: "Apollo plan" })).text;
+    // Olga's conversation has looked at no room, so the "Apollo plan" she has the agent write is
+    // about no room: everyone who talks to the agent can see it, Mia included. It is the newest.
+    await during(o.people.olga, async () => {
+      const written = await call("note_write", { title: "Apollo plan", text: "Olga's plan" });
+      expect(resultOf<{ created: boolean }>(written).created).toBe(true);
+    });
+    // For Mia the title still means the note her own conversation wrote...
+    await during(o.people.mia, async () => {
+      expect(await read()).toBe(`Plan: ${CANARY}`);
+      // ...and adding to it adds to hers, not to Olga's.
+      await call("note_write", { title: "Apollo plan", text: "more", append: true });
+      expect(await read()).toBe(`Plan: ${CANARY}\nmore`);
+    });
+    // For Olga it means hers (she cannot see Mia's at all).
+    await during(o.people.olga, async () => {
+      expect(await read()).toBe("Olga's plan");
+    });
+    // Ada wrote neither and can see both: she gets the one about more rooms, which fewer people
+    // share, not the newest.
+    await during(o.people.ada, async () => {
+      expect(await read()).toBe(`Plan: ${CANARY}\nmore`);
+    });
+    // Sam can see only Olga's.
+    await during(o.people.sam, async () => {
+      expect(await read()).toBe("Olga's plan");
+    });
+    // Put back.
+    const { mind } = o.officeAgents;
+    for (const note of mind.list(pm.id, "note", { limit: 1000 }).entries) {
+      if (note.text === "Olga's plan") mind.remove(pm.id, note.id);
+      else mind.update(pm.id, note.id, { text: `Plan: ${CANARY}` });
+    }
+  });
+
   test("the caps count what the writer can see; entries closed to them do not show through", async () => {
     const { memoriesMax } = OFFICE_AGENT_MIND_LIMITS;
     const { mind } = o.officeAgents;

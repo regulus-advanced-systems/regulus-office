@@ -300,12 +300,21 @@ describe("a shared agent has its grants and acts for people who asked", () => {
     expect(resultOf<{ scope: string }>(await o.tool(pm.token, "read_usage")).scope).toBe("office");
   });
 
-  test("it queues work only for a person who is waiting for its answer, on the office key", async () => {
+  test("it queues work only for the person it is answering, while they wait, on the office key", async () => {
     expect(errorOf(await o.tool(pm.token, "enqueue_task", task))).toBe("on_behalf_required");
     const forMia = { ...task, onBehalfOf: o.people.mia.id, profileId: "mias-own-profile" };
+    // `pm.token` is Ada's access code: with it the agent acts for Ada and for nobody else,
+    // whether Mia is waiting for it or not (#301).
     expect(errorOf(await o.tool(pm.token, "enqueue_task", forMia))).toBe("not_waiting");
     expect((await ask(o.people.mia.cookie, "Please queue the flaky test fix")).status).toBe(202);
-    const queued = await o.tool(pm.token, "enqueue_task", forMia);
+    expect(errorOf(await o.tool(pm.token, "enqueue_task", forMia))).toBe("not_waiting");
+    // And for Ada herself only while she waits for its answer.
+    const forAda = { ...task, onBehalfOf: o.people.ada.id };
+    expect(errorOf(await o.tool(pm.token, "enqueue_task", forAda))).toBe("not_waiting");
+    // In Mia's own turn, with that turn's token, it queues for her.
+    const queued = await o.inTurn(pm.agent.id, o.people.mia, (call) =>
+      call("enqueue_task", forMia),
+    );
     expect(queued.status).toBe(200);
     const row = o.db
       .select()
@@ -318,17 +327,21 @@ describe("a shared agent has its grants and acts for people who asked", () => {
       userId: o.people.mia.id,
       meta: { tool: "enqueue_task", shared: true, onBehalfOf: o.people.mia.id },
     });
-    // Once it has answered her, it can no longer act for her.
+    // In her turn it cannot act for somebody else either.
+    const forSam = await o.inTurn(pm.agent.id, o.people.mia, (call) =>
+      call("enqueue_task", { ...task, onBehalfOf: o.people.sam.id }),
+    );
+    expect(errorOf(forSam)).toBe("not_waiting");
     reply(o.people.mia.id);
-    expect(errorOf(await o.tool(pm.token, "enqueue_task", forMia))).toBe("not_waiting");
   });
 
   test("acting for someone never exceeds what that person may do, nor what the agent was granted", async () => {
+    const asSam = (name: string, input: unknown) =>
+      o.inTurn(pm.agent.id, o.people.sam, (call) => call(name, input));
     // Sam waits, but has no access to Apollo: for him it does not exist.
-    await ask(o.people.sam.cookie, "Queue something on Apollo for me");
-    expect(
-      (await o.tool(pm.token, "enqueue_task", { ...task, onBehalfOf: o.people.sam.id })).status,
-    ).toBe(404);
+    expect((await asSam("enqueue_task", { ...task, onBehalfOf: o.people.sam.id })).status).toBe(
+      404,
+    );
     // Sam manages Borealis, but the agent has no grant there.
     const onBorealis = {
       ...task,
@@ -336,7 +349,7 @@ describe("a shared agent has its grants and acts for people who asked", () => {
       repoId: BOREALIS_REPO,
       onBehalfOf: o.people.sam.id,
     };
-    expect((await o.tool(pm.token, "enqueue_task", onBorealis)).status).toBe(404);
+    expect((await asSam("enqueue_task", onBorealis)).status).toBe(404);
     // A view grant is not enough to queue, whatever Sam may do himself.
     await o.send(`${A}/${pm.agent.id}/grants`, "PUT", o.people.ada.cookie, {
       grants: [
@@ -344,11 +357,11 @@ describe("a shared agent has its grants and acts for people who asked", () => {
         { operationId: BOREALIS, access: "view" },
       ],
     });
-    expect(errorOf(await o.tool(pm.token, "enqueue_task", onBorealis))).toBe("forbidden");
+    expect(errorOf(await asSam("enqueue_task", onBorealis))).toBe("forbidden");
     // The coordinator preset has no spawn tool at all.
-    expect(
-      errorOf(await o.tool(pm.token, "spawn_henchman", { ...onBorealis, kind: undefined })),
-    ).toBe("preset_forbids");
+    expect(errorOf(await asSam("spawn_henchman", { ...onBorealis, kind: undefined }))).toBe(
+      "preset_forbids",
+    );
     reply(o.people.sam.id);
   });
 

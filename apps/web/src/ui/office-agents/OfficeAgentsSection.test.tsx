@@ -1,6 +1,10 @@
 /** Settings → Agents (#271, #280): the list in plain words, who gets which controls, the one-time access code, chat and questions. The form is AgentForm.test.tsx. */
 import { afterEach, describe, expect, test } from "bun:test";
-import type { OfficeAgentConversation } from "@regulus/protocol";
+import {
+  CONVERSATION_RESTARTED_LINE,
+  type OfficeAgentConversation,
+  REACH_NOTICE,
+} from "@regulus/protocol";
 import { act } from "react";
 import { click, useDom } from "../a11y/dom.ts";
 import { button, settle, text } from "../auth/testDom.tsx";
@@ -105,6 +109,51 @@ describe("office agents section", () => {
     await click(button("Yes") as HTMLButtonElement);
     await settle();
     expect(f.calls.find((c) => c.path.endsWith("/answer"))?.body).toEqual({ answer: "Yes" });
+  });
+
+  test("the chat can be started over: the lines stay under a divider, and the office's notice says what that clears (#301)", async () => {
+    const lines: OfficeAgentConversation["messages"] = [
+      { id: "m1", author: "person", text: "Post that in Borealis", ts: NOW },
+      { id: "m2", author: "system", text: REACH_NOTICE, ts: NOW },
+      { id: "m3", author: "agent", text: "I was not allowed to.", ts: NOW },
+    ];
+    const over = {
+      id: "m4",
+      author: "system" as const,
+      text: CONVERSATION_RESTARTED_LINE,
+      ts: NOW,
+    };
+    const f = await show("member", {
+      "GET /api/office-agents": { body: response([agent({})]) },
+      "GET /api/office-agents/a1/conversation": {
+        body: { agentId: "a1", status: "ready", waiting: false, messages: lines },
+      },
+      "POST /api/office-agents/a1/conversation/start-over": {
+        body: { agentId: "a1", status: "ready", waiting: false, messages: [...lines, over] },
+      },
+    });
+    await click(within(card("Hermes"), "Chat") as HTMLButtonElement);
+    await settle();
+    // The office's own line tells the person, in plain words, what happened and what clears it.
+    expect(text()).toContain(
+      "this conversation has looked at rooms that not all of those readers can see",
+    );
+    expect(text()).toContain(
+      "Hermes begins again without what was said above. What you see here stays.",
+    );
+    expect(text()).not.toContain("Started over here");
+    await click(button("Start this conversation over") as HTMLButtonElement);
+    await settle();
+    expect(
+      f.calls.some(
+        (c) => c.method === "POST" && c.path === "/api/office-agents/a1/conversation/start-over",
+      ),
+    ).toBe(true);
+    // Everything said is still shown, and a divider marks where the agent begins again.
+    expect(text()).toContain("Post that in Borealis");
+    expect(text()).toContain("I was not allowed to.");
+    expect(text()).toContain("Started over here");
+    expect(text()).not.toContain(CONVERSATION_RESTARTED_LINE);
   });
 
   test("a chat asked for from the world (a click on the agent's bubble, #256) opens by itself", async () => {

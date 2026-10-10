@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "af25a3d9-3580-4aef-a1b7-b25f189adf10",
+  "id": "82c0abae-3f78-4e6a-b2d7-ae3cd32326d9",
   "prevId": "943aa7f8-7722-44c4-adc0-f239cdd63bcd",
   "tables": {
     "agent_events": {
@@ -2827,6 +2827,13 @@
           "autoincrement": false,
           "default": "'[]'"
         },
+        "for_user_id": {
+          "name": "for_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "integer",
@@ -2857,6 +2864,15 @@
           "columnsFrom": ["agent_id"],
           "columnsTo": ["id"],
           "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "office_agent_memories_for_user_id_users_id_fk": {
+          "name": "office_agent_memories_for_user_id_users_id_fk",
+          "tableFrom": "office_agent_memories",
+          "tableTo": "users",
+          "columnsFrom": ["for_user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },

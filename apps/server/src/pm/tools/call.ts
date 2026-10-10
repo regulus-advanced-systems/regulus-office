@@ -23,6 +23,7 @@ import {
   type OfficeToolSpec,
   officeToolSpec,
   presetAllows,
+  REACH_REFUSAL,
   toolsForPreset,
 } from "@regulus/protocol";
 import { z } from "zod";
@@ -238,10 +239,9 @@ export class OfficeTools {
       // A room closed to this call is the tool's own "no such operation"; only one it could
       // write to is asked who reads there.
       if ((target === null || roomAccess(call, target) !== null) && !mayReach(call, target)) {
-        throw new ToolError(
-          "forbidden",
-          "this cannot go there: it may concern a room that not everyone reading there can see",
-        );
+        // The person is told too, in their chat, whatever the agent makes of it.
+        if (call.asking.turn) this.deps.conversations.noticeReach(call.agent.id, call.asking.turn);
+        throw new ToolError("forbidden", REACH_REFUSAL);
       }
     }
     const handler = HANDLERS[spec.name] as (call: ToolCall, input: unknown) => unknown;

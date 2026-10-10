@@ -17,7 +17,9 @@ The office works only with facts it has itself.
 3. **Scope.** Whatever leaves a conversation for someone else carries those rooms: a memory or note (`room_scope`), a question to another person, and everything written where the people of a room read it (a chat line, a comment on a card, a task's title and prompt, a henchman's prompt). It reaches only people who can see every room in its scope. Every tool is classified by where its text ends up (`TOOL_REACH`), and the check for a room's readers is made in the dispatcher, not in each tool.
 4. **Closed means absent.** An entry outside a reader's access is not listed, counted or found. A note's title is unique among the notes its writer can see, and the caps count what the writer can see; a hard cap on rows behind that fails like any storage failure.
 5. **Unknown rooms are closed to everyone.** A shared agent's memories and notes from before scopes existed, and any scope that does not parse, are kept in the database and shown to nobody.
-6. **A person who loses a room** their conversation had read gets a new session with the agent before their next message; the CLI's transcript of the old one is deleted.
+6. **Starting over.** A person who loses a room their conversation had read gets a new session with the agent before their next message; the CLI's transcript of the old one is deleted. Anyone can do the same for their own conversation ("Start this conversation over"), which is the way out when the breadth of point 3 gets in the way: the office tells the person in their chat when the agent was refused for that reason.
+7. **Acting for a person.** A shared agent acts (queues, spawns, stops) only for the person its call is answered for, while that person waits for its answer.
+8. **Two notes with one title.** For a reader a title means, among the notes they can see: one written for them, else the one about the most rooms, else the most recently changed.
 
 ## Consequences
 

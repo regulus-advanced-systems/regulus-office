@@ -268,6 +268,8 @@ export class MindStore {
       source?: string;
       by: MindAuthor;
       rooms?: readonly string[];
+      /** The person it is written for (whose conversation, or who wrote it by hand). */
+      forUserId?: string;
     },
   ): MemoryRow {
     const at = new Date(this.now());
@@ -287,6 +289,7 @@ export class MindStore {
         ),
         writtenBy: entry.by,
         roomScope: roomsJson(entry.rooms ?? []),
+        forUserId: entry.forUserId ?? null,
         createdAt: at,
         updatedAt: at,
       })

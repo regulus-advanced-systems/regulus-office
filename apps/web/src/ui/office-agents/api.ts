@@ -98,6 +98,9 @@ export function createOfficeAgentsApi(options: { fetch?: typeof fetch } = {}) {
     start: (id: string) => call("POST", `${agent(id)}/start`, OfficeAgentView),
     stop: (id: string) => call("POST", `${agent(id)}/stop`, OfficeAgentView),
     conversation: (id: string) => call("GET", `${agent(id)}/conversation`, OfficeAgentConversation),
+    /** Begin the caller's conversation with it again (#301). */
+    startOver: (id: string) =>
+      call("POST", `${agent(id)}/conversation/start-over`, OfficeAgentConversation),
     send: (id: string, text: string) =>
       call("POST", `${agent(id)}/messages`, OfficeAgentMessage, { text }),
     /** A personal agent's owner sends it off to wander, or calls it back to their side (#252). */

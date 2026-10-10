@@ -27,6 +27,8 @@ export interface FakeEngineOptions {
   ) => string | null | Promise<string | null>;
   /** Refuse to start (for the failure path). */
   failStart?: string;
+  /** How long a stop takes, ms (a real engine waits for the turn it kills). */
+  stopMs?: number;
 }
 
 export class FakeEngine implements OfficeAgentEngine {
@@ -56,6 +58,7 @@ export class FakeEngine implements OfficeAgentEngine {
   }
 
   async stop(agentId: string): Promise<void> {
+    if (this.options.stopMs) await new Promise((done) => setTimeout(done, this.options.stopMs));
     this.stopped.push(agentId);
     this.started.delete(agentId);
   }

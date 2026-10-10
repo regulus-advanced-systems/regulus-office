@@ -287,6 +287,30 @@ export const OfficeAgentConversation = z.object({
 });
 export type OfficeAgentConversation = z.infer<typeof OfficeAgentConversation>;
 
+/**
+ * `POST /api/office-agents/:id/conversation/start-over` (#301): the caller's own
+ * conversation with the agent begins again. The agent's session with them is
+ * dropped, and for a shared agent the record of rooms that conversation had
+ * looked at; the lines shown stay, under a divider. Answers the conversation.
+ */
+export const officeAgentStartOverPath = (agentId: string) =>
+  `${OFFICE_AGENTS_API_PATH}/${encodeURIComponent(agentId)}/conversation/start-over`;
+
+/** The office's line that marks where a conversation was started over; the chat draws it as a divider. */
+export const CONVERSATION_RESTARTED_LINE =
+  "This conversation was started over. The agent begins again without what was said above.";
+
+/**
+ * What a shared agent is told when it may not write somewhere because of what
+ * its conversation has read (#301). It names no room.
+ */
+export const REACH_REFUSAL =
+  "this cannot go there: this conversation has looked at rooms that not everyone who reads there can see. Tell the person that, and that starting this conversation over (the button in this chat) clears it; then you can do it";
+
+/** The same, as the office tells the person in their chat with the agent. It names no room. */
+export const REACH_NOTICE =
+  'The agent was not allowed to write something where other people read it: this conversation has looked at rooms that not all of those readers can see. "Start this conversation over" clears that; what was said stays here for you.';
+
 export const SendOfficeAgentMessage = z.object({
   text: z.string().trim().min(1).max(OFFICE_AGENT_LIMITS.messageMax),
 });
