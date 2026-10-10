@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import type { OperationState } from "@regulus/protocol";
 import { LOBBY_LEVEL_ID } from "@regulus/protocol";
 import { henchmanFixture, operationFixture } from "@regulus/protocol/src/fixtures.ts";
@@ -19,6 +19,7 @@ import { publish, resetStores } from "./testKit.ts";
 const overlay = () => useUiStore.getState().overlay;
 const toasts = () => useUiStore.getState().toastQueue.toasts.map((t) => t.message);
 
+beforeEach(resetStores);
 afterEach(resetStores);
 
 describe("what the palette reads from the stores (#261)", () => {
