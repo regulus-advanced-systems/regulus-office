@@ -53,11 +53,22 @@ const runnerPrefix = noWebServer ? "" : officeRunnerPrefix(process.env.E2E_RUN_I
 const secret = () => randomBytes(32).toString("base64");
 /** Signs in the office flow's two browsers before its steps (tests/e2e/officeSession.ts). */
 const OFFICE_SETUP = "**/office.setup.ts";
+/**
+ * How the browsers draw the R3F scene. By default in software (SwiftShader), which is all a
+ * GPU-less CI runner has. Software WebGL wants about three free cores per run: on a busy
+ * machine the page's synchronous GL calls (a context made or lost, a shader's link status)
+ * wait many seconds behind the frames the GPU process still has to draw, and steps time out
+ * (#299). `E2E_WEBGL=hardware` draws on the machine's own GPU instead, through EGL, which
+ * headless Chromium reaches without a display.
+ */
+const WEBGL_ARGS =
+  process.env.E2E_WEBGL === "hardware"
+    ? ["--use-angle=gl-egl", "--enable-gpu", "--ignore-gpu-blocklist"]
+    : ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"];
 const browserUse = {
   ...devices["Desktop Chrome"],
   viewport: { width: 1280, height: 800 },
-  // Software WebGL for the R3F scene on GPU-less CI runners.
-  launchOptions: { args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] },
+  launchOptions: { args: WEBGL_ARGS },
 };
 
 export default defineConfig({

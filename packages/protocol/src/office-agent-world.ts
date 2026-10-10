@@ -79,6 +79,11 @@ export const OFFICE_AGENT_RUN_SPEED = 5.6;
 export const OFFICE_AGENT_RUN_ABOVE = 5;
 /** How far from its owner a following agent stops, metres. */
 export const OFFICE_AGENT_POLITE_DISTANCE = 1.4;
+/**
+ * `E` reaches an agent this close to the player, metres. A following agent is kept nearer
+ * than this (the polite distance plus how far its owner may step before it is sent again).
+ */
+export const OFFICE_AGENT_REACH = 2.2;
 
 // ---- The office PM's rounds (#60) -------------------------------------------------
 

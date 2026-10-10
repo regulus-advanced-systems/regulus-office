@@ -10,6 +10,7 @@
  * (#269) changes nothing here: a body that changes level is placed (`hop`).
  */
 import { type ThreeEvent, useFrame } from "@react-three/fiber";
+import { OFFICE_AGENT_REACH } from "@regulus/protocol";
 import type { NavGrid } from "@regulus/room-layout";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Group } from "three";
@@ -47,7 +48,7 @@ import { HENCHMAN_HEIGHT } from "../henchmen/rig.ts";
 import { type BodyWalker, createBodyWalker } from "./walker.ts";
 
 /** `E` reaches an agent this close, metres. */
-export const AGENT_INTERACT_RADIUS = 2.2;
+export const AGENT_INTERACT_RADIUS = OFFICE_AGENT_REACH;
 /** Above a standing agent's head. */
 const OVERHEAD_Y = HENCHMAN_HEIGHT + 0.14;
 
@@ -188,6 +189,9 @@ function AgentBody({
         moving,
         x: walker.pose.x,
         z: walker.pose.z,
+        // Where the server has sent it (it may still be on its way there).
+        targetX: body.x,
+        targetZ: body.z,
         bubbleKind: bubble?.kind ?? "none",
         bubbleText: bubble?.text ?? "",
       }}

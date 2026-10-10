@@ -209,8 +209,10 @@ export class OfficeClient {
   async setRooms(current: string | null, nearby: readonly string[] = []): Promise<void> {
     const before = this.operations.primary;
     const operation = this.stores.operation.getState();
-    const promise = this.operations.set(current, nearby);
     if (before !== current) {
+      // The HUD changes room first: what listens for that forgets the room left behind
+      // (the agent store, agentSync.ts), and must have done so before `set` hands over what
+      // the new room was holding for us, or the requests open in it are forgotten too (#299).
       // Already joined as a nearby room: the HUD switches at once.
       const joined = current ? this.operations.snapshot(current) : null;
       if (joined) operation.apply(joined);
@@ -218,8 +220,9 @@ export class OfficeClient {
         operation.clear();
         operation.setOperationId(current);
       }
-      this.announce(current, false);
     }
+    const promise = this.operations.set(current, nearby);
+    if (before !== current) this.announce(current, false);
     await promise;
   }
 

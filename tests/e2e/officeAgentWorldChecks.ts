@@ -1,14 +1,15 @@
 /**
  * Office agents in the world, across two browsers (#252). The owner makes a personal agent
- * (secretary form) and a shared one over REST, as Settings → Agents does. Then:
+ * (secretary form) over REST, as Settings → Agents does, and later a shared one. Then:
  *
- * - both browsers see both bodies; the owner's agent stands beside them and follows them
+ * - both browsers see its body; the owner's agent stands beside them and follows them
  *   into the war room, and the member sees it there with "<owner>'s assistant" over it;
  * - the member clicks it: no chat opens (a toast says whose it is), and the server refuses
  *   them its chat, its dismiss and its recall;
  * - the owner presses `E` next to it: its chat opens as a window in the world; Dismiss
  *   sends it wandering for both browsers and Recall brings it back;
- * - the shared agent wanders, and both the owner and the member open its chat by clicking it;
+ * - the shared agent appears for both and wanders, and both the owner and the member open its
+ *   chat by clicking it, wherever it is and while it walks (`clickBody`);
  * - the owner walks into a project room on another level: the agent comes too, and the
  *   member, whose GitHub access does not cover that room, is not sent its body meanwhile.
  *
@@ -31,7 +32,7 @@ import {
   walkToLobby,
   wheelZoomTo,
 } from "./compoundProbes.ts";
-import { bodyOf } from "./officeAgentProbes.ts";
+import { bodyOf, holdScene } from "./officeAgentProbes.ts";
 import { recordToasts, toastsSeen } from "./probes.ts";
 
 const inRoom = (room: NavRoom, p: { x: number; z: number } | null) =>
@@ -48,22 +49,37 @@ async function standIn(page: Page, room: NavRoom, dx = 0, dz = 0): Promise<void>
   await waitStill(page);
 }
 
-/** Click a body (walking over to it when it is out of view) until `done` holds. */
+/**
+ * Click a body until `done` holds, wherever it is and whether or not it is walking (#299).
+ *
+ * Nothing here waits for a wandering agent to come by or to stand still. While the body is
+ * outside the clear part of the view, the player walks to where the server has sent it (its
+ * target, which it keeps for its whole walk and its pause there), so the camera brings it into
+ * view. Once it is in view the scene is held on the frame it shows, the mouse clicks the body
+ * where that frame has it, and the scene runs on: a walking body cannot step out from under
+ * the click, however slowly the page draws.
+ */
 async function clickBody(page: Page, agentId: string, done: () => Promise<boolean>) {
   await page.bringToFront();
+  const view = page.viewportSize() ?? { width: 1280, height: 800 };
   await expect(async () => {
     if (await done()) return;
-    const body = await bodyOf(page, agentId);
-    if (!body) throw new Error("the agent is not in view");
-    const view = page.viewportSize() ?? { width: 1280, height: 800 };
-    const inside =
-      body.sx > 300 && body.sx < view.width - 280 && body.sy > 150 && body.sy < view.height - 180;
-    if (!inside || body.moving) {
-      // Walk over (stopping a little short), so the camera brings it into view.
-      if (!inside && !(await navPose(page)).walking) await walkTo(page, body.x + 1.6, body.z + 1.2);
-      throw new Error("waiting for the agent to stand in view");
+    let target: { x: number; z: number } | null = null;
+    try {
+      const body = await bodyOf(page, agentId, true);
+      if (!body) throw new Error("the agent is not in this page's scene");
+      const inside =
+        body.sx > 300 && body.sx < view.width - 280 && body.sy > 150 && body.sy < view.height - 180;
+      if (inside) await page.mouse.click(body.sx, body.sy);
+      else target = { x: body.targetX, z: body.targetZ };
+    } finally {
+      await holdScene(page, false);
     }
-    await page.mouse.click(body.sx, body.sy);
+    if (target) {
+      // Walk over (stopping a little short of where it is going).
+      if (!(await navPose(page)).walking) await walkTo(page, target.x + 1.6, target.z + 1.2);
+      throw new Error("walking over to the agent");
+    }
     await expect.poll(done, { timeout: 2_500 }).toBe(true);
   }).toPass({ timeout: 90_000, intervals: [400, 800] });
 }
@@ -96,16 +112,9 @@ export async function checkAgentsInTheWorld(owner: Page, member: Page, shots?: s
     role: "assistant",
     appearance: "secretary",
   });
-  const shared = dbPath
-    ? await made({
-        ...base,
-        name: `Number Two ${n}`,
-        owner: "office",
-        role: "custom",
-        appearance: "number_two",
-        profileId,
-      })
-    : null;
+  // The shared agent is made further down, once the owner is done with their own: `E` opens
+  // the nearest agent one may talk to, and a wandering one could be walking past just then.
+  let shared: { id: string; name: string } | null = null;
 
   try {
     // Everyone in the lobby, on the lobby level.
@@ -129,11 +138,9 @@ export async function checkAgentsInTheWorld(owner: Page, member: Page, shots?: s
       }
     }
 
-    // Both browsers see both bodies, in the forms chosen for them.
+    // Both browsers see the body, in the form chosen for it.
     for (const page of [owner, member]) {
       await expect.poll(async () => (await bodyOf(page, mine.id))?.name).toBe(mine.name);
-      if (shared)
-        await expect.poll(async () => (await bodyOf(page, shared.id))?.name).toBe(shared.name);
       expect((await bodyOf(page, mine.id))?.appearance).toBe("secretary");
     }
 
@@ -254,11 +261,23 @@ export async function checkAgentsInTheWorld(owner: Page, member: Page, shots?: s
     }
 
     // The shared agent wanders: it is sent somewhere else before long.
-    if (shared) {
+    if (dbPath) {
       await standIn(owner, lobby, 1.5, 1);
       await standIn(member, lobby, -2.5, 1.5);
+      const office = await made({
+        ...base,
+        name: `Number Two ${n}`,
+        owner: "office",
+        role: "custom",
+        appearance: "number_two",
+        profileId,
+      });
+      shared = office;
+      for (const page of [owner, member]) {
+        await expect.poll(async () => (await bodyOf(page, office.id))?.name).toBe(office.name);
+      }
       await owner.bringToFront();
-      const first = await bodyOf(owner, shared.id);
+      const first = await bodyOf(owner, office.id);
       expect(first).toMatchObject({
         mode: "wander",
         own: false,
@@ -268,7 +287,7 @@ export async function checkAgentsInTheWorld(owner: Page, member: Page, shots?: s
       await expect
         .poll(
           async () => {
-            const now = await bodyOf(owner, shared.id);
+            const now = await bodyOf(owner, office.id);
             return now ? Math.hypot(now.x - (first?.x ?? 0), now.z - (first?.z ?? 0)) : 0;
           },
           { timeout: 60_000 },
@@ -278,7 +297,7 @@ export async function checkAgentsInTheWorld(owner: Page, member: Page, shots?: s
         await expect
           .poll(
             async () => {
-              const b = await bodyOf(owner, shared.id);
+              const b = await bodyOf(owner, office.id);
               return (
                 !!b && inRoom(lobby, b) && b.sx > 200 && b.sx < 1080 && b.sy > 150 && b.sy < 650
               );
@@ -291,10 +310,10 @@ export async function checkAgentsInTheWorld(owner: Page, member: Page, shots?: s
 
       // Both of them open its chat by clicking it.
       for (const page of [owner, member]) {
-        const dialog = page.getByRole("dialog", { name: shared.name });
-        await clickBody(page, shared.id, () => dialog.isVisible());
+        const dialog = page.getByRole("dialog", { name: office.name });
+        await clickBody(page, office.id, () => dialog.isVisible());
         await expect(dialog).toContainText("Office agent, shared by the office.");
-        await expect(dialog.getByLabel(`Message to ${shared.name}`)).toBeVisible();
+        await expect(dialog.getByLabel(`Message to ${office.name}`)).toBeVisible();
         // Nobody dismisses a shared agent.
         await expect(dialog.getByRole("button", { name: "Dismiss", exact: true })).toHaveCount(0);
         await dialog.getByRole("button", { name: "Done" }).click();
