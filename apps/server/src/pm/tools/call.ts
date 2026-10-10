@@ -3,8 +3,8 @@
  * MCP (`../mcp.ts`) and REST (`../tool-routes.ts`) both end here, so the two
  * transports cannot differ in what they allow.
  *
- * Order of checks: the tool exists; the agent's preset includes it; the
- * input is valid; then the tool's own checks (operation access as the owner
+ * Order of checks: the tool exists; the agent's preset includes it; its job
+ * leaves it (a board helper has a short list, #56); the input is valid; then the tool's own checks (operation access as the owner
  * or by grant, acting person, caps). A shared agent's call is answered for
  * somebody (asking.ts, #301): who that is, is decided here, before the tool
  * runs, from how the call was authenticated and whose message the agent is
@@ -16,6 +16,7 @@
  */
 import {
   agentMayUseTool,
+  isBoardHelper,
   OFFICE_TOOL_INPUTS,
   OFFICE_TOOLS,
   type OfficeToolError,
@@ -156,6 +157,7 @@ export const TOOL_REACH: { readonly [N in OfficeToolName]: ToolReach } = {
 const DENIALS: ReadonlySet<OfficeToolError> = new Set([
   "unknown_tool",
   "preset_forbids",
+  "role_forbids",
   "not_found",
   "forbidden",
   "on_behalf_required",
@@ -253,6 +255,7 @@ export class OfficeTools {
           ok: result.ok,
           ...(result.ok ? {} : { error: result.error }),
           preset: agent.preset,
+          role: agent.role,
           shared: agent.ownerUserId === null,
           ...(idOf(raw.operationId) ? { operationId: idOf(raw.operationId) } : {}),
           ...(idOf(raw.onBehalfOf) ? { onBehalfOf: idOf(raw.onBehalfOf) } : {}),
@@ -285,12 +288,16 @@ export class OfficeTools {
         `your privilege preset (${call.agent.preset}) does not include ${spec.name}; it needs ${spec.preset}`,
       );
     }
-    // Which tools there are depends on the agent's job and on the turn (#253): the office's
-    // watchdog has only its own, and in a turn of a round only the round tools; nobody else
-    // has a watchdog tool, and a turn of a round opens nothing else. A tool an agent does
-    // not have in this turn does not exist for it.
+    // Which tools there are depends on the agent's job and on the turn, by one rule
+    // (`agentMayUseTool`): the office's watchdog has only its own (#253), and in a turn of a
+    // round only the round tools; a board helper has its short list (#56); nobody else has a
+    // watchdog tool, and a turn of a round opens nothing else.
     const turn = call.asking.officeTurn ? "round" : "conversation";
     if (!agentMayUseTool(call.agent, spec.name, turn)) {
+      // A helper is told its job leaves the tool out; a tool of another job does not exist.
+      if (isBoardHelper(call.agent) && spec.role === undefined) {
+        throw new ToolError("role_forbids", `a board helper does not have ${spec.name}`);
+      }
       throw new ToolError("unknown_tool", "no such tool");
     }
     const parsed = OFFICE_TOOL_INPUTS[spec.name].safeParse(rawInput);

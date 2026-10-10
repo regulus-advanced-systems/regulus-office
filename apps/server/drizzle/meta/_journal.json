@@ -225,6 +225,13 @@
       "when": 1791668067540,
       "tag": "0031_watchdog",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "6",
+      "when": 1791670292691,
+      "tag": "0032_office_agent_kiosks",
+      "breakpoints": true
     }
   ]
 }

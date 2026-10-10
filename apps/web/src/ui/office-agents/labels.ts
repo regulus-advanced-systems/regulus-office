@@ -63,9 +63,35 @@ export const ROLE_WORDS: Readonly<Record<OfficeAgentRole, Words>> = {
   },
   assistant: { label: "Assistant", hint: "Helps with whatever you ask it." },
   watchdog: { label: "Watchdog", hint: "Keeps an eye on things and reports what looks wrong." },
-  kiosk: { label: "Board helper", hint: "Explains a board to whoever walks up to it." },
+  kiosk: {
+    label: "Board helper",
+    hint: "Stands at one board of one room, tells whoever walks up what is on it, and can propose a task for that room's queue, which they confirm themselves. It can do nothing else. Shared agents only.",
+  },
   custom: { label: "Something else", hint: "A job you describe yourself in the instructions." },
 };
+
+/** The board helper's own words (#56). */
+export const KIOSK_WORDS = {
+  where:
+    "It stands beside that board and never leaves it. Only people who can see the room see it or can talk to it. One helper per board.",
+  viaPm: "Run it like the office's project manager",
+  viaPmHint:
+    "While the office has a project manager that runs as a Claude Code session, the helper uses that manager's key and model, so changing the manager changes its helpers. Otherwise, and with this off, it uses the choice above. It never gets the manager's permissions.",
+  noRooms:
+    "A board helper stands in a room, and you can see no room: link your GitHub account, or ask someone with access to the repo to place it.",
+  presets: {
+    observer: "It tells people what is on its board and cannot propose tasks.",
+    coordinator:
+      "It tells people what is on its board and can propose a task for the queue; nothing is queued until the person confirms.",
+    manager:
+      "The same as Organise work: a board helper never comments, posts in the chat or runs henchmen.",
+  },
+  jobFixed: "A board helper's job and room are for life: delete it and place a new one instead.",
+  canEnqueue:
+    "Ask it below to put something on this room's queue. It will show you the task first; nothing is queued until you confirm.",
+  cannotEnqueue: "It can tell you about the board; it cannot queue work for you here.",
+  briefFailed: "The board cannot be read right now.",
+} as const;
 
 /** "What it may do": each level includes the ones before it. */
 export const PRESET_WORDS: Readonly<Record<OfficeAgentPreset, Words>> = {

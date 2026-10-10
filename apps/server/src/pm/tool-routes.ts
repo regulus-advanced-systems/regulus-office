@@ -28,6 +28,7 @@ const STATUS: Readonly<Record<OfficeToolError, number>> = {
   unknown_tool: 404,
   invalid_input: 400,
   preset_forbids: 403,
+  role_forbids: 403,
   not_found: 404,
   forbidden: 403,
   on_behalf_required: 403,

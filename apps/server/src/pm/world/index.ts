@@ -8,6 +8,7 @@
  * - people.ts     where each person is, and where a henchman's owner is
  * - route.ts      scripted routes: stops, one after the other, skipping closed rooms
  * - rounds.ts     the office PM (#60): its post at reception and its rounds by the clock
+ * - posts.ts      home posts: reception, and a board helper's place beside its board (#56)
  * - world.ts      `AgentWorld`: one body per agent, stepped from the BuildingRoom's sweep
  * - attention.ts  a person's open question, unread reply and owed answer per agent
  * - service.ts    dismiss, recall, "seen", with their rules

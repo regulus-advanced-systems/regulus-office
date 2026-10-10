@@ -44,6 +44,11 @@ export interface AgentRuntimeDeps {
   /** Base URL of the office as engines reach it (no trailing slash). */
   officeUrl: string;
   usage?: UsageRecorder;
+  /**
+   * The last word on how an agent is run (#56): a board helper's placement, and
+   * the office PM's key and model for one placed to run like the PM.
+   */
+  shape?: (row: OfficeAgentRow, agent: EngineAgent) => EngineAgent;
   logger: Logger;
   now?: () => number;
 }
@@ -139,7 +144,7 @@ export class AgentRuntime {
 
   engineAgent(row: OfficeAgentRow): EngineAgent {
     const owner = row.ownerUserId ? this.deps.store.person(row.ownerUserId) : undefined;
-    return {
+    const agent: EngineAgent = {
       id: row.id,
       name: row.name,
       role: row.role,
@@ -153,6 +158,7 @@ export class AgentRuntime {
       instructions: row.instructions,
       state: stateOf(row.engineState),
     };
+    return this.deps.shape ? this.deps.shape(row, agent) : agent;
   }
 
   /**
@@ -381,7 +387,8 @@ export class AgentRuntime {
           this.deps.usage?.recordUsage({
             attributedTo,
             provider: row.provider,
-            model: row.model,
+            // The model it really ran on (a board helper may run on the office PM's, #56).
+            model: this.deps.shape ? this.engineAgent(row).model : row.model,
             sample: {
               ts: (this.deps.now ?? Date.now)(),
               inputTokens: event.usage.inputTokens,

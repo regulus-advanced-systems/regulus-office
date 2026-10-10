@@ -22,6 +22,7 @@ import {
   bodyBubble,
   bodyCaption,
   bodyLight,
+  bodyScale,
   canChatWith,
   isOwnBody,
   nearestBody,
@@ -50,7 +51,7 @@ import { type BodyWalker, createBodyWalker } from "./walker.ts";
 /** `E` reaches an agent this close, metres. */
 export const AGENT_INTERACT_RADIUS = OFFICE_AGENT_REACH;
 /** Above a standing agent's head. */
-const OVERHEAD_Y = HENCHMAN_HEIGHT + 0.14;
+const OVERHEAD_GAP = 0.14;
 
 type Walkers = Map<string, BodyWalker>;
 
@@ -85,6 +86,7 @@ function AgentBody({
             appearance: b.appearance,
             status: b.status,
             mode: b.mode,
+            post: b.post,
             doing: b.doing,
             x: b.target.x,
             z: b.target.z,
@@ -148,6 +150,8 @@ function AgentBody({
   const mine = isOwnBody(body, viewer);
   const canChat = canChatWith(body, viewer);
   const caption = bodyCaption(body, viewer);
+  // A board helper is a small henchman (#56).
+  const scale = bodyScale(body);
   const bubble = visibleBubble(bodyBubble(body, attention, viewer, !moving) ?? undefined, {
     activityBubbles,
   });
@@ -182,6 +186,8 @@ function AgentBody({
         name: body.name,
         caption,
         mode: body.mode,
+        post: body.post,
+        scale,
         appearance: body.appearance,
         own: mine,
         canChat,
@@ -201,19 +207,21 @@ function AgentBody({
       onPointerOver={hidden ? undefined : () => over(true)}
       onPointerOut={hidden ? undefined : () => over(false)}
     >
-      <HenchmanAvatar
-        skin={body.appearance}
-        seed={agentId}
-        animation={moving ? "walk" : "idle"}
-        status={bodyLight(body.status)}
-        gesture="none"
-      />
+      <group scale={scale}>
+        <HenchmanAvatar
+          skin={body.appearance}
+          seed={agentId}
+          animation={moving ? "walk" : "idle"}
+          status={bodyLight(body.status)}
+          gesture="none"
+        />
+      </group>
       {!far && !hidden && (
         <AgentOverhead
           id={agentId}
           name={body.name}
           bubble={bubble}
-          position={[0, OVERHEAD_Y, 0]}
+          position={[0, HENCHMAN_HEIGHT * scale + OVERHEAD_GAP, 0]}
           anchor={walker.pose}
           still={still}
           onOpen={openBubbleTarget}

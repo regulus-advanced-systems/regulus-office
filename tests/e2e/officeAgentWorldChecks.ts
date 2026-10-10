@@ -60,7 +60,7 @@ async function standIn(page: Page, room: NavRoom, dx = 0, dz = 0): Promise<void>
  * where that frame has it, and the scene runs on: a walking body cannot step out from under
  * the click, however slowly the page draws.
  */
-async function clickBody(page: Page, agentId: string, done: () => Promise<boolean>) {
+export async function clickBody(page: Page, agentId: string, done: () => Promise<boolean>) {
   await page.bringToFront();
   const view = page.viewportSize() ?? { width: 1280, height: 800 };
   await expect(async () => {

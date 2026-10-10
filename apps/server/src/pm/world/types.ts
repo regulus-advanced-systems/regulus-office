@@ -13,8 +13,13 @@ export interface WorldAgent {
   appearance: string;
   status: OfficeAgentStatus;
   dismissed: boolean;
-  /** Its home post (#60): `reception` for the office PM; left out or `none` for everyone else. */
+  /**
+   * Its home post: `reception` for the office PM (#60), its board for a board
+   * helper (#56); left out or `none` for everyone else.
+   */
   post?: OfficeAgentPost;
+  /** The project room of a board post (its operation id). */
+  postRoom?: string;
 }
 
 /** Where the owner of a visited henchman is while the agent stands next to it. */

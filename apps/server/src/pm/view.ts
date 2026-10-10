@@ -12,6 +12,7 @@ import {
 import { type OperationActor, operationAccessFor } from "../operations/access.ts";
 import { agentCost } from "./cost.ts";
 import type { HermesConnections } from "./hermes/connections.ts";
+import { kioskOf, kioskView } from "./kiosk/placements.ts";
 import { runsOnOf } from "./runs-on.ts";
 import type { OfficeAgentRow, OfficeAgentStore } from "./store.ts";
 import type { OfficeAgentTokens } from "./tokens.ts";
@@ -30,6 +31,8 @@ export function agentView(
   const { store, tokens, hermes } = deps;
   const owner = row.ownerUserId ? store.person(row.ownerUserId) : undefined;
   const canConfigure = mayConfigureOfficeAgent(actor, row);
+  // Whoever is shown a board helper sees its room (`seesAgent`), so its name can be on the card.
+  const placement = row.role === "kiosk" ? kioskOf(store.db, row.id) : undefined;
   return {
     id: row.id,
     name: row.name,
@@ -46,6 +49,7 @@ export function agentView(
     appearance: row.appearance,
     dismissed: row.ownerUserId !== null && row.dismissed,
     ...(row.stoppedByPerson ? { stoppedByPerson: true } : {}),
+    ...(placement ? { kiosk: kioskView(store, row, placement) } : {}),
     status: row.status,
     ...(row.statusReason ? { statusReason: row.statusReason } : {}),
     ...(row.lastActivityAt ? { lastActivityAt: row.lastActivityAt.getTime() } : {}),

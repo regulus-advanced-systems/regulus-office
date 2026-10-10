@@ -18,6 +18,7 @@
  */
 import { z } from "zod";
 import { Count, Id, WorldPos } from "./common.ts";
+import { KIOSK_POSTS } from "./office-agent-kiosk.ts";
 import { OFFICE_AGENT_STATUSES, OFFICE_AGENTS_API_PATH } from "./office-agents.ts";
 
 /**
@@ -32,10 +33,12 @@ export type OfficeAgentBodyMode = (typeof OFFICE_AGENT_BODY_MODES)[number];
 
 /**
  * A home post (#60): where an agent stands when it has nothing else to do, and
- * where people go to find it. Only the office PM has one, the reception desk
- * in the lobby; walking up to the desk and pressing `E` opens its chat.
+ * where people go to find it. The office PM has the reception desk in the
+ * lobby; walking up to the desk and pressing `E` opens its chat. A board
+ * helper (#56) has the board it was placed at, in its project room, and never
+ * leaves it.
  */
-export const OFFICE_AGENT_POSTS = ["none", "reception"] as const;
+export const OFFICE_AGENT_POSTS = ["none", "reception", ...KIOSK_POSTS] as const;
 export type OfficeAgentPost = (typeof OFFICE_AGENT_POSTS)[number];
 
 /** Longest "doing" line of a body: a few words on where it stands ("at the usage wall"). */
@@ -67,7 +70,7 @@ export const OfficeAgentBody = z.object({
   doing: z.string().max(OFFICE_AGENT_DOING_MAX),
   /** A personal agent its owner sent off; it wanders until recalled. */
   dismissed: z.boolean(),
-  /** Its home post; `none` for every agent but the office PM. */
+  /** Its home post; `none` for every agent but the office PM and the board helpers. */
   post: z.enum(OFFICE_AGENT_POSTS),
 });
 export type OfficeAgentBody = z.infer<typeof OfficeAgentBody>;

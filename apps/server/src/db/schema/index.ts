@@ -10,6 +10,7 @@ export * from "./github.ts";
 export * from "./github-access.ts";
 export * from "./meetings.ts";
 export * from "./notifications.ts";
+export * from "./office-agent-kiosks.ts";
 export * from "./office-agents.ts";
 export * from "./operations.ts";
 export * from "./ops.ts";
