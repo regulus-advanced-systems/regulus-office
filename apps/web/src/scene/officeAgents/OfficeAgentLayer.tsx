@@ -188,6 +188,9 @@ function AgentBody({
         moving,
         x: walker.pose.x,
         z: walker.pose.z,
+        // Where the server has sent it (it may still be on its way there).
+        targetX: body.x,
+        targetZ: body.z,
         bubbleKind: bubble?.kind ?? "none",
         bubbleText: bubble?.text ?? "",
       }}

@@ -24,7 +24,8 @@ jobs:
   # on a fresh data dir and drives two browsers through register, invite, join, walk, chat, FPV.
   e2e:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # The flow takes 13 to 15 minutes here (#299); a step that fails adds its timeout to that.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
