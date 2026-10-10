@@ -179,12 +179,21 @@ export async function checkCoffee(owner: Page, member: Page, ownerName: string):
   await expect(owner.locator(".rg-buzz")).toHaveCount(0);
   expect((await drawn(member)).badges).toEqual([]);
 
-  // `E` typed into the chat is a letter, not a cup.
-  await owner.getByPlaceholder("Press T to chat").focus();
+  // `E` typed into the chat is a letter, not a cup. `T` opens the chat if an earlier step
+  // folded it away, and puts the caret in it.
+  const showChat = owner.getByRole("button", { name: "Show chat" });
+  const folded = (await showChat.count()) > 0;
+  await owner.bringToFront();
+  await owner.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  await owner.keyboard.press("t");
+  const chat = owner.getByPlaceholder("Press T to chat");
+  await expect(chat).toBeFocused();
   await owner.keyboard.type("e");
+  await expect(chat).toHaveValue("e");
   await owner.waitForTimeout(300);
   expect((await self(owner)).cups).toBe(0);
-  await owner.keyboard.press("Backspace");
+  await chat.fill("");
+  if (folded) await owner.getByRole("button", { name: "Hide chat" }).click();
 
   // The first cup: the owner's meter and speed, and the cup over their head for the member.
   await cup(owner, 1);
