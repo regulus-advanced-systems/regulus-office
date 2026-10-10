@@ -7,6 +7,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { BOOKSHELF_LIMITS, bookshelfPath } from "@regulus/protocol";
+import { ELLIPSIS, EXCERPT_LEAD_BYTES, LineExcerpt } from "./excerpt.ts";
 import { type GitStream, streamGit } from "./git-tree.ts";
 import { REFRESH_AFTER_MS, SEARCHES_AT_ONCE } from "./service.ts";
 import { BRANCH, git, type ShelfOffice, startShelfOffice } from "./test-helpers.ts";
@@ -38,6 +39,10 @@ beforeAll(() => {
   // 640 KB (too large to open, so not searched either).
   write(".changes/long.md", `needle-two ${"lorem the ipsum ".repeat(25_000)}\n`);
   write(".changes/longer.md", `needle-two ${"lorem the ipsum ".repeat(40_000)}\n`);
+  write(
+    ".changes/deep.md",
+    `# Deep\n${"filler ".repeat(30_000)}Needle-Deep here ${"tail ".repeat(400)}\n`,
+  );
   for (let i = 0; i < 12; i++) write(`many/f${i}.md`, "common-word here\n".repeat(30));
   write(SPOOFED, "# Not what its name says\n\nneedle-two\n");
   write(`docs/zero${INVISIBLE[1]}width.md`, "# needle-two\n");
@@ -65,6 +70,45 @@ describe("search and long lines", () => {
     expect(found.hits.map((h) => h.path)).toEqual([".changes/long.md"]);
     expect(found.hits[0]?.text).toHaveLength(BOOKSHELF_LIMITS.hitTextMax);
     expect(found.hits[0]?.text.startsWith("needle-two lorem the ipsum")).toBe(true);
+  });
+
+  test("a match far into a long line is what the hit shows", async () => {
+    const found = value(await office.bookshelf.search(reader, "alpha", "NEEDLE-deep"));
+    expect(found.hits.map((h) => `${h.path}:${h.line}`)).toEqual([".changes/deep.md:2"]);
+    const shown = found.hits[0]?.text ?? "";
+    expect(shown.startsWith(ELLIPSIS)).toBe(true);
+    expect(shown).toContain("filler Needle-Deep here tail tail");
+    expect(shown.length).toBeLessThanOrEqual(BOOKSHELF_LIMITS.hitTextMax);
+    // The match is in the part every reader sees, not cut off at the end.
+    expect(shown.indexOf("Needle-Deep")).toBeLessThan(EXCERPT_LEAD_BYTES + 2);
+  });
+
+  test("the excerpt: the start of a line when the match is there, a window when it is not", () => {
+    const bytesOf = (line: string) => new TextEncoder().encode(line);
+    const excerpt = (needle: string, line: string, maxBytes = 960) => {
+      const e = new LineExcerpt(needle, maxBytes);
+      for (const byte of bytesOf(line)) e.push(byte);
+      return e.take();
+    };
+    expect(excerpt("fox", "the quick brown FOX jumps")).toBe("the quick brown FOX jumps");
+    const long = `${"a".repeat(5000)} the fox ${"z".repeat(5000)}`;
+    const windowed = excerpt("fox", long);
+    const lead = "a".repeat(EXCERPT_LEAD_BYTES - 5);
+    expect(windowed.startsWith(`${ELLIPSIS}${lead} the fox zzz`)).toBe(true);
+    expect(windowed.length).toBeLessThanOrEqual(961);
+    // Overlapping starts (aab in aaab), and only the first match counts.
+    expect(excerpt("aab", `${"x".repeat(900)}aaab then aab`)).toContain("xaaab then aab");
+    // A window never starts or ends inside a character.
+    const wide = excerpt("fox", `${"ž".repeat(2000)}fox${"š".repeat(2000)}`, 200);
+    expect(wide).toMatch(new RegExp(`^${ELLIPSIS}ž+foxš+$`));
+    // No match it can see (git folds case this does not): the start of the line.
+    expect(excerpt("ŽABA", `${"b".repeat(3000)}žaba`, 100)).toBe("b".repeat(100));
+    // One excerpt per line: the next line starts afresh.
+    const e = new LineExcerpt("fox", 960);
+    for (const byte of bytesOf(long)) e.push(byte);
+    e.take();
+    for (const byte of bytesOf("a fox")) e.push(byte);
+    expect(e.take()).toBe("a fox");
   });
 
   test("the limit counts hits that are kept, and says when there were more", async () => {

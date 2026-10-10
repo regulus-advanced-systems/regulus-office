@@ -81,6 +81,11 @@ function shelfProblems(l: RoomLayout): string[] {
     if (gap < SHELF_CLEARANCE - 1e-9)
       problems.push(`the docs shelf answers E at ${other.id} (${gap.toFixed(2)} m)`);
   }
+  // Desk seats are no nearer than 2 m: from the stand point the shelf is always the nearest.
+  for (const seat of l.seats) {
+    const gap = Math.hypot(seat.pose.x - stand.x, seat.pose.z - stand.z);
+    if (gap < 2 - 1e-9) problems.push(`seat ${seat.id} is ${gap.toFixed(2)} m from the docs shelf`);
+  }
   // In front of the shelf, within arm's reach of it, facing it.
   const centre = { x: shelf.rect.x + shelf.rect.w / 2, z: shelf.rect.z + shelf.rect.d / 2 };
   const off = Math.abs(stand.heading - headingToward(stand, centre)) % (2 * Math.PI);

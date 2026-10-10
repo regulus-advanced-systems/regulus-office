@@ -15,6 +15,7 @@
  */
 import { join } from "node:path";
 import { gitBaseEnv } from "../github/git.ts";
+import { LineExcerpt } from "./excerpt.ts";
 
 const READ_TIMEOUT_MS = 15_000;
 /** `ls-tree` output read before a listing is called incomplete. */
@@ -244,6 +245,7 @@ const FIELD_BYTES = 8192;
  *   text) and are taken literally (`--literal-pathspecs`), so only those
  *   files are read. With none, nothing is searched.
  * - Output is parsed as it arrives (`<commit>:<path>\0<line>\0<text>\n`):
+ *   of a long line only the part that shows the match is kept;
  *   at most `lineBytes` of a line are kept however long it is, and git is
  *   stopped at `maxLines` lines. `more` says it was stopped there.
  */
@@ -259,17 +261,16 @@ export async function grepTree(
   if (paths.length === 0) return { lines: [], more: false };
   const lines: GrepLine[] = [];
   const prefix = `${commit}:`;
-  // The record being read: its three fields, each cut at its cap.
-  const fields: number[][] = [[], [], []];
+  // The record being read: name and line number, each cut at its cap, and the line's
+  // text, of which the excerpt keeps the part that shows the match (excerpt.ts).
+  const fields: number[][] = [[], []];
+  const excerpt = new LineExcerpt(needle, options.lineBytes);
   let field = 0;
   let more = false;
-  const caps = [FIELD_BYTES, 32, options.lineBytes];
+  const caps = [FIELD_BYTES, 32];
   const finish = () => {
-    const [name, line, body] = fields.map((bytes) => text(Uint8Array.from(bytes))) as [
-      string,
-      string,
-      string,
-    ];
+    const [name, line] = fields.map((bytes) => text(Uint8Array.from(bytes))) as [string, string];
+    const body = excerpt.take();
     for (const bytes of fields) bytes.length = 0;
     field = 0;
     if (name.startsWith(prefix) && /^\d+$/.test(line))
@@ -304,6 +305,7 @@ export async function grepTree(
           }
           finish();
         } else if (byte === NUL && field < 2) field += 1;
+        else if (field === 2) excerpt.push(byte);
         else if ((fields[field] as number[]).length < (caps[field] as number))
           (fields[field] as number[]).push(byte);
       }

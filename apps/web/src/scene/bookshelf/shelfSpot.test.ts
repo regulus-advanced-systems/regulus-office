@@ -30,20 +30,22 @@ const room = (w: number, d: number, side: (typeof COMPASS_DIRECTIONS)[number], d
   });
 
 describe("the shelf's E", () => {
-  test("is the shelf's at its stand point in every room, and out of reach it is not", () => {
-    for (let w = ROOM_MIN_TILES; w <= ROOM_MAX_TILES; w++) {
-      for (let d = ROOM_MIN_TILES; d <= ROOM_MAX_TILES; d++) {
-        for (const side of COMPASS_DIRECTIONS) {
-          for (const desks of [1, maxDeskCount(w, d)]) {
-            const spot = shelfSpot(room(w, d, side, desks));
-            if (!spot) throw new Error(`${w}x${d} ${side}: no docs shelf`);
-            expect(shelfTakesE(spot, spot.stand)).toBe(true);
-            // Further than any desk's reach: standing there, E can only mean the shelf.
-            const nearestDesk = Math.min(
-              ...spot.desks.map((p) => Math.hypot(p.x - spot.stand.x, p.z - spot.stand.z)),
-            );
-            expect(nearestDesk).toBeGreaterThanOrEqual(2);
-          }
+  // The smallest, the largest and a few between; that every room of every size keeps its
+  // desk seats 2 m from the shelf's stand point is held in room-layout (generate.test.ts).
+  test("is the shelf's at its stand point, with no desk seat nearer than the shelf", () => {
+    for (const [w, d] of [
+      [ROOM_MIN_TILES, ROOM_MIN_TILES],
+      [4, 7],
+      [6, 6],
+      [9, 5],
+      [ROOM_MAX_TILES, ROOM_MAX_TILES],
+    ] as const) {
+      for (const side of COMPASS_DIRECTIONS) {
+        for (const desks of [1, maxDeskCount(w, d)]) {
+          const spot = shelfSpot(room(w, d, side, desks));
+          if (!spot) throw new Error(`${w}x${d} ${side}: no docs shelf`);
+          expect(shelfTakesE(spot, spot.stand)).toBe(true);
+          expect(spot.desks).toHaveLength(desks * 4);
         }
       }
     }
