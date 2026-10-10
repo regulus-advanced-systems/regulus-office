@@ -11,6 +11,44 @@
  *
  * The constructor is looked up at each use, so a page (or a test) that
  * provides one later is picked up.
+ *
+ * The on-device API, checked against its sources (2026-10-10), not memory:
+ *
+ * - Spec, https://webaudio.github.io/web-speech-api/ : `attribute boolean
+ *   processLocally` ("when set to true, indicates a requirement that the speech
+ *   recognition process MUST be performed locally on the user's device");
+ *   `static Promise<AvailabilityStatus> available(SpeechRecognitionOptions)` and
+ *   `static Promise<boolean> install(SpeechRecognitionOptions)`, with
+ *   `{ required sequence<DOMString> langs; boolean processLocally = false;
+ *   SpeechRecognitionQuality quality = "command" }` and AvailabilityStatus
+ *   "unavailable" | "downloadable" | "downloading" | "available". Its start
+ *   algorithm: with `processLocally` true and no local recognition for `lang`,
+ *   fire `error` with "service-not-allowed" and abort. There is no fallback.
+ * - MDN, https://developer.mozilla.org/en-US/docs/Web/API/SpeechRecognition/processLocally ,
+ *   .../available_static , .../install_static and
+ *   https://developer.mozilla.org/en-US/docs/Web/API/Web_Speech_API/Using_the_Web_Speech_API#on-device_speech_recognition :
+ *   same names and values; "if you run the start() method after specifying
+ *   processLocally = true but the correct language pack isn't installed, the
+ *   function call will fail with a language-not-supported error". Both methods
+ *   sit behind the `on-device-speech-recognition` Permissions-Policy (default
+ *   `self`; the office sets no such header).
+ * - Shipped in Chrome 139 on desktop, not Android; Edge follows Chrome; not in
+ *   Safari; Firefox preview only (MDN browser-compat-data,
+ *   api/SpeechRecognition.json; https://developer.chrome.com/release-notes/139
+ *   "On-device Web Speech API ... allowing websites to ensure that neither audio
+ *   nor transcribed speech are sent to a third-party service").
+ * - Chromium, third_party/blink/renderer/modules/speech/speech_recognition.cc:
+ *   `start()` with processLocally re-checks the language pack and fires
+ *   "language-not-supported" (MDN's name, not the spec's) unless it is
+ *   installed, then starts with `allow_cloud_fallback = !process_locally_`.
+ *   `install()` resolves false unless `processLocally: true` is passed (the
+ *   spec ignores it) and wants a user activation: it is called from the
+ *   notice's Download button. Seen in Chromium 153 (tests/e2e/dictationRealApi.e2e.ts):
+ *   no pack gives "downloadable", and such a start fires the error and no `end`.
+ *
+ * So here: both error names mean "not on this computer" for the local engine,
+ * every told error ends the session itself, and the local engine starts only
+ * on a browser that has the attribute and `available`.
  */
 import type {
   DictationEngine,
@@ -53,6 +91,7 @@ export interface SpeechRecognitionCtor {
   new (): SpeechRecognitionLike;
   /** On-device API: "unavailable" | "downloadable" | "downloading" | "available". */
   available?: (query: LocalQuery) => Promise<string>;
+  /** Chromium resolves false unless `processLocally: true` is passed; needs a user activation. */
   install?: (query: LocalQuery) => Promise<boolean>;
 }
 
@@ -66,14 +105,17 @@ export const browserSpeechCtor: SpeechCtorLookup = () => {
   return g.SpeechRecognition ?? g.webkitSpeechRecognition ?? null;
 };
 
-export function speechErrorCode(error: string): DictationErrorCode | null {
+export function speechErrorCode(error: string, local = false): DictationErrorCode | null {
   switch (error) {
     // Silence and our own abort are not problems worth telling.
     case "no-speech":
     case "aborted":
       return null;
-    case "not-allowed":
     case "service-not-allowed":
+      // The spec's name for "cannot be done on this device" (Chromium says
+      // "language-not-supported"); otherwise the browser refusing its service.
+      return local ? "language" : "mic-blocked";
+    case "not-allowed":
       return "mic-blocked";
     case "audio-capture":
       return "no-mic";
@@ -99,10 +141,14 @@ export function createWebSpeechEngine(
 ): DictationEngine {
   const local = id === "local";
   const query = (lang: string): LocalQuery => ({ langs: [lang], processLocally: true });
-  /** The on-device API, or null: without it `processLocally` would be silently ignored. */
+  /**
+   * The on-device API, or null. A browser without the `processLocally` attribute would
+   * take the assignment for a stray property and send the audio to its online service.
+   */
   const onDevice = () => {
     const ctor = lookup();
-    return ctor && typeof ctor.available === "function" ? ctor : null;
+    if (!ctor || typeof ctor.available !== "function") return null;
+    return ctor.prototype && "processLocally" in ctor.prototype ? ctor : null;
   };
   const availability = async (lang: string): Promise<EngineAvailability> => {
     if (!local) return lookup() ? "ready" : "unavailable";
@@ -153,7 +199,16 @@ function startSession(
   rec.lang = lang;
   rec.continuous = true;
   rec.interimResults = true;
-  if (local) rec.processLocally = true;
+  if (local) {
+    rec.processLocally = true;
+    // Refuse rather than record if the requirement did not take, or there is no language
+    // for the browser to check its on-device pack against.
+    if (rec.processLocally !== true || !lang) {
+      handlers.onError("language");
+      end();
+      return { stop: () => {}, abort: () => {} };
+    }
+  }
   rec.onstart = () => {
     if (!ended) handlers.onStart();
   };
@@ -170,8 +225,16 @@ function startSession(
     handlers.onInterim(interim);
   };
   rec.onerror = (event) => {
-    const code = speechErrorCode(event.error);
-    if (code && !ended) handlers.onError(code);
+    const code = speechErrorCode(event.error, local);
+    if (!code || ended) return;
+    handlers.onError(code);
+    // Chromium fires no `end` after refusing an on-device start: close it ourselves.
+    try {
+      rec.abort();
+    } catch {
+      // Never started.
+    }
+    end();
   };
   rec.onend = end;
   try {

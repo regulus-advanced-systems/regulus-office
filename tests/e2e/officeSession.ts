@@ -35,6 +35,8 @@ const AUTH_DIR = process.env.E2E_DATA_DIR
   ? join(process.env.E2E_DATA_DIR, "e2e-auth")
   : join("test-results", ".auth");
 const statePath = (who: "owner" | "member") => join(AUTH_DIR, `${who}.json`);
+/** The owner's saved session, for a spec that launches a browser of its own (#260). */
+export const ownerStatePath = (): string => statePath("owner");
 const geniusPath = join(AUTH_DIR, "owner-genius.json");
 
 /** Save both sessions (cookies and local storage) for the steps' browsers. */

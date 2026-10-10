@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { act, useState } from "react";
 import { click, type Mounted, mount, useDom } from "../a11y/dom.ts";
 import { helpBindings } from "../hotkeys/HotkeyHelp.tsx";
+import { DisplaySettings } from "../settings/DisplaySettings.tsx";
 import { FakeHost } from "../terminal/fakeHost.ts";
 import { DictationController } from "./controller.ts";
 import { DictationHost, phaseLabel, pillPosition } from "./DictationHost.tsx";
@@ -273,6 +274,25 @@ describe("settings", () => {
     ]);
     await click(radios[1] as HTMLElement);
     expect(useDictationStore.getState().prefs.engine).toBe("vendor");
+  });
+});
+
+describe("Reset to defaults on Display and sound", () => {
+  test("puts dictation back on, on this computer, in the browser's language", async () => {
+    useDictationStore.setState({
+      prefs: { enabled: false, engine: "vendor", lang: "de-DE", introSeen: true },
+    });
+    mounted = await mount(<DisplaySettings />);
+    const reset = Array.from(document.querySelectorAll("button")).find(
+      (b) => b.textContent?.trim() === "Reset to defaults",
+    );
+    await click(reset as HTMLElement);
+    // The online service is never left on by a reset; what was read stays read.
+    expect(useDictationStore.getState().prefs).toEqual({
+      ...DEFAULT_DICTATION_PREFS,
+      introSeen: true,
+    });
+    expect(q("dictation-engines")).not.toBeNull();
   });
 });
 

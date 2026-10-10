@@ -85,6 +85,12 @@ export async function installFakeSpeech(page: Page, onDevice: string | null): Pr
     };
     const ctor = Fake as unknown as Record<string, unknown>;
     if (state !== null) {
+      // As the real interface: the attribute is on the prototype, the methods are static.
+      Object.defineProperty(Fake.prototype, "processLocally", {
+        value: false,
+        writable: true,
+        configurable: true,
+      });
       ctor.available = async () => state;
       ctor.install = async () => {
         api.installs += 1;

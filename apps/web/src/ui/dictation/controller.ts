@@ -36,7 +36,7 @@ export const ERROR_TEXT: Readonly<Record<DictationErrorCode, string>> = {
   "no-mic": "No microphone was found.",
   network: "Your browser's speech service could not be reached.",
   language:
-    "Your browser cannot transcribe this language. Pick another under Settings, Display and sound, Dictation.",
+    "Your browser could not turn this language into text, so nothing was recorded or sent. Pick another language under Settings, Display and sound, Dictation.",
   failed: "Dictation stopped unexpectedly. Try again.",
 };
 

@@ -35,13 +35,20 @@ class FakeRecognition implements SpeechRecognitionLike {
 
 /** A browser with the on-device API. */
 function onDevice(state: string, installs: unknown[] = []): SpeechRecognitionCtor {
-  return class extends FakeRecognition {
+  const ctor = class extends FakeRecognition {
     static available = async () => state;
     static install = async (q: unknown) => {
       installs.push(q);
       return true;
     };
   };
+  // As the browser: `processLocally` is an attribute of the interface.
+  Object.defineProperty(ctor.prototype, "processLocally", {
+    value: false,
+    writable: true,
+    configurable: true,
+  });
+  return ctor;
 }
 
 function record() {
@@ -209,7 +216,68 @@ describe("a session", () => {
     expect(speechErrorCode("aborted")).toBeNull();
     const s = begin();
     s.rec.onerror?.({ error: "no-speech" });
+    expect(s.log).toEqual([]);
     s.rec.onerror?.({ error: "not-allowed" });
     expect(s.errors).toEqual(["mic-blocked"]);
+    // A told error closes the session itself: the browser does not always send `end`.
+    expect(s.log).toEqual(["end"]);
+    expect(s.rec.calls).toEqual(["start", "abort"]);
+  });
+});
+
+describe("the on-device requirement, as browsers report it failing", () => {
+  test("both names for 'not on this computer' are that, for the on-device engine only", () => {
+    // Chromium's name, and the spec's.
+    expect(speechErrorCode("language-not-supported", true)).toBe("language");
+    expect(speechErrorCode("service-not-allowed", true)).toBe("language");
+    expect(speechErrorCode("service-not-allowed", false)).toBe("mic-blocked");
+    expect(speechErrorCode("not-allowed", true)).toBe("mic-blocked");
+  });
+
+  test("a start the browser refuses (no language pack) ends without ever listening", () => {
+    const r = record();
+    createWebSpeechEngine("local", () => onDevice("downloadable")).start("en-US", r.handlers);
+    const rec = FakeRecognition.made[0] as FakeRecognition;
+    // Chromium 153: the error, and no `end` after it.
+    rec.onerror?.({ error: "language-not-supported" });
+    expect(r.errors).toEqual(["language"]);
+    expect(r.log).toEqual(["end"]);
+    rec.onstart?.();
+    expect(r.log).toEqual(["end"]);
+  });
+
+  test("the attribute missing from the interface: never started, whatever `available` says", async () => {
+    // A static `available` alone is not the on-device API.
+    const ctor = class extends FakeRecognition {
+      static available = async () => "available";
+    };
+    const engine = createWebSpeechEngine("local", () => ctor);
+    expect(engine.supported()).toBe(false);
+    expect(await engine.availability("en-US")).toBe("unavailable");
+    engine.start("en-US", record().handlers);
+    expect(FakeRecognition.made).toEqual([]);
+  });
+
+  test("a browser that drops the requirement on assignment is refused, not recorded", () => {
+    const Base = onDevice("available") as unknown as typeof FakeRecognition;
+    const ctor = class extends Base {
+      static available = async () => "available";
+      constructor() {
+        super();
+        Object.defineProperty(this, "processLocally", { get: () => false, set: () => {} });
+      }
+    };
+    const r = record();
+    createWebSpeechEngine("local", () => ctor).start("en-US", r.handlers);
+    expect(FakeRecognition.made[0]?.calls).toEqual([]);
+    expect(r.errors).toEqual(["language"]);
+    expect(r.log).toEqual(["end"]);
+  });
+
+  test("no language to check a pack against: refused", () => {
+    const r = record();
+    createWebSpeechEngine("local", () => onDevice("available")).start("", r.handlers);
+    expect(FakeRecognition.made[0]?.calls).toEqual([]);
+    expect(r.errors).toEqual(["language"]);
   });
 });

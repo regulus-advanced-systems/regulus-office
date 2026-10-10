@@ -137,3 +137,12 @@ export function createDictationStore(
 export type DictationStoreApi = ReturnType<typeof createDictationStore>;
 
 export const useDictationStore = createDictationStore();
+
+/**
+ * "Reset to defaults" on Settings, Display and sound: dictation on, speech turned into text on
+ * this computer, the browser's language. What the person has already read stays read.
+ */
+export function resetDictationPrefs(store: DictationStoreApi = useDictationStore): void {
+  const { introSeen } = store.getState().prefs;
+  store.getState().updatePrefs({ ...DEFAULT_DICTATION_PREFS, introSeen });
+}
