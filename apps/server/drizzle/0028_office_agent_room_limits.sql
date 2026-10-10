@@ -15,6 +15,7 @@ ALTER TABLE `office_agent_memories` ADD `room_scope` text DEFAULT '[]' NOT NULL;
 ALTER TABLE `office_agent_requests` ADD `room_scope` text DEFAULT '[]' NOT NULL;--> statement-breakpoint
 ALTER TABLE `office_agent_soul_versions` ADD `sealed` integer DEFAULT false NOT NULL;--> statement-breakpoint
 ALTER TABLE `office_agent_tokens` ADD `minted_by` text REFERENCES `users`(`id`) ON DELETE set null;--> statement-breakpoint
+ALTER TABLE `office_agents` ADD `stopped_by_person` integer DEFAULT false NOT NULL;--> statement-breakpoint
 ALTER TABLE `office_agents` ADD `instructions_sealed` integer DEFAULT false NOT NULL;--> statement-breakpoint
 -- A shared agent's memories and notes from before this migration carry no room
 -- (#301). They may be about any room the agent could read, so each takes the

@@ -46,6 +46,13 @@ export const officeAgents = sqliteTable(
     profileId: text("profile_id"),
     /** How it looks (#280, D32): an id from the protocol's `OFFICE_AGENT_APPEARANCES`. Looks only. */
     appearance: text("appearance").notNull().default("standard"),
+    /**
+     * A person stopped it (its owner or an admin, the emergency stop included) and
+     * nobody has started it since (#301): it has no body in the world. Not set when
+     * it merely is not running: after an office restart, or stopped by the office to
+     * pick up a new document or configuration at its next message.
+     */
+    stoppedByPerson: integer("stopped_by_person", { mode: "boolean" }).notNull().default(false),
     /** A personal agent its owner sent off to wander (#252); it stays so across restarts. */
     dismissed: integer("dismissed", { mode: "boolean" }).notNull().default(false),
     /**

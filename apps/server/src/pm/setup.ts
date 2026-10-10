@@ -285,11 +285,13 @@ export function createOfficeAgents(opts: OfficeAgentsOptions): OfficeAgents {
     everyMs: opts.rounds?.everyMs,
   });
   const world = new AgentWorld({
-    // A stopped agent has no body (#301): it is left out, and is back within a sync once started.
+    // An agent a person stopped has no body (#301): it is left out, and is back within a sync
+    // once started. One that merely is not running (the office restarted, its document was
+    // saved) keeps its body: the PM is at reception and walks its rounds all the same.
     agents: () =>
       store
         .list()
-        .filter((row) => row.status !== "stopped")
+        .filter((row) => !row.stoppedByPerson)
         .map((row) => ({
           id: row.id,
           name: row.name,

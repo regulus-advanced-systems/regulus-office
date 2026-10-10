@@ -110,9 +110,9 @@ export function AgentCard({
             <span>Job: {ROLE_WORDS[agent.role].label}</span>
             <span>May: {PRESET_WORDS[agent.preset].label}</span>
             <span>Looks: {officeAgentAppearanceLabel(agent.appearance)}</span>
-            {/* A stopped agent has no body in the lair (#301). */}
-            {agent.status === "stopped" ? (
-              <span>Not in the lair while stopped</span>
+            {/* An agent a person stopped has no body in the lair (#301). */}
+            {agent.stoppedByPerson ? (
+              <span>Not in the lair: it was stopped</span>
             ) : (
               !shared && <span>{agent.dismissed ? "Roaming the lair" : "Follows its owner"}</span>
             )}

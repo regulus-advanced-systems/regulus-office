@@ -141,6 +141,8 @@ export class AgentRuntime {
       );
     }
     store.setStatus(row.id, "starting");
+    // Started again (by a person, or by its first message): whoever stopped it is overruled (#301).
+    if (row.stoppedByPerson) store.update(row.id, { stoppedByPerson: false });
     tokens.revokeSessions(row.id);
     const minted = tokens.mint(row.id, "session", "engine run");
     if (!minted) throw new Error("session token not minted");

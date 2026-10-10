@@ -187,6 +187,7 @@ export class OfficeAgentService {
       id: "draft",
       nameKey: "",
       dismissed: false,
+      stoppedByPerson: false,
       status: "stopped",
       statusReason: null,
       engineState: "{}",
@@ -328,6 +329,8 @@ export class OfficeAgentService {
       row.engine,
       emergency ? "stopped by an office admin" : undefined,
     );
+    // A person stopped it: from now until it is started again it has no body in the world (#301).
+    this.deps.store.update(row.id, { stoppedByPerson: true });
     this.#audit(
       actor,
       emergency ? AUDIT_ACTIONS.officeAgentEmergencyStop : AUDIT_ACTIONS.officeAgentStop,

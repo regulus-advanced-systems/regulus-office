@@ -159,6 +159,13 @@ export const OfficeAgentView = z.object({
   appearance: z.string(),
   /** A personal agent its owner sent off to wander (#252); always false for a shared one. */
   dismissed: z.boolean(),
+  /**
+   * A person stopped it and nobody has started it since (#301): it has no body
+   * in the lair until it is started or gets a message. False for an agent that
+   * merely is not running (after an office restart, or after its document or
+   * configuration changed): that one keeps its body.
+   */
+  stoppedByPerson: z.boolean().optional(),
   status: z.enum(OFFICE_AGENT_STATUSES),
   statusReason: z.string().optional(),
   lastActivityAt: TimestampMs.optional(),

@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "8cf290dd-bb46-411c-8143-91d08e8f843f",
+  "id": "38670cf7-9565-4e2a-8537-42ac88b8eea6",
   "prevId": "943aa7f8-7722-44c4-adc0-f239cdd63bcd",
   "tables": {
     "agent_events": {
@@ -3629,6 +3629,14 @@
           "notNull": true,
           "autoincrement": false,
           "default": "'standard'"
+        },
+        "stopped_by_person": {
+          "name": "stopped_by_person",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
         },
         "dismissed": {
           "name": "dismissed",

@@ -126,12 +126,17 @@ describe("with OFFICE_MASTER_KEY", () => {
   test("search and titles still work: the agent's entries are opened and matched in memory", () => {
     const o = office(new MindCipher(testKeyring()));
     const { agent } = fill(o);
-    const texts = (query: string) => o.mind.search(agent.id, query).map((e) => e.text);
+    // Sorted: entries saved in the same millisecond have no order of their own.
+    const texts = (query: string) =>
+      o.mind
+        .search(agent.id, query)
+        .map((e) => e.text)
+        .sort();
     expect(texts("launch friday")).toEqual([MEMORY]);
     // By a word of the source, and of a note's title.
     expect(texts("sourcecanary")).toEqual([MEMORY]);
     expect(texts("titlecanary plan")).toEqual([NOTE]);
-    expect(texts("launch")).toEqual([NOTE, MEMORY]);
+    expect(texts("launch")).toEqual([MEMORY, NOTE]);
     expect(texts("nothing-like-this")).toEqual([]);
     expect(o.mind.list(agent.id, "memory", { query: "FRIDAY" }).entries).toHaveLength(1);
     // A note is found by its title whatever the case and spacing, and stays one note.
@@ -255,7 +260,12 @@ describe("rows from before: the data step of migration 0028", () => {
     expect(after.mind.version(agent.id, 1).content).toBe(SOUL);
     expect(after.mind.entry(agent.id, memory.id)).toMatchObject({ text: MEMORY, source: SOURCE });
     expect(after.mind.note(agent.id, TITLE).text).toBe(NOTE);
-    expect(after.mind.search(agent.id, "launch").map((e) => e.text)).toEqual([NOTE, MEMORY]);
+    expect(
+      after.mind
+        .search(agent.id, "launch")
+        .map((e) => e.text)
+        .sort(),
+    ).toEqual([MEMORY, NOTE]);
   });
 
   test("without a key nothing is encrypted, and the office can say how much is plain", () => {
