@@ -18,6 +18,8 @@ const humanFixture: HumanPresence = {
   seatId: "",
   sharingScreen: false,
   joinedAt: 0,
+  cups: 0,
+  buzzUntil: 0,
 };
 
 describe("presence", () => {

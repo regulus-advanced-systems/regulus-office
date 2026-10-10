@@ -13,6 +13,7 @@ import { AgentHost } from "./agent/AgentHost.tsx";
 import { BoardsHost } from "./boards/BoardsHost.tsx";
 import { BuildModeHost } from "./build-mode/BuildModeHost.tsx";
 import { ChatPanel } from "./chat/ChatPanel.tsx";
+import { BuzzMeter } from "./coffee/BuzzMeter.tsx";
 import { Button } from "./components/Button.tsx";
 import { GearIcon, QuestionIcon } from "./components/icons.tsx";
 import { Modal } from "./components/Modal.tsx";
@@ -109,6 +110,7 @@ export function Hud() {
         <RunningApps />
       </div>
       <ChatPanel />
+      <BuzzMeter />
       <div className="rg-hud__corner">
         <Button
           variant="secondary"

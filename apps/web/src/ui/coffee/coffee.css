@@ -1,0 +1,49 @@
+/* The buzz meter (#63): bottom centre of the HUD, only while buzzed. No animation. */
+
+.rg-buzz {
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  transform: translateX(-50%);
+  width: min(300px, calc(100vw - 24px));
+  display: grid;
+  gap: 6px;
+  padding: 8px 12px;
+}
+.rg-buzz__row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 14px;
+}
+.rg-buzz__cups {
+  white-space: nowrap;
+}
+.rg-buzz__cup {
+  opacity: 0.25;
+}
+.rg-buzz__cup--full {
+  opacity: 1;
+}
+.rg-buzz__text {
+  flex: 1;
+  white-space: nowrap;
+}
+.rg-buzz__jitters {
+  color: var(--rg-color-heading);
+}
+.rg-buzz__time {
+  font-family: var(--rg-font-mono);
+  font-variant-numeric: tabular-nums;
+}
+.rg-buzz__bar {
+  height: 8px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--rg-color-plate);
+  border: 1px solid var(--rg-color-frame-shadow);
+}
+.rg-buzz__fill {
+  height: 100%;
+  background: var(--rg-color-plate-ink);
+}

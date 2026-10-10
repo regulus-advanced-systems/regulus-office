@@ -79,6 +79,10 @@ export const HumanPresence = z.object({
   seatId: z.string().max(128),
   sharingScreen: z.boolean(),
   joinedAt: TimestampMs,
+  /** Cups of coffee in the current buzz (coffee.ts, #63); 0 when not buzzed. */
+  cups: Count,
+  /** Server ms at which the buzz ends; 0 when not buzzed. */
+  buzzUntil: TimestampMs,
 });
 export type HumanPresence = z.infer<typeof HumanPresence>;
 

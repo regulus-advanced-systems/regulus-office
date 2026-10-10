@@ -12,6 +12,7 @@
 
 import type { DoorSide, SpecialRoomKind } from "@regulus/protocol";
 import {
+  breakRoomCoffeeMachine,
   breakRoomTables,
   DIRECTION,
   HEADING,
@@ -208,7 +209,8 @@ function breakRoom(w: number, d: number): SpecialDressing {
   return {
     furniture: [
       { model: "counter", rect: R(w - 1.2, 2, 0.9, 5), facing: "west" },
-      { model: "coffee_machine", rect: R(w - 1.1, 7.3, 0.7, 0.7), facing: "west" },
+      // Where a cup is taken (#63): the server checks the same spot.
+      { model: "coffee_machine", rect: breakRoomCoffeeMachine(w, d).rect, facing: "west" },
       { model: "fridge", rect: R(w - 1.3, 8.4, 0.9, 0.9), facing: "west" },
       { model: "water_cooler", rect: R(0.5, 2, 0.6, 0.6), facing: "east" },
       { model: "lockers", rect: R(2.5, d - 1, 3.6, 0.6), facing: "north" },

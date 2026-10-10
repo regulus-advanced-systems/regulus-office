@@ -1,6 +1,7 @@
 /**
  * The building room's lobby features, apart from room.ts: the jukebox and
- * its clock-sync pings (#47) and the lounge TV share (#48, screen-share.ts).
+ * its clock-sync pings (#47), the lounge TV share (#48, screen-share.ts) and
+ * the break-room coffee machine (#63, coffee.ts).
  * `applyLobbyCommand` handles one parsed command, or says it is not one of
  * these; a refusal comes back as a reason for the caller to send.
  */
@@ -14,6 +15,7 @@ import {
 } from "@regulus/protocol";
 import type { JukeboxPlayer } from "../../jukebox/player.ts";
 import type { RoomClient } from "../transport.ts";
+import type { CoffeeMachine } from "./coffee.ts";
 import type { ScreenShareRules } from "./screen-share.ts";
 
 type BuildingState = InstanceType<typeof BuildingStateSchema>;
@@ -21,6 +23,7 @@ type BuildingState = InstanceType<typeof BuildingStateSchema>;
 export interface LobbyCommandDeps {
   jukebox?: JukeboxPlayer;
   screen: ScreenShareRules;
+  coffee: CoffeeMachine;
   now: () => number;
 }
 
@@ -63,6 +66,13 @@ export function applyLobbyCommand(
       )
         return { handled: true, reason: SCREEN_SHARE_REJECTIONS.notInLobby };
       const result = deps.screen.apply(state.humans, client.sessionId, client.user, command);
+      return result.ok ? { handled: true } : { handled: true, reason: result.reason };
+    }
+    case "coffee.drink": {
+      const human = state.humans.get(client.sessionId);
+      if (!human) return { handled: true, reason: "not in the office" };
+      // `state.compound` is the lobby level's layout, where the break room is.
+      const result = deps.coffee.drink(client.sessionId, human, state.compound);
       return result.ok ? { handled: true } : { handled: true, reason: result.reason };
     }
     default:

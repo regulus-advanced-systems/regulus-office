@@ -8,6 +8,9 @@
  * any room, #49). Whether it walks or runs (#223) is read from its
  * interpolated speed (gait.ts), so running needs nothing on the wire. Its
  * speech bubble and, with reduced motion, emote badge float above the name.
+ * A coffee buzz (#63) shows as a cup badge, and from the third cup the body
+ * shakes (not with reduced motion); both come from this human's own
+ * presence entry, which this viewer has only while they may see them.
  */
 import { useFrame } from "@react-three/fiber";
 import { type AvatarAnimation, isEmote } from "@regulus/protocol";
@@ -18,6 +21,7 @@ import { type BuildingStore, useBuildingStore } from "../../state/building.ts";
 import { useCompoundStore } from "../../state/compound.ts";
 import { selectReducedMotion, useUiStore } from "../../state/ui.ts";
 import { presenceAnimation } from "../avatar/index.ts";
+import { Jitters } from "../coffee/Jitters.tsx";
 import { GeniusAvatar } from "../geniuses/GeniusAvatar.tsx";
 import { createGaitTracker, type Gait } from "../movement/gait.ts";
 import { createPoseBuffer } from "../movement/remoteInterpolation.ts";
@@ -103,16 +107,18 @@ export function RemoteAvatar({ sessionId }: RemoteAvatarProps) {
   const sitting = seated !== null && !walking;
   return (
     <group ref={group} name={`human-${sessionId}`} userData={{ seatId: sitting ? seatId : "" }}>
-      <GeniusAvatar
-        look={info}
-        animation={animation}
-        seated={sitting}
-        gait={gait}
-        name={info.name}
-        still={reducedMotion && emote !== null}
-        voice={sessionId}
-        overhead={<Overhead userId={info.userId} emote={emote} sessionId={sessionId} />}
-      />
+      <Jitters sessionId={sessionId}>
+        <GeniusAvatar
+          look={info}
+          animation={animation}
+          seated={sitting}
+          gait={gait}
+          name={info.name}
+          still={reducedMotion && emote !== null}
+          voice={sessionId}
+          overhead={<Overhead userId={info.userId} emote={emote} sessionId={sessionId} />}
+        />
+      </Jitters>
     </group>
   );
 }

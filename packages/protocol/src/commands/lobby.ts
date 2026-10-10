@@ -1,5 +1,6 @@
 /**
- * Lobby commands: jukebox.*, screen.share.*, pm.ask (SPEC §6), blast_door.press (#188), and
+ * Lobby commands: jukebox.*, screen.share.*, pm.ask (SPEC §6), blast_door.press (#188),
+ * coffee.drink (#63), and
  * the jukebox's extras (#47): remove, volume, duration and its clock sync's `clock.ping`.
  */
 import { z } from "zod";
@@ -79,6 +80,9 @@ export const PmAskCommand = z.object({
 /** Press the blast door button (lobby wall or the outside keypad): open it, or hold it open. */
 export const BlastDoorPressCommand = z.object({ type: z.literal("blast_door.press") });
 
+/** Take a cup from the break-room coffee machine (coffee.ts, #63). */
+export const CoffeeDrinkCommand = z.object({ type: z.literal("coffee.drink") });
+
 export const lobbyCommands = [
   JukeboxPlayCommand,
   JukeboxPauseCommand,
@@ -93,4 +97,5 @@ export const lobbyCommands = [
   ScreenShareStopCommand,
   PmAskCommand,
   BlastDoorPressCommand,
+  CoffeeDrinkCommand,
 ] as const;

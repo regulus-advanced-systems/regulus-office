@@ -14,6 +14,7 @@
  * - changes-api.ts     REST shapes for a henchman's changes window: diff, commit, discard (#38)
  * - celebrations.ts    merge gong messages: `pr.merged`, `gong.ring` (#43)
  * - clock-sync.ts     four-timestamp clock sync for the jukebox (#47)
+ * - coffee.ts         the break-room coffee machine: the buzz, its speed boost and the jitters (#63)
  * - levels.ts         levels of the lair: one per GitHub organisation or account, plus the lobby (D26, #268)
  * - live-access.ts    close codes for connections ended on lost or changed access (#244)
  * - jukebox.ts        jukebox limits, playhead maths, permissions, library REST (#47)
@@ -59,6 +60,7 @@ export * from "./building-state.ts";
 export * from "./celebrations.ts";
 export * from "./changes-api.ts";
 export * from "./clock-sync.ts";
+export * from "./coffee.ts";
 export * from "./commands/index.ts";
 export * from "./common.ts";
 export * from "./compound.ts";
