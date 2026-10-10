@@ -91,16 +91,25 @@ async function pressE(page: Page): Promise<void> {
   await page.keyboard.press("e");
 }
 
+/** When the last cup was granted (this process's clock), to keep to the machine's cooldown. */
+let lastCupAt = 0;
+/** COFFEE_COOLDOWN_MS (packages/protocol/src/coffee.ts) plus a margin. */
+const BETWEEN_CUPS_MS = 2_800;
+
 /**
- * One more cup for the page's player, who stands at the machine: `E`, and again if the
- * server said the last cup was too recent (the refusal is a toast; the cups do not change).
+ * One more cup for the page's player, who stands at the machine. The step waits out the
+ * machine's cooldown first, so no cup is refused: a refusal is a toast, and a toast left
+ * behind would lie over the next step's buttons. If one is refused all the same, `E` again.
  */
 async function cup(page: Page, cups: number): Promise<void> {
   await expect(async () => {
     if ((await self(page)).cups >= cups) return;
+    const wait = lastCupAt + BETWEEN_CUPS_MS - Date.now();
+    if (wait > 0) await page.waitForTimeout(wait);
     await pressE(page);
-    await expect.poll(async () => (await self(page)).cups, { timeout: 700 }).toBe(cups);
-  }).toPass({ timeout: 30_000, intervals: [300] });
+    await expect.poll(async () => (await self(page)).cups, { timeout: 2_000 }).toBe(cups);
+  }).toPass({ timeout: 30_000, intervals: [BETWEEN_CUPS_MS] });
+  lastCupAt = Date.now();
 }
 
 /**
@@ -274,6 +283,10 @@ export async function checkCoffee(owner: Page, member: Page, ownerName: string):
   await expect.poll(seconds, { timeout: 5_000 }).toBeLessThan(first);
   const fill = Number((await meter.getByRole("progressbar").getAttribute("aria-valuenow")) ?? -1);
   expect(Math.abs(fill - ((await seconds()) / 60) * 100)).toBeLessThan(5);
+
+  // Nothing of this step is left over the HUD: the cup notices go by themselves.
+  const notices = owner.locator(".rg-toast").filter({ hasText: /coffee|cup/i });
+  await expect(notices).toHaveCount(0, { timeout: 10_000 });
 
   for (const [page, zoom] of zooms) {
     await page.mouse.move(640, 330);

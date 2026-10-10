@@ -33,6 +33,9 @@ import { statsEnabled } from "../perf/stats.ts";
 import { coffeeSpotOf, selectSelfBuzz } from "./buzz.ts";
 import { createCoffeeProbe } from "./probe.ts";
 
+/** How long a refused cup's notice stays, ms. */
+export const REFUSAL_TOAST_MS = 4000;
+
 /** Ask for a cup; false when the building room is not joined (the dev harness). */
 export function drinkCoffee(send?: () => void): boolean {
   try {
@@ -81,7 +84,10 @@ export function useCoffeeNotices(): void {
     try {
       off = getOfficeClient().onRejected((r: CommandRejected) => {
         if (r.type !== COFFEE_DRINK) return;
-        useUiStore.getState().toast({ kind: "error", message: r.reason });
+        // Not sticky like other errors: "finish that cup first" needs nobody to close it.
+        useUiStore
+          .getState()
+          .toast({ kind: "warning", message: r.reason, durationMs: REFUSAL_TOAST_MS });
       });
     } catch {
       off = undefined;
