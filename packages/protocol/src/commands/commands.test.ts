@@ -47,7 +47,8 @@ const SPEC_COMMANDS = [
  * `gong.bang` is the manual bang of the merge gong (#43, D9);
  * `blast_door.press` is the lobby's blast door button (SPEC §9.4, #188);
  * `jukebox.remove|volume|duration` and the clock sync's `clock.ping` belong to the jukebox (#47);
- * `doing` is the whereabouts status (#49).
+ * `doing` is the whereabouts status (#49);
+ * `coffee.drink` is a cup from the break-room coffee machine (D9, #63).
  */
 const EXTENSION_COMMANDS = [
   "agent.interrupt",
@@ -63,6 +64,7 @@ const EXTENSION_COMMANDS = [
   "jukebox.duration",
   "clock.ping",
   "doing",
+  "coffee.drink",
 ] as const;
 
 const valid: Record<ClientCommandType, Record<string, unknown>> = {
@@ -121,6 +123,7 @@ const valid: Record<ClientCommandType, Record<string, unknown>> = {
   "pm.ask": { text: "what is everyone doing?" },
   "blast_door.press": {},
   doing: { doing: "at the boards" },
+  "coffee.drink": {},
 };
 
 describe("ClientCommand", () => {

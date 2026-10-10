@@ -7,6 +7,8 @@
  * Seated (#49), the genius sits on the seat's sit anchor until the player
  * walks off; an emote plays as the server publishes it, a held pose plus a
  * badge with reduced motion; the speech bubble floats above the name.
+ * With the jitters (#63) only the drawn body shakes, inside this group: the
+ * store's pose, which the camera follows and the server gets, does not.
  */
 import { useFrame } from "@react-three/fiber";
 import { isEmote } from "@regulus/protocol";
@@ -18,6 +20,7 @@ import { useCompoundStore } from "../../state/compound.ts";
 import { usePlayerStore } from "../../state/player.ts";
 import { useSessionStore } from "../../state/session.ts";
 import { selectReducedMotion, useUiStore } from "../../state/ui.ts";
+import { Jitters } from "../coffee/Jitters.tsx";
 import { GeniusAvatar } from "../geniuses/GeniusAvatar.tsx";
 import { Overhead } from "../social/Overhead.tsx";
 import { seatedPlacement } from "../social/seatPose.ts";
@@ -74,22 +77,24 @@ export function LocalAvatar() {
   const name = self?.name ?? sessionName ?? undefined;
   return (
     <group ref={group} name="local-human" userData={{ seatId: sitting ? presence.seatId : "" }}>
-      <GeniusAvatar
-        look={self ?? sessionLook}
-        animation={emote ?? animation}
-        seated={sitting}
-        gait={gait}
-        name={name}
-        still={reducedMotion && emote !== null}
-        voice={selfSessionId ?? undefined}
-        overhead={
-          <Overhead
-            userId={presence.userId || sessionUserId}
-            emote={emote}
-            sessionId={selfSessionId ?? undefined}
-          />
-        }
-      />
+      <Jitters sessionId={selfSessionId}>
+        <GeniusAvatar
+          look={self ?? sessionLook}
+          animation={emote ?? animation}
+          seated={sitting}
+          gait={gait}
+          name={name}
+          still={reducedMotion && emote !== null}
+          voice={selfSessionId ?? undefined}
+          overhead={
+            <Overhead
+              userId={presence.userId || sessionUserId}
+              emote={emote}
+              sessionId={selfSessionId ?? undefined}
+            />
+          }
+        />
+      </Jitters>
     </group>
   );
 }

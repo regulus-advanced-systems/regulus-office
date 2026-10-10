@@ -32,6 +32,8 @@ export const HumanPresenceSchema = schema(
     seatId: t.string().default(""),
     sharingScreen: t.boolean().default(false),
     joinedAt: t.number().default(0),
+    cups: t.uint8().default(0),
+    buzzUntil: t.number().default(0),
   },
   "HumanPresence",
 );

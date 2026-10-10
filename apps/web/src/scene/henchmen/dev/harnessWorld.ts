@@ -250,6 +250,8 @@ export function fakeHumans(
       seatId: "",
       sharingScreen: false,
       joinedAt: 1_700_000_000_000,
+      cups: 0,
+      buzzUntil: 0,
     };
   }
   return out;

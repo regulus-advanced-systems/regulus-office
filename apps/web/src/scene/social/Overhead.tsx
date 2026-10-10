@@ -2,9 +2,11 @@
  * What floats over a human's head besides the name plate (#49): the speech
  * bubble of the line they said last, fading out (bubbles.ts), and with
  * reduced motion the badge of the emote they are holding (the pose itself
- * stands still), and (#48) the voice badge: muted, or on the TV. Sprites,
+ * stands still), and (#48) the voice badge: muted, or on the TV, and (#63)
+ * the cup of a human with a coffee buzz. Sprites,
  * so they always face the camera. Named for the e2e probes: `chat-bubble`
- * (userData.text), `emote-badge` (userData.emote), `voice-badge` (userData.kind).
+ * (userData.text), `emote-badge` (userData.emote), `voice-badge` (userData.kind),
+ * `buzz-badge` (userData.cups).
  */
 import { useFrame } from "@react-three/fiber";
 import { EMOTE_LABELS, type Emote } from "@regulus/protocol";
@@ -12,6 +14,8 @@ import { useEffect, useMemo, useRef } from "react";
 import type { Sprite, SpriteMaterial } from "three";
 import { useBuildingStore } from "../../state/building.ts";
 import { selectReducedMotion, useUiStore } from "../../state/ui.ts";
+import { BuzzBadge } from "../coffee/BuzzBadge.tsx";
+import { useCups } from "../coffee/Jitters.tsx";
 import { bubbleOpacity, createBubbleTracker, useBubbleStore } from "./bubbles.ts";
 import { bubbleTexture, emoteBadgeTexture } from "./bubbleTexture.ts";
 import { useVoiceBadge, VoiceBadge } from "./VoiceBadge.tsx";
@@ -104,12 +108,19 @@ export function Overhead({ userId, emote, sessionId }: OverheadProps) {
   const reducedMotion = useUiStore(selectReducedMotion);
   const badge = reducedMotion && emote ? emote : null;
   const voice = useVoiceBadge(sessionId);
-  const stack = (voice ? 1 : 0) + (badge ? 1 : 0);
+  const cups = useCups(sessionId);
+  const below = (voice ? 1 : 0) + (cups > 0 ? 1 : 0);
+  const stack = below + (badge ? 1 : 0);
   return (
     <group name="overhead">
       {voice && <VoiceBadge kind={voice} />}
-      {badge && (
+      {cups > 0 && (
         <group position={[0, voice ? BADGE_STEP : 0, 0]}>
+          <BuzzBadge cups={cups} />
+        </group>
+      )}
+      {badge && (
+        <group position={[0, below * BADGE_STEP, 0]}>
           <EmoteBadge emote={badge} />
         </group>
       )}

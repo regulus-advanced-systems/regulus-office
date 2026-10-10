@@ -4,8 +4,12 @@
  * runs while Shift is held (WASD or a click path) or along a path set by a
  * double-click; remote players carry no gait on the wire, so their gait is
  * read from their interpolated speed, with hysteresis and smoothing so a
- * jittery patch stream does not flicker between the two.
+ * jittery patch stream does not flicker between the two. A coffee buzz
+ * (#63) makes both paces a little faster without changing the gait: a
+ * buzzed walk stays under the speed at which a remote avatar would be shown
+ * running (gait.test.ts keeps that true).
  */
+import { BUZZ_SPEED_BOOST } from "@regulus/protocol";
 import { RUN_SPEED, WALK_SPEED } from "./kinematics.ts";
 
 export type Gait = "walk" | "run";
@@ -17,9 +21,25 @@ export interface SpeedInput {
   pathRun: boolean;
 }
 
-/** Ground speed for the local player, metres per second. */
+let boost = 1;
+
+/**
+ * The coffee buzz (#63): the local player walks and runs this many times as
+ * fast while the office says they are buzzed (scene/coffee sets it from
+ * their own presence). Never below 1 or above the buzz's own factor, so
+ * nothing else can use this to go faster.
+ */
+export function setSpeedBoost(factor: number): void {
+  boost = Number.isFinite(factor) ? Math.min(BUZZ_SPEED_BOOST, Math.max(1, factor)) : 1;
+}
+
+export function speedBoost(): number {
+  return boost;
+}
+
+/** Ground speed for the local player, metres per second (with the buzz, if any). */
 export function selectSpeed({ shift, pathRun }: SpeedInput): number {
-  return shift || pathRun ? RUN_SPEED : WALK_SPEED;
+  return (shift || pathRun ? RUN_SPEED : WALK_SPEED) * boost;
 }
 
 /** A remote avatar breaks into a run above this speed (m/s)... */

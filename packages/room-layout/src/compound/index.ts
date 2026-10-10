@@ -10,11 +10,13 @@
  * - validate.ts   `checkPlacement` (bounds, overlap, gap, door, reachability), `layoutProblems`
  * - autoplace.ts  rows off the main corridor, nearest free spot, reconcile, migration
  * - nav.ts        `buildCompoundNavGrid` (rooms, corridors, doors, outside strip)
+ * - coffee.ts     the break room's coffee machine and where a drinker stands (#63)
  * - seats.ts      where humans may sit: chairs and couches of every room (#49)
  * - reception.ts  the lobby's reception desk, the office PM's post (#60)
  * - state.ts     to and from the BuildingRoom's published shape
  */
 export * from "./autoplace.ts";
+export * from "./coffee.ts";
 export * from "./grid.ts";
 export * from "./layout.ts";
 export * from "./lift.ts";

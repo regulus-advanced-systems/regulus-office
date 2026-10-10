@@ -24,6 +24,8 @@ export const humanFixture: HumanPresence = {
   seatId: "",
   sharingScreen: false,
   joinedAt: 1_700_000_000_000,
+  cups: 2,
+  buzzUntil: 1_700_000_050_000,
 };
 
 const compoundFixture: CompoundState = {

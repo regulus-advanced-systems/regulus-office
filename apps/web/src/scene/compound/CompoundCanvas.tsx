@@ -27,6 +27,7 @@ import { useViewHotkey } from "../../ui/hud/ViewToggle.tsx";
 import { CarriedCards } from "../boards/CarriedCards.tsx";
 import { CompoundCamera } from "../camera/CompoundCamera.tsx";
 import { ViewCrossfade } from "../camera/ViewCrossfade.tsx";
+import { CoffeeMachine } from "../coffee/CoffeeMachine.tsx";
 import { FirstPersonRig } from "../fpv/FirstPersonRig.tsx";
 import { createPlayerBinding } from "../fpv/playerBinding.ts";
 import { useDocumentHidden } from "../hooks/useDocumentHidden.ts";
@@ -239,6 +240,7 @@ function Scene({ world, avatars, presence, send, children }: CompoundCanvasProps
       />
       <RoomPresence world={world} target={presence} />
       <JukeboxDriver world={world} grid={grid} />
+      <CoffeeMachine world={world} />
       <ReceptionDesk world={world} />
       <LiftDriver world={world} />
       <ClosedRooms world={world} visible={visibleRooms} />

@@ -2,7 +2,7 @@
  * BuildingRoom (SPEC §6 channel 1): one per office. Human presence, chat,
  * the operation list with counters, the office usage summary (#40), the lobby
  * jukebox and its clock-sync pings (#47), emotes, seats and `doing` (#49,
- * rules in social.ts), who has the lounge TV (#48, screen-share.ts). PM state is part of the schema but stays at its
+ * rules in social.ts), who has the lounge TV (#48, screen-share.ts), the coffee buzz (#63, coffee.ts). PM state is part of the schema but stays at its
  * defaults until its milestone.
  *
  * The state is per viewer (D26, D27; #270): rooms, levels, people and the
@@ -42,6 +42,7 @@ import { CHAT_REPLAY, type ChatStore } from "../chat/store.ts";
 import type { RoomClient, RoomDefinition, RoomHandle } from "../transport.ts";
 import { type BlastDoorOptions, createBlastDoor } from "./blast-door.ts";
 import { applyClosedRooms } from "./closed-rooms.ts";
+import { createCoffeeMachine } from "./coffee.ts";
 import { checkCommand, wrapHeading } from "./commands.ts";
 import { humansOn, levelOfGo, returnToAllowedPlaces } from "./levels.ts";
 import { applyLobbyCommand } from "./lobby-commands.ts";
@@ -100,7 +101,9 @@ export function createBuildingRoom(deps: BuildingRoomDeps): BuildingRoom {
   let lobbyWhiteboard = 0;
   let handle: RoomHandle<BuildingState> | undefined;
   const blastDoor = createBlastDoor(deps.blastDoor ?? {}, now);
+  const coffee = createCoffeeMachine(now);
   const lobbyDeps = {
+    coffee,
     jukebox: deps.jukebox,
     screen: deps.screenShare ?? createScreenShareRules({ enabled: false }),
     now,
@@ -179,6 +182,7 @@ export function createBuildingRoom(deps: BuildingRoomDeps): BuildingRoom {
     if (!handle) return;
     blastDoor.tick(handle.state.blastDoor);
     deps.jukebox?.tick(handle.state.jukebox);
+    coffee.tick(handle.state.humans);
     const t = now();
     // A body that changed room or level is shown to those who may see where it is now.
     if (world?.tick(handle.state, t)) viewers.sync(handle);
@@ -380,6 +384,7 @@ export function createBuildingRoom(deps: BuildingRoomDeps): BuildingRoom {
       books.delete(client.sessionId);
       moveLimiter.forget(client.sessionId);
       social.forget(client.sessionId);
+      coffee.forget(client.sessionId);
       viewers.drop(client.sessionId);
       recountHumans();
       viewers.sync(room);
