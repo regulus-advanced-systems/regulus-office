@@ -9,7 +9,8 @@
  *   fetched into its mirror; the hostile document renders as text, nothing in it runs, its
  *   picture from the repo loads through the office, and the browser asks no other host for
  *   anything; a link between documents and Back stay in the reader; the box finds a line;
- * - `E` in front of the shelf opens the reader, but not while the chat field is typed into.
+ * - `E` in front of the shelf opens the reader and reaches no other listener, but not while
+ *   the chat field is typed into; away from the shelf `E` is the other layers' again.
  *
  * With `E2E_SHOTS_DIR` set it also saves the screenshots for the PR.
  */
@@ -241,8 +242,29 @@ export async function checkBookshelf(owner: Page, member: Page, operation: strin
   await expect(reader).toBeHidden();
   await chat.fill("");
   await chat.evaluate((el: HTMLElement) => el.blur());
+  // A listener like the desks' and boards' (it does not look at `handled`), in both phases:
+  // at the shelf it must hear nothing, because the shelf's E is the shelf's alone.
+  await owner.evaluate(() => {
+    const w = window as unknown as { __heardE264: number };
+    w.__heardE264 = 0;
+    const hear = (event: Event) => {
+      if ((event as CustomEvent<{ id: string }>).detail.id === "interact") w.__heardE264 += 1;
+    };
+    window.addEventListener("regulus:hotkey", hear);
+    window.addEventListener("regulus:hotkey", hear, { capture: true });
+  });
+  const heard = () =>
+    owner.evaluate(() => (window as unknown as { __heardE264: number }).__heardE264);
   await owner.keyboard.press("e");
   await expect(reader).toBeVisible();
+  expect(await heard()).toBe(0);
   await owner.keyboard.press("Escape");
   await expect(reader).toBeHidden();
+  // Away from the shelf E is everyone else's again, and the reader stays shut.
+  if (await walkTo(owner, room.x + room.w / 2, room.z + room.d / 2)) await waitStill(owner);
+  await owner.keyboard.press("e");
+  await expect.poll(heard).toBe(2);
+  await expect(reader).toBeHidden();
+  // Whatever that E opened at the desks (a spawn dialog), close it.
+  await owner.keyboard.press("Escape");
 }

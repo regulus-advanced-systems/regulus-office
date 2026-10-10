@@ -12,6 +12,7 @@
  * more than their reach (1.4 m) and the shelf's together.
  */
 import { DOCS_SHELF_ID, type Rect, type RoomTemplate } from "@regulus/room-layout";
+import type { InteractClaim } from "../../ui/hotkeys/registry.ts";
 
 /** How far from its stand point `E` still reaches the shelf, metres. */
 export const SHELF_REACH = 1;
@@ -45,4 +46,16 @@ export function shelfTakesE(spot: ShelfSpot | null, at: Point, reach = SHELF_REA
   const away = Math.hypot(at.x - spot.stand.x, at.z - spot.stand.z);
   if (away > reach) return false;
   return spot.desks.every((desk) => Math.hypot(at.x - desk.x, at.z - desk.z) >= away);
+}
+
+/** The shelf's claim on `E` for the hotkey registry: `open` when the press is the shelf's. */
+export function shelfClaim(
+  spot: ShelfSpot,
+  playerAt: () => Point & { spawned: boolean },
+  open: () => void,
+): InteractClaim {
+  return () => {
+    const player = playerAt();
+    return player.spawned && shelfTakesE(spot, player) ? open : null;
+  };
 }

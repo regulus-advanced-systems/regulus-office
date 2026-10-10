@@ -6,13 +6,17 @@ import { describe, expect, test } from "bun:test";
 import { DECOR_STYLES, ROOM_MAX_TILES, ROOM_MIN_TILES } from "@regulus/protocol";
 import { COMPASS_DIRECTIONS, generateRoom, maxDeskCount } from "@regulus/room-layout";
 import { useDom } from "../../ui/a11y/dom.ts";
-import { dispatchHotkey, HOTKEY_EVENT, type HotkeyEventDetail } from "../../ui/hotkeys/registry.ts";
+import {
+  claimInteract,
+  dispatchHotkey,
+  HOTKEY_EVENT,
+  type HotkeyEventDetail,
+} from "../../ui/hotkeys/registry.ts";
 import { BOARD_INTERACT_RADIUS, boardAnchors } from "../boards/boardAnchors.ts";
 import { GONG_INTERACT_RADIUS, gongAnchors } from "../gong/gongAnchor.ts";
 import { DESK_FOCUS_RADIUS } from "../laptops/focus.ts";
 import { CLIPBOARD_INTERACT_RADIUS, clipboardAnchors } from "../queue/clipboardAnchors.ts";
-import { listenForShelfE } from "./BookshelfLayer.tsx";
-import { SHELF_REACH, shelfSpot, shelfTakesE } from "./shelfSpot.ts";
+import { SHELF_REACH, shelfClaim, shelfSpot, shelfTakesE } from "./shelfSpot.ts";
 
 useDom();
 
@@ -102,43 +106,53 @@ describe("the shelf's E", () => {
     }
   });
 
-  test("the shelf answers before the other listeners and alone; elsewhere it leaves E to them", () => {
+  test("the shelf's E is the shelf's alone, whenever the other layers started listening", () => {
     const spot = shelfSpot(room(4, 4, "east"));
     if (!spot) throw new Error("no docs shelf");
     const heard: string[] = [];
-    // A layer that listened first and does not look at `handled` (desks, boards).
-    const desk = (event: Event) => {
-      heard.push("desk");
+    // Layers that do not look at `handled` (desks, boards): one listening before the
+    // shelf's claim, one in the capture phase, one after.
+    const layer = (name: string) => (event: Event) => {
+      heard.push(name);
       (event as CustomEvent<HotkeyEventDetail>).detail.handled = true;
     };
-    window.addEventListener(HOTKEY_EVENT, desk);
+    const [before, capturing, after] = [layer("before"), layer("capturing"), layer("after")];
+    window.addEventListener(HOTKEY_EVENT, before);
+    window.addEventListener(HOTKEY_EVENT, capturing, { capture: true });
     let player = { ...spot.stand, spawned: true };
-    const remove = listenForShelfE(
-      window,
-      spot,
-      () => player,
-      () => heard.push("shelf"),
+    const remove = claimInteract(
+      shelfClaim(
+        spot,
+        () => player,
+        () => heard.push("shelf"),
+      ),
     );
+    window.addEventListener(HOTKEY_EVENT, after);
     const interact = { id: "interact", key: "e", description: "", group: "" };
     dispatchHotkey(interact);
     expect(heard).toEqual(["shelf"]);
 
-    heard.length = 0;
-    player = { x: spot.desks[0]?.x ?? 0, z: spot.desks[0]?.z ?? 0, spawned: true };
-    dispatchHotkey(interact);
-    expect(heard).toEqual(["desk"]);
-
-    heard.length = 0;
-    player = { ...spot.stand, spawned: false };
-    dispatchHotkey(interact);
-    dispatchHotkey({ ...interact, id: "toggleView", key: "v" });
-    expect(heard).toEqual(["desk", "desk"]);
+    // At a desk, before the player is in the world, and for every other key: theirs.
+    for (const [at, binding] of [
+      [{ x: spot.desks[0]?.x ?? 0, z: spot.desks[0]?.z ?? 0, spawned: true }, interact],
+      [{ ...spot.stand, spawned: false }, interact],
+      [
+        { ...spot.stand, spawned: true },
+        { ...interact, id: "toggleView", key: "v" },
+      ],
+    ] as const) {
+      heard.length = 0;
+      player = at;
+      dispatchHotkey(binding);
+      expect([...heard].sort()).toEqual(["after", "before", "capturing"]);
+    }
 
     heard.length = 0;
     remove();
     player = { ...spot.stand, spawned: true };
     dispatchHotkey(interact);
-    expect(heard).toEqual(["desk"]);
-    window.removeEventListener(HOTKEY_EVENT, desk);
+    expect([...heard].sort()).toEqual(["after", "before", "capturing"]);
+    for (const l of [before, after]) window.removeEventListener(HOTKEY_EVENT, l);
+    window.removeEventListener(HOTKEY_EVENT, capturing, { capture: true });
   });
 });

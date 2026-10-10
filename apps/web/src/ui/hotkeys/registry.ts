@@ -188,7 +188,35 @@ export function isFocusedControl(target: EventTarget | null): boolean {
   return tag !== "BODY" && tag !== "HTML" && tag !== "CANVAS";
 }
 
+/**
+ * A claim on `E` (#264): asked on every `interact` press, before the event
+ * goes out, it answers with what to do when the press is its own, or null.
+ * The first claim that answers acts and the event is not sent at all, so
+ * the listeners (some of which do not look at `handled`) cannot act as
+ * well, whatever order they were added in.
+ */
+export type InteractClaim = () => (() => void) | null;
+
+const interactClaims = new Set<InteractClaim>();
+
+/** Register a claim on `E`; returns the remover. */
+export function claimInteract(claim: InteractClaim): () => void {
+  interactClaims.add(claim);
+  return () => {
+    interactClaims.delete(claim);
+  };
+}
+
 export function dispatchHotkey(binding: HotkeyBinding, target: EventTarget = window): void {
+  if (binding.id === "interact") {
+    for (const claim of interactClaims) {
+      const act = claim();
+      if (act) {
+        act();
+        return;
+      }
+    }
+  }
   const detail: HotkeyEventDetail = { id: binding.id, key: binding.key };
   target.dispatchEvent(new CustomEvent<HotkeyEventDetail>(HOTKEY_EVENT, { detail }));
 }
