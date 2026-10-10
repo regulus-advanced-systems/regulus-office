@@ -5,7 +5,12 @@
  * cancel; owners retry; room managers set how many tasks run at once.
  * Everyone who can see the room sees the queue.
  */
-import type { ClientCommandPayload, CommandRejected, QueueTask } from "@regulus/protocol";
+import type {
+  ClientCommandPayload,
+  CommandRejected,
+  LinkedTaskView,
+  QueueTask,
+} from "@regulus/protocol";
 import { hasOperationAccess, mayConfigureQueue } from "@regulus/protocol";
 import { useEffect, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
@@ -16,6 +21,8 @@ import { useSessionStore } from "../../state/session.ts";
 import { FormAlert } from "../auth/AuthCard.tsx";
 import { Button } from "../components/Button.tsx";
 import { Modal } from "../components/Modal.tsx";
+import { LinkedTaskBlock } from "./linked/LinkedTaskBlock.tsx";
+import { useLinkedStore } from "./linked/linkedStore.ts";
 import { QueueSettingsForm } from "./QueueSettingsForm.tsx";
 import { queueSections, STATE_LABELS, taskActions, taskRef } from "./queueModel.ts";
 import { useQueueStore } from "./queueStore.ts";
@@ -51,10 +58,15 @@ function TaskRow({
   task,
   actions,
   send,
+  linked,
+  operationId,
 }: {
   task: QueueTask;
   actions: ReturnType<typeof taskActions>;
   send: QueueSend;
+  /** The linked task this is a part of, as far as this viewer may see it (#257). */
+  linked?: LinkedTaskView;
+  operationId: string | null;
 }) {
   const queuedIndex = task.position;
   return (
@@ -72,6 +84,7 @@ function TaskRow({
         {task.prNumber > 0 && <> · PR #{task.prNumber}</>}
       </div>
       {task.reason && <div className="rg-queue__reason">{task.reason}</div>}
+      {linked && <LinkedTaskBlock view={linked} taskId={task.id} operationId={operationId} />}
       <div className="rg-queue__task-actions">
         {actions.moveUp && (
           <Button
@@ -128,6 +141,7 @@ export function QueuePanel({ send = officeSend() }: { send?: QueueSend }) {
     null;
   const userId = useSessionStore((s) => s.user?.id ?? null);
   const me = userId ? { id: userId } : null;
+  const linkedByTask = useLinkedStore((s) => s.index.byTask);
   const [error, setError] = useQueueRejections();
   const sections = queueSections(tasks);
   const guarded: QueueSend = (type, payload) => {
@@ -154,6 +168,8 @@ export function QueuePanel({ send = officeSend() }: { send?: QueueSend }) {
               task={task}
               actions={taskActions(task, me, access, items.indexOf(task), items.length)}
               send={guarded}
+              linked={linkedByTask.get(task.id)}
+              operationId={operationId}
             />
           ))}
         </ol>

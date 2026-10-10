@@ -23,6 +23,14 @@ import { openProvidersPanel } from "../providers/providersStore.ts";
 import { type CredentialProfilesApi, createCredentialProfilesApi } from "../spawn/api.ts";
 import { spawnRepoOptions } from "../spawn/SpawnDialog.tsx";
 import { SpawnForm } from "../spawn/SpawnForm.tsx";
+import { AlsoInRooms, type AlsoInRoomsValue } from "./linked/AlsoInRooms.tsx";
+import {
+  createLinkedTasksApi,
+  describeLinkedTaskError,
+  type LinkedTasksApi,
+} from "./linked/api.ts";
+import { linkableRooms, linkedRequest } from "./linked/linkedModel.ts";
+import { refreshLinked } from "./linked/linkedStore.ts";
 import { type QueueAddPayload, queuePayload, spawnPrefillFor, taskRef } from "./queueModel.ts";
 import { type QueuePrefill, useQueueStore } from "./queueStore.ts";
 
@@ -33,6 +41,8 @@ export interface QueueClient {
 }
 
 const defaultApi = createCredentialProfilesApi();
+const defaultLinkedApi = createLinkedTasksApi();
+const NOT_LINKED: AlsoInRoomsValue = { operationIds: [], namePrivateRepos: false };
 /** Not a desk: the form wants a seat id, the queue ignores it. */
 const QUEUE_SEAT = "queue";
 const LABELS = { form: "Queue a task", submit: "Queue task", pending: "Queueing…" };
@@ -49,17 +59,26 @@ export function QueueTaskDialog({
   prefill,
   api = defaultApi,
   client,
+  linkedApi = defaultLinkedApi,
 }: {
   prefill?: QueuePrefill;
   api?: CredentialProfilesApi;
   client?: QueueClient;
+  linkedApi?: LinkedTasksApi;
 }) {
   const closeAdd = useQueueStore((s) => s.closeAdd);
   const openPanel = useQueueStore((s) => s.openPanel);
   const toast = useUiStore((s) => s.toast);
   const operationId = useOperationStore((s) => s.operationId);
   const operationState = useOperationStore((s) => s.state);
-  const info = useOperationsStore((s) => s.operations?.find((f) => f.operationId === operationId));
+  const operations = useOperationsStore((s) => s.operations);
+  const info = operations?.find((f) => f.operationId === operationId);
+  // Other rooms on this level where the viewer may work (#257); a card belongs to one repo.
+  const others = useMemo(
+    () => (prefill?.refNumber ? [] : linkableRooms(operations, operationId)),
+    [operations, operationId, prefill?.refNumber],
+  );
+  const [also, setAlso] = useState<AlsoInRoomsValue>(NOT_LINKED);
   const userId = useSessionStore((s) => s.user?.id ?? null);
   const repos = useMemo(() => spawnRepoOptions(info, operationState), [info, operationState]);
   const [pending, setPending] = useState(false);
@@ -91,6 +110,29 @@ export function QueueTaskDialog({
   }, [target, closeAdd, openPanel, toast]);
 
   if (!operationId) return null;
+  const queueLinked = async (spawn: Parameters<typeof linkedRequest>[0]) => {
+    const built = linkedRequest(spawn, also);
+    if (!built.ok) {
+      setError(built.error);
+      return;
+    }
+    setError(null);
+    setPending(true);
+    const result = await linkedApi.create(built.request);
+    setPending(false);
+    if (!result.ok) {
+      setError(describeLinkedTaskError(result));
+      return;
+    }
+    void refreshLinked(operationId, linkedApi);
+    closeAdd();
+    openPanel();
+    toast({
+      kind: "success",
+      title: "Task queued",
+      message: `A part in each of ${built.request.operationIds.length} rooms; each starts when a desk is free.`,
+    });
+  };
   const onlyRepo = repos.length === 1 ? repos[0] : undefined;
   const from = prefill?.refNumber
     ? taskRef({ kind: prefill.kind, refNumber: prefill.refNumber })
@@ -120,6 +162,7 @@ export function QueueTaskDialog({
           </>
         )}
       </p>
+      <AlsoInRooms rooms={others} value={also} onChange={setAlso} disabled={pending} />
       <SpawnForm
         operationId={operationId}
         seatId={QUEUE_SEAT}
@@ -133,6 +176,10 @@ export function QueueTaskDialog({
         labels={LABELS}
         moreOpen
         onSubmit={(spawn) => {
+          if (also.operationIds.length > 0) {
+            void queueLinked(spawn);
+            return;
+          }
           const result = queuePayload(spawn, prefill);
           if (!result.ok) {
             setError(result.error);

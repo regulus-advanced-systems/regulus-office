@@ -61,6 +61,7 @@ import { createOfficeAgents } from "./pm/index.ts";
 import { roundHenchmanOf } from "./pm/world/index.ts";
 import { mountProfileRoutes } from "./profile/routes.ts";
 import { allObservers, createTaskQueue } from "./queue/index.ts";
+import { createLinkedTasks } from "./queue/linked/index.ts";
 import {
   composeRoomAuth,
   createDevHeaderAuth,
@@ -532,6 +533,15 @@ async function main(): Promise<void> {
     logger,
   });
   tasks.queue.followGitHub(githubSync.events);
+  // One task across several repos (#257): a part in each room's queue, notes for the owner, linked PRs.
+  const linkedTasks = createLinkedTasks({
+    db,
+    queue: tasks.queue,
+    logger,
+    config,
+    repos: operations.repos,
+  });
+  linkedTasks.mount(server.router, auth);
   // Meeting room (#50): henchmen of one human in a pattern, driven through the AgentManager.
   const meetings = createMeetings({
     db,
@@ -561,7 +571,13 @@ async function main(): Promise<void> {
       status: (agentId) => worktrees.workspaces.status(agentId),
       openPullRequest: (agentId, options) => worktrees.openPullRequest(agentId, options),
     },
-    observer: allObservers(notifications.center, tasks.queue.observer, meetings.observer),
+    observer: allObservers(
+      notifications.center,
+      tasks.queue.observer,
+      // After the queue's: a part is done before its draft pull request is opened (#257).
+      linkedTasks.linked.observer,
+      meetings.observer,
+    ),
     usage: {
       agentEvent: (agentId, event) => {
         usage.tracker.agentEvent(agentId, event);
@@ -570,6 +586,7 @@ async function main(): Promise<void> {
     },
   });
   tasks.bind(agents);
+  linkedTasks.bind(agents);
   meetings.bind(agents);
   // Emergency stop without seeing a room (#270): every running henchman of one person.
   mountEmergencyStopRoutes(server.router, { auth, db, agents });
@@ -653,6 +670,7 @@ async function main(): Promise<void> {
     .catch((err) => logger.error({ err }, "per-human clone migration failed"))
     // Queued tasks start only once henchmen are re-adopted and settled (#37).
     .then(() => tasks.queue.boot())
+    .then(() => linkedTasks.boot())
     .catch((err) => logger.error({ err }, "starting the task queues failed"))
     // Meetings continue where they were once their henchmen are back (#50).
     .then(() => meetings.boot())
@@ -684,6 +702,7 @@ async function main(): Promise<void> {
   shutdown.register("agents", () => agents.close());
   // Runs before the agents detach (hooks run last-registered-first): no new starts.
   shutdown.register("task-queue", () => tasks.queue.close());
+  shutdown.register("linked-tasks", () => linkedTasks.close());
   shutdown.register("meetings", () => meetings.close());
   shutdown.register("office-agents", () => officeAgents.close());
   installSignalHandlers(shutdown, (code) => {

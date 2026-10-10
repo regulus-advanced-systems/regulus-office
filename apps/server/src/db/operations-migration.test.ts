@@ -75,7 +75,13 @@ describe("0018_operations_henchmen", () => {
       const rows = was.get(old) ?? [];
       expect(rows.length).toBeGreaterThan(0);
       // The henchman_names migration adds the name, empty on rows from before it (#256).
-      const later = now === "agents" ? { name: "" } : {};
+      // and the linked_tasks migration two columns on tasks, empty on rows from before it (#257).
+      const later =
+        now === "agents"
+          ? { name: "" }
+          : now === "tasks"
+            ? { linked_task_id: null, pr_note: "", notes_seen: "" }
+            : {};
       expect(all(sql, now).map(without)).toEqual(
         rows.map((row) => ({ ...renamed(row), ...later })),
       );

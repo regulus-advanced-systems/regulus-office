@@ -11,7 +11,8 @@
  *
  * Bravo and Charlie are full of things: a working henchman, a queued task,
  * a meeting, a workflow with a run, a board card, a picture, a whiteboard,
- * chat. Every one of them carries a marker word, so "no trace" can be
+ * chat, and its task is one part of a linked task (#257): Bravo's has its other
+ * part in Alpha, the room Gus may see. Every one of them carries a marker word, so "no trace" can be
  * checked by searching answers for the markers.
  */
 import { eq } from "drizzle-orm";
@@ -34,6 +35,10 @@ export interface RoomThings {
   repoId: string;
   agentId: string;
   taskId: string;
+  /** The linked task (#257) the room's task is a part of. */
+  linkedTaskId: string;
+  /** A note its henchman left for the task's owner. */
+  noteId: string;
   meetingId: string;
   workflowId: string;
   runId: string;
@@ -80,9 +85,14 @@ function fill(
     })
     .run();
   const taskId = id("task");
+  const linkedTaskId = id("linked");
+  db.insert(schema.linkedTasks)
+    .values({ id: linkedTaskId, title: `ZEBRA270 linked ${tag}`, createdBy: owner.id })
+    .run();
   db.insert(schema.tasks)
     .values({
       id: taskId,
+      linkedTaskId,
       operationId,
       repoId,
       position: 1,
@@ -95,6 +105,10 @@ function fill(
       model: "m",
       createdBy: owner.id,
     })
+    .run();
+  const noteId = id("note");
+  db.insert(schema.linkedTaskNotes)
+    .values({ id: noteId, linkedTaskId, taskId, body: `ZEBRA270 note from ${tag}` })
     .run();
   const meetingId = id("meeting");
   db.insert(schema.meetings)
@@ -156,7 +170,17 @@ function fill(
       ts: new Date(),
     })
     .run();
-  return { ...room, agentId, taskId, meetingId, workflowId, runId, decorId };
+  return {
+    ...room,
+    agentId,
+    taskId,
+    linkedTaskId,
+    noteId,
+    meetingId,
+    workflowId,
+    runId,
+    decorId,
+  };
 }
 
 export async function startScenario(): Promise<Scenario> {
@@ -226,6 +250,24 @@ export async function startScenario(): Promise<Scenario> {
 
     const bravo = fill(office, bravoRoom, mia, "bravo-secret");
     const charlie = fill(office, charlieRoom, mia, "charlie-secret");
+    // The other part of Bravo's linked task, in the room Gus may see.
+    office.db
+      .insert(schema.tasks)
+      .values({
+        id: `task-alpha-${crypto.randomUUID().slice(0, 8)}`,
+        linkedTaskId: bravo.linkedTaskId,
+        operationId: alpha.operationId,
+        repoId: alpha.repoId,
+        position: 1,
+        kind: "freeform",
+        state: "cancelled",
+        title: "Across Alpha and another room",
+        prompt: "part of a linked task",
+        provider: "claude-code",
+        model: "m",
+        createdBy: mia.id,
+      })
+      .run();
     return { office, mia, gus, olga, ned, alpha, bravo, charlie, stop: () => office.stop() };
   } catch (err) {
     await office.stop();

@@ -50,6 +50,10 @@ export interface SchedulerDeps {
   logger: Logger;
   /** A room's queue changed: publish it. */
   changed(operationId: string): void;
+  /** The prompt a task's henchman starts with, when it is not the stored one (#257). */
+  promptFor?(task: TaskRow): string | undefined;
+  /** A running task just became done or failed. */
+  finished?(task: TaskRow): void;
 }
 
 export class QueueScheduler {
@@ -147,7 +151,9 @@ export class QueueScheduler {
     }
     store.markRunning(task.id);
     let admitted = false;
-    const spawning = this.#deps.spawner.spawn(owner, spawnInput(task), {
+    const input = spawnInput(task);
+    const prompt = this.#deps.promptFor?.(task);
+    const spawning = this.#deps.spawner.spawn(owner, prompt ? { ...input, prompt } : input, {
       onAdmitted: (agentId) => {
         admitted = true;
         store.setAgent(task.id, agentId);
@@ -165,7 +171,7 @@ export class QueueScheduler {
           this.#deps.changed(task.operationId);
           return;
         }
-        store.finish(task.id, "failed", message);
+        if (store.finish(task.id, "failed", message)) this.#finished(task.id);
         this.#deps.changed(task.operationId);
         void this.kick(task.operationId);
       },
@@ -195,8 +201,19 @@ export class QueueScheduler {
       finished = this.#store.finish(task.id, "failed", FAIL_REASONS[status]);
     }
     if (!finished) return;
+    this.#finished(task.id);
     this.#deps.changed(task.operationId);
     void this.kick(task.operationId);
+  }
+
+  #finished(taskId: string): void {
+    const task = this.#store.get(taskId);
+    if (!task) return;
+    try {
+      this.#deps.finished?.(task);
+    } catch (err) {
+      this.#deps.logger.error({ taskId, err: String(err) }, "queue finish hook failed");
+    }
   }
 
   /**

@@ -38,6 +38,8 @@ import { openBubbleTarget } from "../../ui/agent/bubbleTarget.ts";
 import { carriedPrefill, dropCard, useMyCarried } from "../../ui/boards/carry.ts";
 import type { HotkeyEventDetail } from "../../ui/hotkeys/registry.ts";
 import { useHotkeyEvents } from "../../ui/hotkeys/useHotkeys.ts";
+import { linkedNameTag } from "../../ui/queue/linked/linkedModel.ts";
+import { useLinkedStore } from "../../ui/queue/linked/linkedStore.ts";
 import { AgentOverhead } from "../agentBubble/AgentOverhead.tsx";
 import { visibleBubble } from "../agentBubble/bubbleStyle.ts";
 import { type OverheadField, useOverheadField } from "../agentBubble/overheadField.ts";
@@ -286,6 +288,8 @@ export function HenchmanLayer({
 
   // Floor decals are specks at the overview: leave them out there (#190, one draw each).
   const far = useVisibleStore((s) => s.far);
+  // Henchmen on one task across rooms say so on their name tag (#257).
+  const linkedByAgent = useLinkedStore((s) => s.index.byAgent);
 
   return (
     <group name={scopedName(scope, "henchmen")}>
@@ -319,7 +323,7 @@ export function HenchmanLayer({
             {!far && (
               <AgentOverhead
                 id={r.agentId}
-                name={r.name}
+                name={linkedNameTag(r.name, r.agentId, linkedByAgent.get(r.agentId))}
                 bubble={visibleBubble(bubbleForViewer(r, viewerId), { activityBubbles })}
                 position={[hx, hy + OVERHEAD_HEIGHT, hz]}
                 still={reducedMotion || lowQuality}

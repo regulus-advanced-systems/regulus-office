@@ -135,6 +135,31 @@ export const credentialProfiles = sqliteTable(
   ],
 );
 
+/**
+ * One task across several repos (#257, D7): what its parts (rows of `tasks`
+ * with this `linkedTaskId`, one per room) have in common. The parts' own
+ * state lives on their task rows; nothing here names a room.
+ */
+export const linkedTasks = sqliteTable("linked_tasks", {
+  id: id(),
+  title: text("title").notNull().default(""),
+  createdBy: text("created_by")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  /**
+   * Pass every note a part leaves on to the other parts without asking the
+   * owner. Off unless the owner turns it on: a note passed on can be read by
+   * everyone who may watch a henchman in any of the task's rooms.
+   */
+  releaseNotes: integer("release_notes", { mode: "boolean" }).notNull().default(false),
+  /**
+   * Name private repos in each other's pull requests. Off unless the owner
+   * turns it on; public repos are always named.
+   */
+  namePrivateRepos: integer("name_private_repos", { mode: "boolean" }).notNull().default(false),
+  ...timestamps(),
+});
+
 /** Per-operation queue of work to spawn henchmen for (SPEC §5 `tasks`, §9.4 clipboard). */
 export const tasks = sqliteTable(
   "tasks",
@@ -171,6 +196,14 @@ export const tasks = sqliteTable(
     prNumber: integer("pr_number"),
     /** Why it failed, or why a queued task is not starting; safe to show. */
     reason: text("reason").notNull().default(""),
+    /** The linked task this is one part of (#257); null for an ordinary task. */
+    linkedTaskId: text("linked_task_id").references(() => linkedTasks.id, {
+      onDelete: "set null",
+    }),
+    /** Why the office opened no draft PR for a finished part of a linked task; safe to show. */
+    prNote: text("pr_note").notNull().default(""),
+    /** What the office has already collected of this part's notes file (a linked task's part). */
+    notesSeen: text("notes_seen").notNull().default(""),
     startedAt: timestampMs("started_at"),
     finishedAt: timestampMs("finished_at"),
     ...timestamps(),
@@ -178,10 +211,35 @@ export const tasks = sqliteTable(
   (t) => [
     uniqueIndex("tasks_operation_position_unique").on(t.operationId, t.position),
     index("tasks_operation_state_idx").on(t.operationId, t.state),
+    index("tasks_linked_task_idx").on(t.linkedTaskId),
     check("tasks_kind_check", inEnum("kind", TASK_KINDS)),
     check("tasks_state_check", inEnum("state", TASK_STATES)),
     check("tasks_provider_check", inEnum("provider", PROVIDER_IDS)),
   ],
+);
+
+/**
+ * What a part's henchman left in its notes file for the task's owner (#257).
+ * Only the owner reads these; a note reaches the other parts' worktrees once
+ * it is released (by the owner, or at once when the task releases them
+ * automatically).
+ */
+export const linkedTaskNotes = sqliteTable(
+  "linked_task_notes",
+  {
+    id: id(),
+    linkedTaskId: text("linked_task_id")
+      .notNull()
+      .references(() => linkedTasks.id, { onDelete: "cascade" }),
+    /** The part whose henchman wrote it. */
+    taskId: text("task_id")
+      .notNull()
+      .references(() => tasks.id, { onDelete: "cascade" }),
+    body: text("body").notNull(),
+    releasedAt: timestampMs("released_at"),
+    ...timestamps(),
+  },
+  (t) => [index("linked_task_notes_linked_task_idx").on(t.linkedTaskId)],
 );
 
 /** A room's queue concurrency (#37); a room without a row uses the protocol defaults. */

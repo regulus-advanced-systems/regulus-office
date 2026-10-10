@@ -31,8 +31,12 @@ afterAll(() => rmSync(dir, { recursive: true, force: true }));
 const before = (tag: string) => migrationsBefore(dir, tag);
 
 const TOUCHED = ["operation_id", "is_primary", "updated_at", "url", "spec_json"];
+/** Columns that migrations after this one add (linked tasks, #257); not there before it. */
+const LATER = ["linked_task_id", "pr_note", "notes_seen"];
 const untouched = (row: Row | undefined): Row =>
-  Object.fromEntries(Object.entries(row ?? {}).filter(([k]) => !TOUCHED.includes(k)));
+  Object.fromEntries(
+    Object.entries(row ?? {}).filter(([k]) => !TOUCHED.includes(k) && !LATER.includes(k)),
+  );
 const byId = (rows: Row[]) => new Map(rows.map((r) => [String(r.id), r]));
 
 describe("levels_one_repo_per_room migration", async () => {

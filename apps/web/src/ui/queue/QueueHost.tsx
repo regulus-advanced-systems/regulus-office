@@ -5,6 +5,7 @@
 import { useEffect } from "react";
 import { useOperationStore } from "../../state/operation.ts";
 import { useUiStore } from "../../state/ui.ts";
+import { useLinkedTasksSync } from "./linked/linkedStore.ts";
 import { QueuePanel } from "./QueuePanel.tsx";
 import { QueueTaskDialog } from "./QueueTaskDialog.tsx";
 import { QUEUE_OVERLAY, useQueueStore } from "./queueStore.ts";
@@ -17,6 +18,8 @@ export function QueueHost() {
   const closeOverlay = useUiStore((s) => s.closeOverlay);
   const operationId = useOperationStore((s) => s.operationId);
   const open = panelOpen || add !== null;
+  // Linked tasks of this room, for the panel, the henchmen's name tags and the PR cards (#257).
+  useLinkedTasksSync();
   useEffect(() => {
     if (!open) return;
     openOverlay(QUEUE_OVERLAY);

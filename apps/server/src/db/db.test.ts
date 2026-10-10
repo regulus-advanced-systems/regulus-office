@@ -54,6 +54,8 @@ const EXTRA_TABLES = [
   "workflow_runs",
   "workflow_events",
   "operation_queue_settings",
+  "linked_tasks",
+  "linked_task_notes",
   "meetings",
   "meeting_members",
   "meeting_turns",
