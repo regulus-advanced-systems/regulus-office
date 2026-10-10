@@ -46,6 +46,7 @@ import {
   checkLaptopCopy,
   checkLoginTerminalCopy,
 } from "./copyChecks.ts";
+import { checkTerminalDictation } from "./dictationTerminalChecks.ts";
 import {
   ADMIN_GITHUB,
   type FakeGitHub,
@@ -786,6 +787,21 @@ test("7b. the henchman's terminal expands, copies a selection and reflows tmux i
       .getByRole("button", { name: "Open terminal" })
       .click();
   });
+});
+
+test("7b2. dictation: a watched terminal takes none; in control the words arrive in tmux, without Enter (#260)", async () => {
+  const pane = `=agent-${agentId}:`;
+  await checkTerminalDictation(
+    ownerPage,
+    async () => {
+      await openHenchmanPanel(ownerPage);
+      await ownerPage
+        .locator("section.rg-agent-panel")
+        .getByRole("button", { name: "Open terminal" })
+        .click();
+    },
+    ([command = "", ...rest]) => henchmanTmux([command, "-t", pane, ...rest]),
+  );
 });
 
 test("7c. copying works in the henchman's terminal, on the laptop and in the login terminal (#164)", async () => {

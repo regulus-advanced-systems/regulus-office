@@ -16,6 +16,7 @@ import { ChatPanel } from "./chat/ChatPanel.tsx";
 import { Button } from "./components/Button.tsx";
 import { GearIcon, QuestionIcon } from "./components/icons.tsx";
 import { Modal } from "./components/Modal.tsx";
+import { DictationHost } from "./dictation/DictationHost.tsx";
 import { EmoteWheel } from "./emotes/EmoteWheel.tsx";
 import { HotkeyList } from "./hotkeys/HotkeyHelp.tsx";
 import { useGlobalHotkeys } from "./hotkeys/useHotkeys.ts";
@@ -143,6 +144,7 @@ export function Hud() {
       <NotificationsHost />
       <AgentChatWindowHost />
       <EmoteWheel />
+      <DictationHost />
       <LiftRide />
       <Toaster />
     </div>

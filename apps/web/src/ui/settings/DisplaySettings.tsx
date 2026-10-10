@@ -8,6 +8,8 @@ import { useId } from "react";
 import { selectReducedMotion, useUiStore } from "../../state/ui.ts";
 import { Button } from "../components/Button.tsx";
 import { Switch } from "../components/Switch.tsx";
+import { DictationSettings } from "../dictation/DictationSettings.tsx";
+import { resetDictationPrefs } from "../dictation/dictationStore.ts";
 import { FirstPersonSettings } from "./FirstPersonSettings.tsx";
 import { GraphicsSettings } from "./GraphicsSettings.tsx";
 import { DEFAULT_SETTINGS } from "./settingsStorage.ts";
@@ -84,6 +86,7 @@ export function DisplaySettings() {
             />
           </div>
           <VoiceSettings />
+          <DictationSettings />
           <div className="rg-field">
             <Switch
               checked={settings.hour12}
@@ -95,7 +98,14 @@ export function DisplaySettings() {
         </section>
       </div>
       <div className="rg-settings__actions">
-        <Button variant="secondary" size="sm" onClick={() => update({ ...DEFAULT_SETTINGS })}>
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => {
+            update({ ...DEFAULT_SETTINGS });
+            resetDictationPrefs();
+          }}
+        >
           Reset to defaults
         </Button>
         <span className="rg-field__hint">Everything on this tab, for this browser.</span>
