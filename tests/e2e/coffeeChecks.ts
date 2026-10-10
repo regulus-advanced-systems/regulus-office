@@ -4,8 +4,9 @@
  * browser shows the cup over the owner's head (shared presence). `E` typed into the chat takes
  * no cup. The third cup is the jitters: the owner's drawn body shakes in both browsers while
  * the pose the camera follows stays put, and a browser that asks for reduced motion draws it
- * standing still under a "Jitters" badge. After a minute the server ends the buzz and the
- * speed is back to normal.
+ * standing still under a "Jitters" badge. The meter counts down to the end the server
+ * published; the step does not wait for it (the server's own tests end a buzz, with injected
+ * clocks), so the owner leaves this step buzzed for up to a minute.
  *
  * Reads the buzz through `window.__regulusCoffee` (apps/web/src/scene/coffee/probe.ts) and the
  * scene through `window.__regulusR3F`, both published with `?stats`. With `E2E_SHOTS_DIR` set it
@@ -80,7 +81,7 @@ async function walkUpTo(page: Page, at: Point, near = 0.6): Promise<void> {
     if (!pose.walking && Math.hypot(pose.x - at.x, pose.z - at.z) <= near) return;
     if (!pose.walking) expect(await walkTo(page, at.x, at.z)).toBe(true);
     throw new Error(`walking to ${at.x.toFixed(1)}, ${at.z.toFixed(1)}`);
-  }).toPass({ timeout: 90_000, intervals: [500, 1_000] });
+  }).toPass({ timeout: 90_000, intervals: [200] });
   await waitStill(page);
 }
 
@@ -90,13 +91,16 @@ async function pressE(page: Page): Promise<void> {
   await page.keyboard.press("e");
 }
 
-/** One more cup for the page's player, who stands at the machine: `E` until the server grants it. */
+/**
+ * One more cup for the page's player, who stands at the machine: `E`, and again if the
+ * server said the last cup was too recent (the refusal is a toast; the cups do not change).
+ */
 async function cup(page: Page, cups: number): Promise<void> {
   await expect(async () => {
     if ((await self(page)).cups >= cups) return;
     await pressE(page);
-    await expect.poll(async () => (await self(page)).cups, { timeout: 1_500 }).toBe(cups);
-  }).toPass({ timeout: 30_000, intervals: [1_000] });
+    await expect.poll(async () => (await self(page)).cups, { timeout: 700 }).toBe(cups);
+  }).toPass({ timeout: 30_000, intervals: [300] });
 }
 
 /**
@@ -150,14 +154,15 @@ export async function checkCoffee(owner: Page, member: Page, ownerName: string):
   await goToLobbyLevel(owner);
   await goToLobbyLevel(member);
   const at = await stand(owner);
-  // The member stands a few steps from the machine, to watch.
+  // The member watches from the lobby: people on a level are drawn wherever they stand.
+  // (For the PR's screenshots the member walks over, a few steps from the machine.)
   const watch = { x: at.x - 3, z: at.z };
   const lane = [
     { x: at.x - 9, z: at.z + 4.5 },
     { x: at.x - 1, z: at.z + 4.5 },
   ] as const;
   const sober = shots ? await walkingSpeed(owner, lane[0], lane[1]) : 0;
-  await walkUpTo(member, watch, 1.5);
+  if (shots) await walkUpTo(member, watch, 1.5);
   await walkUpTo(owner, at);
 
   // For the PR's screenshots only: both cameras close in on the machine.
@@ -177,7 +182,7 @@ export async function checkCoffee(owner: Page, member: Page, ownerName: string):
   // `E` typed into the chat is a letter, not a cup.
   await owner.getByPlaceholder("Press T to chat").focus();
   await owner.keyboard.type("e");
-  await owner.waitForTimeout(600);
+  await owner.waitForTimeout(300);
   expect((await self(owner)).cups).toBe(0);
   await owner.keyboard.press("Backspace");
 
@@ -246,17 +251,25 @@ export async function checkCoffee(owner: Page, member: Page, ownerName: string):
       .toBeLessThan(0.05);
   }
 
-  // A minute after the last cup the server ends it: no meter, no badge, normal speed.
-  await expect.poll(async () => (await self(owner)).cups, { timeout: 75_000 }).toBe(0);
-  expect((await self(owner)).boost).toBe(1);
-  await expect(meter).toHaveCount(0);
-  await expect.poll(async () => (await drawn(member)).badges).toEqual([]);
-  await expect.poll(async () => (await drawn(member)).shaking).toBe(0);
+  // The buzz ends when the server says (its tests cover that, with their own clocks): the step
+  // does not wait the minute out. Here: the end the server published is a minute after the
+  // last cup, and the meter counts down towards it.
+  const left = (await self(owner)).buzzUntil - Date.now();
+  expect(left).toBeGreaterThan(30_000);
+  expect(left).toBeLessThanOrEqual(61_000);
+  const seconds = async () =>
+    Number.parseInt((await meter.locator(".rg-buzz__time").innerText()) || "", 10);
+  const first = await seconds();
+  expect(first).toBeGreaterThan(30);
+  expect(first).toBeLessThanOrEqual(60);
+  await expect.poll(seconds, { timeout: 5_000 }).toBeLessThan(first);
+  const fill = Number((await meter.getByRole("progressbar").getAttribute("aria-valuenow")) ?? -1);
+  expect(Math.abs(fill - ((await seconds()) / 60) * 100)).toBeLessThan(5);
 
   for (const [page, zoom] of zooms) {
     await page.mouse.move(640, 330);
     await wheelZoomTo(page, zoom);
   }
   await walkToLobby(owner);
-  await walkToLobby(member);
+  if (shots) await walkToLobby(member);
 }

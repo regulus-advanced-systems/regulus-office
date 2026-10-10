@@ -919,9 +919,9 @@ test("the blast door opens for everyone, the owner walks out onto the dock, it s
   await checkBlastDoor(ownerPage, memberPage, owner.name);
 });
 
-test("coffee: E at the break-room machine buzzes the owner; the member sees the cup and the jitters; it wears off (#63)", async () => {
-  // The buzz lasts a minute after the last cup, and the step waits for it to end.
-  test.setTimeout(300_000);
+test("coffee: E at the break-room machine buzzes the owner; the member sees the cup and the jitters (#63)", async () => {
+  // Two people walk to the break room and back.
+  test.setTimeout(180_000);
   await checkCoffee(ownerPage, memberPage, owner.name);
 });
 
