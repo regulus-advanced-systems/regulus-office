@@ -11,8 +11,13 @@ export interface Pos {
   z: number;
 }
 
-/** The office page with the scene probe enabled. */
-export const OFFICE_PROBE_PATH = "/office?stats";
+/**
+ * The office page with the scene probe enabled, drawn with the low graphics preset. That is
+ * the preset a software-rendered page (CI, the default here) picks by itself; asking for it
+ * keeps what the steps expect of it (a waiting henchman's still arms, the lift's fade) the
+ * same when the browsers draw on a GPU (`E2E_WEBGL=hardware`, #299).
+ */
+export const OFFICE_PROBE_PATH = "/office?stats&quality=low";
 
 /** Positions of every human group in the scene, keyed by object name. */
 export function humans(page: Page): Promise<Record<string, Pos>> {
@@ -133,26 +138,31 @@ export function localPose(page: Page): Promise<LocalPose | null> {
 }
 
 /**
- * Poses of our own avatar sampled every animation frame for `ms`
- * milliseconds, to check how it moves and faces over time.
+ * Our own avatar's pose at every frame the page draws, from now until its walk is over: it
+ * has set off (the nav probe says walking) and stands again. How long that takes on the
+ * clock does not matter, nor how few frames a slow page draws in a second: one frame walks
+ * at most a tenth of a second's worth, however long it took to draw, so a walk of a few
+ * metres is always tens of frames (#299). Gives up after `giveUpMs` if the walk never ends.
  */
-export function sampleLocalPoses(page: Page, ms: number): Promise<LocalPose[]> {
-  return page.evaluate(async (duration) => {
+export function sampleLocalWalk(page: Page, giveUpMs = 60_000): Promise<LocalPose[]> {
+  return page.evaluate(async (limit) => {
     type Obj = { position: { x: number; z: number }; rotation: { y: number } };
-    const r3f = (
-      window as unknown as {
-        __regulusR3F?: { scene: { getObjectByName(n: string): Obj | undefined } };
-      }
-    ).__regulusR3F;
+    const w = window as unknown as {
+      __regulusR3F?: { scene: { getObjectByName(n: string): Obj | undefined } };
+      __regulusNav?: { pose(): { walking: boolean } };
+    };
     const out: { x: number; z: number; heading: number }[] = [];
-    const end = performance.now() + duration;
+    const end = performance.now() + limit;
+    let walked = false;
     while (performance.now() < end) {
-      const o = r3f?.scene.getObjectByName("local-human");
+      const o = w.__regulusR3F?.scene.getObjectByName("local-human");
       if (o) out.push({ x: o.position.x, z: o.position.z, heading: o.rotation.y });
+      if (w.__regulusNav?.pose().walking) walked = true;
+      else if (walked) break;
       await new Promise((resolve) => requestAnimationFrame(resolve));
     }
     return out;
-  }, ms);
+  }, giveUpMs);
 }
 
 /** Viewport point where the floor point `p` (y = 0) is drawn. */

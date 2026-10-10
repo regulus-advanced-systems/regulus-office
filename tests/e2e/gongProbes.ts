@@ -140,6 +140,24 @@ export function sampleGong(
   }, args);
 }
 
+/**
+ * Confetti bursts the gong has fired on this page so far (the `gong-confetti` mesh counts
+ * them as it takes them). A burst is over 2.2 s of wall-clock after it is fired, however
+ * few frames the page drew meanwhile, so "was a burst fired" is asked of this count and not
+ * of the instances alive in a sampled frame.
+ */
+export function gongBursts(page: Page): Promise<number> {
+  return page.evaluate(() => {
+    type Obj = { userData: { bursts?: number } };
+    const r3f = (
+      window as unknown as {
+        __regulusR3F?: { scene: { getObjectByName(n: string): Obj | undefined } };
+      }
+    ).__regulusR3F;
+    return Number(r3f?.scene.getObjectByName("gong-confetti")?.userData.bursts ?? 0);
+  });
+}
+
 /** Henchmen's poses now (a zero-length sample). */
 export async function henchmanPoses(page: Page): Promise<Record<string, HenchmanPose>> {
   return (await sampleGong(page, 0)).henchmen;

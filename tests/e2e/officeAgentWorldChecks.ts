@@ -2,17 +2,20 @@
  * Office agents in the world, across two browsers (#252). The owner makes a personal agent
  * (secretary form) over REST, as Settings → Agents does, and later a shared one. Then:
  *
- * - both browsers see its body; the owner's agent stands beside them and follows them
- *   into the war room, and the member sees it there with "<owner>'s assistant" over it;
- * - the member clicks it: no chat opens (a toast says whose it is), and the server refuses
- *   them its chat, its dismiss and its recall;
+ * - both browsers see its body; the owner's agent stands beside them, and the member, a few
+ *   steps away in the lobby, sees it with "<owner>'s assistant" over it;
  * - the owner stops it and it is gone for both browsers, starts it and it is back, twice (#301);
  * - the owner presses `E` next to it: its chat opens as a window in the world; Dismiss
  *   sends it wandering for both browsers and Recall brings it back;
  * - the shared agent appears for both and wanders, and both the owner and the member open its
  *   chat by clicking it, wherever it is and while it walks (`clickBody`);
+ * - it follows its owner into the war room; the member comes too and clicks it: no chat opens
+ *   (a toast says whose it is), and the server refuses them its chat, its dismiss and its recall;
  * - the owner walks into a project room on another level: the agent comes too, and the
  *   member, whose GitHub access does not cover that room, is not sent its body meanwhile.
+ *
+ * The two people walk and wait at the same time where they can, and nobody walks further
+ * than the step needs (#299).
  *
  * No message is sent (this office has no runner): turns are covered with the fake engine in
  * apps/server/src/pm. Bodies are read through the scene probe (`window.__regulusR3F`,
@@ -33,7 +36,7 @@ import {
   walkToLobby,
   wheelZoomTo,
 } from "./compoundProbes.ts";
-import { bodyOf, holdScene } from "./officeAgentProbes.ts";
+import { bodyOf, holdScene, type SceneBody } from "./officeAgentProbes.ts";
 import { recordToasts, toastsSeen } from "./probes.ts";
 
 const inRoom = (room: NavRoom, p: { x: number; z: number } | null) =>
@@ -46,32 +49,41 @@ async function standIn(page: Page, room: NavRoom, dx = 0, dz = 0): Promise<void>
     if (!pose.walking && pose.room === room.id) return;
     if (!pose.walking) await walkTo(page, room.x + room.w / 2 + dx, room.z + room.d / 2 + dz);
     throw new Error(`walking into ${room.name}`);
-  }).toPass({ timeout: 90_000, intervals: [500, 1_000] });
+  }).toPass({ timeout: 90_000, intervals: [200, 400] });
   await waitStill(page);
 }
 
 /**
- * Click a body until `done` holds, wherever it is and whether or not it is walking (#299).
+ * Do something to a body while it is in view, wherever it is and whether or not it is walking,
+ * until `done` holds (#299).
  *
  * Nothing here waits for a wandering agent to come by or to stand still. While the body is
  * outside the clear part of the view, the player walks to where the server has sent it (its
  * target, which it keeps for its whole walk and its pause there), so the camera brings it into
- * view. Once it is in view the scene is held on the frame it shows, the mouse clicks the body
- * where that frame has it, and the scene runs on: a walking body cannot step out from under
- * the click, however slowly the page draws.
+ * view. Once it is in view the scene is held on the frame it shows, `act` is given the body
+ * as that frame has it, and the scene runs on: a walking body cannot step out from under a
+ * click or out of a picture, however slowly the page draws.
  */
-export async function clickBody(page: Page, agentId: string, done: () => Promise<boolean>) {
+async function withBodyInView(
+  page: Page,
+  agentId: string,
+  act: (body: SceneBody) => Promise<unknown>,
+  done: () => Promise<boolean>,
+) {
   await page.bringToFront();
   const view = page.viewportSize() ?? { width: 1280, height: 800 };
   await expect(async () => {
     if (await done()) return;
+    // An earlier click here landed on something behind the body (the lift, a board) and
+    // opened its window, which would take every click after it: close it and try again.
+    if ((await page.getByRole("dialog").count()) > 0) await page.keyboard.press("Escape");
     let target: { x: number; z: number } | null = null;
     try {
       const body = await bodyOf(page, agentId, true);
       if (!body) throw new Error("the agent is not in this page's scene");
       const inside =
         body.sx > 300 && body.sx < view.width - 280 && body.sy > 150 && body.sy < view.height - 180;
-      if (inside) await page.mouse.click(body.sx, body.sy);
+      if (inside) await act(body);
       else target = { x: body.targetX, z: body.targetZ };
     } finally {
       await holdScene(page, false);
@@ -82,8 +94,12 @@ export async function clickBody(page: Page, agentId: string, done: () => Promise
       throw new Error("walking over to the agent");
     }
     await expect.poll(done, { timeout: 2_500 }).toBe(true);
-  }).toPass({ timeout: 90_000, intervals: [400, 800] });
+  }).toPass({ timeout: 90_000, intervals: [200, 400] });
 }
+
+/** Click a body until `done` holds (`withBodyInView`). */
+export const clickBody = (page: Page, agentId: string, done: () => Promise<boolean>) =>
+  withBodyInView(page, agentId, (body) => page.mouse.click(body.sx, body.sy), done);
 
 export async function checkAgentsInTheWorld(owner: Page, member: Page, shots?: string) {
   const n = test.info().repeatEachIndex + 1;
@@ -118,18 +134,14 @@ export async function checkAgentsInTheWorld(owner: Page, member: Page, shots?: s
   let shared: { id: string; name: string } | null = null;
 
   try {
-    // Everyone in the lobby, on the lobby level.
-    for (const page of [owner, member]) {
-      await page.bringToFront();
-      await goToLobbyLevel(page);
-      await walkToLobby(page);
-    }
+    // Everyone in the lobby, on the lobby level; both walk at the same time.
+    for (const page of [owner, member]) await goToLobbyLevel(page);
+    await Promise.all([walkToLobby(owner), walkToLobby(member)]);
     const rooms = await navRooms(owner);
     const lobby = rooms.find((r) => r.kind === "lobby");
     const war = rooms.find((r) => r.kind === "conference");
     if (!lobby || !war) throw new Error("no lobby or war room");
-    await standIn(owner, lobby, 1.5, 1);
-    await standIn(member, lobby, -2.5, 1.5);
+    await Promise.all([standIn(owner, lobby, 1.5, 1), standIn(member, lobby, -2.5, 1.5)]);
     // For the screenshots, look from close by.
     if (shots) {
       for (const page of [owner, member]) {
@@ -161,6 +173,31 @@ export async function checkAgentsInTheWorld(owner: Page, member: Page, shots?: s
       caption: "Your assistant",
     });
     if (shots) await owner.screenshot({ path: `${shots}/personal-agent-beside-owner.png` });
+
+    /** The member sees the same body where the owner's browser has it, with whose it is. */
+    const memberSeesItIn = async (room: NavRoom) => {
+      await expect
+        .poll(async () => {
+          const body = await bodyOf(member, mine.id);
+          return !!body && !body.moving && inRoom(room, body) ? body.bubbleKind : "not there yet";
+        })
+        .toBe("doing");
+      const seen = await bodyOf(member, mine.id);
+      expect(seen).toMatchObject({
+        own: false,
+        canChat: false,
+        caption: `${me.displayName}'s assistant`,
+        bubbleKind: "doing",
+        bubbleText: `${me.displayName}'s assistant`,
+      });
+      // Everyone sees it in the same place (the server sent one target).
+      const mineNow = await bodyOf(owner, mine.id);
+      expect(
+        Math.hypot((seen?.x ?? 0) - (mineNow?.x ?? 0), (seen?.z ?? 0) - (mineNow?.z ?? 0)),
+      ).toBeLessThan(1);
+    };
+    // The member, a few steps away in the lobby: the same body, with whose it is over it.
+    await memberSeesItIn(lobby);
 
     // Its owner stops it: a stopped agent has no body, for either browser (#301). Started
     // again, it is back beside its owner. (It was not running before either: an agent that
@@ -196,61 +233,6 @@ export async function checkAgentsInTheWorld(owner: Page, member: Page, shots?: s
       }
     }
 
-    // It follows them out of the lobby and into the war room.
-    await standIn(owner, war);
-    await expect
-      .poll(async () => {
-        const body = await bodyOf(owner, mine.id);
-        return !!body && !body.moving && inRoom(war, body);
-      })
-      .toBe(true);
-    const ownerPose = await navPose(owner);
-    const beside = await bodyOf(owner, mine.id);
-    expect(Math.hypot((beside?.x ?? 0) - ownerPose.x, (beside?.z ?? 0) - ownerPose.z)).toBeLessThan(
-      3,
-    );
-
-    // The member comes to look: the same body, in the same room, with whose it is over it.
-    await standIn(member, war, 2, 2);
-    await member.bringToFront();
-    await expect
-      .poll(async () => {
-        const body = await bodyOf(member, mine.id);
-        return !!body && !body.moving && inRoom(war, body);
-      })
-      .toBe(true);
-    const seen = await bodyOf(member, mine.id);
-    expect(seen).toMatchObject({
-      own: false,
-      canChat: false,
-      caption: `${me.displayName}'s assistant`,
-      bubbleKind: "doing",
-      bubbleText: `${me.displayName}'s assistant`,
-    });
-    // Everyone sees it in the same place (the server sent one target).
-    const mineNow = await bodyOf(owner, mine.id);
-    expect(
-      Math.hypot((seen?.x ?? 0) - (mineNow?.x ?? 0), (seen?.z ?? 0) - (mineNow?.z ?? 0)),
-    ).toBeLessThan(1);
-    if (shots) await member.screenshot({ path: `${shots}/other-persons-view.png` });
-
-    // The member clicks it: no chat, a line saying whose it is. The server says the same.
-    await recordToasts(member);
-    await clickBody(member, mine.id, async () =>
-      (await toastsSeen(member)).some((t) => t.includes(`Only ${me.displayName} can talk to it`)),
-    );
-    await expect(member.getByRole("dialog", { name: mine.name })).toHaveCount(0);
-    for (const path of ["messages", "dismiss", "recall", "seen"]) {
-      const res = await member.request.post(`/api/office-agents/${mine.id}/${path}`, {
-        data: { text: "hello" },
-        headers,
-      });
-      expect(res.status(), path).toBe(404);
-    }
-    expect((await member.request.get(`/api/office-agents/${mine.id}/conversation`)).status()).toBe(
-      404,
-    );
-
     // The owner presses E next to it: its chat opens as a window in the world. Out in the
     // corridor, where nothing else is in reach of E (by a chair, E sits down first).
     await owner.bringToFront();
@@ -262,7 +244,7 @@ export async function checkAgentsInTheWorld(owner: Page, member: Page, shots?: s
       const body = await bodyOf(owner, mine.id);
       expect(there && !pose.walking && !!body && !body.moving).toBe(true);
       expect(Math.hypot((body?.x ?? 0) - pose.x, (body?.z ?? 0) - pose.z)).toBeLessThan(2.2);
-    }).toPass({ timeout: 90_000, intervals: [500, 1_000] });
+    }).toPass({ timeout: 90_000, intervals: [200, 400] });
     await owner.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
     await owner.locator("canvas").first().hover();
     const chat = owner.getByRole("dialog", { name: mine.name });
@@ -307,9 +289,8 @@ export async function checkAgentsInTheWorld(owner: Page, member: Page, shots?: s
     }
 
     // The shared agent wanders: it is sent somewhere else before long.
+    // The owner is in the corridor by the lobby and the member in the lobby, where it appears.
     if (dbPath) {
-      await standIn(owner, lobby, 1.5, 1);
-      await standIn(member, lobby, -2.5, 1.5);
       const office = await made({
         ...base,
         name: `Number Two ${n}`,
@@ -340,18 +321,17 @@ export async function checkAgentsInTheWorld(owner: Page, member: Page, shots?: s
         )
         .toBeGreaterThan(1.5);
       if (shots) {
-        await expect
-          .poll(
-            async () => {
-              const b = await bodyOf(owner, office.id);
-              return (
-                !!b && inRoom(lobby, b) && b.sx > 200 && b.sx < 1080 && b.sy > 150 && b.sy < 650
-              );
-            },
-            { timeout: 120_000 },
-          )
-          .toBe(true);
-        await owner.screenshot({ path: `${shots}/shared-agent-wandering-the-lobby.png` });
+        // A picture of it out and about, taken of a held frame with it in view (#299).
+        let taken = false;
+        await withBodyInView(
+          owner,
+          office.id,
+          async () => {
+            await owner.screenshot({ path: `${shots}/shared-agent-wandering.png` });
+            taken = true;
+          },
+          async () => taken,
+        );
       }
 
       // Both of them open its chat by clicking it.
@@ -366,6 +346,40 @@ export async function checkAgentsInTheWorld(owner: Page, member: Page, shots?: s
         await expect(dialog).toHaveCount(0);
       }
     }
+
+    // It follows them out of the corridor and into the war room. The member comes to look,
+    // walking at the same time.
+    await Promise.all([standIn(owner, war), standIn(member, war, 2, 2)]);
+    await expect
+      .poll(async () => {
+        const body = await bodyOf(owner, mine.id);
+        return !!body && !body.moving && inRoom(war, body);
+      })
+      .toBe(true);
+    const ownerPose = await navPose(owner);
+    const beside = await bodyOf(owner, mine.id);
+    expect(Math.hypot((beside?.x ?? 0) - ownerPose.x, (beside?.z ?? 0) - ownerPose.z)).toBeLessThan(
+      3,
+    );
+    await memberSeesItIn(war);
+    if (shots) await member.screenshot({ path: `${shots}/other-persons-view.png` });
+
+    // The member clicks it: no chat, a line saying whose it is. The server says the same.
+    await recordToasts(member);
+    await clickBody(member, mine.id, async () =>
+      (await toastsSeen(member)).some((t) => t.includes(`Only ${me.displayName} can talk to it`)),
+    );
+    await expect(member.getByRole("dialog", { name: mine.name })).toHaveCount(0);
+    for (const path of ["messages", "dismiss", "recall", "seen"]) {
+      const res = await member.request.post(`/api/office-agents/${mine.id}/${path}`, {
+        data: { text: "hello" },
+        headers,
+      });
+      expect(res.status(), path).toBe(404);
+    }
+    expect((await member.request.get(`/api/office-agents/${mine.id}/conversation`)).status()).toBe(
+      404,
+    );
 
     // Into a project room on another level: the owner's agent comes along.
     if (process.env.E2E_DATA_DIR) {

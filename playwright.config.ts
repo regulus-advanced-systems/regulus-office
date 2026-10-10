@@ -16,6 +16,9 @@
  * office-server (docker runner backend, fake `claude` in a test runner image), so no webServer
  * is started.
  *
+ * The office's data dir is made under the system temp directory, or under `.e2e-local/tmp`
+ * when that is a small file system (tests/e2e/tempRoot.ts; `E2E_TMP_DIR` names another place).
+ *
  * Runners (#215): the office this config starts gets its own runner prefix, `rgo2e-<run>`,
  * so it never lists, recovers or reaps another office's runners, and the global teardown
  * removes exactly that prefix. Its Docker backend points at a socket that does not exist, so
@@ -25,11 +28,11 @@
  */
 import { randomBytes } from "node:crypto";
 import { mkdtempSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { defineConfig, devices } from "@playwright/test";
 import { E2E_GITHUB_CLIENT } from "./tests/e2e/githubClient.ts";
 import { newRunId, officeRunnerPrefix } from "./tests/e2e/runnerCleanup.ts";
+import { e2eTempRoot } from "./tests/e2e/tempRoot.ts";
 
 const external = process.env.E2E_BASE_URL?.replace(/\/+$/, "");
 const port = Number(process.env.E2E_PORT ?? 4610);
@@ -44,8 +47,11 @@ const AGENTS_SPECS = ["**/agents.e2e.ts", "**/meetings.e2e.ts"];
 const noWebServer = Boolean(external) || agents;
 
 // Evaluated once in the runner and again in each worker; the env var makes them agree.
-if (!noWebServer && !process.env.E2E_DATA_DIR)
-  process.env.E2E_DATA_DIR = mkdtempSync(join(tmpdir(), "regulus-e2e-"));
+// A data dir made here is this run's to remove (global-teardown.ts); one the caller named is not.
+if (!noWebServer && !process.env.E2E_DATA_DIR) {
+  process.env.E2E_DATA_DIR = mkdtempSync(join(e2eTempRoot(), "regulus-e2e-"));
+  process.env.E2E_DATA_DIR_MADE = "1";
+}
 if (!noWebServer && !process.env.E2E_RUN_ID) process.env.E2E_RUN_ID = newRunId();
 /** This run's runner prefix; the global teardown removes exactly its containers and volumes. */
 const runnerPrefix = noWebServer ? "" : officeRunnerPrefix(process.env.E2E_RUN_ID);

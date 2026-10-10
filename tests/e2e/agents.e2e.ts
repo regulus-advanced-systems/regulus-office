@@ -16,7 +16,6 @@
  * production mode (tests/e2e/agentOffice.ts). Run with `bun run e2e:agents`; needs Docker.
  */
 import { existsSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { type BrowserContext, expect, type Page, test } from "@playwright/test";
 import { collectAgentDiagnostics } from "./agentDiagnostics.ts";
@@ -61,6 +60,7 @@ import { checkHenchmanCheers } from "./gongChecks.ts";
 import { checkTerminalKeepsCtrlK } from "./paletteChecks.ts";
 import { checkPmRounds } from "./pmRoundsChecks.ts";
 import { freeDeskPoint, OFFICE_PROBE_PATH, waitForScene } from "./probes.ts";
+import { e2eTempRoot } from "./tempRoot.ts";
 import { checkHenchmanTerminal } from "./terminalChecks.ts";
 
 const run = Date.now().toString(36);
@@ -112,7 +112,7 @@ test.beforeAll(async ({ browser }) => {
     test.skip(true, "needs a Docker daemon (docker runner backend)");
   }
   buildRunnerImage();
-  dataDir = mkdtempSync(join(tmpdir(), "regulus-e2e-agents-"));
+  dataDir = mkdtempSync(join(e2eTempRoot(), "regulus-e2e-agents-"));
   // Container and volume name prefix; E2E_RUNNER_PREFIX keeps parallel worktrees apart.
   prefix = `${process.env.E2E_RUNNER_PREFIX ?? "rge2e"}-${run}`;
   github = await startFakeGitHub({
@@ -251,9 +251,12 @@ const henchmanOn = async (page: Page) => (await henchmen(page))[agentId];
 const typing = (segments: BoneSegment[]) =>
   segments.filter((s) => /^working\/\w+\/sit_type\//.test(s.key) && s.ms >= 500);
 
-/** Lets the fake `claude` stop editing and ask for permission (tests/e2e/runner/claude). */
-function letFakeAsk(): void {
-  sh("docker", ["exec", sandboxName(), "sh", "-c", 'touch "$HOME/.fake-claude-ask"']);
+/**
+ * Lets a fake `claude` that holds its edit stop editing and ask for permission
+ * (tests/e2e/runner/claude): the flow's henchman, or another one by its id.
+ */
+function letFakeAsk(id = agentId): void {
+  sh("docker", ["exec", `${prefix}-sbx-${id}`, "sh", "-c", 'touch "$HOME/.fake-claude-ask"']);
 }
 
 // ---- the flow ------------------------------------------------------------------------------
@@ -935,11 +938,17 @@ test("9. two queued tasks with concurrency 1 run one after the other, as their o
   await panel.getByRole("button", { name: "Save" }).click();
   await expect(panel).toContainText("(1 at once");
   const titles = ["Queued hello one", "Queued hello two"];
+  const before = new Set(Object.keys(await henchmen(ownerPage)));
   for (const title of titles) {
     await panel.getByRole("button", { name: "Queue a task…" }).click();
     const dialog = ownerPage.getByRole("dialog", { name: "Queue a task" });
     await dialog.getByLabel("Task title").fill(title);
-    await dialog.getByLabel(/^Prompt/).fill(`${title}: add a FAKE_CLAUDE.md`);
+    // The first task starts at once, and its henchman's request pops up as a dialog over
+    // whatever is open: it holds its edit until the second task is queued and the queue is
+    // closed (a fake that asked by itself after 6 s sometimes asked while this loop was
+    // still filling in the second task, and its dialog took the clicks, #299).
+    const hold = title === titles[0] ? " [hold the edit]" : "";
+    await dialog.getByLabel(/^Prompt/).fill(`${title}: add a FAKE_CLAUDE.md${hold}`);
     await dialog.getByRole("button", { name: "Queue task" }).click();
     await expect(dialog).toHaveCount(0);
     await expect(panel).toBeVisible();
@@ -951,6 +960,20 @@ test("9. two queued tasks with concurrency 1 run one after the other, as their o
   await expect(queued).toContainText("waiting for a free slot in this room");
   await ownerPage.keyboard.press("Escape");
   await expect(panel).toHaveCount(0);
+  // The first task's henchman is the one new in the room; once it works (its fake `claude`
+  // runs in its sandbox), it may ask.
+  let first = "";
+  await expect
+    .poll(
+      async () => {
+        const now = await henchmen(ownerPage);
+        first = Object.keys(now).find((id) => !before.has(id)) ?? "";
+        return now[first]?.status;
+      },
+      { timeout: 60_000 },
+    )
+    .toBe("working");
+  letFakeAsk(first);
 
   // Each henchman is the owner's (their login, their runner): the owner answers its request.
   for (const title of titles) {

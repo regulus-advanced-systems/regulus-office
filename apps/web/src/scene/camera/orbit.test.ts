@@ -5,6 +5,7 @@ import {
   clipPlanes,
   DEFAULT_DISTANCE,
   DEFAULT_ZOOM,
+  damp,
   dampYaw,
   defaultZoom,
   MIN_DISTANCE,
@@ -82,6 +83,29 @@ describe("the starting framing (#190)", () => {
     expect(zoomDistance(z, overviewDistance(128))).toBeCloseTo(DEFAULT_DISTANCE, 6);
     expect(zoomPitchDeg(z)).toBe(ORBIT_PITCH_DEG);
     expect(overviewBlend(z)).toBe(0);
+  });
+
+  test("easing takes the same time on the clock whatever the frame rate, and never overshoots", () => {
+    // One second in ten frames, in two, or in one: all but there, from the same side.
+    const eased = (frames: number) => {
+      let zoom = 0;
+      let yaw = 0;
+      for (let i = 0; i < frames; i++) {
+        zoom = damp(zoom, 1, 1 / frames, 8);
+        yaw = dampYaw(yaw, 1, 1 / frames, 9);
+      }
+      return { zoom, yaw };
+    };
+    for (const frames of [10, 2, 1]) {
+      const { zoom, yaw } = eased(frames);
+      expect(zoom).toBeGreaterThan(0.999);
+      expect(zoom).toBeLessThanOrEqual(1);
+      expect(yaw).toBeGreaterThan(0.999);
+      expect(yaw).toBeLessThanOrEqual(1);
+    }
+    // A frame that took a minute (the tab was away): on the target, not beyond it.
+    expect(damp(0, 1, 60, 8)).toBeLessThanOrEqual(1);
+    expect(dampYaw(0, 1, 60, 9)).toBeLessThanOrEqual(1);
   });
 
   test("a small compound starts as far out as it can without drifting off the player", () => {
