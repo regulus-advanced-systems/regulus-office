@@ -35,6 +35,15 @@ describe("movement help (#223)", () => {
     expect(social?.[1].map((b) => keyLabel(b.key))).toEqual(["G", "1-6", "Click a name"]);
   });
 
+  test("the command palette's Ctrl+K is listed with quick travel and is not a registry key (#261)", () => {
+    const nav = groupBindings(helpBindings(DEFAULT_HOTKEYS)).find(([g]) => g === "Navigation");
+    expect(nav?.[1].map((b) => keyLabel(b.key))).toEqual(["F", "Ctrl+K"]);
+    const r = createHotkeyRegistry(DEFAULT_HOTKEYS);
+    // A bare K, and K with Ctrl, mean nothing to the registry: the palette binds its own.
+    expect(r.resolve({ key: "k" })).toBeNull();
+    expect(r.resolve({ key: "k", ctrlKey: true })).toBeNull();
+  });
+
   test("the movement entries are not dispatched hotkeys", () => {
     const r = createHotkeyRegistry(DEFAULT_HOTKEYS);
     for (const b of [...MOVEMENT_HELP, ...SOCIAL_HELP])

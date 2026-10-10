@@ -66,9 +66,11 @@ export function tickJump(target: JumpTarget, progress: JumpProgress, deps: JumpD
       usePlayerStore.getState().setTarget(step.to.x, step.to.z);
       return true;
     case "open":
-      useSearchStore
-        .getState()
-        .setReveal({ agentId: target.agentId, docId: target.docId, query: target.query });
+      if (target.walkOnly) return false;
+      if (target.docId !== null)
+        useSearchStore
+          .getState()
+          .setReveal({ agentId: target.agentId, docId: target.docId, query: target.query });
       deps.openTerminal(target.agentId);
       return false;
     case "give_up":

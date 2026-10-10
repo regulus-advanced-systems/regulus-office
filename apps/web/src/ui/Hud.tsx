@@ -37,6 +37,7 @@ import { NotificationsHost } from "./notifications/NotificationsHost.tsx";
 import { AgentChatWindowHost } from "./office-agents/AgentChatWindow.tsx";
 import { AddOperationDialogHost } from "./operations/AddOperationDialog.tsx";
 import { OperationSettingsDialogHost } from "./operations/OperationSettingsDialog.tsx";
+import { CommandPaletteHost } from "./palette/CommandPalette.tsx";
 import { PictureDock } from "./pictures/PicturesHost.tsx";
 import { ProvidersPanelHost } from "./providers/ProvidersPanel.tsx";
 import { QueueHost } from "./queue/QueueHost.tsx";
@@ -87,6 +88,7 @@ export function HudDialogs() {
       <SpawnDialogHost />
       <TerminalModalHost />
       <SearchHost />
+      <CommandPaletteHost />
       <QuickTravelDialog />
       <LiftPanel />
     </>
