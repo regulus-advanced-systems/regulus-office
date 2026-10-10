@@ -81,6 +81,11 @@ function pushDocs(dataDir: string, owner: string, name: string): void {
   writeFileSync(join(work, "docs", "guide.md"), GUIDE);
   writeFileSync(join(work, "docs", "img", "sunset.png"), sunsetPng());
   symlinkSync("/etc/passwd", join(work, "docs", "passwd.md"));
+  const paragraph = "~~a ".repeat(4970);
+  writeFileSync(
+    join(work, "docs", "bomb.md"),
+    Array.from({ length: 25 }, () => paragraph).join("\n\n"),
+  );
   git(["add", "-A"], work);
   git(["commit", "--quiet", "-m", "docs for the bookshelf"], work);
   git(["push", "--quiet", "origin", "HEAD"], work);
@@ -140,7 +145,7 @@ export async function checkBookshelf(owner: Page, member: Page, operation: strin
   const open = await member.request.get(shelfUrl(room.id));
   expect(open.status()).toBe(200);
   const listed = ((await open.json()) as { docs: { path: string }[] }).docs.map((d) => d.path);
-  expect(listed).toEqual(["README.md", "docs/guide.md"]);
+  expect(listed).toEqual(["README.md", "docs/bomb.md", "docs/guide.md"]);
   // The symlink in the repo is not a document, and its path opens nothing.
   expect((await member.request.get(shelfUrl(room.id, "/file?path=docs/passwd.md"))).status()).toBe(
     404,
@@ -206,6 +211,21 @@ export async function checkBookshelf(owner: Page, member: Page, operation: strin
   await expect(hit).toContainText("docs/guide.md:3");
   await shot(owner, "04-reader-search");
   await hit.click();
+  await expect(reader.locator(".rg-doc h1")).toHaveText("Guide");
+
+  // A 497 KB document of unclosed markers (it froze the tab for a minute before the scan was
+  // made linear): it opens, and the page answers at once.
+  await reader.getByLabel("Find on the shelf").fill("");
+  await reader.getByRole("button", { name: "bomb.md" }).click();
+  await expect(reader.locator(".rg-shelf__path")).toHaveText("docs/bomb.md");
+  await expect(reader.locator(".rg-doc p").first()).toContainText("~~a ~~a ~~a", {
+    timeout: 10_000,
+  });
+  await expect(reader.locator(".rg-doc del")).toHaveCount(0);
+  const asked = Date.now();
+  expect(await owner.evaluate(() => document.querySelectorAll(".rg-doc p").length)).toBe(25);
+  expect(Date.now() - asked).toBeLessThan(5_000);
+  await reader.getByRole("button", { name: "guide.md" }).click();
   await expect(reader.locator(".rg-doc h1")).toHaveText("Guide");
 
   expect(
