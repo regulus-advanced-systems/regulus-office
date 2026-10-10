@@ -948,7 +948,13 @@ test("back where you left: a reload returns the owner to Apollo; the member, who
   // Two people walk into a room on another level and three pages load.
   test.setTimeout(300_000);
   await ensureApollo();
-  await checkReturnWhereYouLeft(ownerPage, memberPage, "Apollo", "octo/hello");
+  await checkReturnWhereYouLeft(
+    ownerPage,
+    memberPage,
+    "Apollo",
+    "octo/hello",
+    process.env.E2E_RETURN_SHOTS,
+  );
 });
 
 test("the jukebox: E opens it, a queued track plays in both browsers at the same playhead (#47)", async () => {
