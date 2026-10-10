@@ -629,6 +629,10 @@ async function main(): Promise<void> {
   officeAgents.boot();
   // "Send all home" before deleting an operation (#150): branches are kept, GitHub is not touched.
   // An office owner/admin clears everyone's henchmen, which is not henchman control (D12, #138).
+  // Board helpers follow their room (#56): stopped when it is archived, removed with it.
+  operations.lifecycle.residents = officeAgents.kioskRooms;
+  operations.service.onArchived = (operationId) =>
+    void officeAgents.kioskRooms.roomArchived(operationId);
   operations.lifecycle.henchmen = {
     sendHome: (actor, agentId) => agents.evacuate(actor, agentId),
   };

@@ -3,8 +3,8 @@
  * MCP (`../mcp.ts`) and REST (`../tool-routes.ts`) both end here, so the two
  * transports cannot differ in what they allow.
  *
- * Order of checks: the tool exists; the agent's preset includes it; the
- * input is valid; then the tool's own checks (operation access as the owner
+ * Order of checks: the tool exists; the agent's preset includes it; its job
+ * leaves it (a board helper has a short list, #56); the input is valid; then the tool's own checks (operation access as the owner
  * or by grant, acting person, caps). A shared agent's call is answered for
  * somebody (asking.ts, #301): who that is, is decided here, before the tool
  * runs, from how the call was authenticated and whose message the agent is
@@ -24,7 +24,8 @@ import {
   officeToolSpec,
   presetAllows,
   REACH_REFUSAL,
-  toolsForPreset,
+  roleAllowsTool,
+  toolsForAgent,
 } from "@regulus/protocol";
 import { z } from "zod";
 import { AUDIT_ACTIONS, writeAudit } from "../../auth/audit.ts";
@@ -111,6 +112,7 @@ export const TOOL_REACH: { readonly [N in OfficeToolName]: ToolReach } = {
 const DENIALS: ReadonlySet<OfficeToolError> = new Set([
   "unknown_tool",
   "preset_forbids",
+  "role_forbids",
   "not_found",
   "forbidden",
   "on_behalf_required",
@@ -139,9 +141,9 @@ export class OfficeTools {
     private readonly logger: Logger,
   ) {}
 
-  /** The tools the agent's preset includes, with their input schemas. */
-  list(agent: Pick<OfficeAgentRow, "preset">): PublishedTool[] {
-    return toolsForPreset(agent.preset).map((t) => ({
+  /** The tools the agent's preset and job include, with their input schemas. */
+  list(agent: Pick<OfficeAgentRow, "preset" | "role">): PublishedTool[] {
+    return toolsForAgent(agent).map((t) => ({
       ...t,
       inputSchema: SCHEMAS.get(t.name) ?? { type: "object" },
     }));
@@ -196,6 +198,7 @@ export class OfficeTools {
           ok: result.ok,
           ...(result.ok ? {} : { error: result.error }),
           preset: agent.preset,
+          role: agent.role,
           shared: agent.ownerUserId === null,
           ...(idOf(raw.operationId) ? { operationId: idOf(raw.operationId) } : {}),
           ...(idOf(raw.onBehalfOf) ? { onBehalfOf: idOf(raw.onBehalfOf) } : {}),
@@ -227,6 +230,9 @@ export class OfficeTools {
         "preset_forbids",
         `your privilege preset (${call.agent.preset}) does not include ${spec.name}; it needs ${spec.preset}`,
       );
+    }
+    if (!roleAllowsTool(call.agent.role, spec.name)) {
+      throw new ToolError("role_forbids", `a board helper does not have ${spec.name}`);
     }
     const parsed = OFFICE_TOOL_INPUTS[spec.name].safeParse(rawInput);
     if (!parsed.success) {

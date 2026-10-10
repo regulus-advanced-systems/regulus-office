@@ -11,6 +11,9 @@
  *   conversation, soul, memories and notes (D20, #136). An admin sees its card
  *   and may stop it in an emergency or remove it, and reads nothing of it;
  * - an owner has at most one PM, and so does the office;
+ * - a board helper (#56) is a shared agent placed at one board of one room by
+ *   an office owner or admin who can see that room; it exists only for people
+ *   who see the room, and its job and its room never change (kiosk/placements.ts);
  * - an agent somebody may not see answers 404, like one that does not exist.
  *
  * Every change is audited; entries never hold a token or a message's text.
@@ -23,7 +26,6 @@ import {
   mayCreateOfficeAgent,
   mayEmergencyStopOfficeAgent,
   mayRemoveOfficeAgent,
-  maySeeOfficeAgent,
   mayTalkToOfficeAgent,
   type OfficeAgentConversation,
   type OfficeAgentGrant,
@@ -40,10 +42,21 @@ import { AUDIT_ACTIONS, type AuditAction, writeAudit } from "../auth/audit.ts";
 import { AuthHttpError, forbidden } from "../auth/errors.ts";
 import { isOfficeManager, type OperationActor } from "../operations/access.ts";
 import { grantsAsSetBy } from "./access.ts";
+import { checkAgentConfig, refused } from "./config-check.ts";
 import type { Conversations } from "./conversations.ts";
 import type { AgentCredentials } from "./engines/credentials.ts";
 import { EngineRefusal } from "./engines/types.ts";
 import { answerRequest, pendingRequestsFor } from "./human-answers.ts";
+import {
+  checkKioskGrants,
+  checkKioskRole,
+  kioskDraftFor,
+  kioskNameScope,
+  kiosksByAgent,
+  placeKiosk,
+  seesAgent,
+} from "./kiosk/placements.ts";
+import { defaultKioskSoul } from "./kiosk/prompt.ts";
 import { checkMessageRate } from "./message-rate.ts";
 import type { MindService } from "./mind/people.ts";
 import type { HumanRequests } from "./requests.ts";
@@ -67,13 +80,15 @@ export interface OfficeAgentServiceDeps extends ViewExtras {
   scopes: RoomScopes;
   /** The soul's own writer: the instructions are its text (#136). */
   minds: Pick<MindService, "checkText" | "saveSoul">;
+  /** The office PM was created, changed or removed: helpers that run like it start anew (#56). */
+  pmChanged?: () => Promise<void>;
+  /** A person started their conversation with an agent over: what hung on it goes (#56). */
+  startedOver?: (agentId: string, userId: string) => void;
   now?: () => number;
 }
 
 const notFound = () => new AuthHttpError(404, "not_found");
 const conflict = (code: string) => new AuthHttpError(409, code);
-const refused = (err: EngineRefusal, status = 400) =>
-  new AuthHttpError(status, err.code, { message: err.message });
 
 export class OfficeAgentService {
   constructor(private readonly deps: OfficeAgentServiceDeps) {}
@@ -81,10 +96,12 @@ export class OfficeAgentService {
   // ---- Reading -----------------------------------------------------------------
 
   list(actor: OperationActor): OfficeAgentsResponse {
+    const { db } = this.deps.store;
+    const kiosks = kiosksByAgent(db);
     return {
       agents: this.deps.store
         .list()
-        .filter((row) => maySeeOfficeAgent(actor, row))
+        .filter((row) => seesAgent(db, actor, row, kiosks.get(row.id)))
         .map((row) => this.view(actor, row)),
       settings: this.deps.store.settings(),
       engines: this.deps.runtime.kinds(),
@@ -103,7 +120,7 @@ export class OfficeAgentService {
   /** The agent, when the actor may see it at all. */
   #visible(actor: OperationActor, id: string): OfficeAgentRow {
     const row = this.deps.store.get(id);
-    if (!row || !maySeeOfficeAgent(actor, row)) throw notFound();
+    if (!row || !seesAgent(this.deps.store.db, actor, row)) throw notFound();
     return row;
   }
 
@@ -133,21 +150,9 @@ export class OfficeAgentService {
     });
   }
 
-  /** The engine's and the credential rules' verdict on a configuration. */
-  #check(
-    row: Pick<OfficeAgentRow, "engine" | "ownerUserId" | "provider" | "profileId">,
-    full: OfficeAgentRow,
-  ) {
-    const engine = this.deps.runtime.engine(row.engine);
-    if (!engine) throw new AuthHttpError(400, "engine_unavailable");
-    try {
-      // Whatever the engine: a shared agent names an office key, a personal one what its owner may use.
-      this.deps.credentials.check(row);
-      engine.check(this.deps.runtime.engineAgent(full));
-    } catch (err) {
-      if (err instanceof EngineRefusal) throw refused(err);
-      throw err;
-    }
+  /** One of these is the office's PM: tell the helpers that run like it. */
+  async #pmChanged(...rows: OfficeAgentRow[]): Promise<void> {
+    if (rows.some((r) => r.ownerUserId === null && r.role === "pm")) await this.deps.pmChanged?.();
   }
 
   // ---- Configuration -------------------------------------------------------------
@@ -158,7 +163,11 @@ export class OfficeAgentService {
       throw forbidden(input.owner === "office" ? "owner_or_admin_required" : "viewers_cannot");
     }
     const ownerUserId = input.owner === "office" ? null : actor.id;
-    if (store.nameTaken(input.name)) throw conflict("name_taken");
+    // A board helper needs a board in a room its placer can see (#56).
+    const kiosk = kioskDraftFor(store.db, actor, input);
+    // A helper's name is unique in its room: a name somebody cannot see is not "taken" for them.
+    const nameScope = kiosk ? kioskNameScope(kiosk.placement.operationId) : undefined;
+    if (store.nameTaken(input.name, nameScope)) throw conflict("name_taken");
     if (ownerUserId !== null) {
       const cap = store.settings().personalAgentCap;
       if (store.countOwnedBy(ownerUserId) >= cap) {
@@ -179,24 +188,16 @@ export class OfficeAgentService {
       effort: input.effort ?? null,
       profileId: input.profileId ?? null,
       appearance: input.appearance ?? defaultOfficeAgentAppearance(input.role),
-      instructions: input.instructions,
+      instructions:
+        kiosk && !input.instructions.trim()
+          ? defaultKioskSoul(kiosk.placement.board)
+          : input.instructions,
       createdBy: actor.id,
     };
-    this.#check(draft, {
-      ...draft,
-      id: "draft",
-      nameKey: "",
-      dismissed: false,
-      stoppedByPerson: false,
-      status: "stopped",
-      statusReason: null,
-      engineState: "{}",
-      lastActivityAt: null,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    });
+    checkAgentConfig(this.deps, draft);
     this.deps.minds.checkText(draft.instructions);
-    const row = store.insert(store.db, draft);
+    const row = store.insert(store.db, draft, nameScope);
+    if (kiosk) placeKiosk(store, row.id, kiosk);
     // Version 1 of its soul (not awaited: a new agent is not running).
     void this.deps.minds
       .saveSoul(actor, row.id, { content: draft.instructions }, "created")
@@ -210,13 +211,16 @@ export class OfficeAgentService {
       provider: row.provider,
       model: row.model,
       appearance: row.appearance,
+      ...(kiosk ? { operationId: kiosk.placement.operationId, board: kiosk.placement.board } : {}),
     });
+    void this.#pmChanged(row);
     return this.view(actor, row);
   }
 
   async update(actor: OperationActor, id: string, patch: UpdateInput): Promise<OfficeAgentView> {
     const { store, runtime } = this.deps;
     const row = this.#configurable(actor, id);
+    if (patch.role !== undefined) checkKioskRole(row, patch.role);
     if (
       patch.role === "pm" &&
       row.role !== "pm" &&
@@ -234,7 +238,7 @@ export class OfficeAgentService {
       ...(patch.appearance !== undefined ? { appearance: patch.appearance } : {}),
       ...(patch.instructions !== undefined ? { instructions: patch.instructions } : {}),
     };
-    this.#check(next, next);
+    checkAgentConfig(this.deps, next, next);
     // The soul is saved by its own writer: a version, its audit entry, and a stop if it runs.
     if (patch.instructions !== undefined) {
       await this.deps.minds.saveSoul(actor, row.id, { content: patch.instructions });
@@ -256,6 +260,7 @@ export class OfficeAgentService {
       appearance: next.appearance,
     });
     if (!saved) throw notFound();
+    if (restart) await this.#pmChanged(row, saved);
     this.#audit(actor, AUDIT_ACTIONS.officeAgentUpdate, row.id, {
       fields: Object.keys(patch),
       ...(patch.preset !== undefined ? { preset: patch.preset } : {}),
@@ -271,6 +276,7 @@ export class OfficeAgentService {
     await this.deps.runtime.stop(row.id, row.engine);
     // Its soul, memories, notes, conversations and tokens go with it (cascade).
     this.deps.store.delete(row.id);
+    await this.#pmChanged(row);
     this.#audit(
       actor,
       byAdmin ? AUDIT_ACTIONS.officeAgentAdminRemove : AUDIT_ACTIONS.officeAgentDelete,
@@ -285,6 +291,7 @@ export class OfficeAgentService {
       // A personal agent has its owner's access, nothing can be granted on top.
       throw new AuthHttpError(400, "personal_agents_have_no_grants");
     }
+    checkKioskGrants(this.deps.store.db, row, grants);
     const merged = grantsAsSetBy(this.deps.store, actor, row.id, grants);
     if (!this.deps.store.setGrants(row.id, merged)) {
       throw new AuthHttpError(400, "unknown_operation");
@@ -374,6 +381,7 @@ export class OfficeAgentService {
   startOver(actor: OperationActor, id: string): OfficeAgentConversation {
     const row = this.#talkable(actor, id);
     this.deps.runtime.startOver(row, actor.id);
+    this.deps.startedOver?.(row.id, actor.id);
     this.#audit(actor, AUDIT_ACTIONS.officeAgentConversationStartOver, row.id, {
       shared: row.ownerUserId === null,
     });

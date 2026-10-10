@@ -21,7 +21,6 @@ import {
   type MindEntry,
   type MindEntryKind,
   mayReadOfficeAgentMind,
-  maySeeOfficeAgent,
   type OfficeAgentSoul,
   type SoulVersion,
   type SoulVersionSummary,
@@ -29,6 +28,7 @@ import {
 import { AUDIT_ACTIONS, type AuditAction, writeAudit } from "../../auth/audit.ts";
 import { AuthHttpError, forbidden } from "../../auth/errors.ts";
 import type { OperationActor } from "../../operations/access.ts";
+import { seesAgent } from "../kiosk/placements.ts";
 import type { AgentRuntime } from "../runtime.ts";
 import type { RoomScopes, Visible } from "../scope.ts";
 import type { OfficeAgentRow, OfficeAgentStore } from "../store.ts";
@@ -64,7 +64,9 @@ export class MindService {
   /** The agent, when the actor may read and change its soul, memories and notes. */
   #readable(actor: OperationActor, agentId: string): OfficeAgentRow {
     const row = this.deps.store.get(agentId);
-    if (!row || !maySeeOfficeAgent(actor, row)) throw new AuthHttpError(404, "not_found");
+    if (!row || !seesAgent(this.deps.store.db, actor, row)) {
+      throw new AuthHttpError(404, "not_found");
+    }
     if (!mayReadOfficeAgentMind(actor, row)) {
       throw forbidden(row.ownerUserId === null ? "owner_or_admin_required" : "not_your_agent");
     }

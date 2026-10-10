@@ -101,6 +101,8 @@ export function askHuman(call: ToolCall, input: OfficeToolInput<"ask_human">) {
 export function enqueueTask(call: ToolCall, input: OfficeToolInput<"enqueue_task">) {
   const person = actingPerson(call, input.onBehalfOf);
   requireOperation(call, input.operationId, "spawn", person);
+  // A board helper queues nothing itself (#56): the person sees the task and queues it.
+  if (call.agent.role === "kiosk") return proposeTask(call, person.id, input);
   try {
     const task = call.ports.enqueue(person, {
       operationId: input.operationId,
@@ -128,6 +130,46 @@ export function enqueueTask(call: ToolCall, input: OfficeToolInput<"enqueue_task
     }
     throw err;
   }
+}
+
+/**
+ * A helper's `enqueue_task`: a proposal for the person it is answering. What it
+ * read on the board is other people's text, so nothing here reaches the queue;
+ * the person confirms from their own browser (kiosk/proposals.ts).
+ */
+function proposeTask(call: ToolCall, userId: string, input: OfficeToolInput<"enqueue_task">) {
+  const repo = call.store.db
+    .select({ id: operationRepos.id })
+    .from(operationRepos)
+    .where(
+      and(eq(operationRepos.id, input.repoId), eq(operationRepos.operationId, input.operationId)),
+    )
+    .get();
+  if (!repo) throw new ToolError("not_found", "no such repo on this operation");
+  if ((input.kind === "freeform") === (input.refNumber !== undefined)) {
+    throw new ToolError("invalid_input", "issue and PR tasks need a number, freeform ones none");
+  }
+  if (input.kind === "freeform" && !input.prompt) {
+    throw new ToolError("invalid_input", "a freeform task needs a prompt");
+  }
+  const proposal = call.proposals.create(call.agent.id, userId, {
+    operationId: input.operationId,
+    repoId: input.repoId,
+    kind: input.kind,
+    ...(input.refNumber !== undefined ? { refNumber: input.refNumber } : {}),
+    ...(input.title ? { title: input.title } : {}),
+    ...(input.prompt ? { prompt: input.prompt } : {}),
+    provider: input.provider,
+    model: input.model,
+    ...(input.effort ? { effort: input.effort } : {}),
+  });
+  call.auditMeta = { proposalId: proposal.id };
+  return {
+    proposalId: proposal.id,
+    status: "awaiting_confirmation",
+    proposedFor: userId,
+    note: "Nothing is queued yet. The person now sees exactly this task and a Confirm button; it is queued only if they press it. Tell them to check it and confirm.",
+  };
 }
 
 export async function commentOnCard(call: ToolCall, input: OfficeToolInput<"comment_on_card">) {

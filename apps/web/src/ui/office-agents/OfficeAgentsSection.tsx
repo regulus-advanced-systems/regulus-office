@@ -94,6 +94,7 @@ export function OfficeAgentsSection({
           api={api}
           engines={data?.engines ?? []}
           canCreateShared={manager}
+          rooms={operations}
           busy={busy}
           onCreate={(input) => void create(input)}
           onCancel={() => setCreating(false)}

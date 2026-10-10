@@ -300,6 +300,30 @@ describe("the turn plan", () => {
     prompt: "-rf is not a flag here",
   };
 
+  test("a board helper's turn runs with the CLI's own memory off; other agents are as before (#56)", () => {
+    const credential = {
+      kind: "base_url_key",
+      baseUrl: "https://api.deepseek.com/anthropic",
+      apiKey: Secret.of("sk-FAKE-deepseek"),
+      attributedTo: "office",
+    } as const;
+    const helper = buildClaudeTurn({
+      ...base,
+      credential,
+      agent: { ...base.agent, role: "kiosk", kiosk: { operationId: "op-1", board: "issues" } },
+    });
+    expect(helper.env.reveal()).toMatchObject({
+      CLAUDE_CODE_DISABLE_AUTO_MEMORY: "1",
+      CLAUDE_CODE_DISABLE_CLAUDE_MDS: "1",
+    });
+    // No tool of its own to write a file with, either.
+    expect(helper.argv.join(" ")).toContain("--tools  --allowedTools mcp__office");
+    const other = Object.keys(buildClaudeTurn({ ...base, credential }).env.reveal());
+    expect(other.filter((k) => k.startsWith("CLAUDE_CODE_DISABLE_"))).toEqual([
+      "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC",
+    ]);
+  });
+
   test("secrets are in env and a 0600 file, never on argv; a DeepSeek profile sets the base URL", () => {
     const plan = buildClaudeTurn({
       ...base,

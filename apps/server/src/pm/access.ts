@@ -12,11 +12,14 @@
  * only). When it acts for a person (`onBehalfOf`), the result is the lower of
  * its grant and that person's own access, so it never does for someone what
  * they could not do themselves.
+ *
+ * A board helper (#56) is a shared agent that reaches its own room and no
+ * other, whatever its grants say, and nothing at all without a placement.
  */
 import type { OperationAccess, UserRole } from "@regulus/protocol";
-import { asc, isNull } from "drizzle-orm";
+import { asc, eq, isNull } from "drizzle-orm";
 import { AuthHttpError, forbidden } from "../auth/errors.ts";
-import { operations } from "../db/schema/index.ts";
+import { officeAgentKiosks, operations } from "../db/schema/index.ts";
 import {
   accessibleOperations,
   type OperationActor,
@@ -68,6 +71,15 @@ export function grantsAsSetBy(
 export class AgentAccess {
   constructor(private readonly store: OfficeAgentStore) {}
 
+  /** The room a board helper stands in; undefined when it has no placement. */
+  #kioskRoom(agentId: string): string | undefined {
+    return this.store.db
+      .select({ operationId: officeAgentKiosks.operationId })
+      .from(officeAgentKiosks)
+      .where(eq(officeAgentKiosks.agentId, agentId))
+      .get()?.operationId;
+  }
+
   /** The owner of a personal agent as they are now; null for a shared agent or a vanished owner. */
   owner(agent: OfficeAgentRow): AgentPerson | null {
     if (agent.ownerUserId === null) return null;
@@ -88,6 +100,7 @@ export class AgentAccess {
       const owner = this.owner(agent);
       return owner ? operationAccessFor(this.store.db, owner, operationId) : null;
     }
+    if (agent.role === "kiosk" && this.#kioskRoom(agent.id) !== operationId) return null;
     const grant = this.store.grantFor(agent.id, operationId);
     if (!forPerson) return grant;
     return lowerAccess(grant, operationAccessFor(this.store.db, forPerson, operationId));
@@ -95,7 +108,12 @@ export class AgentAccess {
 
   /** Every live operation open to the agent, with its access. */
   operations(agent: OfficeAgentRow): Array<{ operationId: string; access: OperationAccess }> {
-    if (agent.ownerUserId === null) return this.store.grants(agent.id);
+    if (agent.ownerUserId === null) {
+      const grants = this.store.grants(agent.id);
+      if (agent.role !== "kiosk") return grants;
+      const room = this.#kioskRoom(agent.id);
+      return grants.filter((g) => g.operationId === room);
+    }
     const owner = this.owner(agent);
     if (!owner) return [];
     const out: Array<{ operationId: string; access: OperationAccess }> = [];

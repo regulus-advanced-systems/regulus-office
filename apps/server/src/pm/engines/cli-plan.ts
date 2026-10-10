@@ -39,6 +39,7 @@ import {
   type SpawnPlan,
 } from "@regulus/agent-adapters";
 import { type BackendId, OFFICE_MCP_SERVER_NAME } from "@regulus/protocol";
+import { kioskFrame } from "../kiosk/prompt.ts";
 import type { EngineAgent } from "./types.ts";
 
 export interface CliTurnInput {
@@ -82,15 +83,18 @@ export function rolePrompt(agent: EngineAgent, memory = ""): string {
     whose,
     `You act only through the "${OFFICE_MCP_SERVER_NAME}" MCP tools; your privilege preset is "${agent.preset}". A refused tool call is final: say what was refused and why, do not work around it.`,
     "Your final answer is shown to the person as your reply, so answer them directly and briefly.",
-    ...(agent.ownerUserId === null
-      ? [
-          "You keep memories and notes in the office (memory_save, memory_search, note_write, note_read): they outlast every conversation and you use them with everyone, and the office's admins can read them. Save what helps the office; never what one person told you in confidence, and never a password, key or token.",
-          // #301: the office enforces this whatever the agent does; the words are so it can say why.
-          'People see different rooms. In each turn the office shows you only the rooms the person you are answering can see themselves, whatever rooms you were given: a room that is closed to them answers "no such operation", and so do memories, notes and questions about it. Do not tell anyone about a room from what you recall of another conversation. What you save is kept with the rooms your conversation looked at and reaches only people who can see those rooms. For the same reason the office may refuse to post, comment, queue a task, start a henchman or ask someone from this conversation; then tell the person so, and that "Start this conversation over" in this chat clears it.',
-        ]
-      : [
-          "You keep memories and notes in the office (memory_save, memory_search, note_write, note_read): they outlast every conversation, and only your owner can read them. Save what you should still know next time; never a password, key or token.",
-        ]),
+    // A board helper (#56) has no memory tools: it is told what it is instead.
+    ...(agent.kiosk
+      ? [kioskFrame(agent.kiosk)]
+      : agent.ownerUserId === null
+        ? [
+            "You keep memories and notes in the office (memory_save, memory_search, note_write, note_read): they outlast every conversation and you use them with everyone, and the office's admins can read them. Save what helps the office; never what one person told you in confidence, and never a password, key or token.",
+            // #301: the office enforces this whatever the agent does; the words are so it can say why.
+            'People see different rooms. In each turn the office shows you only the rooms the person you are answering can see themselves, whatever rooms you were given: a room that is closed to them answers "no such operation", and so do memories, notes and questions about it. Do not tell anyone about a room from what you recall of another conversation. What you save is kept with the rooms your conversation looked at and reaches only people who can see those rooms. For the same reason the office may refuse to post, comment, queue a task, start a henchman or ask someone from this conversation; then tell the person so, and that "Start this conversation over" in this chat clears it.',
+          ]
+        : [
+            "You keep memories and notes in the office (memory_save, memory_search, note_write, note_read): they outlast every conversation, and only your owner can read them. Save what you should still know next time; never a password, key or token.",
+          ]),
     agent.instructions.trim(),
     memory.trim(),
   ]
@@ -170,6 +174,14 @@ export function buildClaudeTurn(input: CliTurnInput): SpawnPlan {
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1",
   });
   if (input.backend === "docker") env = env.with("IS_SANDBOX", "1");
+  // A board helper keeps nothing between conversations (#56): the CLI's own memory files
+  // (auto memory, CLAUDE.md) are neither read nor written. Both variables are documented at
+  // https://code.claude.com/docs/en/env-vars.md.
+  if (input.agent.kiosk) {
+    env = env
+      .with("CLAUDE_CODE_DISABLE_AUTO_MEMORY", "1")
+      .with("CLAUDE_CODE_DISABLE_CLAUDE_MDS", "1");
+  }
   return {
     agentId: input.agent.id,
     provider: "claude-code",

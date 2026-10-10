@@ -175,6 +175,14 @@ const OFFICE_ROUTES: Record<string, string> = {
   "POST /api/office-agents/:id/conversation/start-over":
     "office agents: the caller's own conversation",
   "POST /api/office-agents/:id/messages": "office agents: the caller's own conversation",
+  "GET /api/office-agents/:id/proposals":
+    "board helpers (#56): the caller's own proposals; the helper's room is checked by the gate",
+  "POST /api/office-agents/:id/proposals/:proposalId/confirm":
+    "board helpers (#56): the caller's own proposal; the room and the queue check again",
+  "POST /api/office-agents/:id/proposals/:proposalId/dismiss":
+    "board helpers (#56): the caller's own proposal",
+  "GET /api/office-agents/:id/brief":
+    "board helpers (#56): the helper's room is checked by the gate; 404 without it (pm/kiosk)",
   "GET /api/credential-profiles": "the caller's own provider profiles",
   "GET /api/credential-profiles/manage": "office provider keys",
   "POST /api/credential-profiles": "provider profiles",

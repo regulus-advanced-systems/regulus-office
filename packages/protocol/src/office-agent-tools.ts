@@ -28,7 +28,11 @@ import {
   NoteTitle,
   OFFICE_AGENT_MIND_LIMITS,
 } from "./office-agent-mind.ts";
-import { OFFICE_AGENT_LIMITS, type OfficeAgentPreset } from "./office-agents.ts";
+import {
+  OFFICE_AGENT_LIMITS,
+  type OfficeAgentPreset,
+  type OfficeAgentRole,
+} from "./office-agents.ts";
 
 export const OFFICE_MCP_PATH = "/mcp";
 export const OFFICE_AGENT_TOOLS_API_PATH = "/api/agent-tools";
@@ -327,11 +331,49 @@ export function toolsForPreset(preset: OfficeAgentPreset): OfficeToolSpec[] {
   return OFFICE_TOOLS.filter((t) => RANK[preset] >= RANK[t.preset]);
 }
 
+/**
+ * The only tools a board helper has (#56), whatever its preset: it reads its
+ * room and queues tasks. No comments, no chat, no henchmen, no questions to
+ * people, no memories or notes (a helper at a board keeps nothing about the
+ * people who walk up to it).
+ */
+export const KIOSK_TOOLS: readonly OfficeToolName[] = [
+  "list_operations",
+  "list_henchmen",
+  "read_board",
+  "read_queue",
+  "soul_read",
+  "enqueue_task",
+];
+
+/** What an agent's job leaves of the tools: everything, except for a board helper. */
+export function roleAllowsTool(role: OfficeAgentRole, tool: OfficeToolName): boolean {
+  return role !== "kiosk" || KIOSK_TOOLS.includes(tool);
+}
+
+/** Does this agent have the tool? Its preset must include it and its job must leave it. */
+export function agentAllowsTool(
+  agent: { role: OfficeAgentRole; preset: OfficeAgentPreset },
+  tool: OfficeToolName,
+): boolean {
+  return presetAllows(agent.preset, tool) && roleAllowsTool(agent.role, tool);
+}
+
+/** The tools an agent has, in list order. */
+export function toolsForAgent(agent: {
+  role: OfficeAgentRole;
+  preset: OfficeAgentPreset;
+}): OfficeToolSpec[] {
+  return toolsForPreset(agent.preset).filter((t) => roleAllowsTool(agent.role, t.name));
+}
+
 /** Error codes a refused or failed tool call carries (REST `error`, MCP `structuredContent.error`). */
 export const OFFICE_TOOL_ERRORS = [
   "unknown_tool",
   "invalid_input",
   "preset_forbids",
+  /** The agent's job does not include the tool: a board helper asked for more than its board (#56). */
+  "role_forbids",
   "not_found",
   "forbidden",
   "on_behalf_required",

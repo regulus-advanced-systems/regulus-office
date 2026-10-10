@@ -21,6 +21,7 @@ import { useBuildingStore } from "../../state/building.ts";
 import {
   bodyCaption,
   canChatWith,
+  isBoardHelper,
   isOwnBody,
   useAgentAttention,
   useAgentChatWindow,
@@ -34,6 +35,8 @@ import { Modal } from "../components/Modal.tsx";
 import { AgentChat } from "./AgentChat.tsx";
 import { createOfficeAgentsApi, describeOfficeAgentsError, type OfficeAgentsApi } from "./api.ts";
 import { openOfficeAgentChat } from "./chatRequest.ts";
+import { KioskBrief } from "./KioskBrief.tsx";
+import { KioskProposals } from "./KioskProposals.tsx";
 import { PendingRequests } from "./PendingRequests.tsx";
 
 /** In case a nudge from the office was missed (a reconnect), ms. */
@@ -142,8 +145,12 @@ function ChatWindow({
             ? body.dismissed
               ? ", roaming the lair."
               : ", at your side."
-            : ", shared by the office."}
+            : isBoardHelper(body)
+              ? `, ${body.doing || "at its board"}.`
+              : ", shared by the office."}
         </p>
+        {isBoardHelper(body) && <KioskBrief api={api} agentId={body.agentId} />}
+        {isBoardHelper(body) && <KioskProposals api={api} agentId={body.agentId} />}
         <PendingRequests
           requests={requests}
           busy={busy}
