@@ -23,6 +23,10 @@ const ROOM_ROUTES = [
   "PUT /api/whiteboards/:boardId/snapshot",
   "POST /api/operations/:operationId/pictures",
   "GET /api/operations/:operationId/pictures/:decorId",
+  "GET /api/operations/:operationId/docs",
+  "GET /api/operations/:operationId/docs/file",
+  "GET /api/operations/:operationId/docs/search",
+  "GET /api/operations/:operationId/docs/image",
   "GET /api/boards/:operationId/:kind/:repoId/:number",
   "GET /api/boards/:operationId/:repoId/assignees",
   "POST /api/boards/:operationId/:kind/:repoId/:number/comment",
@@ -215,6 +219,9 @@ function request(route: string, ids: Ids, userId: string) {
   });
   if (!pattern.includes(":") && method === "GET") path += `?operationId=${ids.operationId}`;
   if (pattern.endsWith("/changes/file") || pattern.endsWith("/changes/blob")) path += "?path=a";
+  // The bookshelf (#264): the repo's README (its heading is the room's marker word).
+  if (pattern.endsWith("/docs/file") || pattern.endsWith("/docs/image")) path += "?path=README.md";
+  if (pattern.endsWith("/docs/search")) path += "?q=secret";
   const bodies: Record<string, unknown> = {
     "POST /api/workflows": { operationId: ids.operationId, name: "w" },
     "POST /api/meetings": { operationId: ids.operationId, repoId: ids.repoId, topic: "t" },
