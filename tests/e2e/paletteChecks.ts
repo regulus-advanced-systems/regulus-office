@@ -103,8 +103,9 @@ export async function checkCommandPalette(owner: Page, member: Page): Promise<vo
 
   // A room: Enter, and the member stands at its door.
   const before = await navPose(member);
-  await box(member).fill("war room");
-  await expect(rows(member).first()).toContainText("Go to War room");
+  // (The lobby's own door: near enough to walk back from at a software-GL frame rate.)
+  await box(member).fill("go to lobby");
+  await expect(rows(member).first()).toContainText("Go to Lobby");
   await member.keyboard.press("Enter");
   await expect(palette(member)).toHaveCount(0);
   await expect
@@ -116,6 +117,8 @@ export async function checkCommandPalette(owner: Page, member: Page): Promise<vo
 }
 
 const board = (page: Page) => page.getByRole("dialog", { name: "Whiteboard: Lobby" });
+/** Where the test's shape is drawn, as a fraction of the board's area (its top-left corner). */
+const SHAPE_AT = 0.42;
 
 /**
  * The real whiteboard keeps Ctrl+K: with a shape selected Excalidraw opens its link editor,
@@ -126,15 +129,18 @@ export async function checkWhiteboardKeepsCtrlK(page: Page): Promise<void> {
   await openLobbyBoard(page);
   const before = (await boardIds(page)).length;
   // A drawn shape stays selected, which is when Ctrl+K means "link" to Excalidraw.
-  await drawRectangle(page, 0.42, 0.42);
+  await drawRectangle(page, SHAPE_AT, SHAPE_AT);
   await expect.poll(async () => (await boardIds(page)).length).toBe(before + 1);
   await page.keyboard.press("Control+k");
   await expect(page.locator(".excalidraw-hyperlinkContainer")).toBeVisible();
   await expect(palette(page)).toHaveCount(0);
   await shot(page, "whiteboard-keeps-ctrl-k");
-  // Clean up: out of the link editor (the shape stays selected), delete the shape.
+  // Clean up: out of the link editor, then the shape (picked by its top edge) is deleted.
   await page.keyboard.press("Escape");
   await expect(board(page)).toBeVisible();
+  const area = await board(page).locator(".rg-whiteboard__body").boundingBox();
+  if (!area) throw new Error("no board area");
+  await page.mouse.click(area.x + area.width * SHAPE_AT + 60, area.y + area.height * SHAPE_AT);
   await page.keyboard.press("Delete");
   await expect.poll(async () => (await boardIds(page)).length).toBe(before);
   await page.getByRole("button", { name: "Close whiteboard" }).click();
