@@ -368,6 +368,8 @@ describe("OfficeClient", () => {
           doing: "",
           seatId: "",
           sharingScreen: false,
+          cups: 0,
+          buzzUntil: 0,
           joinedAt: 1,
         };
       });
@@ -404,6 +406,8 @@ describe("OfficeClient", () => {
         doing: "",
         seatId: "",
         sharingScreen: false,
+        cups: 0,
+        buzzUntil: 0,
         joinedAt: 1,
       };
     });

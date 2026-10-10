@@ -20,6 +20,7 @@ import {
 } from "@regulus/protocol";
 import {
   type CompoundRoomInput,
+  coffeeMachineSpot,
   compoundStateOf,
   computeCompoundLayout,
   defaultCompoundSpec,
@@ -431,3 +432,52 @@ test("a client that sends itself into a sealed room does not come back there", a
   expect(oz.first).toEqual(AT_SPAWN);
   expect(stored("u-oz")).toBeUndefined();
 });
+
+test("only the place comes back: a coffee buzz does not (#63)", async () => {
+  person("u-joe");
+  const machine = coffeeMachineSpot(compoundStateOf(computeCompoundLayout(spec, [])));
+  if (!machine) throw new Error("no coffee machine");
+  const place: ReturnPlace = { ...AT_SPAWN, x: machine.stand.x, z: machine.stand.z, heading: 1 };
+  const { room } = await joinAs("u-joe");
+  room.send("move", { x: place.x, z: place.z, heading: place.heading });
+  const me = () => room.state.humans.get(room.sessionId);
+  await waitFor(() => me()?.position.x === place.x, "Joe at the machine");
+  room.send("coffee.drink", {});
+  await waitFor(() => (me()?.cups ?? 0) === 1 && (me()?.buzzUntil ?? 0) > 0, "Joe's cup");
+  await Promise.race([room.leave(), Bun.sleep(500)]);
+  await waitFor(() => stored("u-joe")?.x === place.x, "Joe's place to be remembered");
+
+  // Back at the machine, on a new presence: no cups and no buzz carried over.
+  const joe = await joinAs("u-joe");
+  expect(joe.first).toEqual(place);
+  const back = joe.room.state.humans.get(joe.room.sessionId);
+  expect(back?.cups).toBe(0);
+  expect(back?.buzzUntil).toBe(0);
+});
+
+test("an agent its owner stopped while they were away is not beside them on return (#301)", async () => {
+  person("u-sam");
+  const place: ReturnPlace = { ...AT_SPAWN, x: SPAWN.x + 4, z: SPAWN.z - 1, heading: 0.5 };
+  agents = [personalAgent("u-sam")];
+  const watcher = await joinAs("u-mia");
+  const body = (room: BuildingRoom) => room.state.officeAgents?.get("agent-of-u-sam");
+  const first = await joinAs("u-sam");
+  await waitFor(() => body(first.room)?.mode === "follow", "the agent with its owner", 6000);
+  first.room.send("move", { x: place.x, z: place.z, heading: place.heading });
+  await waitFor(
+    () => first.room.state.humans.get(first.room.sessionId)?.position.x === place.x,
+    "Sam at the spot",
+  );
+  await Promise.race([first.room.leave(), Bun.sleep(500)]);
+  await waitFor(() => stored("u-sam")?.x === place.x, "Sam's place to be remembered");
+  // Stopped by its owner: the office's agent list leaves it out (pm/setup.ts), so it has no body.
+  agents = [];
+  await waitFor(() => body(watcher.room) === undefined, "the body to go", 6000);
+
+  const sam = await joinAs("u-sam");
+  expect(sam.first).toEqual(place);
+  // Longer than the world takes to re-read its agents and step: still nobody beside them.
+  await Bun.sleep(2600);
+  expect(body(sam.room)).toBeUndefined();
+  // The world re-reads its agents every two seconds, and this waits for that twice.
+}, 20_000);
