@@ -268,19 +268,14 @@ test("the owner, an invited member and an invited admin sign in", async () => {
   expect(me.role).toBe("owner");
   ownerId = me.id;
 
-  const invite = (await api(ownerPage, "POST", "/api/invites", { role: "member" })) as {
-    url: string;
+  // The member and the admin join through their invites at the same time (#299).
+  const join = async (page: Page, who: typeof owner, role: "member" | "admin") => {
+    const invite = (await api(ownerPage, "POST", "/api/invites", { role })) as { url: string };
+    await page.goto(invite.url);
+    await register(page, who, "Create account and join");
+    expect(await api(page, "GET", "/api/me")).toMatchObject({ role });
   };
-  await memberPage.goto(invite.url);
-  await register(memberPage, member, "Create account and join");
-  expect(await api(memberPage, "GET", "/api/me")).toMatchObject({ role: "member" });
-
-  const adminInvite = (await api(ownerPage, "POST", "/api/invites", { role: "admin" })) as {
-    url: string;
-  };
-  await adminPage.goto(adminInvite.url);
-  await register(adminPage, admin, "Create account and join");
-  expect(await api(adminPage, "GET", "/api/me")).toMatchObject({ role: "admin" });
+  await Promise.all([join(memberPage, member, "member"), join(adminPage, admin, "admin")]);
 
   // Rooms open with each person's own GitHub access (#270): all three link their accounts.
   // On GitHub the owner administers the repo; the member and the admin may read it, so they
