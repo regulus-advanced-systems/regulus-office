@@ -386,6 +386,10 @@ export async function checkAgentsInTheWorld(owner: Page, member: Page, shots?: s
       404,
     );
 
+    // The member goes back to the lobby, where the step found them and the next one expects
+    // them (quick travel; they walk in while the owner goes on).
+    expect(await travelToRoom(member, lobby.name)).toBe(true);
+
     // Into a project room on another level: the owner's agent comes along.
     if (process.env.E2E_DATA_DIR) {
       await owner.bringToFront();
@@ -414,6 +418,7 @@ export async function checkAgentsInTheWorld(owner: Page, member: Page, shots?: s
         .poll(async () => (await bodyOf(member, mine.id))?.name, { timeout: 30_000 })
         .toBe(mine.name);
     }
+    await standIn(member, lobby);
   } finally {
     // Leave nothing behind, so the step can run again.
     for (const agent of [mine, shared]) {
