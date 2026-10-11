@@ -328,6 +328,8 @@ export async function checkAgentsInTheWorld(owner: Page, member: Page, shots?: s
           owner,
           office.id,
           async () => {
+            // Once the owner has walked over and stands: a picture from a walk is of the walk.
+            if ((await navPose(owner)).walking) return;
             await owner.screenshot({ path: `${shots}/shared-agent-wandering.png` });
             taken = true;
           },
