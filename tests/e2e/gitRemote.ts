@@ -28,7 +28,9 @@ export function createRemoteRepo(dataDir: string, owner: string, name: string, b
   const bare = join(dataDir, "remotes", owner, `${name}.git`);
   mkdirSync(join(dataDir, "remotes", owner), { recursive: true });
   git(["init", "--quiet", "--bare", `--initial-branch=${branch}`, bare]);
-  const work = mkdtempSync(join(tmpdir(), "regulus-e2e-work-"));
+  // The scratch clone lives in the run's data dir and goes with it (it used to be left in the
+  // system temp directory, one per run, #299).
+  const work = mkdtempSync(join(dataDir, "remote-work-"));
   git(["init", "--quiet", `--initial-branch=${branch}`, work]);
   writeFileSync(join(work, "README.md"), `# ${name}\n`);
   git(["add", "README.md"], work);

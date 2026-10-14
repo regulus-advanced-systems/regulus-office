@@ -7,7 +7,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Browser, BrowserContext, Page } from "@playwright/test";
-import { walkToLobby } from "./compoundProbes.ts";
+import { goToLobbyLevel, walkToLobby } from "./compoundProbes.ts";
 import type { GeniusLook } from "./geniusChecks.ts";
 import { OFFICE_PROBE_PATH, waitForScene } from "./probes.ts";
 
@@ -70,14 +70,13 @@ export async function openOffice(browser: Browser): Promise<OfficeSession> {
   const memberCtx = await browser.newContext({ storageState: statePath("member") });
   const ownerPage = await ownerCtx.newPage();
   const memberPage = await memberCtx.newPage();
-  await ownerPage.goto(OFFICE_PROBE_PATH);
-  await memberPage.goto(OFFICE_PROBE_PATH);
-  await waitForScene(ownerPage);
-  await waitForScene(memberPage);
+  // The two pages load, and then walk to the lobby, at the same time.
+  await Promise.all([ownerPage.goto(OFFICE_PROBE_PATH), memberPage.goto(OFFICE_PROBE_PATH)]);
+  await Promise.all([waitForScene(ownerPage), waitForScene(memberPage)]);
   // People come back where they left (#262), so after a failed step these new pages open
   // wherever that step left them. Every step starts from the lobby, as before.
-  await walkToLobby(ownerPage);
-  await walkToLobby(memberPage);
+  for (const page of [ownerPage, memberPage]) await goToLobbyLevel(page);
+  await Promise.all([walkToLobby(ownerPage), walkToLobby(memberPage)]);
   // A first gesture, as a person's first click: the browser lets a page play sound only after
   // one (audio/context.ts), and the jukebox step must not depend on earlier steps' typing.
   for (const page of [memberPage, ownerPage]) {

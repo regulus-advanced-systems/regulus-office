@@ -57,7 +57,12 @@ export function Confetti({ bus, name = "confetti" }: { bus: ConfettiBus; name?: 
   useFrame((_, delta) => {
     const m = mesh.current;
     if (!m) return;
-    for (const origin of bus.pending.splice(0)) field.burst(origin, origin.count);
+    for (const origin of bus.pending.splice(0)) {
+      field.burst(origin, origin.count);
+      // Bursts fired so far, for the e2e probes: a burst lives 2.2 s of wall-clock, so a page
+      // that draws a frame every few seconds may never show one alive (#299). Plain data.
+      m.userData.bursts = (Number(m.userData.bursts) || 0) + 1;
+    }
     field.step(delta);
     let n = 0;
     for (const p of field.particles) {

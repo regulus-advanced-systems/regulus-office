@@ -40,3 +40,6 @@ blob-report
 
 # Off-volume backups (scripts/setup.sh creates the directory)
 deploy/backups/
+
+# Local e2e runs: data dirs, traces and notes that must survive a run (see CONTRIBUTING)
+.e2e-local

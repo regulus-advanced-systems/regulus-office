@@ -110,7 +110,7 @@ export async function checkSitAndStand(owner: Page, member: Page): Promise<void>
     if (distance(pose, seat) < 1.6 && !pose.walking) return;
     if (!pose.walking) expect(await walkTo(owner, seat.x, seat.z - 1)).toBe(true);
     throw new Error("walking to the sofa");
-  }).toPass({ timeout: 60_000, intervals: [500, 1_000] });
+  }).toPass({ timeout: 60_000, intervals: [200, 400] });
   await waitStill(owner);
   await focusScene(owner);
   await owner.keyboard.press("e");
@@ -171,6 +171,6 @@ export async function backToLobbyMiddle(page: Page): Promise<void> {
     if (distance(pose, middle) < 1 && !pose.walking) return;
     if (!pose.walking) expect(await walkTo(page, middle.x, middle.z)).toBe(true);
     throw new Error("walking to the middle of the lobby");
-  }).toPass({ timeout: 60_000, intervals: [500, 1_000] });
+  }).toPass({ timeout: 60_000, intervals: [200, 400] });
   await waitStill(page);
 }

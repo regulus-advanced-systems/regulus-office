@@ -102,7 +102,7 @@ import {
   humans,
   localPose,
   remoteHumans,
-  sampleLocalPoses,
+  sampleLocalWalk,
   screenPointOf,
 } from "./probes.ts";
 import { checkReturnWhereYouLeft } from "./returnChecks.ts";
@@ -447,7 +447,8 @@ test("the player turns to follow the cursor and walks face-first to a click", as
   const click = await screenPointOf(ownerPage, target);
   if (!click) throw new Error("target not on screen");
   await ownerPage.mouse.click(click.x, click.y);
-  const samples = await sampleLocalPoses(ownerPage, 1500);
+  // Every frame of the walk, to its end: the count below does not depend on the frame rate.
+  const samples = await sampleLocalWalk(ownerPage);
   const steps = samples.slice(1).flatMap((p, i) => {
     const prev = samples[i];
     if (!prev || distance(p, prev) < 0.01) return [];

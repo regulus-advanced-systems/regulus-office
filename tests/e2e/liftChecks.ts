@@ -149,7 +149,7 @@ export async function checkOpenAndClosedRooms(
     if (!pose.walking && Math.hypot(pose.x - door.x, pose.z - door.z) <= 1) return;
     if (!pose.walking) expect(await walkTo(member, door.x, door.z)).toBe(true);
     throw new Error("walking to the closed door");
-  }).toPass({ timeout: 90_000, intervals: [500, 1_000] });
+  }).toPass({ timeout: 90_000, intervals: [200, 400] });
   await walkTo(member, inside.x + inside.w / 2, inside.z + inside.d / 2);
   await waitStill(member);
   expect((await navPose(member)).room).not.toBe(inside.id);
@@ -168,7 +168,7 @@ export async function checkOpenAndClosedRooms(
     if (pose.room === target.id && pose.operationId === target.id) return;
     if (!pose.walking) expect(await walkTo(member, target.inside.x, target.inside.z)).toBe(true);
     throw new Error(`walking into ${open}`);
-  }).toPass({ timeout: 180_000, intervals: [500, 1_000] });
+  }).toPass({ timeout: 180_000, intervals: [200, 400] });
 
   // Access taken away again: the level is gone for them, and they are on the lobby level.
   await setRepoPermission(officeGitHubUrl(), MEMBER_GITHUB, openRepo, "none");

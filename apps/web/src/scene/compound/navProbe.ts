@@ -3,6 +3,7 @@
  * when the page is opened with `?stats` (like `__regulusR3F`): the e2e
  * flows read where the player is and which room they are in, and walk by
  * nav state instead of screen points. `walkTo` does what a floor click does;
+ * `travelInto` what picking a room in quick travel does;
  * `walkToSeat` walks up behind a desk's chair; `humanSeat` is where a chair
  * or couch humans may take is (#49); `terminalDesk`
  * is the desk `E` would open (the same rule the live laptop panel uses).
@@ -12,6 +13,7 @@ import { cameraView, useCameraStore } from "../../state/camera.ts";
 import { levelLabel, levelLabelOf, levelList, useLevelStore } from "../../state/level.ts";
 import { useOperationStore } from "../../state/operation.ts";
 import { usePlayerStore } from "../../state/player.ts";
+import { travelTo } from "../../state/travel.ts";
 import { terminalDeskAt } from "../laptops/focus.ts";
 import { seatByKey } from "../social/seats.ts";
 import { platePose } from "./closed.ts";
@@ -50,6 +52,12 @@ export interface NavProbe {
   /** A seat's position in compound metres, or null. */
   seat(operationId: string, seatId: string): { x: number; z: number } | null;
   walkTo(x: number, z: number): boolean;
+  /**
+   * Quick travel to the room called `roomName` (a project room on whichever level, or a
+   * fixed room of the level being looked at) and walk in, as its row in the quick travel
+   * dialog does. False while it is not there to travel to.
+   */
+  travelInto(roomName: string): boolean;
   walkToSeat(operationId: string, seatId: string): boolean;
   /** A human seat (`<roomId>/<seatId>`, #49) in compound metres, or null. */
   humanSeat(key: string): { x: number; z: number } | null;
@@ -136,6 +144,15 @@ export function createNavProbe(getWorld: () => CompoundWorld | null): NavProbe {
       return seat ? { x: seat.x, z: seat.z } : null;
     },
     walkTo: (x, z) => usePlayerStore.getState().setTarget(x, z),
+    travelInto(roomName) {
+      // A project room by its name, on whichever level; else a fixed room of this level
+      // (the war room, the break room) by the name the world gives it.
+      const operations = Object.values(useBuildingStore.getState().state?.operations ?? {});
+      const id =
+        operations.find((f) => f.name === roomName)?.operationId ??
+        getWorld()?.rooms.find((r) => r.kind !== "project" && r.name === roomName)?.id;
+      return id ? travelTo(id, { walkIn: true }) : false;
+    },
     walkToSeat(operationId, seatId) {
       // Just behind the chair, where someone stands to look over the sitter's shoulder.
       const at = seatOf(operationId, seatId, STAND_BEHIND);

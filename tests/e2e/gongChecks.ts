@@ -12,6 +12,7 @@ import { loadBoards } from "./githubAccess.ts";
 import {
   boneDriftDeg,
   boneSnapshot,
+  gongBursts,
   gongStrikes,
   henchmanPoses,
   poseDrift,
@@ -61,6 +62,7 @@ export async function checkMergeGong(page: Page, opts: { operation: string }) {
     const strikes = await gongStrikes(page);
     const ringBefore = (await sampleGong(page, 0)).swing.ringId;
     const seated = await henchmanPoses(page);
+    const bursts = await gongBursts(page);
 
     // Merge from the PR board: the office rings at once, without waiting for a poll.
     const panel = page.getByRole("dialog", { name: "PR board" });
@@ -86,7 +88,10 @@ export async function checkMergeGong(page: Page, opts: { operation: string }) {
     expect(ringing.swing.ringId, JSON.stringify(ringing)).toBeGreaterThan(ringBefore);
     expect(ringing.swing.peak, JSON.stringify(ringing)).toBeGreaterThan(0.05);
     expect(ringing.swing.frames, JSON.stringify(ringing)).toBeGreaterThan(0);
-    expect(ringing.maxConfetti, JSON.stringify(ringing)).toBeGreaterThan(0);
+    // Confetti flew: the gong fired a burst for this ring. Not "a sampled frame had confetti
+    // alive": a burst is over 2.2 s after it is fired, and a loaded page may draw no frame in
+    // that time (#299). That it is gone again is checked below, as before.
+    await expect.poll(() => gongBursts(page), JSON.stringify(ringing)).toBeGreaterThan(bursts);
     for (const [id, pose] of Object.entries(seated))
       if (pose.seated) expect(ringing.cheered, `henchman ${id} cheers`).toContain(id);
     await panel.getByRole("button", { name: "Close", exact: true }).click();

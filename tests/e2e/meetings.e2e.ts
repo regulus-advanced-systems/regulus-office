@@ -12,7 +12,6 @@
  * saves the meeting UI and the room during the meeting by day and by night there.
  */
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { type BrowserContext, expect, type Page, test } from "@playwright/test";
 import type { MeetingDetail } from "@regulus/protocol";
@@ -37,6 +36,7 @@ import { type FakeGitHub, MEMBER_GITHUB, OWNER_GITHUB, startFakeGitHub } from ".
 import { linkGitHub, setRepoPermission } from "./githubAccess.ts";
 import { createRemoteRepo } from "./gitRemote.ts";
 import { OFFICE_PROBE_PATH, waitForScene } from "./probes.ts";
+import { e2eTempRoot } from "./tempRoot.ts";
 
 const run = Date.now().toString(36);
 const owner = {
@@ -76,7 +76,7 @@ test.beforeAll(async ({ browser }) => {
     test.skip(true, "needs a Docker daemon (docker runner backend)");
   }
   buildRunnerImage();
-  dataDir = mkdtempSync(join(tmpdir(), "regulus-e2e-meetings-"));
+  dataDir = mkdtempSync(join(e2eTempRoot(), "regulus-e2e-meetings-"));
   prefix = `${process.env.E2E_RUNNER_PREFIX ?? "rge2e"}-m${run}`;
   github = await startFakeGitHub({ orgToken: `github_pat_unused${run}`, repos: [] });
   office = new AgentOffice({
@@ -180,7 +180,7 @@ async function enter(page: Page, name: string): Promise<void> {
     if (pose.room === room.id && pose.operationId === room.id) return;
     if (!pose.walking) expect(await walkTo(page, room.inside.x, room.inside.z)).toBe(true);
     throw new Error(`walking into ${name}`);
-  }).toPass({ timeout: 180_000, intervals: [500, 1_000] });
+  }).toPass({ timeout: 180_000, intervals: [200, 400] });
   await expect(page.locator(".rg-topbar__operation")).toHaveText(name, { timeout: 60_000 });
 }
 

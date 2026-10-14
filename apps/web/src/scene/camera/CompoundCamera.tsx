@@ -101,7 +101,10 @@ export function CompoundCamera({ centre, extent, enabled = true }: CompoundCamer
 
   useFrame((_, delta) => {
     if (!enabled || !(camera instanceof PerspectiveCamera)) return;
-    const dt = Math.min(delta, 0.1);
+    // The real frame time, however long: the easing below is exponential, so a long frame
+    // lands nearer the target and never past it. Clamped to a tenth of a second, a page that
+    // drew a frame a second eased ten times slower than the clock (#299).
+    const dt = delta;
     const want = useCameraStore.getState();
     const reduced = useUiStore.getState().settings.reducedMotion === true;
     shown.current.yaw = reduced ? want.yaw : dampYaw(shown.current.yaw, want.yaw, dt, 9);

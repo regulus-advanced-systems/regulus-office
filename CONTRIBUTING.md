@@ -31,7 +31,13 @@ bun run e2e:agents   # Playwright: the henchman flow (needs Docker)
 
 The `setup` project (`tests/e2e/office.setup.ts`) registers the owner and a member once per run and saves both sessions; the steps in `tests/e2e/office.e2e.ts` then run in order in two browsers opened from those sessions. The steps are not serial: when one fails, Playwright opens the two browsers again and the next step still runs, so each step must not rely on an earlier one having passed (a step that needs the Apollo operation calls `ensureApollo()`). Add a step as a `test()` that calls its `tests/e2e/xxxChecks.ts` function with `ownerPage` and `memberPage`. One step can run on its own, also repeatedly: `bunx playwright test -g "rings the gong" --repeat-each 5` (after `bun run build:web`).
 
-The browsers draw the scene in software (SwiftShader), as CI must. That wants about three free cores per run: on a busy machine the pages stall for many seconds at a time and steps time out, the first-login genius picker in the setup first (it stays on "Saving…"). On a machine with a GPU, `E2E_WEBGL=hardware bun run e2e` draws on the GPU instead and is not held up that way. Each run also needs its own ports: set `E2E_PORT` (the fake GitHub takes the next one) when another run may be using 4610.
+The browsers draw the scene in software (SwiftShader), as CI must. That wants about three free cores per run: on a busy machine the pages stall for many seconds at a time and steps time out, the first-login genius picker in the setup first (it stays on "Saving…"). On a machine with a GPU, `E2E_WEBGL=hardware bun run e2e` draws on the GPU instead and is not held up that way. Each run also needs its own ports: set `E2E_PORT` (the fake GitHub takes the next one) when another run may be using 4610. Both e2e suites open the office with the low graphics preset (`?quality=low`, what a software-rendered page picks by itself), so they expect the same things in either mode.
+
+Where a local run's files go:
+
+- `test-results/` and `playwright-report/` are Playwright's: it **empties `test-results/` at the start of every run**. Keep nothing of your own there.
+- `.e2e-local/` (ignored by git, never emptied) is for what must outlive a run: a run's output (`bunx playwright test … --output=.e2e-local/<name>`, the traces included), logs, notes.
+- The throwaway office of a run (database, clones, worktrees) is made in the system temp directory and removed at the end. When that directory is on a small file system (under 8 GB: a tmpfs `/tmp`), it is made in `.e2e-local/tmp/` instead, since a few runs' data and traces fill such a `/tmp` and other runs' browsers then fail to start. `E2E_TMP_DIR=/some/dir` names another place. Do not point `--output` at a small `/tmp` either: ten repeated runs with traces are gigabytes.
 
 ### E2E runners and cleanup
 
